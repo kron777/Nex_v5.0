@@ -46,7 +46,8 @@ def _dbs(tmp_path):
         "source TEXT, created_at REAL, affinity REAL, branch_id TEXT, tags TEXT)"
     )
     cx.execute(
-        "INSERT INTO beliefs VALUES (1, 'A held belief', 6, 'precipitated_from_sense', ?, 0.9)",
+        "INSERT INTO beliefs VALUES "
+        "(1, 'A held belief', 6, 0.9, 'precipitated_from_sense', ?, 0.8, 'cognition', '[\\"identity\\"]')",
         (time.time() - 60,),
     )
     cx.commit()
