@@ -61,9 +61,17 @@ def test_false_dependency_is_pruned():
 
 def test_feedback_cycle_detected():
     obs = {"a": Obligation("a", "a", "consumer"), "b": Obligation("b", "b", "consumer")}
-    rels = [Relationship("a", "b", "depends_on"), Relationship("b", "a", "depends_on")]
+    rels = [Relationship("a", "b", "depends_on"), Relationship("b", "a", "influences")]
     sys_t = assess_system(obs, rels)
-    assert any(t.subject == "feedback_cycles" for t in sys_t)
+    assessment = next(t for t in sys_t if t.subject == "feedback_cycles")
+    assert assessment.dimensions["classified_cycles"][0]["classification"] == "feedback_loop"
+    loop = assessment.dimensions["feedback_loop_assessments"][0]
+    assert loop["members"] == ["a", "b"]
+    assert loop["relationships"] == ["a:depends_on:b", "b:influences:a"]
+    assert loop["stability_state"] == "unknown"
+    assert loop["assessment_status"] == "unknown"
+    assert loop["gain"]["value"] is None
+    assert loop["recovery"]["value"] is None
 
 
 # ---- over-expansion controlled: reuse stops expansion; max_depth bounds ----
