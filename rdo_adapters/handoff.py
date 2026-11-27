@@ -623,7 +623,7 @@ def record_context_mapping(workdir: str, handoff_id: str, item_id: str,
 
 
 def record_acceptance_verification(workdir: str, handoff_id: str, criterion_id: str,
-                                   status: str, reviewer: str,
+                                   status: str, reviewer: str, source_reference: str,
                                    mapped_obligation_keys: Optional[List[str]] = None,
                                    verification_method: Optional[str] = None,
                                    evidence_references: Optional[List[str]] = None,
@@ -633,6 +633,7 @@ def record_acceptance_verification(workdir: str, handoff_id: str, criterion_id: 
     """Append one typed, UNKNOWN-first acceptance-criterion verification event."""
     manifest = load_handoff(workdir, handoff_id)
     reviewer = _text(reviewer, "reviewer", 256)
+    source_reference = _text(source_reference, "source_reference", 1000)
     criterion_id = _text(criterion_id, "criterion_id", 256)
     if not isinstance(note, str) or len(note) > 2000:
         raise HandoffError("note must be text of at most 2000 characters")
@@ -683,6 +684,7 @@ def record_acceptance_verification(workdir: str, handoff_id: str, criterion_id: 
         "criterion_id": criterion_id,
         "verification_record": record.to_dict(),
         "reviewer": reviewer,
+        "source_reference": source_reference,
         "note": note,
     }, require_context_mapping=(
         {"context_item_id": criterion_id, "mapped_obligation_keys": keys}
