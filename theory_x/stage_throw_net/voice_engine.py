@@ -186,7 +186,11 @@ class VoiceEngine:
                     "source": origin_type,
                     "origin_type": origin_type,
                     "origin_id": origin_id,
-                    "belief_id": origin_id if origin_type == "belief" else None,
+                    "belief_id": (
+                        origin_id
+                        if origin_type in {"belief", "fountain_insight"}
+                        else None
+                    ),
                 }
 
             self._miss_count += 1
