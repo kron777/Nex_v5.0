@@ -18,10 +18,10 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 - the input requires externally supplied seed obligations and reconciliation signatures; raw natural-language intent is not compiled into the initial obligation network by the RDO itself;
 - accepted context is preserved; unmapped context blocks readiness and exclusions propagate to anti-requirements, but context is not yet comprehensively mapped into obligations or checked against a complete obligation/evidence network;
 - the relationship model carries typed UNKNOWN-first Interface Tension Profile and operating-envelope evidence into relationship assessment, but its dimensions are not yet assessed against calibrated requirements;
-- q/tau performance-margin evidence now validates arithmetic, identity and comparable envelope constraints, but capacity/headroom assessment, operating-envelope classification, feedback-loop stability, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
+- q/tau performance-margin evidence validates arithmetic, identity and comparable envelope constraints; structural failure-propagation candidates are merged, but capacity/headroom assessment, operating-envelope classification, measured feedback-loop stability, runtime failure semantics, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
 - the twelve adversarial cases are only partly represented in tests.
 
-**The next vertical-slice increment is closing evidence-to-assessment gaps in feedback stability, failure propagation and neighbouring-capability impact.** The interface profile, operating-envelope evidence and q/tau margin records now exist; the next work must connect observations to calibrated assessment without inventing thresholds or verdicts. Extend the existing model, not replace the orchestrator or create a parallel RDO.
+**The next vertical-slice increment is closing evidence-to-assessment gaps in feedback stability and calibrated system-level OFT.** Structural failure-propagation candidates are now represented; relationship-level q/tau integration and persisted-cycle neighbour comparison are in review. The next work must connect observations to calibrated assessment without inventing thresholds or verdicts. Extend the existing model, not replace the orchestrator or create a parallel RDO.
 
 ## 2. Current implementation inventory
 
