@@ -47,7 +47,7 @@ def _dbs(tmp_path):
     )
     cx.execute(
         "INSERT INTO beliefs VALUES "
-        "(1, 'A held belief', 6, 0.9, 'precipitated_from_sense', ?, 0.8, 'cognition', '[\\"identity\\"]')",
+        "(1, 'A held belief', 6, 0.9, 'precipitated_from_sense', ?, 0.8, 'cognition', '[\"identity\"]')",
         (time.time() - 60,),
     )
     cx.commit()
