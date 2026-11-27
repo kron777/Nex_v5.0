@@ -224,3 +224,13 @@ def test_regression_lessons_from_different_objectives_do_not_collapse_scope():
     assert a.key != b.key
     assert a.applicability == first.objective
     assert b.applicability == second.objective
+
+
+def test_regression_without_objective_scope_does_not_create_global_pattern():
+    from rdo.memory import compare, derive_lessons
+    cycle = _cycle("unscoped-regression", 1, actual={
+        "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": ["ci:regression"],
+    })
+    cycle.objective = " "
+    assert all(not item.key.startswith("regression_risk:")
+               for item in derive_lessons(cycle, compare(cycle)))
