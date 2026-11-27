@@ -1,6 +1,6 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot index:** `main` at `90ffd57c75b33eff161ea33e29388e0732f0290e`  
+**Snapshot index:** `main` at `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`  
 **Date:** 27 November 2026  
 **Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy. The header SHA is the latest repository snapshot for navigation only; each finding retains its own source/test evidence date and must be revalidated before being called current.
 
@@ -58,9 +58,11 @@ Python/SQLite/Ollama exact versions on host, exact Qwen model digest, loaded-mod
 
 The boot graph and key Chat/Fountain paths have been mapped from source. A complete forward (declaration → boot → scheduler → emission → consumer) and backward (output/write → upstream producers) audit for every `theory_x/` faculty is not yet complete.
 
-### E-05 — MIND_MAP freshness warnings
+### E-05 — MIND_MAP freshness warnings (stale-source portion resolved)
 
-Current-main CI emitted 58 stale-source warnings, 2 missing doctrine-reference warnings and 1 past-due `p13_finitude` unblock warning. These need source review and evidence refresh, not timestamp-only edits.
+- **Fresh evidence:** PR #274 exact-head run `46037202834` executed `python mind_map/mind_map.py --check --verify` and reported 30 nodes, 0 unverified, 14 dark, 2 blocked, with **no STALE source-drift warnings**.
+- The two missing doctrine references (`VIRTUE_SLATE.md`, `mental_factors_inventory_alobha_spec.txt`) remain tracked under D-03. The past-due `p13_finitude` marker remains a deliberate warning, not permission to rearm.
+- **Disposition:** stale-source warning subset RESOLVED on this check. Residual source-authority and P13 warnings remain open under their respective entries; do not change timestamps to suppress warnings.
 
 ### E-06 — L4/runtime causal trace not captured
 
@@ -75,7 +77,7 @@ Roadmap v3.0 M0.5 (technical causal trace) is distinct from V2.1 M0.5 (six doctr
 - Exact M0.5 PR head `6d371fe385fc02a2c238247b39aff82681888745`: 2,491 passed, 7 skipped, 40 subtests, baseline OK, CI run #1392.
 - Push run #1393 (`45939220368`) is on parent commit `612022e81f749a99de665372704d7acc0645de67`, before PR #153 merged; it is not post-merge evidence for `66a9796`.
 - Current main `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`: 2,508 passed, 7 skipped, 40 subtests, baseline OK, CI run `45951932639`.
-- Current mind-map verification: 30 nodes, 0 unverified, 14 dark, 2 blocked; 61 verifier warnings (58 stale-source, 2 missing doctrine references, 1 past-due `p13_finitude` marker).
+- Current mind-map verification on PR #274 exact head (run `46037202834`): 30 nodes, 0 unverified, 14 dark, 2 blocked; no stale-source warnings; 2 missing doctrine references and 1 past-due `p13_finitude` marker remain.
 
 ## E. Additional bounded producer/consumer findings verified on current main
 
@@ -373,3 +375,8 @@ The former “no boot invocation” conclusion from main `99ae476` is superseded
 ### Governance boundary
 
 G-76 remains a founder decision. G-79 is closed by PR #272, merged as `90ffd57c75b33eff161ea33e29388e0732f0290e`. Gate 0 remains pending founder review; Phase 1 is unauthorized; G-69 / PR #259 remains Gate 0 HOLD. No runtime flags, live database state, frozen specification, roadmap or cognitive policy were changed by this evidence update.
+
+
+## Post-PR #274 mind-map freshness recheck — 27 November 2026
+
+**Current main:** `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`. PR #274 merged as this commit after its exact-head run `46037202834` passed **2,632 tests, 7 skipped, 45 subtests; baseline OK**. Its CI mind-map check reported 30 nodes, 0 unverified, 14 dark and 2 blocked, with no stale-source warnings. The two missing doctrine references remain unresolved under D-03; the past-due P13 marker remains intentionally retained and is not permission to rearm. No MIND_MAP node or runtime state changed.

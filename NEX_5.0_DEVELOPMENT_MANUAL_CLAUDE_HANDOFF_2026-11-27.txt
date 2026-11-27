@@ -5,7 +5,7 @@ The canonical Markdown manual remains INDEX.md; verify live source and evidence 
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `90ffd57c75b33eff161ea33e29388e0732f0290e`  
+**Last verified against:** `main` at `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -807,3 +807,23 @@ Therefore the Expectations reconcile/learning path is **launcher-armed and boot-
 - Gate 0 remains pending founder review; Phase 1 remains unauthorized. G-69 / PR #259 remains an explicit Gate 0 HOLD and must not be merged or deployed.
 - The frozen consolidated S-01–S-25 register and Master Roadmap are unchanged. This section records implementation/evidence facts; it does not decide the G-76 policy question or authorize runtime activation.
 - PR #272 has been reviewed and merged after exact-head CI passed. Next engineering decision: obtain founder clarification on whether provenance erosion is intentionally reinforcement-only or should include ordinary use. Keep host/runtime evidence UNKNOWN until collected through the authorized Phase 0 process.
+
+
+## 41. Post-#274 merge verification and MIND_MAP freshness recheck (27 November 2026)
+
+**Current main:** `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`. PR #274 was squash-merged after exact-head CI passed on `3487a300ebfcb59e7e1d2b5d995d265eb2705814` (run `46037202834`): **2,632 passed, 7 skipped, 45 subtests; [baseline] OK**. The sandbox probe passed. The four documentation files were re-fetched from main after merge, and the plain-text manual body remains byte-identical to this INDEX.
+
+### MIND_MAP verifier status
+
+The same exact-head CI run executed `python mind_map/mind_map.py --check --verify` and reported:
+
+- **30 nodes, 0 unverified, 14 dark, 2 blocked.**
+- **No STALE source-drift warnings** were emitted.
+- Two missing doctrine references remain: `VIRTUE_SLATE.md` and `mental_factors_inventory_alobha_spec.txt`.
+- The `p13_finitude` `UNBLOCK 2026-11-21` marker remains past due.
+
+This resolves the stale-source component of backlog E-05. The residual missing-source warnings remain governed by D-03; do not fabricate or silently remove the missing doctrine references. The P13 marker is deliberately retained as a warning, not authorization to rearm the chat workspace. The 14 dark and 2 blocked counts are node-state descriptors, not test failures or permission to activate features.
+
+### Boundary
+
+PR #274 changed documentation/evidence only. No MIND_MAP nodes, doctrine files, runtime flags, live databases, frozen S-01–S-25 specification, Master Roadmap, Gate 0 decision or Phase 1 authorization changed. Gate 0 remains pending founder review; G-69 / PR #259 remains HOLD.
