@@ -89,9 +89,14 @@ class VoiceEngine:
         turn_n: int = 0,
         trace=None,
     ) -> Optional[dict[str, Any]]:
-        """Retrieve highest-relevance candidate for the user query.
+        """Retrieve the highest-relevance candidate for the user query.
 
-        Returns {"content", "score", "source", "belief_id"} or None.
+        Returns content and score, the TimeFetch source type, and an origin
+        identifier whose namespace is explicit. The belief_id field is populated
+        only when the source is an individual belief; association, arc, and
+        problem IDs remain available as origin_id without being mislabelled.
+
+        Returns None when no candidate clears the score threshold.
         Never raises.
         """
         try:
@@ -173,11 +178,15 @@ class VoiceEngine:
 
             if used:
                 self._reply_count += 1
+                origin_type = best_candidate.get("source", "unknown")
+                origin_id = best_candidate.get("origin_id")
                 return {
                     "content": best_candidate["content"],
                     "score": best_score,
-                    "source": best_candidate.get("source", "unknown"),
-                    "belief_id": best_candidate.get("origin_id"),
+                    "source": origin_type,
+                    "origin_type": origin_type,
+                    "origin_id": origin_id,
+                    "belief_id": origin_id if origin_type == "belief" else None,
                 }
 
             self._miss_count += 1
