@@ -160,7 +160,13 @@ def _operating_envelope_evidence(value) -> dict:
         item = value.get(key)
         if hasattr(item, "__dict__"):
             item = dataclasses.asdict(item)
-        if not isinstance(item, dict) or item.get("value") is None:
+        complete = (
+            isinstance(item, dict) and item.get("value") is not None
+            and _has_traceable_evidence(item.get("evidence"))
+            and isinstance(item.get("confidence"), str)
+            and bool(item.get("confidence").strip())
+        )
+        if not complete:
             unknown.append(key)
     for key in ("transition_evidence", "recovery_evidence"):
         if not _has_traceable_evidence(value.get(key)):
