@@ -1255,13 +1255,14 @@ nodes:
       kind: composite
       refs:
         - "theory_x/memory/episodic.py:1-36"
-        - "theory_x/memory/episodic.py:168-229"
+        - "theory_x/memory/episodic.py:168-248"
         - "tests/test_episodic.py:1-18"
         - "tests/test_episodic_falsifier.py:1-30"
         - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
+        - "gui/server.py:3440-3455"
         - "SENTIENCE_PROGRAM.md:148-157"
-    last_verified: 2026-11-15
+    last_verified: 2026-11-27
     notes: >
       Built, tested, dark, now measured. SENTIENCE_PROGRAM.md:35 called this not-built and cited
       only resumption.py + snapshot_writer.py; :148-157 specifies Phase E and ARCHITECTURE.md:106,581
@@ -1274,8 +1275,14 @@ nodes:
       file without touching this one. Drift check is file-granularity, not line-granularity, so this
       kind of false positive is expected and worth re-verifying rather than assuming -- re-pinned
       last_verified having actually checked, not just to silence the warning.
-      gui/server.py:3090 exposes a read-only HUD endpoint, so the module docstring's
+      gui/server.py:3440-3455 exposes a read-only HUD endpoint, so the module docstring's
       "not wired into gui/server.py" is itself half-stale: read-visible, write-dark.
+
+      2026-11-27 source re-verification: nex_config.py still registers NEX5_EPISODIC at
+      line 84; record_episodes(), query_episodes() and reconstruct_episode() remain gated
+      by the flag. The GUI endpoint reads the episodes table directly and does not call the
+      writer/recording path; it is read-visible only. No current runtime flag or live-call
+      state was inspected, and the 2026-11-09 falsifier tests remain isolated fixture evidence.
 
       Falsifier run 2026-11-09, isolated test env (NEX5_DATA_DIR override, never the live DB/loop):
       tests/test_episodic_falsifier.py adds two checks against the real query_episodes()/
