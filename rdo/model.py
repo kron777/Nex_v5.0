@@ -183,8 +183,12 @@ class PerformanceMargin:
     @staticmethod
     def _finite_number(value) -> bool:
         import math
-        return (isinstance(value, (int, float)) and not isinstance(value, bool)
-                and math.isfinite(value))
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return False
+        try:
+            return math.isfinite(value)
+        except (OverflowError, TypeError, ValueError):
+            return False
 
     @property
     def margin(self) -> Optional[float]:
@@ -193,7 +197,8 @@ class PerformanceMargin:
                 or not isinstance(self.normalization, str)
                 or not self.normalization.strip()):
             return None
-        return float(self.q) - float(self.tau)
+        margin = float(self.q) - float(self.tau)
+        return margin if self._finite_number(margin) else None
 
     @property
     def margin_state(self) -> str:
