@@ -55,6 +55,7 @@ def validate_prerequisites(nodes: dict) -> None:
 def topo_sort(nodes: dict) -> list[str]:
     """Kahn's algorithm — the build order. Raises if a cycle exists (shouldn't:
     it's a DAG by construction)."""
+    validate_prerequisites(nodes)
     indeg = {n: 0 for n in nodes}
     for n, d in nodes.items():
         for p in d.get("prereqs", []):
