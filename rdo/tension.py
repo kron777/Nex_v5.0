@@ -59,10 +59,17 @@ def assess_node(ob: Obligation) -> TensionAssessment:
 
 def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -> TensionAssessment:
     subj = f"{rel.src} -{rel.kind}-> {rel.dst}"
+    profile = rel.interface_profile
+
+    # A known influence path without bounded authority is an overreach regardless
+    # of how many other consumers exist. Preserve the older relationship-level
+    # guard even when no detailed interface profile has yet been attached.
     if rel.kind == "influences" and rel.authority != "bounded":
         return TensionAssessment("relationship", subj, OVERDEVELOPED, inference=True,
+                                 evidence=[] if profile is None else profile.evidence,
                                  note="influence without a bounded-authority declaration "
                                       "(capability != authority)")
+
     if rel.kind == "depends_on":
         tgt = obligations.get(rel.dst)
         if tgt is not None and tgt.classification == NECESSARY:
@@ -75,8 +82,81 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
                 return TensionAssessment("relationship", subj, TENSION_UNKNOWN, inference=True,
                                          evidence=[f"target {tgt.recon_status}"],
                                          note="dependency target has not been semantically established")
-    return TensionAssessment("relationship", subj, SUFFICIENT, inference=True,
-                             note="no relationship tension detected")
+
+    # Absence of an interface profile is not evidence of sufficiency. Existing
+    # persisted relationships remain loadable, but their adequacy is UNKNOWN.
+    if profile is None:
+        return TensionAssessment(
+            "relationship", subj, TENSION_UNKNOWN, inference=True,
+            note="no InterfaceTensionProfile supplied; relationship adequacy cannot be assessed",
+        )
+
+    profile_data = profile.to_dict()
+    margins = profile_data["margins"]
+    below = [m for m in margins if m["status"] == "below_threshold"]
+    missing = profile.missing_dimensions(authority=rel.authority, reversible=rel.reversible)
+    evidence = list(profile.evidence)
+    for margin in margins:
+        evidence.extend(margin.get("evidence", []))
+
+    if profile.failure_propagation == "unbounded":
+        return TensionAssessment(
+            "relationship", subj, OVERDEVELOPED, inference=True, evidence=evidence,
+            dimensions={"interface_profile": profile_data, "missing_dimensions": missing},
+            note="interface failure propagation is unbounded",
+        )
+    if profile.duplication == "duplicate":
+        return TensionAssessment(
+            "relationship", subj, OVERDEVELOPED, inference=True, evidence=evidence,
+            dimensions={"interface_profile": profile_data, "missing_dimensions": missing},
+            note="interface profile identifies a duplicate mechanism; review whether the "
+                 "additional coupling/maintenance cost is justified",
+        )
+    if rel.reversible is False and profile.influence_magnitude not in ("none", "unknown"):
+        return TensionAssessment(
+            "relationship", subj, OVERDEVELOPED, inference=True, evidence=evidence,
+            dimensions={"interface_profile": profile_data, "missing_dimensions": missing},
+            note="material interface influence is not reversible",
+        )
+    if profile.feedback_stability == "unstable" or profile.feedback_sufficiency == "insufficient":
+        return TensionAssessment(
+            "relationship", subj, UNDERDEVELOPED, inference=True, evidence=evidence,
+            dimensions={"interface_profile": profile_data, "missing_dimensions": missing},
+            note="interface feedback is unstable or insufficient",
+        )
+    if profile.failure_semantics == "partial" or profile.observability == "partial":
+        return TensionAssessment(
+            "relationship", subj, UNDERDEVELOPED, inference=True, evidence=evidence,
+            dimensions={"interface_profile": profile_data, "missing_dimensions": missing},
+            note="interface failure semantics or observability is only partial",
+        )
+    if profile.headroom is not None and profile.headroom < 0:
+        return TensionAssessment(
+            "relationship", subj, UNDERDEVELOPED, inference=True, evidence=evidence,
+            dimensions={"interface_profile": profile_data, "missing_dimensions": missing},
+            note="measured interface headroom is negative",
+        )
+    if below:
+        return TensionAssessment(
+            "relationship", subj, UNDERDEVELOPED, inference=False, evidence=evidence,
+            dimensions={"interface_profile": profile_data, "margins": margins,
+                        "missing_dimensions": missing},
+            note="one or more measured performance margins are below their declared thresholds",
+        )
+    if missing:
+        return TensionAssessment(
+            "relationship", subj, TENSION_UNKNOWN, inference=True, evidence=evidence,
+            dimensions={"interface_profile": profile_data, "margins": margins,
+                        "missing_dimensions": missing},
+            note="interface profile is incomplete or lacks measured, evidence-backed margins",
+        )
+
+    return TensionAssessment(
+        "relationship", subj, SUFFICIENT, inference=False, evidence=evidence,
+        dimensions={"interface_profile": profile_data, "margins": margins,
+                    "missing_dimensions": []},
+        note="interface dimensions and declared performance margins are evidence-backed",
+    )
 
 
 # ---- system-level ----
