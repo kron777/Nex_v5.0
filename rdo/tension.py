@@ -158,7 +158,7 @@ def _operating_envelope_evidence(value) -> dict:
     unknown = []
     for key in ("measured_load", "measured_capacity", "headroom"):
         item = value.get(key)
-        if hasattr(item, "__dict__"):
+        if dataclasses.is_dataclass(item):
             item = dataclasses.asdict(item)
         complete = (
             isinstance(item, dict) and item.get("value") is not None
