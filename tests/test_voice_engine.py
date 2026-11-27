@@ -150,6 +150,7 @@ class TestOriginIdentity(unittest.TestCase):
     def test_origin_ids_are_not_mislabelled_as_belief_ids(self):
         cases = (
             ("belief", 41, 41),
+            ("fountain_insight", 45, 45),
             ("novel_association", 52, None),
             ("arc", 63, None),
             ("gap", 74, None),
