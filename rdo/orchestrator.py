@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Tuple
 from . import prioritise, reconcile as recon_mod, tension
 from .extrapolator import expand, frontier_breakdown
 from .memory import PatternMemory, compare, derive_lessons, record_actual
-from .model import (ACCEPTANCE_VERIFICATION_STATES, ANTI_REQUIREMENT,
+from .model import (ANTI_REQUIREMENT,
                     CONTEXT_REQUIREMENT_CLASSIFICATIONS, EXECUTED_VERIFIED, MISSING,
                     PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
                     AcceptanceVerificationRecord, ContextRequirement, CycleRecord,
