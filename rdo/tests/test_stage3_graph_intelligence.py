@@ -334,3 +334,21 @@ def test_failure_propagation_candidates_distinguish_no_failure_input_from_no_dep
     assert result["status"] == "not_supplied"
     assert result["roots"] == []
     assert result["affected"] == []
+
+
+
+def test_failure_propagation_detects_cycles_across_bfs_branches():
+    obligations = [_ob(key) for key in ("root", "b", "c", "d")]
+    rels = [
+        {"src": "b", "dst": "root", "kind": "depends_on"},
+        {"src": "c", "dst": "root", "kind": "depends_on"},
+        {"src": "d", "dst": "b", "kind": "depends_on"},
+        {"src": "b", "dst": "c", "kind": "depends_on"},
+        {"src": "c", "dst": "d", "kind": "depends_on"},
+    ]
+
+    result = graph.failure_propagation_candidates(obligations, rels, ["root"])
+
+    assert result["status"] == "candidate_only"
+    assert {item["key"] for item in result["affected"]} == {"b", "c", "d"}
+    assert result["cycle_encountered"] is True
