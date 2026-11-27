@@ -1,6 +1,6 @@
 # NEX v5.0 — Architecture Crosswalk v2 (Mainline Evidence Snapshot)
 
-**Snapshot:** `main` at `612022e81f749a99de665372704d7acc0645de67`  
+**Snapshot:** `main` at `66a97964f0531c16d60637dc8291b42e0b73f00b`  
 **Evidence date:** 27 November 2026  
 **Boundary:** source-level map and controlled tests; not a live runtime audit.
 
