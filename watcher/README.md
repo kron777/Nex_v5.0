@@ -42,15 +42,13 @@ Every runtime-graph `Edge` carries all three as explicit booleans; its `level` i
 the strongest it has, and a feedback cycle's status is its **weakest** edge. These
 flags are curated review assertions, not dynamically derived proofs. Ledger
 `TEST_WRITTEN`/`TEST_PASSED` entries cite `test_ref`, but mirror the curated
-`test_verified` flag; they do not represent a test run or captured CI result. NEX is
-in STANDBY, so nothing is `runtime_observed` yet — that stays an honest gap, not an
-assumption.
+`test_verified` flag; they do not represent a test run or captured CI result. This repository snapshot contains no current host collection; `runtime_observed` therefore remains unknown until a separately authorised host observation supplies evidence.
 
 ## Founder constraints honored
 
 1. **Learning ↔ belief-confidence loop** — surfaced as a **test_verified** feedback
    cycle (`reconciler → beliefs.confidence → producers → expectations → reconciler`):
-   it has code and tests, but is **not** claimed `runtime_observed` while NEX is off.
+   it has code and tests, but is **not** claimed `runtime_observed` because no current host trace has been collected.
    The Watcher characterizes it; it does not touch the live safeguards.
 2. **Candidate mood loop** — any cycle through `affect_state` is labeled
    **hypothesis** and its edges carry an explicit `HYPOTHESIS` note; it is never
