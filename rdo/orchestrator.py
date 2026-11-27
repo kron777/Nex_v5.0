@@ -29,7 +29,8 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
               memory: Optional[PatternMemory] = None,
               max_depth: int = 4,
               initial_relationships: Optional[List[Relationship]] = None,
-              objective_input: Optional[Dict] = None) -> Tuple[CycleRecord, dict]:
+              objective_input: Optional[Dict] = None,
+              objective_context: Optional[Dict] = None) -> Tuple[CycleRecord, dict]:
     applied = [p.key for p in memory.applicable(objective)] if memory else []
 
     # EXPAND (+ reconcile interleaved) -> DEDUP (done in expand) -> RECONCILE children.
@@ -52,6 +53,52 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
     # PRIORITISE -> WORK PACKAGES
     packages = prioritise.build_work_packages(obligations, relationships,
                                               active_experiments, authorised_gates)
+
+    # Objective context is a separate contract from the seed graph. Do not infer
+    # that free-text scope/constraints/exclusions/acceptance criteria were obeyed
+    # merely because seed obligations were expanded. Until each item is mapped to
+    # obligations and evidence, retain it as UNKNOWN and block execution readiness.
+    objective_context = dict(objective_context or {})
+    context_items = []
+    context_scope = objective_context.get("scope", {})
+    if isinstance(context_scope, dict):
+        for value in context_scope.get("in_scope", []) or []:
+            if isinstance(value, str) and value.strip():
+                context_items.append({"kind": "scope", "text": value, "status": "unmapped", "evidence": []})
+        for value in context_scope.get("affected_paths", []) or []:
+            if isinstance(value, str) and value.strip():
+                context_items.append({"kind": "affected_path", "text": value, "status": "unmapped", "evidence": []})
+    for field, kind in (("assumptions", "assumption"), ("constraints", "constraint"),
+                        ("exclusions", "exclusion"),
+                        ("acceptance_criteria", "acceptance_criterion")):
+        for value in objective_context.get(field, []) or []:
+            if isinstance(value, str) and value.strip():
+                context_items.append({"kind": kind, "text": value, "status": "unmapped", "evidence": []})
+    context_assessment = {
+        "status": "unmapped" if context_items else "not_supplied",
+        "review_required": bool(context_items),
+        "items": context_items,
+        "note": ("Objective context has not yet been mapped to obligations and independent evidence."
+                 if context_items else "No structured objective context was supplied."),
+    }
+    context_assessment["execution_readiness"] = (
+        "blocked" if context_items else "unknown"
+    )
+    context_assessment["handoff_readiness"] = (
+        "reviewable" if context_items else "not_applicable"
+    )
+    if context_items:
+        # Keep Stage-1 work-package eligibility distinct from execution readiness.
+        # A reviewable proposal may proceed to bounded human scope review, but
+        # unmapped context must never be interpreted as permission to execute.
+        context_exclusions = [
+            f"objective exclusion (mapping still unverified): {item['text']}"
+            for item in context_items if item["kind"] == "exclusion"
+        ]
+        for package in packages:
+            package.anti_requirements = list(dict.fromkeys(
+                package.anti_requirements + context_exclusions
+            ))
 
     recon_buckets = recon_mod.summarize(obligations)
     reused = recon_buckets.get(REUSE_EXISTING, [])
@@ -132,6 +179,8 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         work_packages=[p.to_dict() for p in packages],
         predicted=predicted, verification=verification,
         objective_input=dict(objective_input or {}),
+        objective_context=objective_context,
+        context_assessment=context_assessment,
     )
     summary = {
         "objective": objective,
@@ -146,6 +195,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
                               "blockers": p.blockers, "obligations": p.obligation_keys}
                              for p in packages],
         "sufficiency": sufficiency,
+        "objective_context": context_assessment,
         "verification": verification,
         "false_dependencies_pruned": pruned,
         "system_tension": [t.to_dict() for t in sys_t],
