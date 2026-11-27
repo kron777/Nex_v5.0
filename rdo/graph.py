@@ -274,7 +274,7 @@ def scc_decomposition(obligations: List[dict], rels: List[dict],
     ]
     # Cycle enumeration is graph-wide; compute it once, not once per SCC.
     # A self-loop of an excluded relationship kind is not a cycle in this view.
-    all_cycles = _find_cycles(rel_objs) if cyclic_components else []
+    all_cycles = _find_cycles(rel_objs, kinds) if cyclic_components else []
     components: List[dict] = []
     for comp in sccs:
         members = set(comp)
