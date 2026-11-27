@@ -42,7 +42,7 @@ from __future__ import annotations
 import sys
 import json
 import time
-from substrate import connect, Row
+from substrate import connect, Row, Writer
 
 sys.path.insert(0, ".")
 
@@ -150,33 +150,37 @@ def _read_attention() -> dict:
     return out
 
 
-def _ensure_table():
-    c = connect(_db("dynamic"), timeout=10)
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS self_state ("
-        "id INTEGER PRIMARY KEY CHECK (id=1), bound_at REAL, "
-        "emotion TEXT, raga TEXT, drive TEXT, drift TEXT, "
-        "readiness REAL, synthesis TEXT, components TEXT)"
-    )
-    # Append-only history of the bound self over time. self_state above holds
-    # only "now" (id=1, overwritten each bind), which leaves no trace of a self
-    # across time -- the central continuity gap (see DESIGN_MINDEDNESS.md §2.1).
-    # Mirrors affect_state -> affect_history (9fbd1bb). Purely additive: the
-    # read path (format_for_prompt) is unchanged, so prompt composition and
-    # behaviour are identical; this only persists the trace.
-    # NOTE: append-only -> needs a nex_db_reaper retention entry (step 2).
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS self_state_history ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, bound_at REAL NOT NULL, "
-        "emotion TEXT, raga TEXT, drive TEXT, drift TEXT, "
-        "readiness REAL, synthesis TEXT, components TEXT)"
-    )
-    c.execute(
-        "CREATE INDEX IF NOT EXISTS idx_self_state_history_bound_at "
-        "ON self_state_history(bound_at DESC)"
-    )
-    c.commit()
-    c.close()
+def _ensure_table(writer: Writer | None = None) -> None:
+    # Standalone compatibility is used by migration/test helpers. The live
+    # Fountain path always supplies the AppState dynamic Writer.
+    owns_writer = writer is None
+    if writer is None:
+        writer = Writer(_db("dynamic"), name="self_binding_schema")
+    try:
+        writer.write_many([
+            (
+                "CREATE TABLE IF NOT EXISTS self_state ("
+                "id INTEGER PRIMARY KEY CHECK (id=1), bound_at REAL, "
+                "emotion TEXT, raga TEXT, drive TEXT, drift TEXT, "
+                "readiness REAL, synthesis TEXT, components TEXT)",
+                (),
+            ),
+            (
+                "CREATE TABLE IF NOT EXISTS self_state_history ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, bound_at REAL NOT NULL, "
+                "emotion TEXT, raga TEXT, drive TEXT, drift TEXT, "
+                "readiness REAL, synthesis TEXT, components TEXT)",
+                (),
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS idx_self_state_history_bound_at "
+                "ON self_state_history(bound_at DESC)",
+                (),
+            ),
+        ])
+    finally:
+        if owns_writer:
+            writer.close()
 
 
 def _synthesize(emotion: str, raga: str, drive: str, att: dict, substrate: dict | None = None) -> str:
@@ -210,56 +214,61 @@ def _synthesize(emotion: str, raga: str, drive: str, att: dict, substrate: dict 
     return "Right now, " + ", ".join(parts) + "."
 
 
-def bind() -> dict:
-    _ensure_table()
-    emo = _read_emotion()
-    raga = _read_raga()
-    drive = _read_dominant_drive()
-    att = _read_attention()
-    substrate = _read_substrate()
-
-    emotion = emo.get("emotion", "unknown")
-    raga_level = raga.get("raga", "unknown")
-    # value-drift is expensive (model calls) — bind reads last logged verdict only
-    drift = "clean"  # default; full check runs separately, not every bind cycle
-
-    synthesis = _synthesize(emotion, raga_level, drive, att, substrate)
-    components = {
-        "emotion": emotion, "raga": raga_level, "drive": drive,
-        "readiness": att.get("readiness", 0.0),
-        "attending": att.get("problem") or att.get("thought", ""),
-        "substrate_cpu": substrate.get("cpu", 0.0),
-        "substrate_tone": substrate.get("tone", ""),
-    }
-
-    bound_ts = time.time()
-    components_json = json.dumps(components)
-    readiness = att.get("readiness", 0.0)
-
-    c = connect(_db("dynamic"), timeout=10)
-    c.execute(
-        "INSERT OR REPLACE INTO self_state "
-        "(id, bound_at, emotion, raga, drive, drift, readiness, synthesis, components) "
-        "VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (bound_ts, emotion, raga_level, drive, drift,
-         readiness, synthesis, components_json),
-    )
-    # Append the same bound state to history (shares bound_ts with the row
-    # above). Fail-safe: a history-write error must never break the bind.
+def bind(dynamic_writer: Writer | None = None) -> dict:
+    owns_writer = dynamic_writer is None
+    writer = dynamic_writer
     try:
-        c.execute(
-            "INSERT INTO self_state_history "
-            "(bound_at, emotion, raga, drive, drift, readiness, synthesis, components) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        if writer is None:
+            writer = Writer(_db("dynamic"), name="self_binding")
+        _ensure_table(writer)
+        emo = _read_emotion()
+        raga = _read_raga()
+        drive = _read_dominant_drive()
+        att = _read_attention()
+        substrate = _read_substrate()
+
+        emotion = emo.get("emotion", "unknown")
+        raga_level = raga.get("raga", "unknown")
+        # value-drift is expensive (model calls) — bind reads last logged verdict only
+        drift = "clean"  # default; full check runs separately, not every bind cycle
+
+        synthesis = _synthesize(emotion, raga_level, drive, att, substrate)
+        components = {
+            "emotion": emotion, "raga": raga_level, "drive": drive,
+            "readiness": att.get("readiness", 0.0),
+            "attending": att.get("problem") or att.get("thought", ""),
+            "substrate_cpu": substrate.get("cpu", 0.0),
+            "substrate_tone": substrate.get("tone", ""),
+        }
+
+        bound_ts = time.time()
+        components_json = json.dumps(components)
+        readiness = att.get("readiness", 0.0)
+
+        writer.write(
+            "INSERT OR REPLACE INTO self_state "
+            "(id, bound_at, emotion, raga, drive, drift, readiness, synthesis, components) "
+            "VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)",
             (bound_ts, emotion, raga_level, drive, drift,
              readiness, synthesis, components_json),
         )
-    except Exception:
-        pass
-    c.commit()
-    c.close()
+        # Append the same bound state to history. Fail-safe: a history-write
+        # error must never break the bind or undo the current self-state row.
+        try:
+            writer.write(
+                "INSERT INTO self_state_history "
+                "(bound_at, emotion, raga, drive, drift, readiness, synthesis, components) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (bound_ts, emotion, raga_level, drive, drift,
+                 readiness, synthesis, components_json),
+            )
+        except Exception:
+            pass
 
-    return {"synthesis": synthesis, "components": components}
+        return {"synthesis": synthesis, "components": components}
+    finally:
+        if owns_writer and writer is not None:
+            writer.close()
 
 
 def format_for_prompt() -> str:
