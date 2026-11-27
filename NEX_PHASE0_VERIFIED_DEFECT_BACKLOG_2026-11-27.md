@@ -446,6 +446,16 @@ The removal comment says the module had no GUI/chat consumers, but current main 
 
 **Disposition:** treat SocialPresence metrics and its autonomous loop as disabled on current main. Decide whether to restore it with meaningful consumers, or explicitly mark the protocol deferred/archived. Do not re-enable it merely to make the protocol text true; if restored, add boot-wiring, consumer and shutdown tests.
 
+### G-92 — RDO objective context is preserved but not enforced in planning (OPEN capability gap)
+
+**Sources:** `rdo_adapters/objective_intake.py:validate_objective()`; `rdo_adapters/objective_intake.py:submit_objective()`; `rdo/OBJECTIVE_INTAKE.md`.
+
+The intake validates and stores `intent`, `owner`, `scope`, `constraints`, `exclusions` and `acceptance_criteria`. However, `submit_objective()` passes the original text, assumptions, supplied seed obligations, relationships, reconciliation signatures and max depth into `run_cycle()`; it does not pass those structured context fields as planning or verification inputs. They remain preserved context, not enforced work-package constraints, anti-requirements or acceptance criteria.
+
+The caller must also supply 1–200 seed obligations and repository-search signatures. The intake adapter does not derive those initial obligations from raw intent. Consequently, the RDO is not yet a complete raw-objective-to-build compiler: a plan can fail to reflect preserved scope/constraints/exclusions, and acceptance criteria are not yet an explicit verification contract.
+
+**Next increment:** translate scope, constraints and exclusions into typed obligations/anti-requirements; carry acceptance criteria into explicit verification records; trace every field to affected work packages; and add adversarial tests proving contradictory or excluded work is blocked. Preserve human/LLM seed provenance. This is a capability gap, not permission to execute or relax the RDO's bounded authority.
+
 ### RDO capability boundary (not a defect ID)
 
 Current objective intake requires externally supplied seed obligations and reconciliation signatures. The deterministic extrapolator expands a bounded rule catalogue (default depth 4); it does not independently compile arbitrary raw intent into those initial seeds. RDO remains an external advisory tool, not NEX runtime. The founder-supplied v1.4 text was provided in a prior conversation, but its raw bytes are not available in the current repository/Library for direct comparison; v1.3 §16 remains the verified staged sequence, while v1.4 precedence is unresolved. See the system research report.
