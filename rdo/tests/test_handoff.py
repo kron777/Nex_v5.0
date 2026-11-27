@@ -650,14 +650,15 @@ def test_rdo_context_review_events_pass_independent_watcher_verification(tmp_pat
         "review:scope", ["prepare_scoped_patch", "edit_documentation_within_scope"],
     )
     criterion = manifest["objective_context_assessment"]["acceptance_verification"][0]
+    mapped_key = manifest["obligations"][0]["key"]
     record_context_mapping(
         workdir, manifest["handoff_id"], criterion["criterion_id"],
-        [package["key"]], ["review:criterion-map"], "reviewer", "review:context-map",
+        [mapped_key], ["review:criterion-map"], "reviewer", "review:context-map",
     )
     record_acceptance_verification(
         workdir, manifest["handoff_id"], criterion["criterion_id"], "pending",
         "reviewer", "review:criterion-verification",
-        mapped_obligation_keys=[package["key"]],
+        mapped_obligation_keys=[mapped_key],
         verification_method="inspect the proposed patch against the criterion",
     )
 
