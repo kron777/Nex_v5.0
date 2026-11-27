@@ -34,9 +34,28 @@ def load() -> dict:
         return json.load(f)
 
 
+def validate_prerequisites(nodes: dict) -> None:
+    """Reject prerequisite references that do not resolve to a DAG node.
+
+    Unknown references must not be silently treated as satisfied: doing so can
+    make an incomplete graph appear buildable or produce a false topological
+    order. Report every unresolved edge in deterministic order.
+    """
+    unresolved = sorted(
+        (node, prereq)
+        for node, data in nodes.items()
+        for prereq in data.get("prereqs", [])
+        if prereq not in nodes
+    )
+    if unresolved:
+        details = ", ".join(f"{node} -> {prereq}" for node, prereq in unresolved)
+        raise ValueError(f"unknown DAG prerequisite reference(s): {details}")
+
+
 def topo_sort(nodes: dict) -> list[str]:
     """Kahn's algorithm — the build order. Raises if a cycle exists (shouldn't:
     it's a DAG by construction)."""
+    validate_prerequisites(nodes)
     indeg = {n: 0 for n in nodes}
     for n, d in nodes.items():
         for p in d.get("prereqs", []):
@@ -59,7 +78,8 @@ def topo_sort(nodes: dict) -> list[str]:
 
 
 def classify(nodes: dict) -> dict:
-    """Apply the buildable-now rule to every node."""
+    """Apply the buildable-now rule after validating every prerequisite edge."""
+    validate_prerequisites(nodes)
     out = {"buildable_now": [], "blocked": [], "built": [],
            "live_unproven": [], "terminal": [], "gorge": []}
     for n, d in nodes.items():

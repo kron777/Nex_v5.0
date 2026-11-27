@@ -80,3 +80,44 @@ def test_full_report_describes_unproven_status_as_caveat_not_hard_gate(capsys):
     assert "THE ONE GATE RIGHT NOW" not in output
     assert "dependency-satisfied caveats; not validated" in output
     assert "at least one prerequisite is outside the DAG satisfied set" in output
+
+
+
+def test_unknown_prerequisite_is_rejected_by_classification():
+    nodes = {
+        "candidate": {
+            "status": "gap",
+            "prereqs": ["missing_node"],
+        },
+    }
+
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"unknown DAG prerequisite reference\(s\): candidate -> missing_node",
+    ):
+        nex_next_dev.classify(nodes)
+
+
+def test_unknown_prerequisite_is_rejected_by_topological_sort():
+    nodes = {
+        "candidate": {
+            "status": "gap",
+            "prereqs": ["missing_node"],
+        },
+    }
+
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"unknown DAG prerequisite reference\(s\): candidate -> missing_node",
+    ):
+        nex_next_dev.topo_sort(nodes)
+
+
+def test_current_sentience_dag_has_no_unresolved_prerequisites():
+    nodes = nex_next_dev.load()["nodes"]
+
+    assert nex_next_dev.validate_prerequisites(nodes) is None

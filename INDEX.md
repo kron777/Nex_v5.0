@@ -219,7 +219,7 @@ Prefer controlled experiments and reversible changes. Do not add a new named fac
 
 A successful unit test does not establish runtime liveness. A successful boot does not establish cognitive efficacy. A model's first-person self-report does not establish subjective experience.
 
-**Development-tool correction (27 November 2026; branch verification pending):** source review found that `nex_next_dev.py --buildable` unpacked each `classify()` result as two values although the classifier returns three (`node`, unproven prerequisites, terminal-null prerequisites). The command therefore raises a tuple-unpacking error when a buildable gap is present. The full report also described a `live_unproven` prerequisite as a hard gate, contradicting `sentience_dag.json`'s explicit rule that `built`, `live_unproven` and `terminal` are all dependency-satisfied statuses, with the latter two surfaced as caveats rather than blockers. The development-tool branch now prints both caveat types in `--buildable`, labels unproven statuses as non-blocking caveats in the full report, and exposes a testable `main(argv)` entry point. Three isolated regression tests cover the CLI output and preserve the existing DAG classification semantics. This is a developer-tool correction only: it does not change the DAG, runtime code, cognitive behaviour, flags, specifications or roadmap. Exact-head test/CI results are pending; do not call it validated until those results are inspected.
+**Development-tool correction (27 November 2026; merged in PR #228):** source review found that `nex_next_dev.py --buildable` unpacked each `classify()` result as two values although the classifier returns three (`node`, unproven prerequisites, terminal-null prerequisites). The command therefore raised a tuple-unpacking error when a buildable gap was present. The full report also described a `live_unproven` prerequisite as a hard gate, contradicting `sentience_dag.json`'s explicit rule that `built`, `live_unproven` and `terminal` are all dependency-satisfied statuses, with the latter two surfaced as caveats rather than blockers. PR #228 fixes the unpacking, prints both caveat types in `--buildable`, corrects the full-report language and exposes a testable `main(argv)` entry point. Exact-head CI run `46000586294` passed: **2,552 passed, 7 skipped, 45 subtests passed**, baseline OK. This is a developer-tool correction only: no DAG status, runtime code, cognitive behaviour, flags, specifications or roadmap changed.
 
 ---
 
@@ -289,4 +289,22 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — refreshed after #189, #191, #196, #199 and #200. Records the remaining one-pen migrations as merged while preserving the distinction between bounded PR completion and a repository-wide writer audit.*
+*Last amended: 27 November 2026 — refreshed after #189, #191, #196, #199, #200 and #228; records the DAG CLI correction and the follow-up prerequisite-integrity validation in progress.*
+
+
+---
+
+## 14. DAG prerequisite-reference integrity (27 November 2026)
+
+A follow-up source audit of `nex_next_dev.py` found a latent graph-integrity defect: both `classify()` and `topo_sort()` silently ignored prerequisite IDs absent from the `nodes` mapping. In classification, a gap with an unknown prerequisite could therefore pass the `all()` check because the missing reference was filtered out, and be reported as buildable. In topological sorting, the unknown edge was omitted, producing an apparently valid order for an incomplete graph.
+
+The current `sentience_dag.json` snapshot was checked independently: **15 nodes, 15 prerequisite edges, 0 unresolved references**; statuses are 9 built, 2 terminal, 2 gap, 1 gorge and 1 live_unproven. This establishes that the current graph is clean, not that the validation defect is harmless: it could be triggered by a future misspelled or deleted node ID.
+
+A bounded developer-tool fix is in progress on `fix/nex-next-dev-prerequisite-integrity`:
+- add deterministic validation of every prerequisite reference;
+- make both classification and topological sorting raise a clear `ValueError` listing unresolved edges;
+- add isolated regression tests for each path and a test asserting the current DAG has no unresolved references.
+
+The change does not edit `sentience_dag.json`, node statuses, runtime code, cognitive behaviour, flags, specifications, roadmap or phase gates. Exact-head CI is pending; do not call this change validated until CI is inspected. The intended rollback is a revert of the isolated developer-tool commit(s)/PR.
+
+**PR #228 integration:** merged to `main` as `4a45c22930205afb7fba557576614821d2bd274c` after exact-head CI success (run `46000586294`). Its three changed files are `nex_next_dev.py`, `tests/test_nex_next_dev.py` and this INDEX.
