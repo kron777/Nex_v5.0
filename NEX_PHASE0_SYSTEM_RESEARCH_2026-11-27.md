@@ -178,7 +178,7 @@ The consolidated S-01–S-25 register, Master Roadmap, Gate 0 and Phase 1 bounda
 
 After the research snapshot above, PR #279 merged as `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`. It routes the scheduled prose-statistics rebuild from `SignalToProblem` through the existing shared beliefs Writer/Reader path and replaces per-token writes with one Writer transaction. The direct builder remains available for comparison/compatibility, but the scheduled loop no longer calls it.
 
-Exact-head CI run `46044361663` passed **2,638 tests, 7 skipped, 45 subtests; baseline OK**. New tests compare Writer/Reader output with the direct builder and assert the scheduled loop calls the shared path. No post-merge main CI run was returned at this update.
+Exact-head CI run `46044361663` passed **2,638 tests, 7 skipped, 45 subtests; baseline OK**. New tests compare Writer/Reader output with the direct builder and assert the scheduled loop calls the shared path. Post-merge main run `46045384807` also passed **2,638 tests, 7 skipped, 45 subtests; baseline OK**. Its mind-map verifier reported 30 nodes, 0 unverified, 14 dark, 2 blocked; the two missing doctrine references and overdue `p13_finitude` marker remain visible warnings.
 
 This closes the auxiliary prose-statistics direct-write bypass only. The primary `signal_to_problem_tick()` path still opens direct write-capable connections to `beliefs.db` and `conversations.db`, dynamically adds `signals.actioned_at`, and commits the two stores separately. G-85/G-61 therefore remain open; the cross-database idempotency/recovery contract is still needed before migrating the primary writes. No cognition policy or runtime state changed.
 
