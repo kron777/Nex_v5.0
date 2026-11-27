@@ -217,3 +217,27 @@ def test_failure_after_success_checkpoints_only_last_handled_event(tmp_path, mon
             assert db.execute("SELECT COUNT(*) FROM beliefs").fetchone()[0] == 3
     finally:
         _close(handles)
+
+
+def test_first_run_cutoff_is_persisted_when_no_rows_are_yet_eligible(tmp_path, monkeypatch):
+    loop, dynamic_path, beliefs_path, handles = _prepare_databases(
+        tmp_path, initial_ts=0.0
+    )
+    try:
+        monkeypatch.setattr(loop.time, "time", lambda: 1000.0)
+        assert _tick(loop, handles) == {"promoted": 0}
+        with sqlite3.connect(dynamic_path) as db:
+            cursor = dict(db.execute("SELECT key, value FROM daemon_kv"))
+        assert cursor[loop.LAST_PROMOTED_TS_KEY] == "400.0"
+        assert cursor[loop.LAST_PROMOTED_ID_KEY] == "0"
+
+        # The event was created inside the original ten-minute window, but
+        # becomes eligible only after the first tick. A sliding cutoff would
+        # now exclude it; the persisted first-run boundary must still include it.
+        _insert_event(dynamic_path, 500.0, 9)
+        monkeypatch.setattr(loop.time, "time", lambda: 1300.0)
+        assert _tick(loop, handles) == {"promoted": 1}
+        with sqlite3.connect(beliefs_path) as db:
+            assert db.execute("SELECT COUNT(*) FROM beliefs").fetchone()[0] == 1
+    finally:
+        _close(handles)
