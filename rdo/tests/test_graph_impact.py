@@ -119,6 +119,7 @@ def test_non_incident_relationships_are_excluded_and_missing_scope_stays_unknown
     before = _cycle(
         [{"src": "reader", "dst": "database", "kind": "depends_on"}],
         [_assessment("reader -depends_on-> database")],
+        obligations=["reader", "database", "store"],
     )
     after = before
 
@@ -203,3 +204,30 @@ def test_unknown_changed_capability_is_not_misreported_as_isolated():
     assert report["status"] == "partial"
     assert report["unknown_capabilities"] == ["typo-capability"]
     assert report["affected_relationships"] == []
+
+
+def test_unknown_capability_does_not_masquerade_as_isolated_node():
+    cycle = _cycle([], [])
+    report = compare_adjacent_relationship_impacts(cycle, cycle, ["missing-node"])
+    assert report["status"] == "partial"
+    assert report["unknown_capabilities"] == ["missing-node"]
+    assert report["affected_relationships"] == []
+
+
+def test_known_isolated_capability_can_report_no_adjacent_relationships():
+    cycle = _cycle([], [], obligations=["isolated-node"])
+    report = compare_adjacent_relationship_impacts(cycle, cycle, ["isolated-node"])
+    assert report["status"] == "no_adjacent_relationships"
+    assert report["unknown_capabilities"] == []
+    assert report["affected_relationships"] == []
+
+
+def test_malformed_capability_inventory_keeps_impact_report_partial():
+    cycle = {
+        "relationships": [],
+        "tension": [],
+        "obligations": [{"key": "valid"}, {"bad": "record"}],
+    }
+    report = compare_adjacent_relationship_impacts(cycle, cycle, ["valid"])
+    assert report["status"] == "partial"
+    assert report["invalid_obligation_records"] == 2
