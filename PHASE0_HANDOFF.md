@@ -200,7 +200,7 @@ Claude's review should follow the same research → bounded implementation → r
 
 ## Historical PR #265 correction record — superseded by the current status block below (27 November 2026)
 
-The first manual update described PR #264 as based on the post-#263 mainline. A later commit-graph check found its merge base was still `cc8ae43652bdba919198ee4bb90fabbd8f05632f`. Its exact-head suite run `46023260805` passed, but that run did not validate the later mainline. PR #264 is closed as superseded. **PR #266** replayed the same change on `edb869af154a33cd77df5ad9bdf010d3e6ab2`; it was itself superseded after main advanced. **PR #268** is the latest-main replay; see the current status block. Do not treat the old pass as current-main validation. The change may advance previously starved beliefs at a future scheduled erosion pass and remains subject to review.
+The first manual update described PR #264 as based on the post-#263 mainline. A later commit-graph check found its merge base was still `cc8ae43652bdba919198ee4bb90fabbd8f05632f`. Its exact-head suite run `46023260805` passed, but that run did not validate the later mainline. PR #264 is closed as superseded. **PR #266** replayed the same change on `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`; it was itself superseded after main advanced. **PR #268** is the latest-main replay; see the current status block. Do not treat the old pass as current-main validation. The change may advance previously starved beliefs at a future scheduled erosion pass and remains subject to review.
 
 
 ## Current Claude handoff status — verified at main 9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465 (27 November 2026)
