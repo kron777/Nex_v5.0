@@ -247,6 +247,8 @@ def ingest(
                     (table,),
                 ).fetchone()[0]
                 src = cx if dbname == "conversations" else _ro(dbname)
+                if src is not cx:
+                    src.row_factory = Row
                 try:
                     if not _has_table(src, table):
                         continue
