@@ -46,9 +46,10 @@ def test_ledger_lifecycle_and_illegal_transition(tmp_path):
     led.record("x->y", "TEST_WRITTEN", evidence_refs=["tests/test_x.py"])
     led.record("x->y", "TEST_PASSED", evidence_refs=["tests/test_x.py"])
     assert led.current_state("x->y") == "TEST_PASSED"
-    # cannot invent a runtime observation out of DECLARED on a fresh connection
-    with pytest.raises(LedgerError):
-        led.record("fresh->z", "RUNTIME_OBSERVED")
+    # Even with host provenance and a trace, runtime cannot be the first lifecycle state.
+    with pytest.raises(LedgerError, match="first entry must be DECLARED"):
+        led.record("fresh->z", "RUNTIME_OBSERVED", origin="host",
+                   evidence_refs=["trace:host-runtime-fresh"])
     # persistence: a new ledger over the same file sees history
     led2 = ConnectionLedger(str(tmp_path / "ledger.jsonl"))
     assert led2.current_state("x->y") == "TEST_PASSED"
