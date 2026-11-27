@@ -519,3 +519,14 @@ The event-time cursor is a correctness improvement, but its production cost is n
 Without matching indexes, SQLite may need to scan and sort these tables for each Warrant use cycle. The previous timestamp/rowid cursor also lacked an obvious matching composite index, so this is not yet established as a regression; it is an unmeasured cost of the current access path.
 
 No speculative index migration has been added. Before enabling `NEX5_WARRANT_RECORD` on a data-bearing host, measure table row counts, inspect `EXPLAIN QUERY PLAN` for both cursor queries, and time representative cycles against realistic data. Add the composite indexes only if those measurements justify their write/storage overhead. The feature gate remains OFF and no live database was inspected.
+
+
+## 27. SurpriseLoop loss-safe event delivery: current-main replay and Gate 0 hold (27 November 2026)
+
+A further open contribution, **PR #251**, addresses the SurpriseLoop's timestamp-only cursor and failure checkpointing. Source review confirms that `theory_x/stage_prediction/predictive_substrate.py` writes each resolved `surprise_events` row with its final `actual_content`, `surprise_flag` and `big_surprise` values at insertion time; this supports the event-ID cursor's assumption that eligibility fields are not later filled in for an existing row.
+
+The current-main replay is **PR #255 — SurpriseLoop loss-safe event delivery: OPEN / exact-head CI pending / GATE 0 HOLD**. It is based on post-#248 main. The implementation uses the monotonic `surprise_events.id`, migrates the legacy timestamp boundary by replaying events exactly at the cutoff, writes timestamp and ID checkpoint values together, and stops at the first non-duplicate conversion/write failure so the failing event and later events retry. Only duplicate belief-content collisions are checkpointed as already represented. Ordinary surprise tags are de-duplicated.
+
+**Do not merge or deploy #255 yet.** This is not merely an observability fix: events that were previously skipped can now reach the belief corpus and change downstream retrieval inputs. The PR's own scope statement preserves the Gate 0 requirement. Founder review and explicit approval of that behaviour-impact decision are required. The correction does not change prediction scoring, surprise thresholds, event generation or loop cadence.
+
+The older-base PR #251 is closed as superseded by #255. Its prior exact-head full-suite run passed, but #255 requires its own current-main exact-head validation. Gate 0 remains pending; Phase 1 remains unauthorized.
