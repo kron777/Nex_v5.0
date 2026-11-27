@@ -10,7 +10,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Any, List, Optional
 
-from .model import InterfaceEvidence
+from .model import InterfaceEvidence, _has_traceable_evidence
 
 NORMAL = "normal"
 BUSY = "busy"
@@ -49,8 +49,13 @@ class OperatingEnvelopeAssessment:
             raise ValueError(f"invalid declared operating envelope: {self.declared_state!r}")
         if self.assessed_state is not None and self.assessed_state not in ENVELOPE_STATES:
             raise ValueError(f"invalid assessed operating envelope: {self.assessed_state!r}")
-        if self.assessed_state is not None and not self.assessment_evidence:
-            raise ValueError("an assessed state requires traceable assessment evidence")
+        if self.assessed_state is not None:
+            if not _has_traceable_evidence(self.assessment_evidence):
+                raise ValueError("an assessed state requires traceable assessment evidence")
+            if not isinstance(self.confidence, str) or not self.confidence.strip():
+                raise ValueError("an assessed state requires a non-blank confidence label")
+            if not _has_traceable_evidence(self.provenance):
+                raise ValueError("an assessed state requires traceable provenance")
         for field_name in ("transition_evidence", "recovery_evidence",
                            "assessment_evidence", "provenance"):
             values = getattr(self, field_name)
