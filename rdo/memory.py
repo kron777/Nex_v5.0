@@ -115,6 +115,15 @@ class PatternMemory:
                 p.confirmations = self._clean_events(p.confirmations, "confirmation")
                 p.disconfirmations = self._clean_events(p.disconfirmations, "disconfirmation")
                 self._recompute(p)
+                previous = self._current.get(p.key)
+                if previous is not None:
+                    if previous.exact_scope != p.exact_scope:
+                        raise ValueError("persisted pattern key collision has conflicting scope modes")
+                    if p.exact_scope:
+                        old_scope = " ".join(previous.applicability.split()).lower()
+                        new_scope = " ".join(p.applicability.split()).lower()
+                        if old_scope != new_scope:
+                            raise ValueError("persisted pattern key collision has conflicting exact scopes")
                 self._current[p.key] = p
 
     @staticmethod
@@ -146,12 +155,31 @@ class PatternMemory:
 
     def add(self, pattern: Pattern) -> Pattern:
         """Add or corroborate one provenance event. Exact replay is idempotent."""
+        if not isinstance(pattern.exact_scope, bool):
+            raise ValueError("pattern exact_scope must be a boolean")
+        if pattern.exact_scope and (
+            not isinstance(pattern.applicability, str) or not pattern.applicability.strip()
+        ):
+            raise ValueError("exact-scope patterns require a non-blank applicability")
         incoming_confidence = _bounded_confidence(pattern.confidence)
         incoming_base = _bounded_confidence(pattern.base_confidence)
         incoming = [x.strip() for x in str(pattern.provenance).split(";") if x.strip()]
         if not incoming:
             raise ValueError("pattern provenance must contain a non-empty source")
         existing = self._current.get(pattern.key)
+        if existing is not None:
+            if not isinstance(existing.exact_scope, bool):
+                raise ValueError("existing pattern exact_scope must be a boolean")
+            if existing.exact_scope != pattern.exact_scope:
+                raise ValueError("pattern key collision has conflicting scope modes")
+            if existing.exact_scope:
+                if (not isinstance(existing.applicability, str)
+                        or not existing.applicability.strip()):
+                    raise ValueError("existing exact-scope pattern requires non-blank applicability")
+                old_scope = " ".join(existing.applicability.split()).lower()
+                new_scope = " ".join(pattern.applicability.split()).lower()
+                if old_scope != new_scope:
+                    raise ValueError("pattern key collision has conflicting exact scopes")
         if existing is None:
             if incoming_base == 0.3 and incoming_confidence != 0.3:
                 incoming_base = incoming_confidence
