@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     OPTIONAL, OVERDEVELOPED, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
@@ -19,6 +19,9 @@ from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     has_valid_reuse_review, _has_traceable_evidence,
                     INTERFACE_EVIDENCE_STATUSES)
 from .feedback_loop import FeedbackLoopAssessment
+
+
+CYCLE_KINDS = ("depends_on", "influences")
 
 
 # ---- node-level ----
@@ -363,7 +366,7 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
 # ---- system-level ----
 
 def _find_cycles(edges: List[Relationship],
-                 kinds: Tuple[str, ...] = DEP_KINDS) -> List[List[str]]:
+                 kinds: Tuple[str, ...] = CYCLE_KINDS) -> List[List[str]]:
     """Enumerate distinct directed simple cycles deterministically.
 
     First restrict enumeration to non-trivial strongly connected components.
