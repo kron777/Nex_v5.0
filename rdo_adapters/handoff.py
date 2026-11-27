@@ -673,7 +673,7 @@ def record_acceptance_verification(workdir: str, handoff_id: str, criterion_id: 
             verification_method=verification_method,
             evidence_refs=list(evidence_references or []),
             verified_at=verified_at,
-            verifier=reviewer,
+            verifier=reviewer if status in ("passed", "failed", "not_applicable") else None,
             confidence=confidence,
             note=note,
         )
