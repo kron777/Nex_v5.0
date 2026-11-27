@@ -66,7 +66,7 @@ def assess_node(ob: Obligation) -> TensionAssessment:
 # ---- relationship-level ----
 
 def _evidence_value_valid(value, unit=None) -> bool:
-    """Reject absent, non-finite or unitless numeric observations."""
+    """Validate profile values; logical booleans/text are allowed, quantities need units."""
     if isinstance(value, bool):
         return True
     if isinstance(value, int):
