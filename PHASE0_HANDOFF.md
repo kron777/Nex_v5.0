@@ -18,7 +18,7 @@
 |---|---|
 | M0.1 — repository identity | Remote main SHA recorded; current host checkout identity/cleanliness not collected |
 | M0.1 — host/runtime/database/model measurements | **PARTIAL / UNKNOWN**; no current host collection or live DB hash inventory |
-| M0.2 — test baseline | Exact M0.5 PR head and post-merge `main` push both passed: 2,491 passed, 7 skipped, 40 subtests, baseline OK |
+| M0.2 — test baseline | Current main `ae406fa8`: 2,508 passed, 7 skipped, 40 subtests, baseline OK (run `45951932639`) |
 | M0.3/M0.4 — crosswalk and spec reconciliation | **PARTIAL**; source boot and Chat/Fountain paths are mapped, not every faculty's complete producer/consumer DAG |
 | Roadmap v3.0 M0.5 — causal trace | **IMPLEMENTED / MERGED**, default OFF, L3 fixture evidence |
 | M0.5 live L4 capture | **UNKNOWN**; no live runtime context enabled |
