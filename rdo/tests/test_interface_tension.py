@@ -246,6 +246,23 @@ def test_numeric_interface_evidence_requires_finite_value_and_unit():
     assert not dimensions["frequency"]["evidence_complete"]
 
 
+def test_boolean_interface_dimension_remains_valid_profile_evidence():
+    profile = InterfaceTensionProfile(
+        reversibility=InterfaceEvidence(
+            status="measured",
+            value=True,
+            evidence=["review:reversibility"],
+            confidence="reviewed",
+        )
+    )
+
+    result = assess_relationship(
+        Relationship("consumer", "provider", "depends_on", interface_profile=profile), {}
+    )
+
+    assert result.dimensions["dimensions"]["reversibility"]["evidence_complete"] is True
+
+
 def test_numeric_envelope_measurements_require_units_and_finite_values():
     envelope = OperatingEnvelopeAssessment(
         measured_load=InterfaceEvidence(status="measured", value=70,
@@ -258,6 +275,25 @@ def test_numeric_envelope_measurements_require_units_and_finite_values():
     unknown = result.dimensions["operating_envelope"]["unknown_dimensions"]
     assert "measured_load" in unknown
     assert "measured_capacity" in unknown
+
+
+@pytest.mark.parametrize("field", ["measured_load", "measured_capacity", "headroom"])
+@pytest.mark.parametrize("value", [True, False, "70"])
+def test_operating_envelope_numeric_measurements_reject_non_numeric_values(field, value):
+    measurement = InterfaceEvidence(
+        status="measured",
+        value=value,
+        unit="percent",
+        evidence=[f"trace:{field}"],
+        confidence="measured",
+    )
+    envelope = OperatingEnvelopeAssessment(**{field: measurement})
+
+    result = assess_relationship(
+        Relationship("consumer", "provider", "depends_on", operating_envelope=envelope), {}
+    )
+
+    assert field in result.dimensions["operating_envelope"]["unknown_dimensions"]
 
 
 def test_relationship_operating_envelope_round_trips_through_serialized_record():

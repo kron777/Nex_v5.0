@@ -66,7 +66,7 @@ def assess_node(ob: Obligation) -> TensionAssessment:
 # ---- relationship-level ----
 
 def _evidence_value_valid(value, unit=None) -> bool:
-    """Reject absent, non-finite or unitless numeric observations."""
+    """Validate profile values; logical booleans/text are allowed, quantities need units."""
     if isinstance(value, bool):
         return True
     if isinstance(value, int):
@@ -75,6 +75,17 @@ def _evidence_value_valid(value, unit=None) -> bool:
         return math.isfinite(value) and isinstance(unit, str) and bool(unit.strip())
     if isinstance(value, str):
         return bool(value.strip())
+    return False
+
+
+def _numeric_evidence_value_valid(value, unit=None) -> bool:
+    """Validate a genuinely numeric measurement; booleans and text are not quantities."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return isinstance(unit, str) and bool(unit.strip())
+    if isinstance(value, float):
+        return math.isfinite(value) and isinstance(unit, str) and bool(unit.strip())
     return False
 
 
@@ -212,7 +223,7 @@ def _operating_envelope_evidence(value) -> dict:
         complete = (
             isinstance(item, dict)
             and item.get("status") == "measured"
-            and _evidence_value_valid(item.get("value"), item.get("unit"))
+            and _numeric_evidence_value_valid(item.get("value"), item.get("unit"))
             and _has_traceable_evidence(item.get("evidence"))
             and isinstance(item.get("confidence"), str)
             and bool(item.get("confidence").strip())
