@@ -140,14 +140,11 @@ class ProblemMemory:
         """Append an observation to the problem's observations list.
 
         No-ops (returns False) if `observation` is byte-identical to the
-        last entry already on file. Session 39 found focus_loop.py's own
-        append path has no such guard and re-stamps the same stale text on
-        every 60s tick with nothing new to say -- that's how a problem hits
-        the ocount>=10 close gate in under two hours instead of over days.
-        Not fixing focus_loop.py here (separate, untouched call path) but
-        this method now refuses to repeat that specific mistake for any
-        caller that goes through it, including the new problem-injection
-        write-back (source="problem_injection", session 40).
+        last entry already on file. FocusLoop's separate
+        `_append_observation()` path has the same last-entry guard (fixed
+        2026-07-24); this method preserves the invariant for other callers,
+        including the problem-injection write-back (source="problem_injection",
+        session 40). Keep the two producer paths independently covered by tests.
 
         Returns True if a new entry was actually appended.
         """
