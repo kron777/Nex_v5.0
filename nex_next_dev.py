@@ -48,6 +48,8 @@ def validate_node_shapes(nodes: dict) -> None:
         if not isinstance(data, dict):
             errors.append(f"{node}: node definition must be an object")
             continue
+        if "status" in data and not isinstance(data["status"], str):
+            errors.append(f"{node}: status must be a string")
         prereqs = data.get("prereqs", [])
         if not isinstance(prereqs, list):
             errors.append(f"{node}: prereqs must be a list")
