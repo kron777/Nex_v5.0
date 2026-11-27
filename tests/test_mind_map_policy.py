@@ -57,3 +57,22 @@ def test_external_rdo_tool_may_read_map_as_evidence(tmp_path):
     assert check_descriptive_only(
         {"meta": {"constraint": _VALID_CONSTRAINT}, "nodes": []}, tmp_path
     ) == []
+
+
+
+def test_boot_imported_runtime_roots_are_included_in_policy_scan(tmp_path):
+    strikes = tmp_path / "strikes"
+    strikes.mkdir()
+    (strikes / "protocols.py").write_text(
+        "from mind_map import load\n", encoding="utf-8"
+    )
+    (tmp_path / "influence_trace.py").write_text(
+        "import mind_map\n", encoding="utf-8"
+    )
+
+    errors = check_descriptive_only(
+        {"meta": {"constraint": _VALID_CONSTRAINT}, "nodes": []}, tmp_path
+    )
+
+    assert any("strikes/protocols.py" in error for error in errors)
+    assert any("influence_trace.py" in error for error in errors)
