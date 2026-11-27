@@ -144,6 +144,10 @@ def make_voice_prediction(
     asset: str = "bitcoin",
     horizon_seconds: int = 3600,
     db_path: Optional[str] = None,
+    *,
+    conversations_writer=None,
+    conversations_reader=None,
+    beliefs_reader=None,
 ) -> dict:
     """NEX (the voice) makes a directional claim about `asset`, recorded with
     source='voice'. A random control claim is recorded at the same time/horizon
@@ -164,7 +168,11 @@ def make_voice_prediction(
     # Calibration (Step 2): consult NEX's tested record before trusting this call.
     try:
         from theory_x.stage_world.calibration_consult import consult_self_trust
-        trust = consult_self_trust()
+        trust = consult_self_trust(
+            conversations_writer=conversations_writer,
+            conversations_reader=conversations_reader,
+            beliefs_reader=beliefs_reader,
+        )
     except Exception:
         trust = {"level": "unknown", "reason": "consult unavailable"}
     logging.getLogger("nex5.world_loop").info(
@@ -173,10 +181,12 @@ def make_voice_prediction(
     random_dir = random.choice(["up", "down"])
 
     voice_id = wp.make_prediction(
-        asset, voice_dir, horizon_seconds, db_path=db_path, source="voice"
+        asset, voice_dir, horizon_seconds, db_path=db_path, source="voice",
+        conversations_writer=conversations_writer,
     )
     random_id = wp.make_prediction(
-        asset, random_dir, horizon_seconds, db_path=db_path, source="random"
+        asset, random_dir, horizon_seconds, db_path=db_path, source="random",
+        conversations_writer=conversations_writer,
     )
 
     # Stamp what she knew about her own reliability at the moment she guessed.
@@ -187,6 +197,7 @@ def make_voice_prediction(
             wp.stamp_trust(
                 voice_id, trust.get("level"), trust.get("gap"), trust.get("n"),
                 db_path=db_path,
+                conversations_writer=conversations_writer,
             )
         except Exception as e:
             logging.getLogger("nex5.world_loop").warning(
@@ -204,29 +215,31 @@ def make_voice_prediction(
 
 
 # --- scorecard split by source: voice vs random ------------------------------
-def scorecard_by_source(db_path: Optional[str] = None) -> dict:
+def scorecard_by_source(
+    db_path: Optional[str] = None,
+    *,
+    conversations_writer=None,
+    conversations_reader=None,
+) -> dict:
     db_path = db_path or wp._default_db_path()
-    wp.ensure_schema(db_path)
-    conn = wp._connect(db_path)
-    try:
-        rows = conn.execute(
-            "SELECT source, "
-            "COUNT(*) FILTER (WHERE outcome IS NOT NULL) AS resolved, "
-            "COUNT(*) FILTER (WHERE outcome='correct') AS correct, "
-            "COUNT(*) FILTER (WHERE outcome IS NULL) AS pending "
-            "FROM world_predictions GROUP BY source"
-        ).fetchall()
-    finally:
-        conn.close()
+    wp.ensure_schema(db_path, conversations_writer=conversations_writer)
+    reader = conversations_reader or wp.Reader(db_path)
+    rows = reader.read(
+        "SELECT source, "
+        "COUNT(*) FILTER (WHERE outcome IS NOT NULL) AS resolved, "
+        "COUNT(*) FILTER (WHERE outcome='correct') AS correct, "
+        "COUNT(*) FILTER (WHERE outcome IS NULL) AS pending "
+        "FROM world_predictions GROUP BY source"
+    )
     out: dict = {}
-    for r in rows:
-        res = r["resolved"] or 0
-        cor = r["correct"] or 0
-        out[r["source"]] = {
-            "resolved": res,
-            "correct": cor,
-            "pending": r["pending"] or 0,
-            "hit_rate": (cor / res) if res else None,
+    for row in rows:
+        resolved = row["resolved"] or 0
+        correct = row["correct"] or 0
+        out[row["source"]] = {
+            "resolved": resolved,
+            "correct": correct,
+            "pending": row["pending"] or 0,
+            "hit_rate": (correct / resolved) if resolved else None,
         }
     return out
 
