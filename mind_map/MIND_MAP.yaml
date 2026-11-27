@@ -639,20 +639,30 @@ nodes:
     factor: manaskara
     role_note: "Binds the priced entry into one moment rather than a bag of channels."
     build_difficulty: shipped
-    sketch: "Live, real, IS the r77 chat arbiter (global_workspace.py + gui/server.py budget assembly). Off-limits to touch while r77 runs."
+    sketch: "Fountain global_workspace.arbitrate remains wired behind NEX5_GLOBAL_WORKSPACE; the separate gui.server chat-budget selector is a different flag and was disarmed from the launch line on 2026-11-20 after the r77 Branch C tripwire. Runtime process state is unverified."
     evidence: static
     dark: false
     blocked: false
     falsifier: "Should fail to unify when channels disagree — a measurable incoherence."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_tom/global_workspace.py:1-23", "gui/server.py:160-280"] }
-    last_verified: 2026-11-09
+    source: { kind: composite, refs: ["theory_x/stage_tom/global_workspace.py:245-310", "theory_x/stage6_fountain/generator.py:3864-3890", "gui/server.py:202-280", "nex_keepalive.sh:219-220"] }
+    last_verified: 2026-11-27
     notes: "Correction, 2026-11-09: mechanism is located and is the live r77 chat arbiter --
       global_workspace.arbitrate/select_within_budget (fire path, generator.py:3037) and the
       13-kind _CHAT_BLOCK_SALIENCE budget assembly in gui/server.py (chat path, NEX5_CHAT_WORKSPACE,
       armed live 2026-11-07, ledger 5775e31). SENTIENCE_PROGRAM.md:33 already names this; the
-      'mechanism not yet located' claim here was simply stale. Read-only citation -- this node does
-      not touch that code, which stays off-limits while r77 runs."
+      'mechanism not yet located' claim here was simply stale.
+
+      2026-11-27 source re-verification: distinguish the two workspace paths. Fountain's
+      generator invokes global_workspace.arbitrate behind NEX5_GLOBAL_WORKSPACE (default "1"),
+      and nex_keepalive.sh still sets NEX5_GLOBAL_WORKSPACE=1. This is the source-wired path for
+      the single-winner framing line. Separately, gui.server._assemble_chat_blocks calls
+      select_within_budget only when NEX5_CHAT_WORKSPACE=1; commit 2803f38 removed that flag from
+      the keepalive launch line after the r77 Branch C tripwire. The launch configuration still
+      arms NEX5_GLOBAL_WORKSPACE, but the current runtime process state is UNKNOWN. Do not
+      describe the chat-budget selector as still armed or conflate it with Fountain arbitration.
+      The p13_finitude node tracks the separate shadow-budget/spend mechanism.
+      Read-only citation -- no source behavior is changed by this map entry."
 
   - id: vitarka
     label: "vitarka — applied thought"
@@ -746,7 +756,7 @@ nodes:
     falsifier: "Should fail loudly if two writers claim the same subject."
     falsifier_status: fail
     source: { kind: composite, refs: ["nex_keepalive.sh:14-39", "substrate/writer.py:1-16", "substrate/db.py:1-15"] }
-    last_verified: 2026-11-15
+    last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: 'anchor not pinned' was wrong -- NEX5_CONTINUITY_N is a real,
       registered config var; the original check's un-excluded .venv noise drowned the real hit.
@@ -775,6 +785,14 @@ nodes:
       be needed to test it honestly (e.g. "does the supervisor actually refuse a second instance,"
       which the keepalive work already demonstrated live, not "does a dual-writer event get loudly
       flagged").
+
+      2026-11-27 source re-verification: the cited keepalive lines 14-39 still contain the
+      single-instance flock and scoped-child supervision; the 2026-11-20 keepalive edit only
+      removed NEX5_CHAT_WORKSPACE from the later launch line and did not alter this lock.
+      substrate/writer.py and substrate/db.py still document the one-pen Writer and WAL/busy-
+      timeout design. No same-subject detector or fail-loudly mechanism was found in these
+      cited sources; the falsifier remains FAIL and the node's preventive-vs-detective distinction
+      remains unchanged.
 
   - id: p2_train
     label: "2 · Train of thought across restart"
