@@ -31,7 +31,7 @@ def _grep(pattern: str, repo_dir: str, path: Optional[str], max_hits: int = 3) -
         res = subprocess.run(
             ["grep", "-rnIH", "-E", pattern, "--include=*.py", "--include=*.md",
              "--include=*.json", "--include=*.sql", "--exclude-dir=__pycache__",
-             "--exclude-dir=.git", "--exclude-dir=.venv", target],
+             "--exclude-dir=.git", "--exclude-dir=.venv", "--exclude-dir=.cycles", target],
             capture_output=True, text=True, timeout=30,
         )
     except (OSError, subprocess.SubprocessError):
