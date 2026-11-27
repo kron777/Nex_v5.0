@@ -258,5 +258,44 @@ class TestConfirmationRateCanary(_Store):
         self.assertIn("falsifiability=n/a", msg)
 
 
+class TestOwnedBeliefOnePen(_Store):
+    def test_due_and_producer_use_injected_conversations_writer_and_readers(self):
+        from substrate import Reader, Writer
+        from theory_x.stage_world import owned_belief as ob
+
+        self._belief("A belief that remains useful", "wonder_loop")
+        writer = Writer(self.conv, name="owned_belief_test")
+        conversations_reader = Reader(self.conv)
+        beliefs_reader = Reader(self.bel)
+        try:
+            now = time.time()
+            with mock.patch.object(
+                ob, "Writer",
+                side_effect=AssertionError("owned_belief opened a second conversations Writer"),
+            ):
+                self.assertTrue(ob.due(
+                    now=now,
+                    conversations_writer=writer,
+                    conversations_reader=conversations_reader,
+                ))
+                result = ob.make_owned_belief_expectation(
+                    rng=random.Random(7),
+                    now=now,
+                    conversations_writer=writer,
+                    conversations_reader=conversations_reader,
+                    beliefs_reader=beliefs_reader,
+                )
+
+            self.assertIn("id", result)
+            row = conversations_reader.read_one(
+                "SELECT state, belief_id FROM owned_belief_expectations WHERE id=?",
+                (result["id"],),
+            )
+            self.assertEqual(row["state"], "open")
+            self.assertEqual(row["belief_id"], result["belief_id"])
+        finally:
+            writer.close()
+
+
 if __name__ == "__main__":
     unittest.main()
