@@ -679,26 +679,21 @@ def resolve_authored(
     )
 
 
-def _identity_statements(dynamic_db):
-    conn = connect(f"file:{dynamic_db}?mode=ro", uri=True, timeout=5.0)
-    conn.row_factory = Row
-    try:
-        return conn.execute(
-            "SELECT statement, composed_at FROM identity_log ORDER BY composed_at ASC"
-        ).fetchall()
-    finally:
-        try: conn.close()
-        except Exception: pass
+def _identity_statements(dynamic_db, *, dynamic_reader: Reader | None = None):
+    reader = dynamic_reader or Reader(dynamic_db)
+    return reader.read("SELECT statement, composed_at FROM identity_log ORDER BY composed_at ASC")
 
 
 def make_selfdesc_prediction(db_path: Optional[str] = None,
-                             dynamic_db: Optional[str] = None) -> dict:
+                             dynamic_db: Optional[str] = None, *,
+                             conversations_writer: Writer | None = None,
+                             dynamic_reader: Reader | None = None) -> dict:
     """Predict whether the NEXT self-description introduces a new distinctive token,
     from whether the LAST transition did (persistence); coin control."""
-    db_path = db_path or _db_path(); ensure_schema(db_path)
+    db_path = db_path or _db_path(); ensure_schema(db_path, conversations_writer)
     dynamic_db = dynamic_db or DYNAMIC_DB
     try:
-        st = _identity_statements(dynamic_db)
+        st = _identity_statements(dynamic_db, dynamic_reader=dynamic_reader)
     except Exception:
         return {"error": "identity_log_unreadable"}
     if len(st) < 2:
@@ -712,7 +707,7 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
     # the LABEL by luck but differ on the PROBABILITY, which Brier consumes). Fall back
     # to the pooled marginal when a state's effective N < 30 (two posteriors split one
     # sample). Reduces to symmetric as the rates converge, so strictly more general.
-    cond = selfdesc_conditional(dynamic_db)
+    cond = selfdesc_conditional(dynamic_db, dynamic_reader=dynamic_reader)
     eff = cond["eff_n_differ"] if last_label == "differ" else cond["eff_n_same"]
     p_cond = (cond["p_differ_given_differ"] if last_label == "differ"
               else cond["p_differ_given_same"])
@@ -729,7 +724,7 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
     self_pred = "differ" if p_differ >= 0.5 else "same"   # argmax
     p = p_differ                                 # emitted probability (for Brier)
     coin = random.choice(["differ", "same"])
-    stat = selfdesc_stationarity(dynamic_db)     # diagnostic only, never branched on
+    stat = selfdesc_stationarity(dynamic_db, dynamic_reader=dynamic_reader)     # diagnostic only, never branched on
     logger.info("self_pred selfdesc branch=%s eff_n=%.1f stationarity=%s",
                 branch, eff, stat)
     # Q8 point 6: if we fell back AND this arm is unreachable AT THE CURRENT SPLIT (its
@@ -748,34 +743,34 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
                     "achievable_cap=%.1f < min_eff_n=%s (structural pooled fallback, "
                     "recovers if the split rebalances) -- logged once per fact",
                     last_label, _arm.get("achievable_cap", 0.0), _SELFDESC_MIN_EFF_N)
-    # persist the learned parameter for inspection (monitor)
+    # Persist the learned parameter for inspection (monitor), through the shared Writer.
     try:
-        ensure_params_schema(db_path)
-        _c = _connect(db_path)
-        try:
-            _c.execute(
+        ensure_params_schema(db_path, conversations_writer)
+        def _persist_param(conn):
+            conn.execute(
                 "INSERT INTO self_pred_params (kind, threshold, updated_at, n, operating_p) "
                 "VALUES ('selfdesc_novel', ?, ?, ?, 0.5) ON CONFLICT(kind) DO UPDATE SET "
                 "threshold=excluded.threshold, updated_at=excluded.updated_at, n=excluded.n",
                 (p, time.time(), cond.get("n", 0)),
             )
-            _c.commit()
-        finally:
-            _c.close()
+        _writer_transaction(
+            conversations_writer, db_path, "self_prediction_selfdesc_param", _persist_param
+        )
     except Exception:
         pass
     # resolves when the next statement appears; horizon is advisory only.
     _insert_pred(db_path, "selfdesc_novel",
                  [("self", self_pred), ("random", coin)],
                  time.time() + 86400, signal=float(len(cur)),
-                 confidence=p if self_pred == "differ" else 1.0 - p)
+                 confidence=p if self_pred == "differ" else 1.0 - p,
+                 conversations_writer=conversations_writer)
     return {"kind": "selfdesc_novel", "self": self_pred, "coin": coin,
             "last_was_novel": last_was_novel, "p_differ": round(p, 4),
             "branch": branch, "eff_n": round(eff, 1),
             "min_eff_n": _SELFDESC_MIN_EFF_N}
 
 
-def selfdesc_stationarity(dynamic_db: Optional[str] = None) -> dict:
+def selfdesc_stationarity(dynamic_db: Optional[str] = None, *, dynamic_reader: Reader | None = None) -> dict:
     """DIAGNOSTIC ONLY -- never a branch condition (Q8 final). Split the RAW (unweighted)
     transition history in half and compare each conditional rate across halves with its
     per-cell n and a two-proportion z-test. Reported and logged so drift can be WATCHED
@@ -788,7 +783,7 @@ def selfdesc_stationarity(dynamic_db: Optional[str] = None) -> dict:
     import math
     dynamic_db = dynamic_db or DYNAMIC_DB
     try:
-        st = _identity_statements(dynamic_db)
+        st = _identity_statements(dynamic_db, dynamic_reader=dynamic_reader)
     except Exception:
         return {"reason": "unreadable", "raw_unweighted": True}
     toks = [_distinctive_tokens(s["statement"]) for s in st]
@@ -846,14 +841,14 @@ def selfdesc_stationarity(dynamic_db: Optional[str] = None) -> dict:
     }
 
 
-def selfdesc_conditional(dynamic_db: Optional[str] = None, decay: float = _SELFDESC_DECAY) -> dict:
+def selfdesc_conditional(dynamic_db: Optional[str] = None, decay: float = _SELFDESC_DECAY, *, dynamic_reader: Reader | None = None) -> dict:
     """Recency-decayed P(next differ | prev transition label), estimated separately for
     prev=differ and prev=same, plus the pooled marginal P(next differ). This is the
     conditional model rule C' validated (Q6); the pooled marginal is the fallback when
     a state's effective N is too small to trust its own rate."""
     dynamic_db = dynamic_db or DYNAMIC_DB
     try:
-        st = _identity_statements(dynamic_db)
+        st = _identity_statements(dynamic_db, dynamic_reader=dynamic_reader)
     except Exception:
         st = []
     toks = [_distinctive_tokens(s["statement"]) for s in st]
@@ -902,41 +897,49 @@ def selfdesc_persistence(dynamic_db: Optional[str] = None, decay: float = _SELFD
     return {"persistence": a / (a + b), "alpha": a, "beta": b, "n": len(persist_obs)}
 
 
-def resolve_selfdesc(db_path: Optional[str] = None,
-                     dynamic_db: Optional[str] = None) -> int:
-    """Resolve once a self-description appears AFTER made_at: 'differ' if it carries a
-    distinctive token the one current at made_at lacked. Not gated on resolve_at."""
-    db_path = db_path or _db_path(); ensure_schema(db_path)
+def resolve_selfdesc(
+    db_path: Optional[str] = None,
+    dynamic_db: Optional[str] = None,
+    *,
+    conversations_writer: Writer | None = None,
+    dynamic_reader: Reader | None = None,
+) -> int:
+    """Resolve once a self-description appears after made_at, through shared handles."""
+    db_path = db_path or _db_path()
+    ensure_schema(db_path, conversations_writer)
     dynamic_db = dynamic_db or DYNAMIC_DB
     try:
-        st = _identity_statements(dynamic_db)
+        statements = _identity_statements(dynamic_db, dynamic_reader=dynamic_reader)
     except Exception:
         return 0
-    conn = _connect(db_path); resolved = 0
-    try:
+
+    def _resolve(conn):
+        conn.row_factory = Row
+        resolved = 0
         due = conn.execute(
             "SELECT id, predicted, made_at FROM self_predictions "
             "WHERE kind='selfdesc_novel' AND resolved_at IS NULL"
         ).fetchall()
         now = time.time()
-        for r in due:
-            made = r["made_at"]
-            current = [s for s in st if s["composed_at"] <= made]
-            nxt = [s for s in st if s["composed_at"] > made]
+        for row in due:
+            made = row["made_at"]
+            current = [item for item in statements if item["composed_at"] <= made]
+            nxt = [item for item in statements if item["composed_at"] > made]
             if not current or not nxt:
-                continue  # can't resolve yet
+                continue
             cur_tok = _distinctive_tokens(current[-1]["statement"])
             nxt_tok = _distinctive_tokens(nxt[0]["statement"])
             actual = "differ" if (nxt_tok - cur_tok) else "same"
             conn.execute(
                 "UPDATE self_predictions SET resolved_at=?, actual=?, outcome=? WHERE id=?",
-                (now, actual, "correct" if actual == r["predicted"] else "wrong", r["id"]),
+                (now, actual, "correct" if actual == row["predicted"] else "wrong", row["id"]),
             )
             resolved += 1
-        conn.commit()
-    finally:
-        conn.close()
-    return resolved
+        return resolved
+
+    return _writer_transaction(
+        conversations_writer, db_path, "self_prediction_selfdesc_resolve", _resolve
+    )
 
 
 def _wilson(k: int, n: int, z: float = 1.96):
