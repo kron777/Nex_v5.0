@@ -12,11 +12,11 @@
 - **Additional drift found:** the `run.py` module overview still said five DBs and paused external feeds; `gui/server.py` still said 23 adapters.
 - **Disposition:** all known scheduler overview discrepancies are corrected in PR #148 and PR #153. PR #153 merged as `66a97964f0531c16d60637dc8291b42e0b73f00b`; its exact-head full suite passed.
 
-### D-02 — MIND_MAP node-count convention unresolved
+### D-02 — MIND_MAP node-count convention (resolved; prior audit count corrected)
 
-- **Evidence:** Current `MIND_MAP.yaml` has 39 `nodes:` entries plus 5 arms; comments/roadmap references still refer to 30 nodes.
-- **Impact:** audits can conflate the 30 substantive aspect nodes, structural/placeholder entries and full YAML entry count.
-- **Disposition:** preserve the map as-is; request owner reconciliation of the counting convention. Do not delete or merge entries to force 30.
+- **Evidence:** Direct section count of the audited `MIND_MAP.yaml`: `nodes:` contains exactly 30 entries (18 arm nodes, 9 ring nodes, 2 boundary nodes and 1 straddle node); `arms:` contains 5 entries; `findings:` contains 4 entries. The earlier count of 39 came from aggregating all 30 nodes + 5 arms + 4 findings, not from counting the `nodes:` section alone.
+- **Impact:** The 30-node convention is correct. The prior Phase 0 report/crosswalk mislabelled the aggregate 39 entries as nodes.
+- **Disposition:** CLOSED as an audit counting error. No map entries were removed, merged or changed. Preserve the existing 30 nodes, 5 arms and 4 findings.
 
 ### D-03 — MIND_MAP doctrine references absent
 
