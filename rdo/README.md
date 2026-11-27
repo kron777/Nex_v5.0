@@ -36,7 +36,7 @@ WORK PACKAGE → EVIDENCE ACCOUNTING → (persist) → LEARN
   expansion. Expansion stops only after explicit semantic-satisfaction review.
   Convergent branches merge; every stop records its reason.
 - **Reconciliation** (`reconcile.py`) — each obligation with a *signature* is
-  checked against text-readable files in the **actual tree** (read-only grep):
+  checked against text-readable source files in the **actual tree** (read-only grep; the ignored `rdo/.cycles` output directory is excluded so prior RDO plans cannot become their own source evidence):
   all configured signatures match → `signature_matched`; some → `partial`; none in a completed
   scan → `missing`; unavailable scan/no signature → `unknown`. A signature hit
   is a source anchor, not proof that the full obligation is satisfied. Necessary
