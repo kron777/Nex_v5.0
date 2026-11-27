@@ -482,7 +482,8 @@ def compare_adjacent_relationship_impacts(
     )
     affected = []
     partial = bool(invalid_capabilities or invalid_relationships or invalid_assessments
-                   or invalid_obligations or unknown_capabilities)
+                   or invalid_obligations or invalid_relationship_references
+                   or unknown_capabilities)
 
     for src, kind, dst in identities:
         identity = f"{src} -{kind}-> {dst}"
