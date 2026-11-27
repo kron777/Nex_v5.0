@@ -5,7 +5,7 @@ The canonical Markdown manual remains INDEX.md; verify live source and evidence 
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`  
+**Last verified against:** `main` at `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -249,7 +249,7 @@ Relevant pull requests and integration state at this update:
 - **#162, #166, #170, #171–#173** — original stale-base migration branches; closed/superseded. Their old-head CI results are not current-main evidence.
 - **#178** — episodic read/write boundary audit; closed after review found its `p8_episodic` mind-map node unchanged from current main. This does not validate episodic runtime activation; it remains dark by default and unwired in the audited live loop.
 
-**External RDO/Watcher status (not NEX roadmap progress):** current `main` contains the RDO Stage 2–7 modules, stage documents and tests. The historical `claude/rdo-stage2…stage7` branches are divergent and roughly 475 commits behind current main; do not merge them or rely on their old test claims. The Stage-7 handoff manifest and independent Watcher source/path verifier are present, but Stage 7's own document says its full objective-to-verified-delivery exit criterion remains incomplete: real objective demonstration, safe test-execution boundary, host-only runtime observation and separate human acceptance remain. Watcher source/path verification does not run tests or establish runtime behaviour. RDO v1.3/v1.4 precedence remains unresolved; no version decision is inferred here.
+**External RDO/Watcher status (not NEX roadmap progress):** current `main` contains the RDO Stage 2–7 modules, stage documents and tests. The historical `claude/rdo-stage2…stage7` branches are divergent and roughly 475 commits behind current main; do not merge them or rely on their old test claims. The Stage-7 handoff manifest and independent Watcher source/path verifier are present, but Stage 7's own document says its full objective-to-verified-delivery exit criterion remains incomplete: real objective demonstration, safe test-execution boundary, host-only runtime observation and separate human acceptance remain. Watcher source/path verification does not run tests or establish runtime behaviour. RDO v1.4 is the current working specification (founder indicated on 24 Nov that they believed it had been approved); v1.3 remains historical implementation lineage. Formal frozen supersession is not recorded in the consolidated NEX register.
 
 PRs based on other branches (including the earlier continuity branch) are not automatically part of `main`. Check the base branch and merge commit before describing their changes as current NEX behaviour.
 
@@ -827,3 +827,40 @@ This resolves the stale-source component of backlog E-05. The residual missing-s
 ### Boundary
 
 PR #274 changed documentation/evidence only. No MIND_MAP nodes, doctrine files, runtime flags, live databases, frozen S-01–S-25 specification, Master Roadmap, Gate 0 decision or Phase 1 authorization changed. Gate 0 remains pending founder review; G-69 / PR #259 remains HOLD.
+
+
+## 42. Phase 0 system research continuation (27 November 2026)
+
+**Research evidence snapshot:** `14873c10673760b8adbbf6fb0076226d1c97ffa4` (before PR #279). Current main additionally includes PR #279 at `8d2121d121931d37afcb1c3d23d27e7ccc9145d1` and PR #280 at `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`. The selected-path research report is `NEX_PHASE0_SYSTEM_RESEARCH_2026-11-27.md`.
+
+PR #275's mind-map freshness update, PR #276's RDO generated-cycle exclusion and PR #277's keepalive path portability fix are merged. Their exact-head full baselines passed respectively at 2,632, 2,634 and 2,636 passed tests (7 skipped, 45 subtests; baseline OK). PR #276 also has a passing post-merge main run. PR #277 preserves current main's `MOLTBOOK_DRY_RUN=1`. PR #279 moves the scheduled prose-statistics rebuild onto the shared beliefs Writer/Reader path; exact-head run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. Post-merge main run `46045384807` also passed 2,638. PR #280 hardens Writer shutdown/submission ordering; exact-head run `46045754339` passed 2,640 tests, 7 skipped, 45 subtests, baseline OK. It is merged as `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`; post-merge main CI is in progress.
+
+### Current source research
+
+- G-80: reanimation is marked in SQLite before the pending handoff is durably delivered; a process loss can strand a reanimated row.
+- G-81: Fountain's total-fire counter and ClockRunner's notified-fire counter count different event populations.
+- G-82 is folded into G-73: the same oldest 50 dormancy rows are reselected on each scan, starving later rows; ClockRunner and DiversityLoop own separate scanners. `wake_one()` also lacks final eligibility filters. Old PR #102/#145 proposals are not current-main fixes.
+- G-83: Metacognition can re-emit the same unacknowledged groove alert on successive Chat turns, while stillness counts event rows.
+- G-84: shutdown still does not quiesce or join all producers before closing Writers; PR #280 fixes the Writer late-submit/timeout race, but the application-level producer shutdown gap remains.
+- G-85: SignalToProblem's primary signal-to-problem tick remains a direct-write, split-commit path across two databases. PR #279 migrated the separate hourly prose-statistics rebuild to the shared Writer/Reader; the primary G-61 persistence gap remains open.
+- G-86: SignalReaper's preservation allowlist has drifted from SignalToProblem's current promotable types.
+- G-87: Moltbook dry-run suppresses non-GET requests but still reads remotely and can persist simulated sends as real `posted`/`sent` states.
+- G-88 is closed by PR #277 (keepalive path portability); host service identity remains unknown.
+- G-89 is closed by PR #276 (RDO generated `.cycles` records excluded from source-evidence searches).
+- G-90: social silence is not yet modeled as a contextual social act; response latency and internal stillness mechanisms are not substitutes.
+
+The RDO capability boundary and version-precedence questions are recorded in the research report. It remains an external advisory tool, not part of NEX runtime; its current objective intake requires externally supplied seed obligations and reconciliation signatures.
+
+### Validation and limits
+
+The latest mind-map CI check reports 30 nodes, 0 unverified, 14 dark, 2 blocked, no stale-source warnings, two missing doctrine references and the overdue P13 marker. PR #279 closes only the auxiliary prose-statistics direct-write path; SignalToProblem's primary cross-database signal/problem transaction remains open under G-85/G-61. PR #280 fixes the shared Writer lifecycle subproblem, not the missing global shutdown coordinator. No runtime, host service, live database or external API was inspected. No cognitive policy, feature flag, MIND_MAP node, frozen S-01–S-25 register, Master Roadmap or Gate 0 decision changed. Gate 0 remains pending; Phase 1 remains unauthorized.
+
+
+### G-91 — RDO objective context is stored but not yet enforced
+
+The intake preserves intent, scope, constraints, exclusions and acceptance criteria, but the current cycle runner receives only the original text, assumptions, caller-supplied seed obligations/relationships/signatures and expansion depth. Those other fields are not translated into plan obligations or checked against proposed work packages. RDO remains advisory; this is a capability gap, not an execution incident. See the Phase 0 research report and verified backlog.
+
+
+### RDO v1.4 implementation audit
+
+The current RDO has a working Extrapolator vertical slice, graph intelligence and partial OFT, but not the full v1.4 Interface Tension Profile, performance margins, capacity/headroom, operating envelopes, Pareto/net-value assessment or all twelve adversarial cases. See [RDO v1.4 implementation gap audit](rdo/RDO_V1_4_IMPLEMENTATION_GAP_AUDIT_2026-11-27.md). v1.4 is the working basis; v1.3 is historical.

@@ -1,6 +1,6 @@
 # RDO generic objective intake
 
-**Status:** RDO v1.3 §15–16 implementation increment; external/advisory tooling only.
+**Status:** external/advisory intake implementation; developed against the RDO v1.4 current working specification. The v1.3 §15–16 references below are historical lineage, not current precedence.
 
 The generic intake interface lets a human or an external language model submit one structured objective without coupling the deterministic RDO engine to a model provider. The RDO validates and preserves the source request, then reuses the existing expansion, reconciliation, graph, OFT, prioritisation and `CycleStore` pipeline.
 
@@ -79,3 +79,10 @@ See [`examples/objective.v1.example.json`](examples/objective.v1.example.json). 
 ## Scope
 
 This is an external RDO intake increment. It creates files only in the RDO objective/cycle store and reads the selected repository snapshot. It does not modify NEX cognitive/runtime source, live databases, experiment registrations, baselines, tripwires, flags, services or deployment state. It does not invoke Claude Code, pytest or arbitrary commands.
+
+
+## Current planning boundary — important
+
+The full objective record is validated and preserved in the append-only revision ledger, but not every field currently participates in planning. `submit_objective()` passes the original request text, top-level assumptions, supplied seed obligations, relationships, reconciliation signatures and expansion depth into the deterministic cycle. The top-level interpreted `intent`, `owner`, `scope`, `constraints`, `exclusions` and `acceptance_criteria` remain preserved context; they are not yet translated into obligations, checked against work packages, or used as an acceptance-verification contract.
+
+Therefore these fields must not be described as enforced planning constraints. RDO is advisory and does not execute work, but a proposed plan can currently fail to reflect all preserved context. A future increment should translate context into typed, traceable obligations and anti-requirements and carry acceptance criteria into an explicit verification record. Until that design is implemented and tested, keep the limitation visible rather than inferring enforcement from schema validation. RDO v1.4 is the current working specification (founder indicated on 24 November that they believed it had been approved); v1.3 remains historical. Schema v1 should change only through a specific, traceable design increment.
