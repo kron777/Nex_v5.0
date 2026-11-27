@@ -183,20 +183,20 @@ def test_regression_outcome_becomes_scoped_candidate_for_later_cycles(tmp_path):
         "regressions": ["ci:run-123 regression in belief-decay path"],
     })
     lessons = derive_lessons(outcome, compare(outcome))
-    regression = next(item for item in lessons if item.key == "regression_risk")
+    regression = next(item for item in lessons if item.key == "regression_risk:regression")
     assert regression.applicability == outcome.objective
     assert "one regression" in regression.exceptions[0]
 
     memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
     memory.add(regression)
-    assert [item.key for item in memory.applicable("regression")] == ["regression_risk"]
+    assert [item.key for item in memory.applicable("regression")] == ["regression_risk:regression"]
 
     next_cycle, _ = run_cycle(
         "next-regression-review", "regression", [],
         [Obligation("seed", "bounded seed", "test")], signatures={},
         repo_dir=str(tmp_path), active_experiments=[], memory=memory, max_depth=0,
     )
-    assert any("applied_patterns=['regression_risk']" in item
+    assert any("applied_patterns=['regression_risk:regression']" in item
                for item in next_cycle.uncertainties)
 
 
@@ -207,3 +207,20 @@ def test_malformed_regression_outcome_does_not_create_learning_pattern():
     })
     assert all(item.key != "regression_risk"
                for item in derive_lessons(cycle, compare(cycle)))
+
+
+def test_regression_lessons_from_different_objectives_do_not_collapse_scope():
+    from rdo.memory import compare, derive_lessons
+    first = _cycle("regression-a", 1, actual={
+        "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": ["ci:a"],
+    })
+    second = _cycle("regression-b", 1, actual={
+        "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": ["ci:b"],
+    })
+    a = next(item for item in derive_lessons(first, compare(first))
+             if item.key.startswith("regression_risk:"))
+    b = next(item for item in derive_lessons(second, compare(second))
+             if item.key.startswith("regression_risk:"))
+    assert a.key != b.key
+    assert a.applicability == first.objective
+    assert b.applicability == second.objective
