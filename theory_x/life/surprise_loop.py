@@ -14,7 +14,7 @@ dynamic.db and never reach her felt experience.
 from __future__ import annotations
 import json
 import logging
-from substrate import connect, Row, IntegrityError
+from substrate import Reader, Writer, IntegrityError
 import threading
 import time
 from pathlib import Path
@@ -29,18 +29,18 @@ SOURCE = "surprise"
 LAST_PROMOTED_TS_KEY = "surprise_loop_last_ts"
 
 
-def _ensure_kv_table(d_cx):
-    d_cx.execute(
+def _ensure_kv_table(writer: Writer):
+    writer.write(
         "CREATE TABLE IF NOT EXISTS daemon_kv ("
         "key TEXT PRIMARY KEY, value TEXT, updated_at REAL)"
     )
-    d_cx.commit()
 
 
-def _last_promoted_ts(d_cx):
-    row = d_cx.execute(
-        "SELECT value FROM daemon_kv WHERE key=?", (LAST_PROMOTED_TS_KEY,)
-    ).fetchone()
+def _last_promoted_ts(reader: Reader):
+    row = reader.read_one(
+        "SELECT value FROM daemon_kv WHERE key=?",
+        (LAST_PROMOTED_TS_KEY,),
+    )
     if row and row[0]:
         try:
             return float(row[0])
@@ -49,13 +49,12 @@ def _last_promoted_ts(d_cx):
     return 0.0
 
 
-def _set_last_promoted_ts(d_cx, ts):
-    d_cx.execute(
+def _set_last_promoted_ts(writer: Writer, ts):
+    writer.write(
         "INSERT INTO daemon_kv (key, value, updated_at) VALUES (?, ?, ?) "
         "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
-        (LAST_PROMOTED_TS_KEY, str(ts), time.time())
+        (LAST_PROMOTED_TS_KEY, str(ts), time.time()),
     )
-    d_cx.commit()
 
 
 def _surprise_to_belief(surprise_row):
@@ -83,60 +82,77 @@ def _surprise_to_belief(surprise_row):
     )
 
 
-def surprise_tick():
-    d_cx = connect(DYNAMIC_DB, timeout=15)
-    b_cx = connect(BELIEFS_DB, timeout=15)
-    d_cx.row_factory = Row
+def surprise_tick(
+    *,
+    dynamic_reader: Reader | None = None,
+    dynamic_writer: Writer | None = None,
+    beliefs_writer: Writer | None = None,
+):
+    d_reader = dynamic_reader or Reader(DYNAMIC_DB)
+    own_dynamic_writer = dynamic_writer is None
+    d_writer = dynamic_writer or Writer(DYNAMIC_DB, name="surprise_loop")
+    own_beliefs_writer = beliefs_writer is None
+    b_writer = beliefs_writer or Writer(BELIEFS_DB, name="surprise_loop")
     try:
-        _ensure_kv_table(d_cx)
-        since = _last_promoted_ts(d_cx)
+        _ensure_kv_table(d_writer)
+        since = _last_promoted_ts(d_reader)
         if since == 0:
-            # First run — start from 10 min ago, don't import full history
             since = time.time() - 600
-        rows = d_cx.execute(
+        rows = d_reader.read(
             "SELECT * FROM surprise_events "
             "WHERE triggered_at > ? AND surprise_flag = 1 "
             "  AND actual_content IS NOT NULL AND actual_content != '' "
             "  AND predicted_content IS NOT NULL AND predicted_content != '' "
             "ORDER BY triggered_at ASC LIMIT 20",
-            (since,)
-        ).fetchall()
+            (since,),
+        )
         if not rows:
             return {"promoted": 0}
         promoted = 0
         max_ts = since
-        for r in rows:
+        for row in rows:
             try:
-                content = _surprise_to_belief(r)
-                b_cx.execute(
+                content = _surprise_to_belief(row)
+                b_writer.write(
                     "INSERT INTO beliefs "
                     "(content, tier, confidence, created_at, source, branch_id, tags) "
                     "VALUES (?, 6, 0.75, ?, ?, ?, ?)",
-                    (content, int(r["triggered_at"]), SOURCE,
-                     "cognition",
-                     json.dumps(["surprise", "big_surprise" if r["big_surprise"] else "surprise"]))
+                    (
+                        content,
+                        int(row["triggered_at"]),
+                        SOURCE,
+                        "cognition",
+                        json.dumps([
+                            "surprise",
+                            "big_surprise" if row["big_surprise"] else "surprise",
+                        ]),
+                    ),
                 )
-                b_cx.commit()
                 promoted += 1
             except IntegrityError:
-                # duplicate content — skip
                 pass
             except Exception as e:
                 log.warning("surprise belief write failed: %s", e)
-            max_ts = max(max_ts, r["triggered_at"])
-        _set_last_promoted_ts(d_cx, max_ts)
+            max_ts = max(max_ts, row["triggered_at"])
+        _set_last_promoted_ts(d_writer, max_ts)
         log.info("surprise_loop: promoted %d surprise events", promoted)
         return {"promoted": promoted}
     finally:
-        d_cx.close()
-        b_cx.close()
+        if own_dynamic_writer:
+            d_writer.close()
+        if own_beliefs_writer:
+            b_writer.close()
 
 
 def surprise_loop(state, stop):
     log.info("surprise_loop started (tick=%ds)", TICK_SECONDS)
     while not stop.is_set():
         try:
-            stats = surprise_tick()
+            stats = surprise_tick(
+                dynamic_reader=state.readers["dynamic"],
+                dynamic_writer=state.writers["dynamic"],
+                beliefs_writer=state.writers["beliefs"],
+            )
             if stats.get("promoted"):
                 log.info("surprise_loop: %s", stats)
         except Exception as e:
