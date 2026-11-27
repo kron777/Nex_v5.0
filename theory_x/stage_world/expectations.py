@@ -539,16 +539,17 @@ def _resolve(cx, e, state, now, d, ratio, sal, evidence, verdict=None):
                    (state, now, RECONCILER, json.dumps(evidence), e["producer_row_id"]))
 
 
-def _learn(cx, e, state, sal, now) -> int:
-    """R7: distribute a fixed step across the basis rows (resolved against the
-    FROZEN snapshot). Runs on any basis -- learning is not valence. Seeded and
-    locked rows are never touched. Confirms consolidate only at band >= 1.
+def _learn(
+    cx, e, state, sal, now, *, beliefs_writer: Writer | None = None,
+) -> int:
+    """R7: distribute a fixed step across the frozen basis.
 
-    Ownership deliberately does NOT scale the step here: it would zero learning
-    on an external basis, which R7 and the three-cell test require to move."""
-    # HARD NEVER: a commitment writes nothing to the belief graph -- a breach is
-    # adjudicated against its own discharge condition, not turned into a
-    # contradiction so a metric has inputs.
+    The expectation/learning-log/cap-hit statements execute on the caller's
+    conversations Writer transaction. Belief rows are read-only here and their
+    updates are committed by the separate beliefs Writer before the enclosing
+    conversations transaction commits, preserving the existing cross-file
+    ordering and its non-atomic failure boundary.
+    """
     if e["producer"] == "commitments":
         return 0
     basis = json.loads(e["basis_snapshot"] or "[]")
@@ -556,45 +557,61 @@ def _learn(cx, e, state, sal, now) -> int:
         return 0
     if state == "confirmed" and not e["cost_band"]:
         return 0
-    bx = connect(_db("beliefs"), timeout=30)
+
+    bx = _ro("beliefs")
     try:
         rows = []
-        for b in basis:
-            if b.get("source_kind") == "seeded":
+        for item in basis:
+            if item.get("source_kind") == "seeded":
                 continue
-            live = bx.execute("SELECT confidence, locked, source_kind FROM beliefs WHERE id=?",
-                              (b["belief_id"],)).fetchone()
+            live = bx.execute(
+                "SELECT confidence, locked, source_kind FROM beliefs WHERE id=?",
+                (item["belief_id"],),
+            ).fetchone()
             if live is None or live[1]:
                 continue
-            rows.append((b["belief_id"], live[0], live[2]))
-        if not rows:
-            return 0
-        n = len(rows)
-        factor = (1.0 - LEARN_VIOLATE * sal / n) if state == "violated" \
-            else (1.0 + LEARN_CONFIRM / n)
-        from theory_x.stage_world import learning_guards as _lg
-        for bid, before, skind in rows:
-            after = max(CONF_FLOOR, min(CONF_CEIL, before * factor))
-            # G1 (NEX5_LEARN_CAP): a magnitude STOP before the standard step --
-            # skipped whole, never clipped; logged as a skipped no-op row.
-            if _lg.cap_blocks(cx, e, bid, skind, after - before, now):
-                cx.execute("INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
-                           "before, after, basis_kind, source_kind, factor, skipped) "
-                           "VALUES (?,?,?,?,?,?,?,NULL,1)",
-                           (e["id"], bid, now, before, before, e["basis_kind"], skind))
-                continue
-            bx.execute("UPDATE beliefs SET confidence=? WHERE id=?", (after, bid))
-            # Self-describing: the FROZEN basis kind of the expectation, the
-            # belief's own kind now, and the factor (after/before is lossy at
-            # the clamps) -- what reconstruct_without_external() replays.
-            cx.execute("INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
-                       "before, after, basis_kind, source_kind, factor) "
-                       "VALUES (?,?,?,?,?,?,?,?)",
-                       (e["id"], bid, now, before, after, e["basis_kind"], skind, factor))
-        bx.commit()
-        return n
+            rows.append((item["belief_id"], live[0], live[2]))
     finally:
         bx.close()
+    if not rows:
+        return 0
+
+    n = len(rows)
+    factor = (1.0 - LEARN_VIOLATE * sal / n) if state == "violated" \
+        else (1.0 + LEARN_CONFIRM / n)
+    from theory_x.stage_world import learning_guards as _lg
+    updates = []
+    for bid, before, skind in rows:
+        after = max(CONF_FLOOR, min(CONF_CEIL, before * factor))
+        # cap_blocks writes its hit on cx, which is the serialized conversation
+        # Writer connection; keeping it here preserves the cap-hit/learning-log
+        # transaction with the expectation's adjudication.
+        if _lg.cap_blocks(cx, e, bid, skind, after - before, now):
+            cx.execute(
+                "INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
+                "before, after, basis_kind, source_kind, factor, skipped) "
+                "VALUES (?,?,?,?,?,?,?,NULL,1)",
+                (e["id"], bid, now, before, before, e["basis_kind"], skind),
+            )
+            continue
+        updates.append((
+            "UPDATE beliefs SET confidence=? WHERE id=?",
+            (after, bid),
+        ))
+        cx.execute(
+            "INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
+            "before, after, basis_kind, source_kind, factor) VALUES (?,?,?,?,?,?,?,?)",
+            (e["id"], bid, now, before, after, e["basis_kind"], skind, factor),
+        )
+
+    if updates:
+        writer, owned = _acquire_writer("beliefs", beliefs_writer)
+        try:
+            writer.write_many(updates)
+        finally:
+            if owned:
+                writer.close()
+    return n
 
 
 def replay(belief_id: int, current: float, exclude, add_back_subtractions: bool,
