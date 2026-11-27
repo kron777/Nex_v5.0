@@ -83,8 +83,24 @@ def _interface_profile_evidence(rel: Relationship) -> dict:
             "unknown_dimensions": ["interface_profile"],
             "dimensions": {},
         }
-    if hasattr(profile, "to_dict"):
-        profile = profile.to_dict()
+    try:
+        to_dict = getattr(profile, "to_dict", None)
+        if to_dict is not None:
+            if not callable(to_dict):
+                return {
+                    "profile_status": "invalid_shape",
+                    "unknown_dimensions": ["interface_profile"],
+                    "dimensions": {},
+                }
+            profile = to_dict()
+    except Exception:
+        # A broken custom serializer is malformed evidence, not a reason to
+        # crash the relationship assessor or imply that evidence was recorded.
+        return {
+            "profile_status": "invalid_shape",
+            "unknown_dimensions": ["interface_profile"],
+            "dimensions": {},
+        }
     if not isinstance(profile, dict):
         return {
             "profile_status": "invalid_shape",
