@@ -530,3 +530,10 @@ The current-main replay is **PR #255 — SurpriseLoop loss-safe event delivery: 
 **Do not merge or deploy #255 yet.** This is not merely an observability fix: events that were previously skipped can now reach the belief corpus and change downstream retrieval inputs. The PR's own scope statement preserves the Gate 0 requirement. Founder review and explicit approval of that behaviour-impact decision are required. The correction does not change prediction scoring, surprise thresholds, event generation or loop cadence.
 
 The older-base PR #251 is closed as superseded by #255. Its prior exact-head full-suite run passed, but #255 requires its own current-main exact-head validation. Gate 0 remains pending; Phase 1 remains unauthorized.
+
+
+### SurpriseLoop migration boundary — historical limitation
+
+The old timestamp-only implementation advanced its timestamp checkpoint even after some non-duplicate conversion/write failures. The new migration derives the initial event-ID cursor from the maximum event ID with `triggered_at < legacy_timestamp`; it replays rows exactly at the cutoff and all later rows. It cannot identify older rows that may already have been skipped before migration, and those rows remain outside the replay window. Recovering that older history would require a separate, explicit decision to backfill the belief corpus; it must not be smuggled into this cursor repair.
+
+Source review of `theory_x/stage_prediction/predictive_substrate.py::_verify()` confirms each `surprise_events` row is inserted with its final `actual_content`, `surprise_flag` and `big_surprise` values together. The current event-ID scan therefore does not depend on a later update making an older event eligible. This assumption should be rechecked if the producer contract changes.
