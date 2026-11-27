@@ -109,6 +109,51 @@ class TestRecorder(unittest.TestCase):
         self.assertEqual(self.r.use_cycle(now=_T0 + 12 * _DAY), 0)    # cursors hold
         self.assertEqual(dict(self._q("SELECT belief_id, days FROM belief_use_days")), got)
 
+    def test_lineage_and_arc_cursors_do_not_skip_tied_timestamp_pages(self):
+        rec._USE_BATCH = 2
+        lineage_ts = _T0 + 3 * _DAY
+        arc_ts = _T0 + 6 * _DAY
+        c = sqlite3.connect(self.bdb)
+        c.executemany(
+            "INSERT INTO belief_lineage (child_id, parent_id, created_at) VALUES (?,?,?)",
+            [(100 + i, i, lineage_ts) for i in range(1, 6)],
+        )
+        c.executemany(
+            "INSERT INTO arc_members (belief_id, joined_at) VALUES (?,?)",
+            [(i, arc_ts) for i in range(1, 6)],
+        )
+        c.commit()
+        c.close()
+
+        # The first page contains an earlier timestamp plus only the first tied
+        # row. Subsequent pages must continue by (timestamp, rowid), not skip
+        # the remaining rows whose timestamp equals the previous page's cursor.
+        for tick in range(4):
+            self.r.use_cycle(now=_T0 + 7 * _DAY + tick)
+
+        lineage_day = int(lineage_ts // _DAY)
+        arc_day = int(arc_ts // _DAY)
+        rows = set(self._q("SELECT belief_id, day FROM belief_use_day"))
+        self.assertTrue({(i, lineage_day) for i in range(1, 6)} <= rows)
+        self.assertTrue({(i, arc_day) for i in range(1, 6)} <= rows)
+
+    def test_legacy_timestamp_cursor_schema_migrates_without_reset(self):
+        old_value = _T0 + 2 * _DAY
+        self.r._w.write(
+            "CREATE TABLE warrant_record_cursor (name TEXT PRIMARY KEY, value REAL NOT NULL)"
+        )
+        self.r._w.write(
+            "INSERT INTO warrant_record_cursor (name, value) VALUES (?, ?)",
+            ("use_lineage_ts", old_value),
+        )
+        self.r._ensure()
+        columns = {r["name"] for r in self.r._br.read(
+            "PRAGMA table_info(warrant_record_cursor)"
+        )}
+        self.assertIn("tie_id", columns)
+        cursor = self.r._cursor_pair("use_lineage_ts")
+        self.assertEqual(cursor, (old_value, 0))
+
     def test_use_days_increment_on_new_day_only(self):
         self.r.use_cycle(now=_T0)
         c = sqlite3.connect(self.ddb)
