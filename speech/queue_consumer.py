@@ -167,6 +167,7 @@ class SpeechQueueConsumer(threading.Thread):
             "UPDATE speech_queue SET status='speaking' WHERE id=?", (qid,)
         )
         synthesis_started = trace_event("synthesis_started", parent=dequeue_event)
+        failure_parent = trace_parent
         try:
             try:
                 audio, sr = self.backend.synth(content, voice=voice)
@@ -174,8 +175,10 @@ class SpeechQueueConsumer(threading.Thread):
                     "synthesis_completed", parent=synthesis_started
                 )
             except Exception as e:
-                trace_event("synthesis_failed", parent=synthesis_started,
-                            metadata={"error_type": type(e).__name__})
+                failure_parent = trace_event(
+                    "synthesis_failed", parent=synthesis_started,
+                    metadata={"error_type": type(e).__name__},
+                ) or synthesis_started or trace_parent
                 raise
             playback_started = trace_event(
                 "playback_started", parent=synthesis_completed or synthesis_started
@@ -186,8 +189,10 @@ class SpeechQueueConsumer(threading.Thread):
                     "playback_completed", parent=playback_started or synthesis_completed
                 )
             except Exception as e:
-                trace_event("playback_failed", parent=playback_started or synthesis_completed,
-                            metadata={"error_type": type(e).__name__})
+                failure_parent = trace_event(
+                    "playback_failed", parent=playback_started or synthesis_completed,
+                    metadata={"error_type": type(e).__name__},
+                ) or playback_started or synthesis_completed or trace_parent
                 raise
             self.writer.write(
                 "UPDATE speech_queue SET status='spoken', spoken_at=? WHERE id=?",
@@ -197,8 +202,8 @@ class SpeechQueueConsumer(threading.Thread):
                         parent=playback_completed or playback_started)
             log.info("spoke belief_id=%s (%d chars)", row["belief_id"], len(content))
         except Exception as e:
-            failure_event = trace_event(
-                "queue_status_failed", parent=trace_parent,
+            trace_event(
+                "queue_status_failed", parent=failure_parent,
                 metadata={"error_type": type(e).__name__},
             )
             log.error("synth/play failed on id=%s: %s", qid, e)
