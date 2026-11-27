@@ -7,7 +7,7 @@
 
 ## 1. Repository identity and snapshot boundary
 
-> **Historical evidence warning (27 November 2026):** this report was collected at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`. Current main has since advanced 44 commits to `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`. This report is retained as a historical evidence record and orientation aid. It is not a current-main certification. Revalidate source paths, test results and CI before using any finding for a current engineering decision. Do not simply replace the SHA or date without repeating the audit.
+> **Historical evidence warning (27 November 2026):** this report was collected at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`. Current main has since advanced beyond `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465` to `14873c10673760b8adbbf6fb0076226d1c97ffa4`. Selected paths have been rechecked in `NEX_PHASE0_SYSTEM_RESEARCH_2026-11-27.md`, but this report remains historical; its full source/host audit has not been repeated. This report is retained as a historical evidence record and orientation aid. It is not a current-main certification. Revalidate source paths, test results and CI before using any finding for a current engineering decision. Do not simply replace the SHA or date without repeating the audit.
 
 The source snapshot used for this report is the current remote `main` commit above (27 November 2026, 06:27 UTC). The report was refreshed from GitHub repository contents, commit metadata and the exact mainline CI run. No local checkout/worktree was available for this collection, so no clean/dirty working-tree claim is made.
 
