@@ -101,6 +101,58 @@ class Obligation:
 
 
 @dataclasses.dataclass
+class InterfaceEvidence:
+    """One interface dimension with explicit UNKNOWN-by-default evidence state.
+
+    Values and thresholds are deliberately not inferred. A populated value is only
+    meaningful alongside its unit (where applicable), evidence references and
+    confidence/provenance supplied by the assessor.
+    """
+    status: str = "unknown"
+    value: Any = None
+    unit: Optional[str] = None
+    evidence: List[str] = dataclasses.field(default_factory=list)
+    confidence: Optional[str] = None
+
+
+@dataclasses.dataclass
+class InterfaceTensionProfile:
+    """Evidence-bearing profile for one provider/consumer interface.
+
+    This is a structural container, not a score or verdict. Missing dimensions
+    remain absent/UNKNOWN until a source or measurement supports them.
+    """
+    provider: Optional[str] = None
+    consumer: Optional[str] = None
+    purpose: Optional[str] = None
+    direction: Optional[str] = None
+    contract: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    schema: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    provenance: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    data_quality: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    timing: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    latency: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    frequency: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    freshness: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    influence_magnitude: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    authority_boundary: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    reversibility: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    error_handling: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    fallback: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    recovery: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    observability: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    capacity: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    headroom: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    feedback_sufficiency: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    feedback_stability: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    duplication: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    failure_propagation: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+
+    def to_dict(self) -> dict:
+        return dataclasses.asdict(self)
+
+
+@dataclasses.dataclass
 class Relationship:
     src: str
     dst: str
@@ -108,6 +160,7 @@ class Relationship:
     authority: str = "none"         # none | bounded | strong  (capability != authority, §6)
     reversible: Optional[bool] = None   # None = unknown
     note: str = ""
+    interface_profile: Optional[InterfaceTensionProfile] = None
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
