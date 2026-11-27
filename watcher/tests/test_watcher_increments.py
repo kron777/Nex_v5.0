@@ -9,7 +9,7 @@ import pytest
 from watcher.evidence import Evidence
 from watcher.host import host_results_template, load_host_results
 from watcher.collector import collect_combined
-from watcher.architecture import build_runtime_graph
+from watcher.architecture import Edge, RuntimeGraph, build_runtime_graph
 from watcher.ledger import ConnectionLedger, LedgerError, seed_from_graph
 from watcher.longitudinal import Series, cycle_timeline
 from watcher.regression import detect, summarize
@@ -156,3 +156,55 @@ def test_collect_combined_preserves_origins():
                for r in host_recs)
     assert any(r.evidence_class == "unknown" and r.modifier == "unverified"
                for r in host_recs)
+
+def test_runtime_observation_ledger_requires_host_origin_and_evidence_refs(tmp_path):
+    led = ConnectionLedger(str(tmp_path / "runtime-ledger.jsonl"))
+    led.record("x->y", "DECLARED")
+    led.record("x->y", "SOURCE_CONFIRMED", evidence_refs=["src.py"])
+
+    with pytest.raises(LedgerError, match="host origin"):
+        led.record("x->y", "RUNTIME_OBSERVED", origin="cloud",
+                   evidence_refs=["trace:runtime-1"])
+    with pytest.raises(LedgerError, match="evidence_refs"):
+        led.record("x->y", "RUNTIME_OBSERVED", origin="host")
+
+    entry = led.record("x->y", "RUNTIME_OBSERVED", origin="host",
+                       evidence_refs=["trace:host-runtime-1"])
+    assert entry["origin"] == "host"
+    assert entry["evidence_refs"] == ["trace:host-runtime-1"]
+
+
+def test_runtime_graph_rejects_unbacked_runtime_observation():
+    def edge(**overrides):
+        values = dict(
+            src="a", dst="b", label="test-edge",
+            source_implemented=True, test_verified=False, runtime_observed=True,
+            source_ref="src.py", runtime_origin="host", runtime_ref="trace:host-1",
+        )
+        values.update(overrides)
+        return Edge(**values)
+
+    with pytest.raises(ValueError, match="runtime_origin"):
+        RuntimeGraph().add(edge(runtime_origin="cloud"))
+    with pytest.raises(ValueError, match="runtime_ref"):
+        RuntimeGraph().add(edge(runtime_ref=" "))
+    with pytest.raises(ValueError, match="source_implemented"):
+        RuntimeGraph().add(edge(source_implemented=False, source_ref=""))
+
+
+def test_seed_from_graph_records_only_explicit_host_runtime_evidence(tmp_path):
+    graph = RuntimeGraph()
+    graph.add(Edge(
+        "a", "b", "observed edge",
+        source_implemented=True, test_verified=False, runtime_observed=True,
+        source_ref="src.py", runtime_origin="host", runtime_ref="trace:host-runtime-2",
+    ))
+    ledger = ConnectionLedger(str(tmp_path / "runtime-seed.jsonl"))
+
+    seed_from_graph(ledger, graph)
+
+    runtime_entries = [entry for entry in ledger.history("a->b")
+                       if entry["to_state"] == "RUNTIME_OBSERVED"]
+    assert len(runtime_entries) == 1
+    assert runtime_entries[0]["origin"] == "host"
+    assert runtime_entries[0]["evidence_refs"] == ["trace:host-runtime-2"]
