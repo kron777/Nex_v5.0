@@ -266,3 +266,38 @@ def test_exact_scope_pattern_requires_nonblank_applicability():
     from rdo.model import Pattern
     with pytest.raises(ValueError, match="non-blank applicability"):
         Pattern(key="unscoped", statement="bad", provenance="cycle:1", exact_scope=True)
+
+
+def test_exact_scope_matching_normalizes_internal_whitespace_and_case(tmp_path):
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="exact", statement="scoped", provenance="cycle:1",
+        applicability="Belief   Decay", exact_scope=True))
+    assert [p.key for p in memory.applicable(" belief decay ")] == ["exact"]
+
+
+def test_exact_scope_pattern_key_collision_fails_closed(tmp_path):
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="regression_risk:shared", statement="first",
+        provenance="cycle:1", applicability="belief decay", exact_scope=True))
+    with pytest.raises(ValueError, match="conflicting exact scopes"):
+        memory.add(Pattern(key="regression_risk:shared", statement="other",
+            provenance="cycle:2", applicability="belief retrieval", exact_scope=True))
+    assert [p.key for p in memory.applicable("belief decay")] == ["regression_risk:shared"]
+    assert memory.applicable("belief retrieval") == []
+
+
+def test_exact_scope_pattern_cannot_collide_with_legacy_fuzzy_pattern(tmp_path):
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="regression_risk:shared", statement="legacy",
+        provenance="cycle:1", applicability="belief", exact_scope=False))
+    with pytest.raises(ValueError, match="conflicting scope modes"):
+        memory.add(Pattern(key="regression_risk:shared", statement="exact",
+            provenance="cycle:2", applicability="belief decay", exact_scope=True))
