@@ -92,7 +92,7 @@ The evidence snapshot and source-bounded report above remain pinned to their sta
 |---|---|
 | M0.1 — repository identity | Remote main SHA recorded; current host checkout identity/cleanliness not collected |
 | M0.1 — host/runtime/database/model measurements | **PARTIAL / UNKNOWN**; no current host collection or live DB hash inventory |
-| M0.2 — test baseline | PR #218 exact-head full baseline CI passed; the merged-main push check for `278022513` was still running at this handoff update |
+| M0.2 — test baseline | Current main `278022513`: 2,549 passed, 7 skipped, 45 subtests; baseline OK (push run `45997394667`). Mind-map verifier: 30 nodes, 0 unverified, 14 dark, 2 blocked; two doctrine references remain missing and P13 remains past due. |
 | M0.3/M0.4 — crosswalk and spec reconciliation | **PARTIAL**; source boot and Chat/Fountain paths are mapped, not every faculty's complete producer/consumer DAG |
 | Roadmap v3.0 M0.5 — causal trace | **IMPLEMENTED / MERGED**, default OFF, L3 fixture evidence |
 | M0.5 live L4 capture | **UNKNOWN**; no live runtime context enabled |
