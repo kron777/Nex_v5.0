@@ -19,6 +19,7 @@ class TestWorldBridgeOnePen(unittest.TestCase):
         init_all()
         from substrate import Reader, Writer, db_paths
         paths = db_paths()
+        self.paths = paths
         self.writers = {name: Writer(path, name=name) for name, path in paths.items()}
         self.readers = {name: Reader(path) for name, path in paths.items()}
 
@@ -42,9 +43,8 @@ class TestWorldBridgeOnePen(unittest.TestCase):
             ("news.test", payload, "test://world-bridge", now - 5),
         )
         selector = wb.WorldBridgeSelector(
-            sense_db_path=str(self.readers["sense"].db_path)
-                if hasattr(self.readers["sense"], "db_path") else str(self.tmp.name + "/sense.db"),
-            beliefs_db_path=str(self.tmp.name + "/beliefs.db"),
+            sense_db_path=str(self.paths["sense"]),
+            beliefs_db_path=str(self.paths["beliefs"]),
             sense_reader=self.readers["sense"],
             beliefs_writer=self.writers["beliefs"],
         )
