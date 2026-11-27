@@ -1,4 +1,7 @@
-"""Shared AppState handle coverage for the env-gated WorldPredictionLoop."""
+"""AppState handle propagation tests for the gated WorldPredictionLoop.
+
+Nested paths must reuse the supplied handles rather than opening fallback connections.
+"""
 from __future__ import annotations
 
 import os
