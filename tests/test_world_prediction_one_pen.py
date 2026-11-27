@@ -84,6 +84,8 @@ class TestWorldPredictionOnePen(unittest.TestCase):
 
         with mock.patch.object(wp, "Writer", side_effect=AssertionError(
             "scorecard opened a second conversations Writer"
+        )), mock.patch.object(wp, "Reader", side_effect=AssertionError(
+            "scorecard opened a second conversations Reader"
         )):
             card = pg.scorecard_by_source(
                 db_path=self.conversations,
