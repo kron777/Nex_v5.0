@@ -1,5 +1,6 @@
 """Relationship-level OFT must not infer sufficiency from absent interface evidence."""
 
+from rdo.operating_envelope import BUSY, STRESS, OperatingEnvelopeAssessment
 from rdo.model import (
     InterfaceEvidence,
     InterfaceTensionProfile,
@@ -117,3 +118,40 @@ def test_invalid_interface_profile_shape_is_reported_explicitly():
     assert result.dimensions["unknown_dimensions"] == ["interface_profile"]
     assert "invalid shape" in result.note
     assert "evidence is recorded" not in result.note
+
+
+def test_relationship_assessment_preserves_declared_operating_envelope_as_unknown():
+    rel = Relationship("consumer", "provider", "depends_on",
+        operating_envelope=OperatingEnvelopeAssessment(declared_state=BUSY))
+    result = assess_relationship(rel, {})
+    envelope = result.dimensions["operating_envelope"]
+    assert envelope["status"] == "unknown"
+    assert envelope["declared_state"] == BUSY
+    assert envelope["assessed_state"] is None
+    assert "headroom" in envelope["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_relationship_assessment_records_but_does_not_promote_envelope_evidence():
+    envelope = OperatingEnvelopeAssessment(assessed_state=STRESS,
+        assessment_evidence=["review:stress-1"],
+        provenance=["reviewer:independent-1"], confidence="reviewed")
+    rel = Relationship("consumer", "provider", "depends_on", operating_envelope=envelope)
+    result = assess_relationship(rel, {})
+    summary = result.dimensions["operating_envelope"]
+    assert summary["status"] == "evidence_recorded"
+    assert summary["assessed_state"] == STRESS
+    assert "headroom" in summary["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_relationship_assessment_rejects_unbacked_persisted_envelope_verdict():
+    rel = Relationship("consumer", "provider", "depends_on", operating_envelope={
+        "declared_state": BUSY, "assessed_state": STRESS,
+        "assessment_evidence": ["review:stress"], "provenance": [],
+        "confidence": None,
+    })
+    result = assess_relationship(rel, {})
+    assert result.dimensions["operating_envelope"]["status"] == "invalid_evidence"
+    assert "assessment" in result.dimensions["operating_envelope"]["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
