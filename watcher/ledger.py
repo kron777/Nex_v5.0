@@ -85,6 +85,7 @@ class ConnectionLedger:
     # -- write (append-only) --
     def record(self, connection_id: str, to_state: str, *, origin: str = "cloud",
                evidence_refs: Optional[List[str]] = None, note: str = "") -> dict:
+        """Append a lifecycle transition. RUNTIME_OBSERVED is host-only and must cite a trace."""
         if to_state not in STATES:
             raise LedgerError(f"unknown state {to_state!r}; one of {STATES}")
         if origin not in ("cloud", "host"):
