@@ -20,7 +20,7 @@ def _db(path):
     )
     cx.execute(
         "INSERT INTO beliefs VALUES (1, 'A durable thought about attention', 6, "
-        "'fountain_insight', 'authored', 4, ?, NULL, NULL)",
+        "'fountain_insight', 'authored', 0, 4, ?, NULL, NULL)",
         (time.time()-3600,),
     )
     cx.commit()
