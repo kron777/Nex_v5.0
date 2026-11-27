@@ -54,6 +54,7 @@ def failure_propagation_candidates(
             "roots": [],
             "unknown_roots": [],
             "invalid_roots": [],
+            "invalid_obligations": 0,
             "affected": [],
             "unresolved_dependency_edges": 0,
             "cycle_encountered": False,
@@ -101,7 +102,6 @@ def failure_propagation_candidates(
             continue
         queue = [root]
         distance = {root: 0}
-        parent = {}
         paths = {root: [root]}
         index = 0
         while index < len(queue):
@@ -116,7 +116,6 @@ def failure_propagation_candidates(
                 if consumer in distance:
                     continue
                 distance[consumer] = distance[current] + 1
-                parent[consumer] = current
                 paths[consumer] = paths[current] + [consumer]
                 queue.append(consumer)
 
@@ -132,6 +131,7 @@ def failure_propagation_candidates(
 
     status = (
         "partial" if unknown_roots or invalid_roots or invalid_obligations or unresolved_edges else
+        "not_supplied" if not roots else
         "candidate_only" if affected else
         "no_known_dependents"
     )
