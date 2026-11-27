@@ -177,9 +177,11 @@ coverage gaps, not verified live incidents:
   CoherenceGate's context query selects only `active`; the Gate fixture seeds
   `active` directly and therefore misses the normal GoalManager path.
 - **Problem stuck-state contract:** FocusLoop moves pinged/cooldown-suppressed
-  open problems to `stuck`, while ProblemMemory, CounterfactualNode and Gate
-  context select only `open`. Whether this is intentional human handoff or an
-  orphaned lifecycle state remains unresolved.
+  open problems to `stuck`; normal list/matching, Counterfactual and Gate
+  context skip them, while Fountain's special `select_for_injection()` path
+  considers any state. GUI inspection/observation does not reopen the row.
+  Whether this means human handoff, terminal hold or resumable workflow remains
+  unresolved.
 
 For precise source references, conditions, test coverage and dispositions, see
 Section F of `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md`.
