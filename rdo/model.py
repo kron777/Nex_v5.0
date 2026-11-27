@@ -254,6 +254,10 @@ class CycleRecord:
     created_at: str = dataclasses.field(default_factory=utc_now)
     # Exact immutable intake revision reference; empty for legacy/domain-demo cycles.
     objective_input: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    # Full immutable objective context copied from intake, separate from revision identity.
+    objective_context: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    # Explicit UNKNOWN-first mapping assessment; never infer satisfaction from planning.
+    context_assessment: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.kind not in CYCLE_KINDS:

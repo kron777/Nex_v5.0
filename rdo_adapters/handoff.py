@@ -98,7 +98,8 @@ def _validate_manifest(manifest: Any) -> dict:
         "work_package", "scope", "obligations", "relationships", "dependencies",
         "deliverables", "acceptance_criteria", "constraints", "exclusions",
         "assumptions", "anti_requirements", "blockers", "evidence_requirements",
-        "evidence_dimensions", "agent_handoff", "authority", "manifest_sha256",
+        "evidence_dimensions", "agent_handoff", "authority",
+        "manifest_sha256",
     }
     missing = required - set(manifest)
     if missing:
@@ -295,6 +296,7 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
             "key": work_package_key,
             "title": package.get("title"),
             "eligibility": eligibility,
+            "execution_readiness": cycle.context_assessment.get("execution_readiness", "unknown"),
             "priority_dimensions": package.get("priority_dimensions") or {},
             "anti_requirements": list(package.get("anti_requirements") or []),
             "note": package.get("note", ""),
@@ -317,6 +319,7 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
         "assumptions": list(objective["assumptions"]),
         "anti_requirements": list(cycle.anti_requirements),
         "blockers": sorted(set(blockers)),
+        "objective_context_assessment": dict(cycle.context_assessment),
         "evidence_requirements": evidence_requirements,
         "evidence_dimensions": {
             "source_implemented": "not_collected",
