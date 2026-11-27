@@ -4,7 +4,7 @@
 **Working specification:** RDO v1.4 — Optimal Functional Tension  
 **Specification provenance:** Founder-supplied 20 November 2026 text; 47,172 bytes; SHA-256 recorded in the 24 November conversation as `382d634d03bc15701d9de4dcbc2629b966ffd8370c370f0307a57a853f4db926`.  
 **Working-status note:** On 24 November the founder indicated they believed v1.4 had been approved. Treat v1.4 as the current working specification. Preserve v1.3 as historical implementation lineage; do not claim the consolidated NEX S-register contains a formal frozen supersession record.  
-**Repository evidence snapshot:** `main` at `efe6fb4d05c191d9d27c9f5983631915d1c1bcdf` (after PRs #292, #294, #296, #298, #293, #303, #304, #305 and #306).
+**Repository evidence snapshot:** `main` at `efe6fb4d05c191d9d27c9f5983631915d1c1bcdf` (after PRs #292, #294, #296, #298, #293, #303, #304, #305, #306 and #310).
 
 This is an implementation audit against the recovered v1.4 requirements, not a replacement specification. The raw v1.4 attachment is not mounted in the current repository/Library workspace, so exact clause wording and un-recovered thresholds remain UNKNOWN. The recovered requirements below are sufficient to identify implementation gaps without pretending to reproduce every source clause.
 
@@ -133,7 +133,7 @@ PR #287 merged objective-context propagation into `run_cycle()`, cycle persisten
 
 ## 6. Next implementation slice
 
-**Target:** Evidence-backed operating-envelope/headroom assessment, feedback-loop stability and relationship-level OFT.
+**Target:** Measured feedback-loop stability, calibrated relationship/interface assessment and remaining system-level OFT gaps.
 
 Completed foundation:
 1. Added a typed, serialisable UNKNOWN-first interface profile to `Relationship`, preserving legacy positional construction.
@@ -141,12 +141,12 @@ Completed foundation:
 3. Relationship-level assessment now refuses to infer SUFFICIENT when the profile is absent or when evidence exists without calibrated thresholds/margins. Existing explicit findings for unbounded influence and unresolved necessary dependencies retain precedence.
 
 Next bounded sequence:
-1. Verify the merged PR #310 integration against explicit-defect paths, persisted dictionaries, malformed values and legacy positional construction; preserve UNKNOWN when the envelope lacks evidence.
+1. Continue adversarial verification of the merged PR #310 integration, especially explicit-defect paths, persisted dictionaries, malformed values and legacy positional construction; preserve UNKNOWN when the envelope lacks evidence.
 2. Extend the merged feedback-loop record with measured stability assessment only when calibrated criteria and observation windows are grounded. Do not equate graph topology with instability or remove cycles automatically.
 3. Extend relationship-level OFT to evaluate interface dimensions and blockers without collapsing them into an uncalibrated “magic score”.
 4. Add adversarial tests for insufficient headroom, unstable feedback, failure propagation, local improvement/global regression and neighbouring-capability changes.
 5. Run the existing Stage-2 belief-development slice and persist/resume it to prove backward compatibility.
-7. Then add system-level Pareto/net-value evaluation and marginal-value stopping; do not mix those into the interface evidence foundation.
+6. Then add system-level Pareto/net-value evaluation and marginal-value stopping; do not mix those into the interface evidence foundation.
 
 This increment remains external/advisory RDO code. It does not change NEX runtime, the frozen S-register, Master Roadmap, feature flags, live beliefs or protected experiments. It does not authorise the final v1.4 expansion stage to bypass existing safety and approval gates.
 
