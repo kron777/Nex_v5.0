@@ -187,3 +187,33 @@ def test_big_surprise_has_both_distinct_tags():
     tags = _surprise_tags(True)
     assert tags == ["surprise", "big_surprise"]
     assert len(tags) == len(set(tags))
+
+
+def test_failure_after_success_checkpoints_only_last_handled_event(tmp_path, monkeypatch):
+    loop, dynamic_path, beliefs_path, handles = _prepare_databases(tmp_path)
+    try:
+        _insert_event(dynamic_path, 200.0, 1)
+        _insert_event(dynamic_path, 201.0, 2)
+        _insert_event(dynamic_path, 202.0, 3)
+        original = loop._surprise_to_belief
+        failed = {"once": False}
+
+        def fail_second_once(row):
+            if row["id"] == 2 and not failed["once"]:
+                failed["once"] = True
+                raise RuntimeError("transient second-event failure")
+            return original(row)
+
+        monkeypatch.setattr(loop, "_surprise_to_belief", fail_second_once)
+        assert _tick(loop, handles) == {"promoted": 1}
+        with sqlite3.connect(dynamic_path) as db:
+            cursor = dict(db.execute("SELECT key, value FROM daemon_kv"))
+            assert cursor[loop.LAST_PROMOTED_TS_KEY] == "200.0"
+            assert cursor[loop.LAST_PROMOTED_ID_KEY] == "1"
+
+        monkeypatch.setattr(loop, "_surprise_to_belief", original)
+        assert _tick(loop, handles) == {"promoted": 2}
+        with sqlite3.connect(beliefs_path) as db:
+            assert db.execute("SELECT COUNT(*) FROM beliefs").fetchone()[0] == 3
+    finally:
+        _close(handles)
