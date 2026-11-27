@@ -447,3 +447,10 @@ The removal comment says the module had no GUI/chat consumers, but current main 
 ### RDO capability boundary (not a defect ID)
 
 Current objective intake requires externally supplied seed obligations and reconciliation signatures. The deterministic extrapolator expands a bounded rule catalogue (default depth 4); it does not independently compile arbitrary raw intent into those initial seeds. RDO remains an external advisory tool, not NEX runtime. The founder-supplied v1.4 text was provided in a prior conversation, but its raw bytes are not available in the current repository/Library for direct comparison; v1.3 §16 remains the verified staged sequence, while v1.4 precedence is unresolved. See the system research report.
+
+
+### Post-snapshot persistence update — PR #279 (27 November 2026)
+
+PR #279 merged as `8d2121d121931d37afcb1c3d23d27e7ccc9145d1` after exact-head CI run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. The scheduled SignalToProblem loop now invokes `prose_stats.build()` with the shared beliefs Writer/Reader; the builder performs its upserts in one Writer transaction. The new tests compare its output with the direct builder and verify that the scheduled loop does not call `build_direct()`.
+
+This resolves only the auxiliary prose-statistics direct-write path. The primary `signal_to_problem_tick()` direct writes to beliefs and conversations, runtime `actioned_at` schema alteration, and split commit boundary remain open under G-85/G-61. No cross-database atomicity is claimed. No post-merge main CI run was returned at this update.
