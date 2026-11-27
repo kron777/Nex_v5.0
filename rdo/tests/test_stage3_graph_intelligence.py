@@ -313,3 +313,37 @@ def test_neighbour_impact_delta_fails_closed_on_duplicate_relationship_identity(
 def test_neighbour_impact_delta_requires_explicit_changed_node_keys():
     with pytest.raises(ValueError, match="changed_nodes"):
         graph.relationship_impact_delta([], [], "capability-A")
+
+
+def test_neighbour_impact_delta_detects_added_or_removed_assessment():
+    edge = {"src": "changed", "dst": "neighbour", "kind": "depends_on"}
+    subject = "changed -depends_on-> neighbour"
+    assessment = [{"level": "relationship", "subject": subject, "verdict": "unknown"}]
+    appeared = graph.relationship_impact_delta(
+        [edge], [dict(edge)], ["changed"], after_assessments=assessment,
+    )
+    disappeared = graph.relationship_impact_delta(
+        [edge], [dict(edge)], ["changed"], before_assessments=assessment,
+    )
+    assert appeared["changed_adjacent_relationships"][0]["assessment_changed"] is True
+    assert disappeared["changed_adjacent_relationships"][0]["assessment_changed"] is True
+
+
+def test_neighbour_impact_delta_detects_missing_vs_null_relationship_fields():
+    before = [{"src": "changed", "dst": "neighbour", "kind": "depends_on", "note": None}]
+    after = [{"src": "changed", "dst": "neighbour", "kind": "depends_on"}]
+    result = graph.relationship_impact_delta(before, after, ["changed"])
+    assert result["changed_adjacent_relationships"][0]["changed_fields"] == ["note"]
+
+
+def test_neighbour_impact_delta_rejects_duplicate_assessment_subjects():
+    edge = {"src": "changed", "dst": "neighbour", "kind": "depends_on"}
+    subject = "changed -depends_on-> neighbour"
+    assessments = [
+        {"level": "relationship", "subject": subject, "verdict": "unknown"},
+        {"level": "relationship", "subject": subject, "verdict": "sufficient"},
+    ]
+    with pytest.raises(ValueError, match="duplicate subject"):
+        graph.relationship_impact_delta(
+            [edge], [edge], ["changed"], before_assessments=assessments,
+        )
