@@ -133,20 +133,22 @@ PR #287 merged objective-context propagation into `run_cycle()`, cycle persisten
 
 ## 6. Next implementation slice
 
-**Target:** Evidence-backed operating-envelope/headroom assessment, feedback-loop stability and relationship-level OFT.
+**Target:** Close the remaining evidence-to-assessment gaps in feedback stability, failure propagation, adjacent-capability impact and system-level trade-offs without inventing calibration.
 
 Completed foundation:
 1. Added a typed, serialisable UNKNOWN-first interface profile to `Relationship`, preserving legacy positional construction.
 2. Represented provider/consumer, purpose/direction, contract/schema, provenance/quality, timing/latency/frequency/freshness, influence magnitude/authority/coupling, reversibility, error handling, fallback/recovery, observability, capacity/headroom, feedback sufficiency/stability, duplication and failure propagation.
 3. Relationship-level assessment now refuses to infer SUFFICIENT when the profile is absent or when evidence exists without calibrated thresholds/margins. Existing explicit findings for unbounded influence and unresolved necessary dependencies retain precedence.
+4. Merged PR #310 attaches operating-envelope evidence to relationships and includes validated declared/assessed state and measurement summaries in relationship assessment; it does not calculate headroom or classify the envelope.
 
 Next bounded sequence:
-1. Review PR #310's relationship-level operating-envelope integration; keep declared labels separate from assessed states and measured load/capacity/headroom/transition/recovery evidence independent. Do not infer classifications or thresholds from labels.
-2. Extend the merged feedback-loop record with measured stability assessment only when calibrated criteria and observation windows are grounded. Do not equate graph topology with instability or remove cycles automatically.
-3. Extend relationship-level OFT to evaluate interface dimensions and blockers without collapsing them into an uncalibrated “magic score”.
-4. Add adversarial tests for insufficient headroom, unstable feedback, failure propagation, local improvement/global regression and neighbouring-capability changes.
-5. Run the existing Stage-2 belief-development slice and persist/resume it to prove backward compatibility.
-6. Then add system-level Pareto/net-value evaluation and marginal-value stopping; do not mix those into the interface evidence foundation.
+1. Complete measured feedback-loop stability only when calibrated criteria, observation windows and evidence are grounded; preserve loop members and relationships, and never equate graph topology with instability or remove cycles automatically.
+2. Add evidence-backed failure-propagation assessment and adjacent-capability impact re-assessment using the now-typed interface relationships; keep UNKNOWN where propagation evidence or calibrated bounds are absent.
+3. Add the adversarial insufficient-headroom and unstable-feedback cases with evidence validation and UNKNOWN-first assertions.
+4. Add the neighbouring-capability-change adversarial case, proving that changes to one capability trigger review of affected relationships without automatically mutating unrelated components.
+5. Address local-improvement/global-regression only after inspecting the actual objective and evidence model; do not invent net-value weights, Pareto dominance rules or trade-off thresholds.
+6. Run the existing Stage-2 belief-development slice and persist/resume it against the current main to prove backward compatibility.
+7. Only then consider system-level Pareto/net-value evaluation and marginal-value stopping, with grounded calibration and explicit separation from the relationship evidence work.
 
 This increment remains external/advisory RDO code. It does not change NEX runtime, the frozen S-register, Master Roadmap, feature flags, live beliefs or protected experiments. It does not authorise the final v1.4 expansion stage to bypass existing safety and approval gates.
 
