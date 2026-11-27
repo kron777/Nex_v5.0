@@ -255,3 +255,25 @@ def test_numeric_envelope_measurements_require_units_and_finite_values():
     unknown = result.dimensions["operating_envelope"]["unknown_dimensions"]
     assert "measured_load" in unknown
     assert "measured_capacity" in unknown
+
+
+def test_relationship_operating_envelope_round_trips_through_serialized_record():
+    envelope = OperatingEnvelopeAssessment(
+        declared_state=BUSY,
+        measured_load=InterfaceEvidence(status="measured", value=70, unit="percent",
+            evidence=["telemetry:load-1"], confidence="measured"),
+    )
+    original = Relationship("consumer", "provider", "depends_on",
+        operating_envelope=envelope)
+    persisted = original.to_dict()
+    assert persisted["operating_envelope"]["declared_state"] == BUSY
+    assert persisted["operating_envelope"]["measured_load"]["value"] == 70
+
+    restored = Relationship("consumer", "provider", "depends_on",
+        operating_envelope=persisted["operating_envelope"])
+    result = assess_relationship(restored, {})
+    summary = result.dimensions["operating_envelope"]
+    assert summary["declared_state"] == BUSY
+    assert summary["status"] == "unknown"
+    assert "measured_load" not in summary["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
