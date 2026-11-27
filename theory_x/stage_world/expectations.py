@@ -75,7 +75,7 @@ import os
 import time
 from typing import Optional
 
-from substrate import connect, Row
+from substrate import connect, Row, Writer
 from substrate.paths import DbPath
 
 log = logging.getLogger("theory_x.stage_world.expectations")
@@ -938,17 +938,29 @@ def external_drift(now: Optional[float] = None, window_s: float = 86400) -> dict
             "dominates": ext > 0 and ext > own}
 
 
-def record_canaries(now: Optional[float] = None) -> str:
+def record_canaries(
+    now: Optional[float] = None,
+    *,
+    conversations_writer: Writer | None = None,
+) -> str:
     now = time.time() if now is None else now
     rows = canaries(now)
-    cx = connect(_db("conversations"), timeout=10)
+    own_writer = conversations_writer is None
+    writer = conversations_writer or Writer(_db("conversations"), name="expectation_canaries")
     try:
-        for name, value, n, flag, detail in rows:
-            cx.execute("INSERT INTO expectation_canary_log (ts, name, value, n, flag, detail) "
-                       "VALUES (?,?,?,?,?,?)", (now, name, value, n, int(flag), detail))
-        cx.commit()
+        statements = [
+            (
+                "INSERT INTO expectation_canary_log (ts, name, value, n, flag, detail) "
+                "VALUES (?,?,?,?,?,?)",
+                (now, name, value, n, int(flag), detail),
+            )
+            for name, value, n, flag, detail in rows
+        ]
+        if statements:
+            writer.write_many(statements)
     finally:
-        cx.close()
+        if own_writer:
+            writer.close()
     flagged = [r[0] for r in rows if r[3]]
     parts = [f"{r[0]}={'n/a' if r[1] is None else round(r[1], 3)} (n={r[2]})" for r in rows]
     msg = "; ".join(parts) + (f" -- CANARY: {', '.join(flagged)}" if flagged else "")
