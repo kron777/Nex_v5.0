@@ -105,3 +105,9 @@ def test_interface_evidence_rejects_unsupported_status_values():
     for status in ("observed", "measurd", "", None, 1):
         with pytest.raises(ValueError, match="invalid interface evidence status"):
             InterfaceEvidence(status=status)
+
+
+def test_interface_evidence_accepts_documented_nonmeasurement_states():
+    for status in ("measured", "implemented", "static", "inferred", "unknown"):
+        evidence = InterfaceEvidence(status=status)
+        assert evidence.status == status
