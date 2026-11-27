@@ -184,8 +184,15 @@ def test_runtime_observation_ledger_requires_host_origin_and_evidence_refs(tmp_p
     refs = ["trace:host-runtime-1"]
     entry = led.record("x->y", "RUNTIME_OBSERVED", origin="host", evidence_refs=refs)
     refs.append("mutated-after-append")
-    assert entry["origin"] == "host"
-    assert entry["evidence_refs"] == ["trace:host-runtime-1"]
+    entry["evidence_refs"].append("mutated-return-value")
+    entry["to_state"] = "BLOCKED"
+    history = led.history("x->y")
+    history[-1]["evidence_refs"].append("mutated-history-view")
+    entries = led.entries
+    entries.clear()
+
+    assert led.current_state("x->y") == "RUNTIME_OBSERVED"
+    assert led.history("x->y")[-1]["evidence_refs"] == ["trace:host-runtime-1"]
 
 
 def test_runtime_graph_rejects_unbacked_runtime_observation():
