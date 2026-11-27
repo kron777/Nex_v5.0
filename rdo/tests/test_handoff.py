@@ -670,7 +670,7 @@ def test_rdo_context_review_events_pass_independent_watcher_verification(tmp_pat
 
 
 def test_acceptance_verification_rejects_unknown_event_and_pending_completion_metadata(tmp_path, monkeypatch):
-    from rdo_adapters.handoff import record_acceptance_verification
+    from rdo_adapters.handoff import record_context_mapping, record_acceptance_verification
 
     repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
     manifest = create_handoff(
