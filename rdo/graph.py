@@ -127,6 +127,10 @@ def failure_propagation_candidates(
                 "distance": distance[key],
                 "direct": distance[key] == 1,
                 "path": paths[key],
+                "relationships": [
+                    f"{paths[key][index + 1]}:depends_on:{paths[key][index]}"
+                    for index in range(len(paths[key]) - 1)
+                ],
             })
 
     status = (
