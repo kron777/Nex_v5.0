@@ -688,11 +688,11 @@ nodes:
     falsifier: "An object entering wide-mode focus should be explicitly recorded as taken hold of, distinguishable from objects that merely passed through retrieval unselected."
     falsifier_status: pass
     probe: { wide_mode_fires_logged: 2821, source: "nex5_soak.log [WIDE MODE] markers" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3568-3580", "theory_x/stage6_fountain/generator.py:893-990"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:893-990", "theory_x/stage6_fountain/generator.py:4044-4068"] }
+    last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: found via vicāra's paired search (see that node) -- the SET side of
-      the same mechanism vicāra reads. generator.py:3579 (self._last_focal_item = _kw.get("item"))
+      the same mechanism vicāra reads. generator.py:4068 (self._last_focal_item = _kw.get("item"))
       fires inside the "wide mode" branch (_select_wide_mode, NEX5_WIDE_MODES=1, confirmed armed
       live), explicitly recording which real item (a sensed article, headline, etc.) this fire is
       about to engage with. Confirmed actually firing, not just wired: grepped nex5_soak.log for its
@@ -705,6 +705,10 @@ nodes:
       its own in THIS moment; its payoff is entirely in the next moment, via vicāra's mechanism.
       Marked pass against the falsifier as reformulated (a real, distinguishable recording event
       exists) rather than the original vague "unbuilt-open," which undersold what's actually there.
+      2026-11-27 source re-verification: _WIDE_MODES_ON is still explicitly gated by
+      NEX5_WIDE_MODES (default OFF); the prompt branch sets _last_focal_item only after a
+      wide-mode prompt is successfully accepted. The 2,821-fire probe is historical 15-Nov
+      evidence; the live process/flag was not rechecked in this source-only pass.
 
   - id: vicara
     label: "vicāra — sustained thought"
@@ -722,12 +726,12 @@ nodes:
     falsifier: "An object recorded as this fire's focal item should still be readable and used as the thread in a subsequent fire, not reset to empty."
     falsifier_status: pass
     probe: { gate: "NEX5_ASSOC_RECALL=1, confirmed armed live", caller_condition: "own_n > 1" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:2896-2930", "theory_x/stage6_fountain/generator.py:3000-3014", "theory_x/stage6_fountain/generator.py:3579"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3356-3415", "theory_x/stage6_fountain/generator.py:3462-3475", "theory_x/stage6_fountain/generator.py:4068"] }
+    last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: THIS is the real home of self._last_focal_item -- the exact mechanism
       ruled OUT for smṛti's within-moment directive is the right fit here, read the other way
-      around. _associative_recall()'s own docstring (:2902) states it plainly: "the thread = the
+      around. _associative_recall()'s own docstring (:3356-3370) states it plainly: "the thread = the
       PRIOR fire's focal item" -- precisely "the same object is still held in the next moment, not
       dropped." Confirmed live: NEX5_ASSOC_RECALL=1 is armed on the running process, the call site
       (:3006) gates on it plus own_n > 1 (true on nearly every fire), and the source data it reads
@@ -743,6 +747,11 @@ nodes:
       Correction to the earlier smṛti citation: the "right neighborhood, wrong directive" verdict
       there stands -- this mechanism was never a candidate for within-moment retention. It is,
       however, now confirmed as the correct answer for THIS node, which the smṛti round didn't ask.
+      2026-11-27 source re-verification: _associative_recall() still reads the PRIOR
+      _last_focal_item; the caller still gates it behind NEX5_ASSOC_RECALL=1 and own_n > 1,
+      and the value is set only after a wide-mode prompt is accepted. The 2,821-item probe and
+      armed-process observation are historical 15-Nov evidence; current runtime state was not
+      checked. No cross-restart persistence is claimed by this node.
 
   # ────────────────────────────── SCOPE ─────────────────────────────
   # Intentionally empty. See meta.findings — this is a result, not a TODO.
