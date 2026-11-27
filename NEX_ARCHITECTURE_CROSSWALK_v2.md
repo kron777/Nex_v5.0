@@ -71,6 +71,17 @@ The complete forward/backward audit remains open: this inventory is a search
 map to the code, not a declaration that every package has been traced from
 declaration through emission to a verified consumer.
 
+### Problem/Goal lifecycle scheduler boundary
+
+`ProblemMemory.decay()` (30-day stale close) and `GoalManager.decay()`
+(60-day stale cancel) exist and both objects are constructed/registered during
+normal boot. The registry itself has no orchestration loop. In the reviewed
+`run.py` and `gui/server.py` paths no call to these two nodes' `tick()` or
+`decay()` was found; Chat uses matching/active-goal retrieval and the GUI uses
+CRUD/list operations. Existing tests invoke decay manually, not through a
+process scheduler. This is a bounded source audit, not proof that no operator
+or auxiliary entry point can invoke the methods. See G-60 in the backlog.
+
 ## 4. Backward/forward path crosswalk
 
 | Path | Producer → selection/gate → persistence → consumer | Evidence |
