@@ -12,6 +12,7 @@ import sqlite3
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 from tests._bootstrap import *  # noqa: F401, F403
 
@@ -23,8 +24,17 @@ class TestSelfStateHistory(unittest.TestCase):
         os.environ["NEX5_DATA_DIR"] = self.tmp
         from substrate.init_db import init_all
         init_all()
+        self.dynamic_writer = None
+
+    def _get_dynamic_writer(self):
+        if self.dynamic_writer is None:
+            from substrate import Writer, db_paths
+            self.dynamic_writer = Writer(db_paths()["dynamic"], name="dynamic")
+        return self.dynamic_writer
 
     def tearDown(self):
+        if self.dynamic_writer is not None:
+            self.dynamic_writer.close()
         os.environ.pop("NEX5_DATA_DIR", None)
         shutil.rmtree(self.tmp, ignore_errors=True)
 
@@ -60,6 +70,31 @@ class TestSelfStateHistory(unittest.TestCase):
             self.assertEqual(rows[-1][1], cur)
         finally:
             c.close()
+
+    def test_bind_uses_injected_dynamic_writer_without_opening_another(self):
+        from theory_x.stage_tom import self_binding
+        writer = self._get_dynamic_writer()
+        with patch.object(
+            self_binding,
+            "Writer",
+            side_effect=AssertionError("self_binding opened a second dynamic Writer"),
+        ):
+            result = self_binding.bind(dynamic_writer=writer)
+        self.assertIn("synthesis", result)
+        # The injected Writer remains owned by the caller and usable afterwards.
+        writer.write("UPDATE self_state SET bound_at = bound_at WHERE id = 1")
+
+    def test_recursive_self_passes_the_injected_writer(self):
+        from theory_x.stage_tom import recursive_self, self_binding
+        writer = self._get_dynamic_writer()
+        with patch.object(
+            self_binding,
+            "bind",
+            return_value={"components": {"raga": "free"}},
+        ) as bind:
+            result = recursive_self._bound_state(dynamic_writer=writer)
+        self.assertEqual(result, {"raga": "free"})
+        bind.assert_called_once_with(dynamic_writer=writer)
 
     def test_history_survives_many_binds(self):
         from theory_x.stage_tom import self_binding
