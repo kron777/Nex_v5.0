@@ -1,5 +1,7 @@
 """Relationship-level OFT must not infer sufficiency from absent interface evidence."""
 
+import pytest
+
 from rdo.operating_envelope import BUSY, STRESS, OperatingEnvelopeAssessment
 from rdo.model import (
     InterfaceEvidence,
@@ -396,7 +398,7 @@ def test_relationship_assessment_exposes_typed_performance_margin_evidence_witho
 
 def test_relationship_assessment_recomputes_persisted_margin_and_ignores_tampered_computed_fields():
     persisted = {
-        "latency": {
+        "latency_utility": {
             "metric": "latency_utility",
             "q": 0.6,
             "tau": 0.7,
@@ -414,7 +416,7 @@ def test_relationship_assessment_recomputes_persisted_margin_and_ignores_tampere
     result = assess_relationship(Relationship("consumer", "provider", "depends_on",
         performance_margins=persisted), {})
     metric = result.dimensions["performance_margins"]["metrics"]["latency_utility"]
-    assert metric["margin"] == -2.0
+    assert metric["margin"] == pytest.approx(-0.1)
     assert metric["margin_state"] == "below_requirement"
     assert metric["evidence_complete"] is True
     assert result.verdict == TENSION_UNKNOWN
