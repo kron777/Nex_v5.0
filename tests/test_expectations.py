@@ -667,3 +667,133 @@ class TestWriterBackedReconciler(_Store):
             ).fetchone()[0], 1)
         finally:
             cx.close()
+
+
+class TestLearningDoesNotOverwriteConcurrentChanges(_Store):
+    """_learn reads a basis belief's confidence, then writes before * factor
+    through the beliefs Writer. Any confidence change committed between that
+    read and that write -- a learning-guard subtraction (CAS), its revert
+    (confidence + ?), an erosion bump -- must not be overwritten by a value
+    computed from the stale read, and the learning log must record the
+    transition that was actually applied. Isolated temporary databases only;
+    LEARN_VIOLATE, the clamps and the cap policy are the module's own."""
+
+    def setUp(self):
+        super().setUp()
+        os.environ["NEX5_EXPECT_LEARN"] = "1"
+
+    def _set(self, bid, **cols):
+        cx = connect(self.bel)
+        try:
+            sets = ", ".join(f"{k} = ?" for k in cols)
+            cx.execute(f"UPDATE beliefs SET {sets} WHERE id = ?", (*cols.values(), bid))
+            cx.commit()
+        finally:
+            cx.close()
+
+    def _hooked_beliefs_writer(self, hook, every_call=False):
+        """The shared beliefs Writer, with `hook` committing a change just
+        before each write reaches it -- after _learn's read, before its write."""
+        inner = Writer(self.bel, name="expectations-beliefs-cas-test")
+
+        class _Hooked:
+            fired = 0
+
+            def _fire(self):
+                if every_call or not self.fired:
+                    self.fired += 1
+                    hook()
+
+            def write(self, *a, **k):
+                self._fire()
+                return inner.write(*a, **k)
+
+            def write_many(self, *a, **k):
+                self._fire()
+                return inner.write_many(*a, **k)
+
+            def write_many_with_counts(self, *a, **k):
+                self._fire()
+                return inner.write_many_with_counts(*a, **k)
+
+            def transaction(self, *a, **k):
+                self._fire()
+                return inner.transaction(*a, **k)
+
+            def close(self):
+                inner.close()
+
+        return _Hooked()
+
+    def _reconcile(self, beliefs_writer):
+        conversations_writer = Writer(self.conv, name="expectations-conv-cas-test")
+        try:
+            return X.reconcile(now=T0 + DAY + 1, conversations_writer=conversations_writer,
+                               beliefs_writer=beliefs_writer)
+        finally:
+            conversations_writer.close()
+            beliefs_writer.close()
+
+    def _log(self, bid):
+        cx = connect(self.conv)
+        try:
+            return cx.execute(
+                "SELECT before, after, factor, COALESCE(skipped, 0) FROM "
+                "expectation_learning_log WHERE belief_id = ? ORDER BY id", (bid,)).fetchall()
+        finally:
+            cx.close()
+
+    @staticmethod
+    def _clamp(v):
+        return max(X.CONF_FLOOR, min(X.CONF_CEIL, v))
+
+    def test_concurrent_change_after_read_is_not_overwritten(self):
+        target = self._belief("the claim under test", "wonder_loop", conf=0.7)
+        peer = self._belief("an untouched basis peer", "synergized", conf=0.6)
+        self._expect([target, peer], band=1, target=target)
+        self._break(target)
+        bw = self._hooked_beliefs_writer(lambda: self._set(target, confidence=0.5))
+
+        stats = self._reconcile(bw)
+
+        self.assertEqual(bw.fired, 1)
+        self.assertEqual(stats["learned"], 2)
+        [(before, after, factor, skipped)] = self._log(target)
+        self.assertEqual(skipped, 0)
+        self.assertEqual(before, 0.5)                        # learned from what it changed
+        self.assertAlmostEqual(after, self._clamp(0.5 * factor))
+        self.assertAlmostEqual(self._conf(target), after)    # ... and the log says so
+        [(p_before, p_after, p_factor, _)] = self._log(peer)
+        self.assertEqual((p_before, p_factor), (0.6, factor))
+        self.assertAlmostEqual(self._conf(peer), self._clamp(0.6 * factor))
+        self.assertAlmostEqual(p_after, self._conf(peer))
+
+    def test_belief_locked_after_read_is_left_untouched(self):
+        bid = self._belief("locked while learning was deciding", "wonder_loop", conf=0.7)
+        self._expect([bid], band=1)
+        self._break(bid)
+        bw = self._hooked_beliefs_writer(lambda: self._set(bid, locked=1))
+
+        self._reconcile(bw)
+
+        self.assertEqual(self._conf(bid), 0.7)
+        self.assertEqual([r for r in self._log(bid) if r[3] == 0], [])
+
+    def test_persistent_conflict_is_bounded_and_never_logged_as_applied(self):
+        bid = self._belief("contended on every write", "wonder_loop", conf=0.7)
+        self._expect([bid], band=1)
+        self._break(bid)
+        seen = []
+
+        def nudge():
+            cur = self._conf(bid)
+            seen.append(cur)
+            self._set(bid, confidence=cur - 0.01)
+
+        bw = self._hooked_beliefs_writer(nudge, every_call=True)
+
+        self._reconcile(bw)                                  # returns: bounded
+
+        self.assertLessEqual(bw.fired, 5)
+        self.assertAlmostEqual(self._conf(bid), seen[-1] - 0.01)  # only the other writer's changes
+        self.assertEqual([r for r in self._log(bid) if r[3] == 0], [])
