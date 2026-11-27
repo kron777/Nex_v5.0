@@ -61,3 +61,56 @@ def test_surprise_tick_uses_injected_writers(tmp_path):
     finally:
         d_writer.close()
         b_writer.close()
+
+
+
+def test_first_run_promotes_only_events_from_last_ten_minutes(tmp_path):
+    dynamic_path = tmp_path / "dynamic.db"
+    beliefs_path = tmp_path / "beliefs.db"
+    cx = connect(dynamic_path)
+    cx.execute(
+        "CREATE TABLE surprise_events ("
+        "id INTEGER PRIMARY KEY, triggered_at REAL, surprise_flag INTEGER, "
+        "actual_content TEXT, predicted_content TEXT, prediction_type TEXT, "
+        "surprise_score REAL, big_surprise INTEGER)"
+    )
+    now = time.time()
+    cx.executemany(
+        "INSERT INTO surprise_events VALUES (?, ?, 1, ?, ?, ?, ?, ?)",
+        [
+            (1, now - 7200, "old actual", "old prediction", "external_input", 0.9, 0),
+            (2, now - 120, "recent actual", "recent prediction", "external_input", 0.9, 1),
+        ],
+    )
+    cx.commit()
+    cx.close()
+    cx = connect(beliefs_path)
+    cx.execute(
+        "CREATE TABLE beliefs ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL UNIQUE, "
+        "tier INTEGER NOT NULL, confidence REAL NOT NULL, created_at INTEGER NOT NULL, "
+        "source TEXT NOT NULL, branch_id TEXT, tags TEXT)"
+    )
+    cx.commit()
+    cx.close()
+
+    d_reader = Reader(dynamic_path)
+    d_writer = Writer(dynamic_path, name="surprise-first-run-dynamic")
+    b_writer = Writer(beliefs_path, name="surprise-first-run-beliefs")
+    try:
+        result = surprise_loop.surprise_tick(
+            dynamic_reader=d_reader,
+            dynamic_writer=d_writer,
+            beliefs_writer=b_writer,
+        )
+        assert result == {"promoted": 1}
+        rows = Reader(beliefs_path).read(
+            "SELECT content FROM beliefs WHERE source = ?",
+            (surprise_loop.SOURCE,),
+        )
+        assert len(rows) == 1
+        assert "recent prediction" in rows[0]["content"]
+        assert "old prediction" not in rows[0]["content"]
+    finally:
+        d_writer.close()
+        b_writer.close()
