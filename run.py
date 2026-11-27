@@ -578,6 +578,8 @@ def main() -> None:
             beliefs_db_path=str(paths["beliefs"]),
             probes_db_path=str(paths["probes"]),
             snapshot_path=str(paths["beliefs"].parent / "state_snapshot.json"),
+            beliefs_writer=writers["beliefs"],
+            probes_writer=writers["probes"],
         )
         resume_result = seeder.run()
         log.info("Resumption: %s", resume_result)
