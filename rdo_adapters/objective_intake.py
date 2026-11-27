@@ -501,6 +501,9 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
         authorised_gates=set(), memory=memory, max_depth=record["max_depth"],
         initial_relationships=relationships, objective_input=metadata,
         objective_context={
+            "intent": record["intent"],
+            "owner": record["owner"],
+            "source": dict(record["source"]),
             "scope": dict(record["scope"]),
             "assumptions": list(record["assumptions"]),
             "constraints": list(record["constraints"]),
