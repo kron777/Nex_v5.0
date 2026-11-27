@@ -500,6 +500,13 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
         active_experiments=_active_experiments(repo_dir),
         authorised_gates=set(), memory=memory, max_depth=record["max_depth"],
         initial_relationships=relationships, objective_input=metadata,
+        objective_context={
+            "scope": dict(record["scope"]),
+            "assumptions": list(record["assumptions"]),
+            "constraints": list(record["constraints"]),
+            "exclusions": list(record["exclusions"]),
+            "acceptance_criteria": list(record["acceptance_criteria"]),
+        },
     )
     cycle_store.save(cycle)
     return {
