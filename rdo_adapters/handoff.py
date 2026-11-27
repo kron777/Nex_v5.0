@@ -628,10 +628,22 @@ def record_acceptance_verification(workdir: str, handoff_id: str, criterion_id: 
     if len(matches) != 1:
         raise HandoffError("criterion_id must identify exactly one acceptance criterion in this handoff")
     item = matches[0]
-    keys = _manifest_obligation_keys(
-        manifest, list(mapped_obligation_keys or []), "mapped_obligation_keys",
-        required=status in ("pending", "passed", "failed"),
-    )
+    if status in ("pending", "passed", "failed"):
+        latest_mapping = handoff_history(workdir, handoff_id)["latest_context_mappings"].get(criterion_id)
+        if latest_mapping is None:
+            raise HandoffError("acceptance criterion must have a reviewed context mapping before verification")
+        reviewed_keys = latest_mapping.get("mapped_obligation_keys", [])
+        requested_keys = list(mapped_obligation_keys) if mapped_obligation_keys else list(reviewed_keys)
+        if requested_keys != reviewed_keys:
+            raise HandoffError("acceptance verification obligation keys must match the latest reviewed context mapping")
+        keys = _manifest_obligation_keys(
+            manifest, requested_keys, "mapped_obligation_keys", required=True
+        )
+    else:
+        keys = _manifest_obligation_keys(
+            manifest, list(mapped_obligation_keys or []), "mapped_obligation_keys",
+            required=False,
+        )
     try:
         record = AcceptanceVerificationRecord(
             criterion_id=item["criterion_id"],
