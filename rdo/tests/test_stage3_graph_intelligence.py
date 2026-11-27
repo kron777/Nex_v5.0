@@ -261,10 +261,15 @@ def test_failure_propagation_candidates_trace_direct_and_transitive_dependents()
     by_key = {item["key"]: item for item in affected["affected"]}
     assert by_key["A"]["direct"] is True
     assert by_key["A"]["path"] == ["ext", "A"]
+    assert by_key["A"]["relationships"] == ["A:depends_on:ext"]
     assert by_key["C"]["path"] == ["ext", "A", "C"]
     assert by_key["B"]["path"] == ["ext", "A", "C", "B"]
     assert by_key["down"]["path"] == ["ext", "A", "C", "B", "down"]
     assert by_key["down"]["distance"] == 4
+    assert by_key["down"]["relationships"] == [
+        "A:depends_on:ext", "C:depends_on:A",
+        "B:depends_on:C", "down:depends_on:B",
+    ]
     assert affected["cycle_encountered"] is True
     assert "runtime" in affected["note"]
 
