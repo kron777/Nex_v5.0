@@ -25,7 +25,7 @@ The source report above remains pinned to `ae406fa8`. Main has since advanced to
 
 These are post-snapshot observations, not retroactive changes to the `ae406fa8` report or the frozen specifications.
 
-## Post-snapshot current-main follow-up (27 November 2026, after #200)
+## Post-snapshot current-main follow-up (27 November 2026, after #211)
 
 The evidence snapshot and source-bounded report above remain pinned to their stated commits. Current remote main is now `46c743f9c0009e485e307a574be9cb2c6c2a9b39`.
 
@@ -108,7 +108,7 @@ The evidence snapshot and source-bounded report above remain pinned to their sta
 3. Continue the forward/backward source audit across the remaining `theory_x/` faculties; distinguish wired loops from downstream consumers and measured effects.
 4. The mind-map count discrepancy is closed (30 nodes, 5 arms, 4 findings). The consolidated source re-verification PR #185 is merged; current verifier result is 30 nodes, 0 unverified, 14 dark, 2 blocked. The 18 path/date warnings were cleared by source-anchor corrections. Keep the two missing doctrine references and overdue `p13_finitude` marker explicit; do not fabricate documents or advance the marker without source review.
 5. Preserve the unresolved doctrine-reference and P13 evidence gaps as explicit founder-review items; do not silently remove them.
-6. Review the G-53 PR #184 merged cursor migration against any future Warrant source-coverage changes; do not broaden the use-day eligibility set without a specification decision.
+6. Review the G-53 tied-timestamp cursor fix (#184) and G-71 rowid/VACUUM stability gap separately. Do not broaden Warrant source eligibility or lifecycle policy without a specification decision.
 7. Obtain a fresh, authorised host-only collection for active checkout identity, service/process state, versions/model digest, performance and DB hashes. Do not copy private runtime data into Git.
 8. Present the Reality Report, Crosswalk and verified defect backlog for Gate 0 founder review before any Phase 1 behavioural work.
 
