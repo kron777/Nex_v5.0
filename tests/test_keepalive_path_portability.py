@@ -11,7 +11,7 @@ def test_keepalive_resolves_checkout_from_its_own_location(tmp_path):
     # Execute only the real path-resolution preamble from a copied script,
     # with a different working directory. Nothing after LOCKFILE is run.
     preamble = source.split("LOCKFILE=", 1)[0]
-    probe_dir = tmp_path / "mounted-volume" / "nex5"
+    probe_dir = tmp_path / "mounted volume" / "nex5"
     probe_dir.mkdir(parents=True)
     probe = probe_dir / "nex_keepalive.sh"
     probe.write_text(
@@ -38,6 +38,8 @@ def test_keepalive_has_no_host_specific_checkout_path():
     assert "/home/rr/Desktop/Desktop/nex5" not in source
     assert 'dirname -- "${BASH_SOURCE[0]}"' in source
     assert 'cd -- "${SCRIPT_DIR}"' in source
+    assert 'git -C "${SCRIPT_DIR}" rev-parse' in source
+    assert '>> "${SCRIPT_DIR}/journal/keepalive_runtime.tsv"' in source
     # Preserve main's dry-run boundary; do not import the continuity branch's
     # different MOLTBOOK_DRY_RUN=0 setting with the path-only fix.
     assert "MOLTBOOK_DRY_RUN=1" in source
