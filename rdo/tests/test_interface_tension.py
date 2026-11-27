@@ -227,3 +227,31 @@ def test_relationship_profile_dict_and_unknown_values_remain_compatible():
     result = assess_relationship(rel, {})
     assert result.dimensions["dimensions"]["latency"]["evidence_complete"] is True
     assert result.verdict == TENSION_UNKNOWN
+
+
+def test_numeric_interface_evidence_requires_finite_value_and_unit():
+    profile = InterfaceTensionProfile(
+        latency=InterfaceEvidence(status="measured", value=12, unit=None,
+            evidence=["trace:latency"], confidence="measured"),
+        frequency=InterfaceEvidence(status="measured", value=float("nan"), unit="Hz",
+            evidence=["trace:frequency"], confidence="measured"),
+    )
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        interface_profile=profile), {})
+    dimensions = result.dimensions["dimensions"]
+    assert not dimensions["latency"]["evidence_complete"]
+    assert not dimensions["frequency"]["evidence_complete"]
+
+
+def test_numeric_envelope_measurements_require_units_and_finite_values():
+    envelope = OperatingEnvelopeAssessment(
+        measured_load=InterfaceEvidence(status="measured", value=70,
+            evidence=["trace:load"], confidence="measured"),
+        measured_capacity=InterfaceEvidence(status="measured", value=float("inf"),
+            unit="percent", evidence=["trace:capacity"], confidence="measured"),
+    )
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        operating_envelope=envelope), {})
+    unknown = result.dimensions["operating_envelope"]["unknown_dimensions"]
+    assert "measured_load" in unknown
+    assert "measured_capacity" in unknown
