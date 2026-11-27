@@ -242,6 +242,69 @@ def test_coherence_gate_trace_records_its_persisted_decision(tmp_path, monkeypat
             writer.close()
 
 
+def test_coherence_gate_fallback_decision_is_traced_with_persisted_row(
+    tmp_path, monkeypatch
+):
+    from theory_x.stage_gate.coherence_gate import CoherenceGate, ThoughtPacket
+
+    writers, readers = _make_trace_test_substrate(tmp_path, monkeypatch)
+    try:
+        gate = CoherenceGate(
+            beliefs_reader=readers["beliefs"],
+            beliefs_writer=writers["beliefs"],
+            conversations_reader=readers.get("conversations"),
+        )
+        tracer = TraceContext(
+            "fountain_cycle", sink_path=tmp_path / "coherence-gate-fallback.jsonl"
+        )
+        quality_event = tracer.record(
+            "quality_gate", "accepted",
+            metadata={"reason_code": "fixture_quality_pass"},
+        )
+        tracer.remember("fountain_quality_gate", quality_event)
+
+        def fail_evaluation(packet):
+            raise RuntimeError("deterministic fixture failure")
+
+        monkeypatch.setattr(gate, "_evaluate", fail_evaluation)
+        packet = ThoughtPacket(
+            content="An observation used to verify fail-open gate tracing.",
+            source_node="fountain",
+            confidence=0.70,
+            branch_id="systems",
+        )
+        decision = gate.check(packet, trace=tracer)
+
+        assert decision.outcome.value == "ACCEPT"
+        assert decision.reason == "gate_error_fallback"
+
+        stored = readers["beliefs"].read_one(
+            "SELECT id, outcome, reason FROM gate_decisions "
+            "WHERE source_node='fountain' ORDER BY id DESC LIMIT 1"
+        )
+        assert stored is not None
+        assert stored["outcome"] == "ACCEPT"
+        assert stored["reason"] == "gate_error_fallback"
+
+        deltas = [
+            event for event in tracer.events
+            if event["stage"] == "sqlite_writer_delta"
+            and event["metadata"].get("table") == "gate_decisions"
+        ]
+        assert len(deltas) == 1
+        assert deltas[0]["metadata"]["row_id"] == stored["id"]
+        assert deltas[0]["metadata"]["decision"] == "ACCEPT"
+        assert quality_event in deltas[0]["parent_ids"]
+    finally:
+        for reader in readers.values():
+            try:
+                reader.close()
+            except Exception:
+                pass
+        for writer in writers.values():
+            writer.close()
+
+
 def test_crystallizer_trace_records_quality_gate_and_committed_belief(tmp_path, monkeypatch):
     from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
 
