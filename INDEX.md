@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `14873c10673760b8adbbf6fb0076226d1c97ffa4`  
+**Last verified against:** `main` at `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -826,9 +826,9 @@ PR #274 changed documentation/evidence only. No MIND_MAP nodes, doctrine files, 
 
 ## 42. Phase 0 system research continuation (27 November 2026)
 
-**Current main:** `14873c10673760b8adbbf6fb0076226d1c97ffa4`. The selected-path research report is `NEX_PHASE0_SYSTEM_RESEARCH_2026-11-27.md`.
+**Research evidence snapshot:** `14873c10673760b8adbbf6fb0076226d1c97ffa4` (before PR #279). Current main additionally includes PR #279 at `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`. The selected-path research report is `NEX_PHASE0_SYSTEM_RESEARCH_2026-11-27.md`.
 
-PR #275's mind-map freshness update, PR #276's RDO generated-cycle exclusion and PR #277's keepalive path portability fix are merged. Their exact-head full baselines passed respectively at 2,632, 2,634 and 2,636 passed tests (7 skipped, 45 subtests; baseline OK). PR #276 also has a passing post-merge main run. PR #277 preserves current main's `MOLTBOOK_DRY_RUN=1`.
+PR #275's mind-map freshness update, PR #276's RDO generated-cycle exclusion and PR #277's keepalive path portability fix are merged. Their exact-head full baselines passed respectively at 2,632, 2,634 and 2,636 passed tests (7 skipped, 45 subtests; baseline OK). PR #276 also has a passing post-merge main run. PR #277 preserves current main's `MOLTBOOK_DRY_RUN=1`. PR #279 then moves the scheduled prose-statistics rebuild onto the shared beliefs Writer/Reader path; its exact-head run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. The merge is `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`; no post-merge main run was returned at this update.
 
 ### Current source research
 
@@ -848,4 +848,4 @@ The RDO capability boundary and version-precedence questions are recorded in the
 
 ### Validation and limits
 
-The latest mind-map CI check reports 30 nodes, 0 unverified, 14 dark, 2 blocked, no stale-source warnings, two missing doctrine references and the overdue P13 marker. No runtime, host service, live database or external API was inspected. No cognitive policy, feature flag, MIND_MAP node, frozen S-01–S-25 register, Master Roadmap or Gate 0 decision changed. Gate 0 remains pending; Phase 1 remains unauthorized.
+The latest mind-map CI check reports 30 nodes, 0 unverified, 14 dark, 2 blocked, no stale-source warnings, two missing doctrine references and the overdue P13 marker. PR #279 closes only the auxiliary prose-statistics direct-write path; SignalToProblem's primary cross-database signal/problem transaction remains open under G-85/G-61. No runtime, host service, live database or external API was inspected. No cognitive policy, feature flag, MIND_MAP node, frozen S-01–S-25 register, Master Roadmap or Gate 0 decision changed. Gate 0 remains pending; Phase 1 remains unauthorized.
