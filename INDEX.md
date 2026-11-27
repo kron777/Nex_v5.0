@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `cc8ae43652bdba919198ee4bb90fabbd8f05632f`  
+**Last verified against:** `main` at `80c30b6cc649bb9ce46fd6fdc06bf4afbc9f57c5`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -630,3 +630,34 @@ The G-75 source review found a false statement in `WarrantPass`'s class docstrin
 
 PR #262 merged as `c9e25d7cf85659e80053f5fe75928ee71486a141`, correcting the WarrantPass class docstring without wiring or activating it. PR #261 merged as `cc8ae43652bdba919198ee4bb90fabbd8f05632f`, closing the G-70 speech trace source/test gap. The exact-head PR #261 suite passed **2,611 passed, 7 skipped, 45 subtests** (run `46020502376`). The G-75 lifecycle question and complete M0.5 acceptance remain open. The P9 stale-source warning was cleared after its schema line-anchor correction; documentation-branch run `46020611137` passed **2,599 passed, 7 skipped, 45 subtests**. The two missing doctrine files and overdue P13 unblock remain visible warnings, not silently repaired. This manual snapshot is pinned to current main `cc8ae43652bdba919198ee4bb90fabbd8f05632f`.
 
+
+
+## 37. Current-main reconciliation and Claude first-read handoff (27 November 2026)
+
+**Evidence snapshot:** `main` at `80c30b6cc649bb9ce46fd6fdc06bf4afbc9f57c5`. This is the merge commit for PR #263, which reconciled `INDEX.md`, the verified defect backlog, Phase 0 handoff, ADR-001 and the mind-map after the G-70 merge. The five-file documentation reconciliation is merged; it does not alter runtime code, frozen specifications, roadmap, feature flags or Gate 0.
+
+### Manual authority and unresolved source material
+
+This manual is an orientation and evidence index, not authority to create or reinterpret project policy. The consolidated S-01–S-25 register remains frozen. The roadmap and phase gates remain controlling for authorization. Source proves what the repository currently does; it does not by itself prove that the behaviour is intended.
+
+The separate user-authored **NEX v5.0 Development Proposal V2.1** and its approval record remain an unresolved authority dependency. A recursive path inventory of the current `main` tree found no file whose path identifies that proposal. Earlier Library retrieval also did not establish the authoritative original or approval record. This means **not located**, not proven nonexistent. Do not reconstruct the proposal from memory, summaries, later implementation, `SPECIFICATION.md`, or this manual. Do not treat an unapproved proposal as an approved amendment.
+
+### G-58 — Goal lifecycle contract remains unresolved
+
+The current-main source finding is unchanged: `GoalManager.open()` creates goals with `state='open'`; its `list_open()` and `get_active()` methods select that state. `CoherenceGate._load_context()` queries `state='active'`. The focused Gate test helper seeds `active` directly and therefore does not exercise the normal GoalManager creation path. No normal `open` → `active` transition was established in the reviewed source.
+
+This is a verified producer/consumer mismatch, but **the intended lifecycle semantics are not established**. Do not fix it by changing the writer to `active`, changing the Gate query to `open`, adding an automatic transition, migrating stored rows, or broadening the meaning of either state until the authoritative lifecycle rule and approval are recovered. The next valid engineering step is to obtain the exact V2.1 text and approval evidence, map its relevant clauses to each state and transition, then add a GoalManager-to-CoherenceGate integration test that encodes the approved contract. If the authority remains unavailable, keep G-58 open and document the limitation; do not guess.
+
+### Current engineering boundary
+
+- **PR #264** is a separate draft current-main replay for the World Model provenance-erosion 500-row pagination defect. Its head is `8d2e6049621301e9f117b33ed5ec4ae496d3bd53`, based on this mainline. Exact-head full-suite run `46023260805` was still in progress at the latest check. It is not merged or validated; its behavioural impact is described in the PR. Do not report it as complete.
+- G-69 remains held for Gate 0 review. G-73/G-74/G-75 remain open lifecycle/eligibility questions. The two missing doctrine references and overdue P13 unblock remain visible mind-map warnings.
+- PR #263's merge is a documentation integration, not a Gate 0 approval. Gate 0 remains pending founder review; Phase 1 remains unauthorized.
+
+### Claude first-read protocol
+
+For a fresh independent review, read in this order: this `INDEX.md`; `PHASE0_HANDOFF.md`; `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md`; `NEX_REPOSITORY_REALITY_REPORT.md`; `NEX_ARCHITECTURE_CROSSWALK_v2.md`; `ADR-001.md); then the exact frozen specification/register and roadmap from their authoritative locations.
+
+Ask Claude to independently locate the original V2.1 proposal and approval record, identify the exact goal-lifecycle clauses, and return verbatim clause references plus the evidence establishing approval. If it cannot locate them, it must say so rather than infer the rule. Claude should then independently verify G-58 against current source and tests, distinguish confirmed implementation from intended semantics, and propose the smallest test-first reconciliation. No state semantics, policy, schema, live database or runtime change is authorized by this handoff.
+
+The continuing work method is research → bounded implementation where authority permits → rescan changed code and surrounding dependencies → record evidence, consequences and newly exposed gaps → update this manual and backlog. Keep provisional hypotheses separate from verified facts and actively test disconfirming explanations.
