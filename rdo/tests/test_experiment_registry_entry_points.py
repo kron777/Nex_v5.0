@@ -22,6 +22,7 @@ def test_stage_entry_points_propagate_unknown_registry(monkeypatch, tmp_path, ru
             relationships=[],
             counts={},
             reused=[],
+            signature_matches=[],
             missing=[],
             anti_requirements=[],
             frontier=[],
