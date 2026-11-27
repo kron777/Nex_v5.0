@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — records the merged #229/#232 DAG integrity fixes, #233 policy-scan coverage, and #223–#226 bounded one-pen migrations; #235 carries the additional DAG input-shape guard.*
+*Last amended: 27 November 2026 — records merged DAG integrity and policy-scan fixes, #223–#226 bounded one-pen migrations, and the #236/#238 SelfPredictionLoop handle integration; G-69/G-71 proposals remain under verification and Gate 0 boundaries.*
 
 
 
@@ -346,3 +346,14 @@ Four previously open, independently tested persistence migrations are now merged
 - **PR #226 — Decoder:** places dynamic reads, word-context inserts and cursor advancement inside the canonical dynamic Writer transaction, with sense timing read through the shared Reader. Exact-head run `45998199987`: 2,551 passed, 7 skipped, 45 subtests.
 
 These migrations preserve the existing feature gates and decision logic. They close the four bounded persistence branches only; they do not prove the repository-wide one-pen audit complete or establish host/runtime activation. Cross-database operations remain separate transactions unless explicitly documented otherwise.
+
+
+---
+
+## 19. Phase 0 follow-up audit and gated SelfPredictionLoop integration (27 November 2026)
+
+The current-main follow-up audit has rechecked G-68 to G-72. G-68 (experimental ProbeRunner safety), G-70 (speech playback trace coverage), and G-69/G-71 (surprise-event and Warrant cursor integrity) remain separately tracked in the verified defect backlog; their proposed corrections are not treated as merged or activated.
+
+G-72 is closed by **PR #236** (commitments canonical Writer/Reader path) and **PR #238** (AppState handle injection through the gated SelfPredictionLoop, self-prediction, owned-belief, commitments and Expectations paths). Exact-head full-suite runs passed: #236 `46006462779` (2,573 passed, 7 skipped, 45 subtests) and #238 `46008022480` (2,584 passed, 7 skipped, 45 subtests).
+
+The `NEX5_SELF_PRED=1` gate and all other feature gates remain unchanged. No loop was started and no cognitive decision logic, cadence, thresholds, frozen specifications, roadmap or phase-gate state was changed. This closes the persistence-ownership integration finding only; it does not certify host activation or a complete repository-wide one-pen census.
