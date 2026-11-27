@@ -117,6 +117,16 @@ class TestRecorder(unittest.TestCase):
         rec._USE_BATCH = 2
         same_ts = _T0 + 30 * _DAY
         c = sqlite3.connect(self.bdb)
+        # Leave a rowid gap before the tied rows. VACUUM will renumber their
+        # hidden rowids, but must not disturb the declared composite-key cursor.
+        c.execute(
+            "INSERT INTO belief_lineage (child_id, parent_id, relationship, created_at) "
+            "VALUES (99, 99, 'temporary', ?)", (same_ts,)
+        )
+        c.execute(
+            "INSERT INTO arc_members (arc_id, belief_id, position, role, joined_at) "
+            "VALUES (1, 101, 99, 'temporary', ?)", (same_ts,)
+        )
         c.executemany(
             "INSERT INTO belief_lineage (child_id, parent_id, relationship, created_at) "
             "VALUES (?, ?, 'test', ?)",
@@ -127,12 +137,27 @@ class TestRecorder(unittest.TestCase):
             "VALUES (1, ?, ?, 'test', ?)",
             [(102 + i, i, same_ts) for i in range(5)],
         )
+        c.execute("DELETE FROM belief_lineage WHERE relationship='temporary'")
+        c.execute("DELETE FROM arc_members WHERE role='temporary'")
         c.commit()
         c.close()
 
-        # The fixture rows are consumed first; then each same-timestamp group
-        # spans multiple batches. Cursor progress must use declared PKs, not rowid.
-        for offset in range(5):
+        # First page consumes the original fixture row and the first tied row.
+        self.r.use_cycle(now=same_ts)
+        with sqlite3.connect(self.bdb) as db:
+            rowid_before = db.execute(
+                "SELECT rowid FROM belief_lineage WHERE child_id=100"
+            ).fetchone()[0]
+        # A VACUUM changes the hidden rowid of these composite-PK tables.
+        self.r._w.c.execute("VACUUM")
+        self.r._w.c.commit()
+        with sqlite3.connect(self.bdb) as db:
+            rowid_after = db.execute(
+                "SELECT rowid FROM belief_lineage WHERE child_id=100"
+            ).fetchone()[0]
+        self.assertNotEqual(rowid_before, rowid_after)
+
+        for offset in range(1, 5):
             self.r.use_cycle(now=same_ts + offset)
 
         lineage_day = int(same_ts // _DAY)
