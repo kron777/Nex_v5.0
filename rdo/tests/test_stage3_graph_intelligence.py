@@ -271,9 +271,9 @@ def test_neighbour_impact_delta_reviews_adjacent_edges_without_claiming_causalit
          "note": "after"},
     ]
     result = graph.relationship_impact_delta(before, after, ["capability-A"])
-    assert result["status"] == "reviewed"
+    assert result["status"] == "compared"
     assert result["summary"] == {
-        "adjacent_relationships_reviewed": 3,
+        "adjacent_relationships_compared": 3,
         "adjacent_relationships_changed": 2,
         "unrelated_changes": 1,
     }
@@ -294,7 +294,7 @@ def test_neighbour_impact_delta_includes_assessment_changes_on_unchanged_edges()
         [edge], [dict(edge)], ["changed"], before_assessments=before,
         after_assessments=after,
     )
-    item = result["reviewed_adjacent_relationships"][0]
+    item = result["compared_adjacent_relationships"][0]
     assert item["change"] == "unchanged"
     assert item["assessment_changed"] is True
     assert item["assessment_before"]["verdict"] == "unknown"
