@@ -241,7 +241,8 @@ def test_relationship_endpoint_missing_from_both_cycle_node_sets_is_partial():
     report = compare_adjacent_relationship_impacts(cycle, cycle, ["store"])
     assert report["status"] == "partial"
     assert report["unknown_capabilities"] == ["store"]
-    assert report["invalid_relationship_records"] == 2
+    assert report["unresolved_relationship_references"] == 2
+    assert report["invalid_relationship_records"] == 0
 
 
 def test_impact_report_records_do_not_alias_mutable_cycle_snapshots():
@@ -262,3 +263,21 @@ def test_impact_report_records_do_not_alias_mutable_cycle_snapshots():
     item["after_assessment"]["dimensions"]["latency"]["status"] = "tampered"
     assert before["relationships"][0]["interface_profile"]["latency"]["status"] == "unknown"
     assert after["tension"][0]["dimensions"]["latency"]["status"] == "measured"
+
+
+def test_relationship_endpoint_known_before_but_missing_after_is_unresolved():
+    before = _cycle(
+        [{"src": "reader", "dst": "store", "kind": "depends_on"}],
+        [_assessment("reader -depends_on-> store")],
+        obligations=["reader", "store"],
+    )
+    after = _cycle(
+        [{"src": "reader", "dst": "store", "kind": "depends_on"}],
+        [_assessment("reader -depends_on-> store")],
+        obligations=["reader"],
+    )
+    report = compare_adjacent_relationship_impacts(before, after, ["store"])
+    assert report["status"] == "partial"
+    assert report["unknown_capabilities"] == []
+    assert report["unresolved_relationship_references"] == 1
+    assert report["affected_relationships"][0]["relationship_status"] == "unchanged"
