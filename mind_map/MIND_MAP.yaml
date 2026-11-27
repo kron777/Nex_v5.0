@@ -343,8 +343,8 @@ nodes:
     falsifier: "A locked Tier-1 belief's confidence should never move via ordinary reconciliation, regardless of contrary evidence arriving elsewhere in the belief graph."
     falsifier_status: pass
     probe: { locked_beliefs_checked: 90, confidence_values: "static (0.95-0.99), consistent with never-touched" }
-    source: { kind: composite, refs: ["keystone.py:1-20", "theory_x/stage_world/expectations.py:520-545", "theory_x/stage_world/expectations.py:725-790"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["keystone.py:1-20", "keystone.py:61-101", "theory_x/stage_world/expectations.py:520-545", "theory_x/stage_world/expectations.py:725-790"] }
+    last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: the original falsifier ("declined as a detector, same as vicikitsā")
       is superseded -- this is not an absent/declined factor, a real mechanism was found.
@@ -370,6 +370,15 @@ nodes:
       counts as "the same thing dṛṣṭi names" or a wholesome cousin that happens to share its
       mechanics depends on scope -- narrow and ceremony-gated here, which is the opposite of how
       dṛṣṭi usually manifests. Flagging the distinction rather than collapsing it either way.
+
+
+      2026-11-27 source re-verification: keystone.py's reseed() explicitly inserts Tier-1 rows
+      with locked=1 and only deletes them under force=True; expectations._learn() skips seeded
+      basis rows and any live belief whose locked field is true before updating confidence.
+      The canary reads authored confidence only where locked=0. The direct-Writer persistence
+      gap recorded in G-65 does not alter this locked-row exclusion or the adjudication policy.
+      The 90-row confidence probe above is historical 2026-11-15 evidence and was not repeated
+      against live data in this source-only review.
 
   # ───────────────────────────── WRITES ─────────────────────────────
   - id: smrti
