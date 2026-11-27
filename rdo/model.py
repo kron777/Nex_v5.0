@@ -206,9 +206,12 @@ class InterfaceTensionProfile:
         ):
             if value is not None and (
                 isinstance(value, bool) or not isinstance(value, (int, float))
-                or not math.isfinite(value) or value < 0
+                or not math.isfinite(value) or (name != "headroom" and value < 0)
             ):
-                raise ValueError(f"interface-profile {name} must be a finite non-negative number or None")
+                raise ValueError(
+                    f"interface-profile {name} must be a finite "
+                    + ("number or None" if name == "headroom" else "non-negative number or None")
+                )
         if not isinstance(self.margins, list) or any(
             not isinstance(item, PerformanceMargin) for item in self.margins
         ):
@@ -233,13 +236,14 @@ class InterfaceTensionProfile:
             if not getattr(self, name).strip():
                 missing.append(name)
         for name in (
-            "direction", "provenance_quality", "timing", "influence_magnitude",
-            "failure_semantics", "observability", "feedback_sufficiency",
-            "feedback_stability", "duplication", "failure_propagation",
-            "operating_envelope",
+            "direction", "timing", "influence_magnitude", "failure_semantics",
+            "observability", "feedback_sufficiency", "feedback_stability",
+            "duplication", "failure_propagation", "operating_envelope",
         ):
             if getattr(self, name) == "unknown":
                 missing.append(name)
+        if self.provenance_quality != "measured":
+            missing.append("measured_provenance_quality")
         for name in ("latency_ms", "frequency_hz", "capacity", "headroom"):
             if getattr(self, name) is None and name not in self.not_applicable:
                 missing.append(name)
