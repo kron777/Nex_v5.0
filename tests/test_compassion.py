@@ -17,6 +17,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests import _bootstrap  # noqa: F401
 
@@ -148,6 +149,32 @@ class TestCompassionInjection(unittest.TestCase):
         blob = self._run(admin=True, flag=True, prompt=_DISTRESS)
         self.assertIn("Compassion is up in you", blob)
 
+    def test_chat_compassion_uses_appstate_conversations_writer(self):
+        self._build(lambda url, payload: {
+            "choices": [{"message": {"content": "a reply"}}]
+        })
+        os.environ["NEX5_COMPASSION"] = "1"
+        from theory_x.stage_affect import compassion
+        with patch.object(
+            compassion,
+            "Writer",
+            side_effect=AssertionError("Chat opened a second conversations Writer"),
+        ):
+            c = self.app.test_client()
+            with c.session_transaction() as sess:
+                sess["admin"] = True
+                sess["chat_session_id"] = "compassion-writer-test"
+            response = c.post("/api/chat", json={"prompt": _DISTRESS})
+        self.assertEqual(response.status_code, 200)
+        row = self.state.readers["conversations"].read_one(
+            "SELECT compassion_level FROM compassion_state WHERE id=1"
+        )
+        self.assertIsNotNone(row)
+        self.assertGreaterEqual(row["compassion_level"], 0.50)
+
+    def test_no_stance_when_flag_off(self):
+        blob = self._run(admin=True, flag=False, prompt=_DISTRESS)
+        self.assertNotIn("Compassion is up in you", blob)
     def test_no_stance_when_flag_off(self):
         blob = self._run(admin=True, flag=False, prompt=_DISTRESS)
         self.assertNotIn("Compassion is up in you", blob)
