@@ -194,3 +194,21 @@ def test_system_assessment_retains_each_distinct_overlapping_feedback_loop():
     assert len({tuple(loop["relationships"]) for loop in four_member}) == 2
     assert all(loop["stability_state"] == "unknown" for loop in four_member)
     assert assessment.verdict == "unknown"
+
+
+
+def test_cycle_detector_output_is_stable_when_relationship_order_changes():
+    from rdo.model import Relationship
+    from rdo.tension import _find_cycles
+
+    edges = [
+        Relationship("A", "B", "influences"),
+        Relationship("B", "C", "influences"),
+        Relationship("C", "D", "influences"),
+        Relationship("D", "A", "influences"),
+        Relationship("A", "C", "influences"),
+        Relationship("C", "B", "influences"),
+        Relationship("B", "D", "influences"),
+    ]
+
+    assert _find_cycles(edges) == _find_cycles(list(reversed(edges)))
