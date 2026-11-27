@@ -189,8 +189,12 @@ def test_regression_outcome_becomes_scoped_candidate_for_later_cycles(tmp_path):
 
     memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
     memory.add(regression)
+    assert regression.confidence == 0.3 and regression.observed_count == 1
     assert [item.key for item in memory.applicable("regression")] == ["regression_risk:regression"]
     assert memory.applicable("another regression objective") == []
+    reopened = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    assert [item.key for item in reopened.applicable("regression")] == ["regression_risk:regression"]
+    assert reopened.applicable("another regression objective") == []
 
     next_cycle, _ = run_cycle(
         "next-regression-review", "regression", [],
