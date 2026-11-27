@@ -1,6 +1,6 @@
 # RDO Stage 3 — Graph Intelligence
 
-**Governing scope:** RDO v1.3 §16 Stage 3. One cohesive, read-only analysis module
+**Working specification:** RDO v1.4 §29 places graph intelligence after the Extrapolator MVP and before the dedicated OFT assessment. “Stage 3” is retained here as the historical implementation label. One cohesive, read-only analysis module
 (`rdo/graph.py`) that makes the Extrapolator *understand* the obligation graph it already
 produces — it does not build a general-purpose graph platform and adds no new persistence,
 merge or reconciliation mechanism.
@@ -74,8 +74,8 @@ Tests: `rdo/tests/test_stage3_graph_intelligence.py` (14 tests); full RDO suite 
 - **Unknown / out of scope:** runtime observation (host-only, NEX in standby); automatic
   resolution of duplicate candidates (deliberately left to review).
 
-## Specification-precedence note (unchanged, unresolved)
+## Specification basis and remaining OFT boundary
 
-The implementation cites **RDO v1.4** in docstrings; the governing sequence here is **v1.3 §16**.
+The implementation cites **RDO v1.4** in docstrings; the governing sequence here is **v1.4 §29**.
 The v1.2 / v1.3 / v1.4 texts, the Watcher v3.0 spec and the Master Roadmap v3.0 are not in the
 workspace. No version reconciliation is assumed; the precedence remains for founder resolution.
