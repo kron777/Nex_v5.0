@@ -450,10 +450,6 @@ def compare_adjacent_relationship_impacts(
     after_relationships, invalid_after_relationships = _relationship_groups(after_cycle)
     before_assessments, invalid_before_assessments = _assessment_groups(before_cycle)
     after_assessments, invalid_after_assessments = _assessment_groups(after_cycle)
-    invalid_relationships = (
-        invalid_before_relationships + invalid_after_relationships
-        + invalid_relationship_references
-    )
     invalid_assessments = invalid_before_assessments + invalid_after_assessments
     known_capabilities = before_nodes | after_nodes
     unknown_capabilities = sorted(
@@ -465,6 +461,10 @@ def compare_adjacent_relationship_impacts(
         for groups in (before_relationships, after_relationships)
         for src, _kind, dst in groups
         if src not in known_capabilities or dst not in known_capabilities
+    )
+    invalid_relationships = (
+        invalid_before_relationships + invalid_after_relationships
+        + invalid_relationship_references
     )
 
     identities = sorted(
