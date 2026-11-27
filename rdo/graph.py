@@ -144,9 +144,11 @@ def failure_propagation_candidates(
                 if consumer in reachable_indegree:
                     reachable_indegree[consumer] += 1
         ready = sorted(key for key, degree in reachable_indegree.items() if degree == 0)
+        ready_index = 0
         processed = 0
-        while ready:
-            current = ready.pop(0)
+        while ready_index < len(ready):
+            current = ready[ready_index]
+            ready_index += 1
             processed += 1
             for consumer in sorted(dependents.get(current, set())):
                 if consumer not in reachable_indegree:
@@ -154,7 +156,6 @@ def failure_propagation_candidates(
                 reachable_indegree[consumer] -= 1
                 if reachable_indegree[consumer] == 0:
                     ready.append(consumer)
-            ready.sort()
         if processed != len(reachable_indegree):
             cycle_encountered = True
 
