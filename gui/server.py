@@ -2239,7 +2239,12 @@ def create_app(state: AppState) -> Flask:
             try:
                 if os.environ.get("NEX5_AFFECT_CARRY") == "1" and bool(session.get("admin")):
                     from theory_x.stage_affect.affect_carry import stance_for as _ac_stance
-                    _affect_carry_block = _ac_stance(session_id or "", prompt)
+                    _affect_carry_block = _ac_stance(
+                        session_id or "",
+                        prompt,
+                        conversations_writer=state.writers["conversations"],
+                        conversations_reader=state.readers["conversations"],
+                    )
             except Exception as _ac_exc:
                 error_channel.record(
                     f"affect_carry skipped: {_ac_exc}", source="gui.server", exc=_ac_exc,
