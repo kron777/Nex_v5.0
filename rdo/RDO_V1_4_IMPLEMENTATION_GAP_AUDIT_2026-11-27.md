@@ -4,7 +4,7 @@
 **Working specification:** RDO v1.4 — Optimal Functional Tension  
 **Specification provenance:** Founder-supplied 20 November 2026 text; 47,172 bytes; SHA-256 recorded in the 24 November conversation as `382d634d03bc15701d9de4dcbc2629b966ffd8370c370f0307a57a853f4db926`.  
 **Working-status note:** On 24 November the founder indicated they believed v1.4 had been approved. Treat v1.4 as the current working specification. Preserve v1.3 as historical implementation lineage; do not claim the consolidated NEX S-register contains a formal frozen supersession record.  
-**Repository evidence snapshot:** `main` at `09d98c554678b4675de7d1183c39d1213ccfd9ec` (including PRs #310, #314, #316, #321, #323, #324 and #328).
+**Repository evidence snapshot:** `main` at `0bef1839138e5456e2d288f891a517f6a7babdf1` (including PRs #310, #314, #316, #321, #323, #324, #325 and #328).
 
 This is an implementation audit against the recovered v1.4 requirements, not a replacement specification. The raw v1.4 attachment is not mounted in the current repository/Library workspace, so exact clause wording and un-recovered thresholds remain UNKNOWN. The recovered requirements below are sufficient to identify implementation gaps without pretending to reproduce every source clause.
 
@@ -21,7 +21,7 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 - q/tau performance-margin evidence validates arithmetic, identity and comparable envelope constraints; structural failure-propagation candidates are merged, but capacity/headroom assessment, operating-envelope classification, measured feedback-loop stability, runtime failure semantics, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
 - the twelve adversarial cases are only partly represented in tests.
 
-**The next vertical-slice increment is closing evidence-to-assessment gaps in feedback stability and calibrated system-level OFT.** Structural failure-propagation candidates are now represented; relationship-level q/tau integration and persisted-cycle neighbour comparison are in review. The next work must connect observations to calibrated assessment without inventing thresholds or verdicts. Extend the existing model, not replace the orchestrator or create a parallel RDO.
+**The next vertical-slice increment is closing evidence-to-assessment gaps in feedback stability and calibrated system-level OFT.** Structural failure-propagation candidates and relationship-level q/tau evidence integration are now merged; persisted-cycle neighbour comparison is in review. The next work must connect observations to calibrated assessment without inventing thresholds or verdicts. Extend the existing model, not replace the orchestrator or create a parallel RDO.
 
 ## 2. Current implementation inventory
 
@@ -52,8 +52,8 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 | `rdo/tests/test_feedback_loop.py` | 9 |
 | `rdo/tests/test_handoff.py` | 19 |
 | `rdo/tests/test_intake.py` | 14 |
-| `rdo/tests/test_interface_profile.py` | 7 |
-| `rdo/tests/test_interface_tension.py` | 25 |
+| `rdo/tests/test_interface_profile.py` | 9 |
+| `rdo/tests/test_interface_tension.py` | 32 |
 | `rdo/tests/test_objective_context_contract.py` | 2 |
 | `rdo/tests/test_operating_envelope.py` | 9 |
 | `rdo/tests/test_performance_margin.py` | 12 |
@@ -66,7 +66,7 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 | `rdo/tests/test_stage6_learning_loop.py` | 23 |
 | `rdo/tests/test_stage7_execution_watcher.py` | 12 |
 
-**Total:** 18 test modules; 263 test functions at this repository snapshot.
+**Total:** 18 test modules; 272 test functions at this repository snapshot.
 
 These are function counts, not parametrised case counts or a claim that every v1.4 acceptance criterion is covered. The Stage-2 report's older count of 20 Stage-2 tests / 56 RDO tests is stale relative to the current source tree.
 
@@ -100,7 +100,7 @@ Current source comparison:
 | Feedback sufficiency/stability | `FeedbackLoopAssessment` is merged with gain, delay, damping, oscillation, overshoot, recovery and observation-window evidence. PR #303 also merged UNKNOWN-first feedback records into `assess_system` cycle detection; PR #304 requires traceable assessment evidence, confidence and provenance for non-UNKNOWN verdicts. No stability calculation or hysteresis assessment | Partial |
 | Duplication | Semantic duplicate candidates are surfaced by graph analysis; profile now carries a duplication evidence dimension | Partial-to-good; no measured duplication cost |
 | Failure propagation | Merged PR #328 adds `failure_propagation_candidates()` over explicit `depends_on` paths, deterministic shortest paths, cycle detection, relationship provenance and UNKNOWN/partial input handling | **Partial** — structural candidates only; no runtime propagation, probability, severity, fallback/recovery assessment or causal claim |
-| Performance margins q/tau/m | `PerformanceMargin` represents q, tau, unit, normalization, evidence and confidence; computes exact m=q-tau only for finite comparable values; exact zero remains a boundary, not a pass. PR #305 validates arithmetic/evidence and PR #323 validates identity, envelope comparability and overflow. PR #325 adds per-relationship margin evidence and only promotes complete q/tau reference pairs (pending exact-head CI) | **Partial** — evidence is attached to relationships; no calibrated threshold selection, margin aggregation or sufficiency verdict |
+| Performance margins q/tau/m | `PerformanceMargin` represents q, tau, unit, normalization, evidence and confidence; computes exact m=q-tau only for finite comparable values; exact zero remains a boundary, not a pass. PR #305 validates arithmetic/evidence and PR #323 validates identity, envelope comparability and overflow. merged PR #325 adds per-relationship margin evidence and promotes q/tau references only when the pair is complete | **Partial** — evidence is attached to relationships; no calibrated threshold selection, margin aggregation or sufficiency verdict |
 | NetValue and Pareto trade-off | Prioritisation uses separate dimensions plus an explicitly uncalibrated weighted sort score; no feasible Pareto comparison or net-value calculation | Missing |
 | Marginal-value stopping | Depth/terminal/reuse stopping exists; no marginal-value threshold or hysteresis | Partial |
 
@@ -137,7 +137,7 @@ PR #287 merged objective-context propagation into `run_cycle()`, cycle persisten
 
 
 
-**Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #310 merged the relationship-level operating-envelope evidence connection. PR #314 merged objective-scoped regression-risk learning: traceable regression evidence produces a low-confidence, exact-objective candidate that is surfaced in later matching cycles. It does not automatically reverse or restrict recommendations. PR #316 made malformed interface-profile serializers fail closed. Merged PR #321 validates interface evidence status values. Merged PR #323 strengthens performance-margin identity, envelope and overflow validation. Merged PR #324 hardens exact-scope pattern collision, persistence and mutation integrity. PR #328 adds structural failure-propagation candidates. PR #325 adds per-relationship q/tau evidence but is pending corrected exact-head CI after an incomplete-pair promotion defect was caught. PR #329 adds differential neighbouring-impact analysis and is pending exact-head CI. None of these changes invents thresholds, calculates feedback stability or proves runtime causality.
+**Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #310 merged the relationship-level operating-envelope evidence connection. PR #314 merged objective-scoped regression-risk learning: traceable regression evidence produces a low-confidence, exact-objective candidate that is surfaced in later matching cycles. It does not automatically reverse or restrict recommendations. PR #316 made malformed interface-profile serializers fail closed. Merged PR #321 validates interface evidence status values. Merged PR #323 strengthens performance-margin identity, envelope and overflow validation. Merged PR #324 hardens exact-scope pattern collision, persistence and mutation integrity. PR #328 adds structural failure-propagation candidates. PR #325 adds per-relationship q/tau evidence and promotes references only when the q/tau pair is complete; its exact-head full test suite passed before merge. PR #329 adds differential neighbouring-impact analysis and is pending exact-head CI. None of these changes invents thresholds, calculates feedback stability or proves runtime causality.
 
 ## 6. Next implementation slice
 
@@ -149,14 +149,14 @@ Completed foundation:
 3. Relationship-level assessment now refuses to infer SUFFICIENT when the profile is absent or when evidence exists without calibrated thresholds/margins. Existing explicit findings for unbounded influence and unresolved necessary dependencies retain precedence.
 4. Merged PR #310 carries operating-envelope evidence into relationship assessment, retaining declared/assessed separation and UNKNOWN where evidence is incomplete.
 5. Merged PR #316 makes malformed custom interface-profile serializers fail closed as invalid shape.
-6. Merged PR #324 hardens objective-scoped regression learning against persistence collisions and mutable scope changes.
-7. Merged PR #328 traces structural failure-propagation candidates through `depends_on` relationships, preserving paths and UNKNOWN/partial evidence states.
+6. Merged PR #325 carries complete q/tau margin evidence into relationship assessments without aggregation or verdicts.
+7. Merged PR #324 hardens objective-scoped regression learning against persistence collisions and mutable scope changes.
+8. Merged PR #328 traces structural failure-propagation candidates through `depends_on` relationships, preserving paths and UNKNOWN/partial evidence states.
 
 Next bounded sequence:
 1. Complete measured feedback-loop stability only when calibrated criteria, observation windows and evidence are grounded; preserve loop members and relationships, and never equate graph topology with instability or remove cycles automatically.
 2. Merged PR #328 supplies structural failure-propagation candidates; next add evidence-backed runtime failure semantics only when failure mode, propagation, fallback, recovery and observation evidence are available. Do not infer runtime propagation from graph structure.
-3. Complete and merge PR #325 relationship-level q/tau evidence integration after exact-head CI, preserving UNKNOWN for incomplete pairs and avoiding aggregation or verdicts.
-4. Complete and merge PR #329 persisted-cycle differential neighbour analysis after exact-head CI; retain partial status for missing/ambiguous snapshots and do not infer causality.
+3. Complete and merge PR #329 persisted-cycle differential neighbour analysis after exact-head CI; retain partial status for missing/ambiguous snapshots and do not infer causality.
 5. Add insufficient-headroom and unstable-feedback adversarial cases with explicit evidence validation and UNKNOWN-first assertions.
 6. Investigate local-improvement/global-regression with actual objective/evidence data before proposing net-value weights or Pareto rules.
 7. Run the Stage-2 belief-development slice and fresh-process persistence/resume against current main.
