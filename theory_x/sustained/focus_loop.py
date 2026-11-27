@@ -12,7 +12,7 @@ instead of starting fresh every 2 minutes.
 from __future__ import annotations
 import json
 import logging
-from substrate import connect
+from substrate import Reader, Writer
 import threading
 import time
 from pathlib import Path
@@ -49,51 +49,54 @@ def _title_keywords(title: str) -> set[str]:
     return {w for w in tokens if w not in _STOPWORDS and len(w) > 2}
 
 
-def _pick_focus(b_cx, cv_cx) -> tuple[int, str, int] | None:
+def _pick_focus(
+    beliefs_reader: Reader, conversations_reader: Reader
+) -> tuple[int, str, int] | None:
     """Return (problem_id, title, connection_count) for the most-connected open problem."""
-    problems = cv_cx.execute(
+    problems = conversations_reader.read(
         "SELECT id, title FROM open_problems WHERE state='open'"
-    ).fetchall()
+    )
     if not problems:
         return None
     best = None
-    for pid, title in problems:
-        kws = _title_keywords(title or "")
-        if not kws:
+    for problem in problems:
+        problem_id, title = problem["id"], problem["title"]
+        keywords = _title_keywords(title or "")
+        if not keywords:
             continue
-        # Count beliefs whose content contains any of the title keywords
-        where = " OR ".join("content LIKE ?" for _ in kws)
-        params = tuple(f"%{kw}%" for kw in kws)
-        row = b_cx.execute(
-            f"SELECT COUNT(*) FROM beliefs WHERE ({where})", params
-        ).fetchone()
-        n = row[0] if row else 0
-        if best is None or n > best[2]:
-            best = (pid, title, n)
+        where = " OR ".join("content LIKE ?" for _ in keywords)
+        params = tuple(f"%{keyword}%" for keyword in keywords)
+        row = beliefs_reader.read_one(
+            f"SELECT COUNT(*) AS n FROM beliefs WHERE ({where})", params
+        )
+        count = int(row["n"]) if row else 0
+        if best is None or count > best[2]:
+            best = (problem_id, title, count)
     return best
 
 
-def _update_current_focus(d_cx, problem_id: int, observations_count: int) -> None:
-    d_cx.execute(
+def _update_current_focus(
+    dynamic_writer: Writer, problem_id: int, observations_count: int
+) -> None:
+    dynamic_writer.write(
         "INSERT INTO current_focus (id, problem_id, picked_at, observations_at_pick) "
         "VALUES (1, ?, ?, ?) "
         "ON CONFLICT(id) DO UPDATE SET problem_id=excluded.problem_id, "
         "picked_at=excluded.picked_at, observations_at_pick=excluded.observations_at_pick "
         "WHERE current_focus.problem_id != excluded.problem_id",
-        (problem_id, time.time(), observations_count)
+        (problem_id, time.time(), observations_count),
     )
-    d_cx.commit()
 
 
-def _latest_fountain_thought(d_cx) -> str | None:
-    row = d_cx.execute(
+def _latest_fountain_thought(dynamic_reader: Reader) -> str | None:
+    row = dynamic_reader.read_one(
         "SELECT thought FROM fountain_events WHERE thought != '' "
-        "AND ts > (strftime(\'%s\',\'now\') - 600) "
+        "AND ts > (strftime('%s','now') - 600) "
         "ORDER BY ts DESC LIMIT 1"
-    ).fetchone()
-    if not row or not row[0]:
+    )
+    if not row or not row["thought"]:
         return None
-    return row[0]
+    return row["thought"]
 
 
 def _related_to_focus(thought: str, focus_title: str) -> bool:
@@ -105,195 +108,211 @@ def _related_to_focus(thought: str, focus_title: str) -> bool:
     return any(kw in t for kw in kws)
 
 
-def _append_observation(cv_cx, problem_id: int, observation: str) -> int:
+def _append_observation(
+    conversations_reader: Reader,
+    conversations_writer: Writer,
+    problem_id: int,
+    observation: str,
+) -> int:
     """Append observation; return the resulting count.
 
-    No-ops (returns the count unchanged) if `observation` is byte-identical
-    to the last entry already on file -- mirrors the guard in
-    ProblemMemory.observe() (theory_x/stage7_sustained/problem_memory.py).
-    Without this, the same still-fresh fountain thought (up to 600s old,
-    _latest_fountain_thought's own lookback window) gets re-appended on
-    every 60s tick until a newer thought arrives: inflates ocount with
-    pure repeats and trivially trips _check_stuck()'s similarity check on
-    duplicates rather than genuine stuckness. Session 39 first flagged
-    this path lacked the guard; fixed 2026-07-24 once #352/#353 showed it
-    live (three byte-identical 949-char entries on #353, 9s and 60s apart).
+    No-ops if the new observation is byte-identical to the last entry already
+    on file. The read uses Reader and the mutation is submitted through the
+    one-pen conversations Writer.
     """
-    row = cv_cx.execute(
+    row = conversations_reader.read_one(
         "SELECT observations FROM open_problems WHERE id=?", (problem_id,)
-    ).fetchone()
+    )
     if not row:
         return 0
     try:
-        obs = json.loads(row[0]) if row[0] else []
+        observations = json.loads(row["observations"]) if row["observations"] else []
     except Exception:
-        obs = []
-    if obs:
-        _last = obs[-1]
-        _last_text = _last.get("text", "") if isinstance(_last, dict) else str(_last)
-        if observation.strip() == _last_text.strip():
-            return len(obs)
-    obs.append({"text": observation, "ts": time.time()})
-    if len(obs) > MAX_OBSERVATIONS:
-        obs = obs[-MAX_OBSERVATIONS:]
-    cv_cx.execute(
+        observations = []
+    if observations:
+        last = observations[-1]
+        last_text = last.get("text", "") if isinstance(last, dict) else str(last)
+        if observation.strip() == last_text.strip():
+            return len(observations)
+    observations.append({"text": observation, "ts": time.time()})
+    if len(observations) > MAX_OBSERVATIONS:
+        observations = observations[-MAX_OBSERVATIONS:]
+    conversations_writer.write(
         "UPDATE open_problems SET observations=?, last_touched_at=? WHERE id=?",
-        (json.dumps(obs), time.time(), problem_id)
+        (json.dumps(observations), time.time(), problem_id),
     )
-    cv_cx.commit()
-    return len(obs)
+    return len(observations)
 
 
-def _check_stuck(cv_cx, problem_id: int) -> bool:
+def _check_stuck(conversations_reader: Reader, problem_id: int) -> bool:
     """Stuck if last STUCK_WINDOW observations are pairwise too similar."""
-    row = cv_cx.execute(
+    row = conversations_reader.read_one(
         "SELECT observations, state FROM open_problems WHERE id=?", (problem_id,)
-    ).fetchone()
+    )
     if not row:
         return False
-    if row[1] == "stuck":
+    if row["state"] == "stuck":
         return False  # already marked
     try:
-        obs = json.loads(row[0]) if row[0] else []
+        observations = json.loads(row["observations"]) if row["observations"] else []
     except Exception:
         return False
-    if len(obs) < STUCK_WINDOW:
+    if len(observations) < STUCK_WINDOW:
         return False
-    recent = [o["text"] for o in obs[-STUCK_WINDOW:]]
+    recent = [item["text"] for item in observations[-STUCK_WINDOW:]]
     try:
         from theory_x.diversity.embeddings import embed, cosine
-        vecs = [embed(t) for t in recent]
-        for i in range(len(vecs)):
-            for j in range(i + 1, len(vecs)):
-                if cosine(vecs[i], vecs[j]) < STUCK_SIMILARITY:
+        vectors = [embed(text) for text in recent]
+        for i in range(len(vectors)):
+            for j in range(i + 1, len(vectors)):
+                if cosine(vectors[i], vectors[j]) < STUCK_SIMILARITY:
                     return False
         return True
-    except Exception as e:
-        log.warning("stuck check failed: %s", e)
+    except Exception as exc:
+        log.warning("stuck check failed: %s", exc)
         return False
 
 
-def _last_ping_age(cv_cx, problem_id: int) -> float:
-    row = cv_cx.execute(
-        "SELECT MAX(timestamp) FROM messages "
+def _last_ping_age(conversations_reader: Reader, problem_id: int) -> float:
+    row = conversations_reader.read_one(
+        "SELECT MAX(timestamp) AS last_ts FROM messages "
         "WHERE role='nex' AND content LIKE ? AND content LIKE ?",
-        ("%focus%", f"%{problem_id}%")
-    ).fetchone()
-    if not row or not row[0]:
+        ("%focus%", f"%{problem_id}%"),
+    )
+    if not row or not row["last_ts"]:
         return 1e12
-    return time.time() - row[0]
+    return time.time() - row["last_ts"]
 
 
-def _global_ping_age(cv_cx) -> float:
-    """Age (seconds) of the most recent focus-ping for ANY problem.
-
-    Identifies focus pings by the distinctive template prefix
-    'I keep returning to my current focus' written by _surface_to_chat
-    so other 'nex' messages are not counted.
-    """
-    row = cv_cx.execute(
-        "SELECT MAX(timestamp) FROM messages "
+def _global_ping_age(conversations_reader: Reader) -> float:
+    """Age (seconds) of the most recent focus-ping for ANY problem."""
+    row = conversations_reader.read_one(
+        "SELECT MAX(timestamp) AS last_ts FROM messages "
         "WHERE role='nex' AND content LIKE ?",
-        ("I keep returning to my current focus%",)
-    ).fetchone()
-    if not row or not row[0]:
+        ("I keep returning to my current focus%",),
+    )
+    if not row or not row["last_ts"]:
         return 1e12
-    return time.time() - row[0]
+    return time.time() - row["last_ts"]
 
 
-def _surface_to_chat(cv_cx, problem_id: int, title: str) -> None:
-    """Write a ping message visible in the GUI chat pane."""
-    msg = (
+def _surface_to_chat(
+    conversations_writer: Writer, problem_id: int, title: str
+) -> None:
+    """Atomically write the focus ping and stuck transition via one Writer."""
+    message = (
         f"I keep returning to my current focus and arriving at the same place. "
         f"The problem is: \"{title}\" (#{problem_id}). "
         f"Can you help me think about it?"
     )
-    cv_cx.execute(
-        "INSERT INTO sessions (id, started_at, admin, user_label) VALUES (?, ?, 0, ?) "
-        "ON CONFLICT(id) DO NOTHING",
-        (INTERNAL_SESSION_ID, int(time.time()), "focus_loop")
-    )
-    cv_cx.execute(
-        "INSERT INTO messages (session_id, role, content, register, timestamp) "
-        "VALUES (?, 'nex', ?, 'Internal', ?)",
-        (INTERNAL_SESSION_ID, msg, int(time.time()))
-    )
-    cv_cx.execute(
-        "UPDATE open_problems SET state='stuck' WHERE id=?",
-        (problem_id,)
-    )
-    cv_cx.commit()
+    conversations_writer.write_many([
+        (
+            "INSERT INTO sessions (id, started_at, admin, user_label) "
+            "VALUES (?, ?, 0, ?) ON CONFLICT(id) DO NOTHING",
+            (INTERNAL_SESSION_ID, int(time.time()), "focus_loop"),
+        ),
+        (
+            "INSERT INTO messages "
+            "(session_id, role, content, register, timestamp) "
+            "VALUES (?, 'nex', ?, 'Internal', ?)",
+            (INTERNAL_SESSION_ID, message, int(time.time())),
+        ),
+        (
+            "UPDATE open_problems SET state='stuck' WHERE id=?",
+            (problem_id,),
+        ),
+    ])
     log.info("focus_loop: surfaced ping for problem %s (%s)", problem_id, title[:60])
 
 
-def focus_tick() -> dict:
-    b_cx = connect(BELIEFS_DB, timeout=15)
-    cv_cx = connect(CONVERSATIONS_DB, timeout=15)
-    d_cx = connect(DYNAMIC_DB, timeout=15)
+def focus_tick(state=None) -> dict:
+    """One focus cycle using the canonical per-database Readers and Writers.
+
+    The normal Stage-2 loop injects its shared handles through state. A
+    standalone invocation remains available for tests/tools and creates
+    short-lived Readers/Writers which it owns and closes.
+    """
+    owned_writers: list[Writer] = []
+    if state is None:
+        beliefs_reader = Reader(BELIEFS_DB)
+        conversations_reader = Reader(CONVERSATIONS_DB)
+        dynamic_reader = Reader(DYNAMIC_DB)
+        conversations_writer = Writer(
+            CONVERSATIONS_DB, name="focus_loop.conversations"
+        )
+        dynamic_writer = Writer(DYNAMIC_DB, name="focus_loop.dynamic")
+        owned_writers.extend([conversations_writer, dynamic_writer])
+    else:
+        beliefs_reader = state.readers["beliefs"]
+        conversations_reader = state.readers["conversations"]
+        dynamic_reader = state.readers["dynamic"]
+        conversations_writer = state.writers["conversations"]
+        dynamic_writer = state.writers["dynamic"]
+
     try:
-        pick = _pick_focus(b_cx, cv_cx)
+        pick = _pick_focus(beliefs_reader, conversations_reader)
         if not pick:
             return {"focus": None, "obs_added": 0, "stuck": False}
-        problem_id, title, n_conn = pick
+        problem_id, title, connection_count = pick
 
-        # Get current observation count
-        row = cv_cx.execute(
+        row = conversations_reader.read_one(
             "SELECT observations FROM open_problems WHERE id=?", (problem_id,)
-        ).fetchone()
+        )
         try:
-            obs_count = len(json.loads(row[0]) if row and row[0] else [])
+            observation_count = len(
+                json.loads(row["observations"]) if row and row["observations"] else []
+            )
         except Exception:
-            obs_count = 0
-        _update_current_focus(d_cx, problem_id, obs_count)
+            observation_count = 0
+        _update_current_focus(dynamic_writer, problem_id, observation_count)
 
-        # Append an observation if her latest fountain thought relates
-        thought = _latest_fountain_thought(d_cx)
-        obs_added = 0
+        thought = _latest_fountain_thought(dynamic_reader)
+        observation_added = 0
         if thought and len(thought.strip()) >= 300 and _related_to_focus(thought, title):
-            new_count = _append_observation(cv_cx, problem_id, thought)
-            if new_count != obs_count:
-                obs_added = 1
-                log.debug("focus_loop: appended obs to #%s (now %s)",
-                          problem_id, new_count)
+            new_count = _append_observation(
+                conversations_reader, conversations_writer, problem_id, thought
+            )
+            if new_count != observation_count:
+                observation_added = 1
+                log.debug(
+                    "focus_loop: appended obs to #%s (now %s)",
+                    problem_id, new_count,
+                )
 
-        # Stuck check
         stuck = False
-        if _check_stuck(cv_cx, problem_id):
-            # Two-tier cooldown:
-            #  - per-problem: don't repeat same problem within PING_COOLDOWN_SECONDS
-            #  - global: don't ping ANY problem within GLOBAL_PING_COOLDOWN_SECONDS
-            #    (added 2026-05-30 — fixes 4-pings-back-to-back UX bleed)
+        if _check_stuck(conversations_reader, problem_id):
             import os as _os
-            global_cd = float(_os.environ.get(
+            global_cooldown = float(_os.environ.get(
                 "NEX5_FOCUS_PING_GLOBAL_COOLDOWN",
                 GLOBAL_PING_COOLDOWN_SECONDS,
             ))
-            if (_last_ping_age(cv_cx, problem_id) > PING_COOLDOWN_SECONDS
-                    and _global_ping_age(cv_cx) > global_cd):
-                _surface_to_chat(cv_cx, problem_id, title)
+            if (
+                _last_ping_age(conversations_reader, problem_id) > PING_COOLDOWN_SECONDS
+                and _global_ping_age(conversations_reader) > global_cooldown
+            ):
+                _surface_to_chat(conversations_writer, problem_id, title)
                 stuck = True
-            elif _last_ping_age(cv_cx, problem_id) > PING_COOLDOWN_SECONDS:
-                # Per-problem cooldown elapsed, but global gate is holding.
-                # Mark stuck silently so internal state advances without spam.
-                cv_cx.execute(
+            elif _last_ping_age(conversations_reader, problem_id) > PING_COOLDOWN_SECONDS:
+                conversations_writer.write(
                     "UPDATE open_problems SET state='stuck' WHERE id=?",
-                    (problem_id,)
+                    (problem_id,),
                 )
-                cv_cx.commit()
                 log.info(
                     "focus_loop: problem %s stuck but global ping cooldown "
                     "active (%.0fs since last); silenced",
-                    problem_id, _global_ping_age(cv_cx),
+                    problem_id, _global_ping_age(conversations_reader),
                 )
 
         return {
-            "focus": problem_id, "title": title[:60],
-            "connections": n_conn, "obs_added": obs_added, "stuck": stuck
+            "focus": problem_id,
+            "title": title[:60],
+            "connections": connection_count,
+            "obs_added": observation_added,
+            "stuck": stuck,
         }
     finally:
-        b_cx.close()
-        cv_cx.close()
-        d_cx.close()
+        for writer in owned_writers:
+            writer.close()
 
 
 def focus_loop(state, stop: threading.Event) -> None:
@@ -301,7 +320,7 @@ def focus_loop(state, stop: threading.Event) -> None:
              TICK_SECONDS, STUCK_WINDOW)
     while not stop.is_set():
         try:
-            stats = focus_tick()
+            stats = focus_tick(state)
             if stats.get("focus"):
                 log.debug("focus_loop: %s", stats)
             if stats.get("stuck"):
