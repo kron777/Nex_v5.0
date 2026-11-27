@@ -160,3 +160,59 @@ def test_expectation_canaries_uses_injected_conversations_writer(tmp_path, monke
         assert row["detail"] == "within tolerance"
     finally:
         writer.close()
+
+
+def test_reading_without_feed_preserves_resting_message(tmp_path):
+    _, _, conversations_path, sense_path = _daily_dbs(tmp_path)
+    conversations_reader = Reader(conversations_path)
+    conversations_writer = Writer(conversations_path, name="daily-reading-test")
+    try:
+        msg = daily_life._activity_reading(
+            "1",
+            "2026-11-27",
+            readers={"sense": Reader(sense_path)},
+            writers={"conversations": conversations_writer},
+        )
+        assert msg == "reading session 1: nothing fresh in the feeds. resting instead."
+        saved = conversations_reader.read_one(
+            "SELECT content FROM messages ORDER BY id DESC LIMIT 1"
+        )
+        assert saved["content"] == msg
+    finally:
+        conversations_writer.close()
+
+
+def test_journal_preserves_existing_language_and_state_fields(tmp_path, monkeypatch):
+    _, _, conversations_path, _ = _daily_dbs(tmp_path)
+    conversations_reader = Reader(conversations_path)
+    conversations_writer = Writer(conversations_path, name="daily-journal-test")
+    now = datetime(2026, 11, 27, 22, 0, tzinfo=local_tz())
+    state = {
+        "new_beliefs_24h": 3,
+        "fountain_fires_24h": 12,
+        "moltbook_posts_24h": 2,
+        "open_problems": 4,
+        "focus_problem_id": 1,
+    }
+    monkeypatch.setattr(daily_life, "_now_local", lambda: now)
+    monkeypatch.setattr(daily_life, "_state_snapshot", lambda readers: state)
+    try:
+        msg = daily_life._activity_journal(
+            "2026-11-27",
+            readers={},
+            writers={"conversations": conversations_writer},
+        )
+        expected = (
+            "journal — Friday 27 November, 22:00.\\n\\n"
+            "today i made 3 new beliefs, fired 12 thoughts, "
+            "posted to moltbook 2 times.\\n"
+            "i hold 4 open problems. focus right now: problem #1.\\n\\n"
+            "going quieter now. the night is for less."
+        )
+        assert msg == expected
+        saved = conversations_reader.read_one(
+            "SELECT content FROM messages ORDER BY id DESC LIMIT 1"
+        )
+        assert saved["content"] == expected
+    finally:
+        conversations_writer.close()
