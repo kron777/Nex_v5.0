@@ -142,6 +142,8 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
         note=(
             "interface profile is absent; relationship sufficiency cannot be established"
             if profile["profile_status"] == "not_supplied" else
+            "interface profile has an invalid shape; expected a typed profile or persisted dictionary"
+            if profile["profile_status"] == "invalid_shape" else
             "interface evidence is recorded, but calibrated thresholds, margins and "
             "operating-envelope assessment are not yet implemented; retain UNKNOWN"
         ),
