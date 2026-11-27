@@ -437,13 +437,20 @@ class FountainCrystallizer:
                 confidence=0.70,
                 branch_id=hot_branch,
             )
-            decision = self._gate.check(packet)
+            if trace is None:
+                decision = self._gate.check(packet)
+            else:
+                decision = self._gate.check(packet, trace=trace)
             if trace is not None:
                 _coherence_gate_id = trace.gate(
                     decision.outcome.value, gate="coherence_gate",
                     reason_code=getattr(decision, "reason", None),
                     metadata={"source_node": "fountain"},
-                    parent_ids=[_quality_gate_id] if _quality_gate_id else [],
+                    parent_ids=[
+                        rid for rid in (_quality_gate_id,
+                                        trace.reference("coherence_gate_writer_delta"))
+                        if rid
+                    ],
                 )
                 trace.remember("fountain_coherence_gate", _coherence_gate_id)
                 if decision.outcome != GateOutcome.ACCEPT:
