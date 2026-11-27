@@ -161,9 +161,18 @@ class TestRecorder(unittest.TestCase):
             arc_rowid_before = db.execute(
                 "SELECT rowid FROM arc_members WHERE belief_id=102"
             ).fetchone()[0]
-        # A VACUUM compacts the deliberately sparse hidden rowids in these
-        # composite-PK tables; declared primary keys remain unchanged.
+        # VACUUM is permitted, but not required, to renumber hidden rowids.
+        # Run it between pages, then force a remap to exercise the exact
+        # instability the cursor must not depend on.
         self.r._w.c.execute("VACUUM")
+        self.r._w.c.execute(
+            "UPDATE belief_lineage SET rowid=200 + child_id "
+            "WHERE child_id BETWEEN 100 AND 104"
+        )
+        self.r._w.c.execute(
+            "UPDATE arc_members SET rowid=300 + belief_id "
+            "WHERE belief_id BETWEEN 102 AND 106"
+        )
         self.r._w.c.commit()
         with sqlite3.connect(self.bdb) as db:
             rowid_after = db.execute(
