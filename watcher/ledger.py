@@ -89,6 +89,13 @@ class ConnectionLedger:
             raise LedgerError(f"unknown state {to_state!r}; one of {STATES}")
         if origin not in ("cloud", "host"):
             raise LedgerError(f"origin must be cloud|host, got {origin!r}")
+        refs = evidence_refs if evidence_refs is not None else []
+        if to_state == "RUNTIME_OBSERVED":
+            if origin != "host":
+                raise LedgerError("RUNTIME_OBSERVED requires host origin")
+            if (not isinstance(refs, list) or not refs
+                    or any(not isinstance(ref, str) or not ref.strip() for ref in refs)):
+                raise LedgerError("RUNTIME_OBSERVED requires nonblank evidence_refs")
         frm = self.current_state(connection_id)
         if frm is None:
             if to_state not in ("DECLARED", "BLOCKED"):
@@ -98,7 +105,7 @@ class ConnectionLedger:
             raise LedgerError(f"illegal transition {frm} -> {to_state} for {connection_id!r}")
         entry = {
             "connection_id": connection_id, "from_state": frm, "to_state": to_state,
-            "origin": origin, "evidence_refs": evidence_refs or [], "note": note,
+            "origin": origin, "evidence_refs": refs, "note": note,
             "at": utc_now(),
         }
         self.entries.append(entry)
@@ -131,5 +138,6 @@ def seed_from_graph(ledger: ConnectionLedger, graph) -> List[dict]:
             out.append(ledger.record(cid, "TEST_PASSED", evidence_refs=test_refs,
                                      note="curated graph assertion; not an independently recorded test result"))
         if e.runtime_observed and ledger.current_state(cid) in ("TEST_PASSED", "SOURCE_CONFIRMED"):
-            out.append(ledger.record(cid, "RUNTIME_OBSERVED", origin="host"))
+            out.append(ledger.record(cid, "RUNTIME_OBSERVED", origin=e.runtime_origin,
+                                     evidence_refs=[e.runtime_ref]))
     return out
