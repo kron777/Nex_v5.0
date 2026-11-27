@@ -164,3 +164,33 @@ def test_cycle_detector_preserves_distinct_directed_cycles_with_same_members():
         if len(cycle) == 5 and set(cycle[:-1]) == {"A", "B", "C", "D"}
     }
     assert len(four_member_cycles) == 2
+
+
+
+def test_system_assessment_retains_each_distinct_overlapping_feedback_loop():
+    from rdo.model import Obligation, Relationship
+    from rdo.tension import assess_system
+
+    keys = ("A", "B", "C", "D")
+    obligations = {key: Obligation(key, key, "component") for key in keys}
+    relationships = [
+        Relationship("A", "B", "influences"),
+        Relationship("B", "C", "influences"),
+        Relationship("C", "D", "influences"),
+        Relationship("D", "A", "influences"),
+        Relationship("A", "C", "influences"),
+        Relationship("C", "B", "influences"),
+        Relationship("B", "D", "influences"),
+    ]
+
+    assessment = next(
+        item for item in assess_system(obligations, relationships)
+        if item.subject == "feedback_cycles"
+    )
+    loops = assessment.dimensions["feedback_loop_assessments"]
+    four_member = [loop for loop in loops if len(loop["members"]) == 4]
+
+    assert len(four_member) == 2
+    assert len({tuple(loop["relationships"]) for loop in four_member}) == 2
+    assert all(loop["stability_state"] == "unknown" for loop in four_member)
+    assert assessment.verdict == "unknown"
