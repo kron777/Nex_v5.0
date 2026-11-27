@@ -130,7 +130,8 @@ def _operating_envelope_evidence(value) -> dict:
     provenance = value.get("provenance", [])
     confidence = value.get("confidence")
     valid_states = {"normal", "busy", "degraded", "stress", "recovery"}
-    assessed_valid = (assessed is None or assessed in valid_states)
+    assessed_valid = (assessed is None or
+                      (isinstance(assessed, str) and assessed in valid_states))
     verdict_evidence_valid = (
         assessed is None or (
             assessed_valid and _has_traceable_evidence(evidence)
