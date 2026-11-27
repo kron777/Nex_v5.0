@@ -34,7 +34,7 @@ the agent's self-reported claim — **recorded, not trusted**.
 |---|---|---|
 | `source_implemented` | read-only grep of the after-state for the signature → `SOURCE_CONFIRMED` | cloud |
 | `test_verified` | run the required test independently only when its exact repo-relative path is explicitly supplied in the caller's `approved_test_files` allowlist; otherwise `not_authorized` | cloud |
-| `runtime_observed` | **host-only** `host_placeholder` — `UNKNOWN` (NEX in standby) | host (not performed) |
+| `runtime_observed` | **host-only** `host_placeholder` — `UNKNOWN` (no live host trace collected for this fixture) | host (not performed) |
 
 Per-obligation verdict: **verified** (source + test), **failed** (test fails), **partial** (source, no
 test), **claim_unverified** (no independent source evidence). The overall verdict takes the worst, and
