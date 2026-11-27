@@ -12,7 +12,7 @@ def _db(path):
     cx.execute(
         "CREATE TABLE beliefs ("
         "id INTEGER PRIMARY KEY, content TEXT, tier INTEGER, source TEXT, "
-        "source_kind TEXT, use_count INTEGER, last_referenced_at REAL, "
+        "source_kind TEXT, reinforce_count INTEGER, use_count INTEGER, last_referenced_at REAL, "
         "affinity REAL, affinity_updated_at REAL)"
     )
     cx.execute(
