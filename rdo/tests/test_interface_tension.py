@@ -183,3 +183,20 @@ def test_invalid_declared_envelope_state_is_not_treated_as_valid_context():
     })
     result = assess_relationship(rel, {})
     assert result.dimensions["operating_envelope"]["status"] == "invalid_evidence"
+
+
+def test_interface_dimension_with_blank_reference_or_confidence_remains_unknown():
+    profile = InterfaceTensionProfile(
+        latency=InterfaceEvidence(status="measured", value=12, unit="ms",
+            evidence=[" "], confidence="measured"),
+        freshness=InterfaceEvidence(status="measured", value=1, unit="seconds",
+            evidence=["trace:freshness"], confidence=" "),
+    )
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        interface_profile=profile), {})
+    dimensions = result.dimensions["dimensions"]
+    assert not dimensions["latency"]["evidence_complete"]
+    assert not dimensions["freshness"]["evidence_complete"]
+    assert "latency" in result.dimensions["unknown_dimensions"]
+    assert "freshness" in result.dimensions["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
