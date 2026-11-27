@@ -71,6 +71,23 @@ The complete forward/backward audit remains open: this inventory is a search
 map to the code, not a declaration that every package has been traced from
 declaration through emission to a verified consumer.
 
+### Writer and Coherence Gate scope boundaries
+
+The repository's own `SPECIFICATION.md §8` and `substrate/writer.py` define
+one Writer queue/thread per database as a non-negotiable one-pen rule. The
+current RememberLoop, Diversity EdgeBuilder and Sustained FocusLoop instead
+open raw SQLite connections and commit writes directly (G-61). These paths
+need an intentional migration and concurrency tests; they have not been
+changed in this Phase 0 audit.
+
+The Coherence Gate source declares universal coverage for thoughts generated
+by faculty nodes. The current RememberLoop temporal-link belief and Fountain
+`self_rut_notice` reflective belief are inserted directly without Gate checks;
+Stage-2 `precipitated_from_sense` writes are explicitly classified by their
+producer as external perception rather than thought (G-62). This is a Gate
+scope/specification reconciliation item, not permission to change policy.
+
+
 ### Problem/Goal lifecycle scheduler boundary
 
 `ProblemMemory.decay()` (30-day stale close) and `GoalManager.decay()`
