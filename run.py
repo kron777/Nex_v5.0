@@ -508,7 +508,14 @@ def main() -> None:
         try:
             from theory_x.stage_world.self_prediction import SelfPredictionLoop as _SPL
             _spl_interval = int(os.environ.get("NEX5_SELF_PRED_INTERVAL", "900"))
-            _SPL(interval=_spl_interval).start_loop()
+            _SPL(
+                interval=_spl_interval,
+                conversations_writer=writers["conversations"],
+                beliefs_writer=writers["beliefs"],
+                conversations_reader=readers["conversations"],
+                dynamic_reader=readers["dynamic"],
+                beliefs_reader=readers["beliefs"],
+            ).start_loop()
         except Exception as _spl_err:
             log.warning("SelfPredictionLoop failed to start (non-fatal): %s", _spl_err)
 
