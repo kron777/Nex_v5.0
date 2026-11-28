@@ -26,8 +26,11 @@ corroboration counts or confidence values never promote an expansion rule.
 A proposal contains exactly these fields:
 
 - `target_kind`: the novel obligation kind to decompose.
+- `source_cycle_id` and `source_frontier_key`: the persisted cycle and exact
+  frontier obligation that requested this rule.
 - `source_obligation`: the originating obligation (`key`, `title`, and
-  matching `kind` are required).
+  matching `kind` are required). The CLI verifies these fields against the
+  persisted frontier and stores its SHA-256 digest.
 - `alternatives`: 1–8 competing decompositions. Each alternative has a
   portable `id`, a description, and 1–32 steps. Each step specifies
   `child_kind`, `classification`, `rationale`, and optional
@@ -43,6 +46,8 @@ Example shape:
 ```json
 {
   "target_kind": "specialized_deployment",
+  "source_cycle_id": "cycle-id-from-the-frontier",
+  "source_frontier_key": "deployment.specialized",
   "source_obligation": {
     "key": "deployment.specialized",
     "title": "Specialized deployment mechanism",
@@ -69,7 +74,7 @@ Example shape:
   "anti_requirements": ["Planning must not deploy."],
   "evidence_needs": ["A source-backed environment description."],
   "disconfirming_cases": ["A deployment with no controllable target environment."],
-  "provenance": ["frontier:cycle-id:deployment.specialized"],
+  "provenance": ["frontier:cycle-id-from-the-frontier:deployment.specialized"],
   "positive_tests": ["tests/test_deployment_rule.py::test_environment_first"],
   "negative_tests": ["tests/test_deployment_rule.py::test_docs_only_not_decomposed"]
 }
@@ -80,7 +85,8 @@ Example shape:
 Create a candidate. This does not activate it:
 
 ```bash
-python -m rdo rule-propose --input candidate-rule.json --dir rdo/.cycles
+python -m rdo rule-propose --input candidate-rule.json \
+  --cycle-id <cycle-id> --dir rdo/.cycles
 ```
 
 Review it. For approval, select exactly one declared alternative and provide
@@ -145,6 +151,9 @@ cycle produced with an earlier one.
   not guessed by a lexical classifier. Selecting an approved kind for a cycle
   is an explicit caller decision; inspect the catalogue's scope and exceptions
   before doing so.
+- Every candidate must cite a persisted cycle's exact novel-kind frontier; the
+  proposal stores the SHA-256 digest of that frontier item. The source cycle
+  must still be present in the selected CycleStore.
 - The append-only ledger is hash-chained and fsynced. This detects accidental
   alteration; it is not a signature or protection against an actor able to
   rewrite the entire store.
