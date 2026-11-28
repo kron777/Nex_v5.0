@@ -1,12 +1,12 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with branch INDEX.md; evidence snapshot: main at b5e78842f43ac93c2624697f686da0b600306177.
+Mirror synchronized with branch INDEX.md; evidence snapshot: main at 3d7205536588e34a887939784d436ec70e8c6777.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `60cc178ba1f3c895651c86ad95345c98fd5a2198`  
+**Last verified against:** `main` at `3d7205536588e34a887939784d436ec70e8c6777`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -295,7 +295,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — records merged DAG integrity and policy-scan fixes, #223–#226 bounded one-pen migrations, #236/#238 SelfPredictionLoop handle integration, #253 Warrant cursor closure, and current G-69/G-70/G-73–G-75 status; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — records Sentience 5.5/NEX cognitive wire trace (§46), self-binding shared-Writer correction and open semantic edges (§47), current RDO/Watcher progress, and current-main lifecycle/integration reconciliation (§16); Gate 0 boundaries remain.*
 
 
 
@@ -966,8 +966,41 @@ Gate 0 remains pending and Phase 1 is not authorised. G-69/#259 stays on HOLD. G
 
 
 
+## 45. Feedback-loop evidence update path — G-93 (28 November 2026)
 
-46. Cognitive network interaction trace — attention, affect, drives and workspace (28 November 2026)
+**Evidence snapshot:** merged main commit `6f12f403e13b94a4b019aa666abac448b8a9a62d` (PR #357). Exact-head sandbox run `46101032854`.
+
+### Merged capability
+
+- `FeedbackLoopAssessment` remains UNKNOWN-first. Any dimension marked `measured` must now carry a finite numeric value, a unit, traceable evidence references and a confidence label.
+- `FeedbackLoopEvidenceStore` records measurement and stability-review events in a separate append-only, hash-chained JSONL ledger.
+- Every event is bound to the existing feedback-loop ID, members and directed relationships. Replay refuses to apply evidence if the loop topology has changed.
+- Measurement and stability review remain separate. A measurement never calculates stability. A new measurement after a review resets the current verdict to UNKNOWN until another explicit review is recorded.
+- A non-UNKNOWN stability state requires an explicit review with caller-attributed reviewer, source reference, assessment evidence and confidence. The local ledger does not authenticate reviewer identity.
+- Event history is also persisted in the trailing, legacy-compatible `CycleRecord.feedback_loop_evidence_events` field. `feedback-replay` recovers a cycle snapshot if a ledger append succeeds but snapshot persistence does not.
+- CLI commands: `feedback-measure`, `feedback-review`, `feedback-replay`.
+- Operator guide: `rdo/FEEDBACK_LOOP_EVIDENCE.md`.
+
+### Exact-head verification
+
+- Full sandbox suite: **2,864 passed, 7 skipped, 45 subtests passed**.
+- Mind-map verification: **30 nodes, 0 unverified**. Existing warnings remain for missing `VIRTUE_SLATE.md`, missing `mental_factors_inventory_alobha_spec.txt`, and overdue P13 finitude unblock; 14 dark and 2 blocked nodes are existing map status, not new unverified nodes.
+- The sandbox probe confirmed unprivileged execution, no capabilities/credentials, read-only source, disposable data/tmpfs and no outbound network.
+
+### Gap status and boundary
+
+**G-93 update-path gap: closed.** The repository can now append measured dimensions and separately reviewed stability evidence to the existing CycleRecord while preserving topology and history. This does **not** implement calibrated stability, gain, damping, oscillation thresholds, causal propagation or automatic stability verdicts. Those remain UNKNOWN/unevaluated until exact v1.4 criteria and grounded measurements are available.
+
+**G-92: partially closed.** PR #352 already merged the provider-neutral, hash-chained candidate-rule proposal lifecycle. Its `approved_for_catalogue` state remains deliberately inert: no dynamic activation, no automatic promotion and no changes to `EXPANSION_RULES`. The remaining raw-idea-to-handoff gap is the provider-neutral candidate-seed proposal and approval path; objective intake still requires externally supplied seed obligations.
+
+### Next bounded development
+
+Design the raw-idea → candidate-seed alternatives → explicit human review → objective.v1 intake → recursive expansion → Stage-7 handoff lineage. Bind each candidate to the exact raw objective revision; preserve competing interpretations, assumptions, evidence needs, acceptance-criterion coverage, disconfirming cases and provenance. Do not run planning from an unreviewed external-LLM seed proposal, and do not make the candidate-rule ledger an active rule loader.
+
+No frozen S-01–S-25/M1.8 specification content, NEX runtime, protected experiment, deployment path, Gate 0 or Phase 1 authority was changed.
+
+
+## 46. Cognitive network interaction trace — attention, affect, drives and workspace (28 November 2026)
 
 **Evidence snapshot:** source files on `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. This is a source-level connection trace, not host/runtime telemetry. The exact source-file SHAs and detailed edge register are recorded in `research/SENTIENCE_5_5_COGNITIVE_WIRE_TRACE_2026-11-28.md`.
 
@@ -1017,8 +1050,7 @@ This trace is source-verified and hypothesis-generating. It identifies several e
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, M0/M1 gate, mind-map policy, live runtime flag, service or database was changed.
 
-
-47. Self-binding shared-Writer correction — G-94 (28 November 2026)
+## 47. Self-binding shared-Writer correction — G-94 (28 November 2026)
 
 **Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is proposed on draft PR #362; exact-head CI is pending.
 
@@ -1068,8 +1100,7 @@ These are candidates for further source tracing and controlled experiments. No e
 
 This is a persistence-ownership correction that preserves the existing cognitive connections. It does not add a new faculty or claim that the recursive self-reading nudge produces a beneficial attention change. Gate 0 and Phase 1 authority remain unchanged.
 
-
-48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
+## 48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
 
 **Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is on draft-review candidate PR #360; exact-head CI is being rerun after correcting the self-assessment count for the new adapter.
 
@@ -1093,6 +1124,91 @@ The first exact-head CI exposed one stale self-assessment expectation: RDO corre
 
 The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.tension._find_cycles`, `_classify_cycle`, `assess_system` and `rdo.graph` SCC machinery to distinguish prerequisite cycles, influence feedback loops and unknown cases. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
 
-**Critical next-step constraint:** the proposal and objective-intake ledgers compute different hashes. `raw_objective_sha256` hashes only the immutable raw request; `ObjectiveInputStore` hashes the full `objective.v1` record including selected seeds. Their `supersedes_sha256` fields therefore belong to two distinct revision chains. The current `objective.v1` schema also rejects additional fields and has no structured proposal ID/alternative/proposer provenance. A raw idea may be human-sourced while the selected seed graph is LLM-proposed; keep that distinction and the inferred confidence. The bridge must define a versioned or stable cross-reference carrying proposal ID, selected alternative, raw digest and review event before it maps the selected graph into intake. Never substitute the two digests or silently upgrade inferred confidence.
-
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
+
+
+---
+
+## 16. Current-main reconciliation — lifecycle hardening and cognitive wire characterization (28 November 2026)
+
+**Verified base:** `main` at `3d7205536588e34a887939784d436ec70e8c6777`. This section supersedes the 27 November mainline/PR inventory in §11 for changes merged after that snapshot. It does not retroactively refresh older evidence artefacts or convert PR-only work into mainline capability.
+
+### 16.1 Graceful shutdown: merged lifecycle increments
+
+The following changes are present on the verified mainline:
+
+- **#370 — bounded graceful shutdown and truthful close reporting** (merge `88df7413b31e3ab9898c9ee99eef7fb552e70745`). One 12-second monotonic deadline begins at signal receipt and is shared by producer stop/join and all Writer drains. `AppState.close(deadline=...)` returns a structured report; Writer wrappers receive only the remaining budget; a clean-shutdown marker is written only after successful close and successful marker persistence. An incomplete drain exits non-zero and does not claim a clean shutdown. Exact-head full-suite evidence recorded in the PR: 2,923 passed, 7 skipped, 62 subtests; baseline verification passed. This is a bounded application-level protocol, not proof that every process thread is registered.
+- **#375 — remaining known Writer producers** (merge `ee88ae41b979ba802aef42a0350c2a410d16d519`). Adds interruptible stop Events and retained thread handles for the identified AppState-held and `run.py`-started producers; registers them with AppState so in-flight Writer work is joined before Writer closure. The membrane thread is retained. Cadences, first delays, tick order and processing policy are intended to remain unchanged. This closes the identified producer set in that increment, not the repository-wide thread census.
+- **#377 — StrikeProtocol catalogue workers** (merge `3377197c4d216aedc7708a9d1ee758144bd0b09b`). StrikeProtocol's delayed direct-SQLite belief-count workers and in-flight `fire()` callers now have stop/ownership tracking. Long waits are interruptible; new fire calls are rejected after stop begins; a worker cannot schedule a delayed write after shutdown starts. Interrupted SILENCE observation is marked incomplete rather than represented as completed. Exact-head GitHub Actions run `46121838171` passed 2,969 tests, 7 skipped, 86 subtests; baseline verification passed. This is a direct-catalogue lifecycle correction, not a migration of that catalogue to the shared Writer and not a change to strike policy.
+
+### 16.2 Flask request lifecycle — merged PR #378
+
+PR #378 (`fix(shutdown): drain in-flight Flask requests before AppState close`) merged as `3d7205536588e34a887939784d436ec70e8c6777`. Its `ShutdownGate` atomically closes HTTP request admission, counts active Flask requests, rejects new requests with HTTP 503 after shutdown begins, and waits for admitted requests to finish before decoder stop and `AppState.close()`. The same 12-second monotonic deadline covers request drain, producer shutdown and Writer drain. The previous fixed 1.5-second wait is removed. SIGTERM and SIGINT share the guarded handler.
+
+The proposed failure path reports active request labels, thread names and elapsed durations; if request drain times out, it does not close Writers under active requests, does not write a clean marker and exits non-zero.
+
+**Boundary:** this gate covers requests entering through this Flask application. Detached work spawned by a route must still be registered with AppState. Alternate WSGI servers, reverse-proxy workers, direct non-HTTP callers and host/service-manager behaviour remain outside the demonstrated boundary.
+
+Exact-head GitHub Actions run `46122720157` passed 2,971 tests, 7 skipped, 86 subtests; baseline verification passed. The request gate is now current-main behaviour.
+
+### 16.3 Cognitive integration characterization — open PR #379, not yet mainline
+
+PR #379 is test/research-only. It adds source maps and deterministic characterization for chat-time affect faculty dependencies and the Stage-2 Bonsai attention state flowing into Fountain branch selection and Global Workspace framing. It also extends a scoped Sentience 5.5 comparison across Integration, Self-Model, Meta-Awareness, Cognitive-Control, Orchestrator, System-Integration and Control sources.
+
+The proposed tests exercise actual Stage-2 A–F events, the Bonsai focus admission threshold, Fountain's hottest-branch selection, the opt-in positive-temperature alternative, and Global Workspace candidate competition. Its negative control checks that internal telemetry alone does not create Bonsai focus, an F-step event or a workspace candidate.
+
+**Interpretation boundary:** this characterizes specific source pathways and deterministic test behaviour; it is not a broad demonstration of cognitive efficacy or consciousness. The Sentience comparison is explicitly limited to inspected files because repository-wide search indexing was incomplete.
+
+Mind Aspects remain interpretive faculties. They must not become action-control gates, approval authorities or vetoes by virtue of their position in a descriptive mind map. Keep interpretive cognition separate from typed operation representation, capability validation, approval authority, execution and post-execution verification.
+
+At this audit, PR #379's exact-head `tests` workflow was still **in progress**. Its tests and source map are not yet mainline evidence.
+
+### 16.4 Superseded branches and status discipline
+
+- **#373** is closed without merge; it was a stacked G-84 step-4 branch superseded by the clean current-main replay #375.
+- **#376** is closed without merge; its StrikeProtocol work was superseded by the current-main replay #377.
+- **#378** is merged. **#379** remains open at this snapshot; its head branch is not part of `main`.
+- Historical test results from superseded heads must not be represented as current-main validation.
+- PR metadata, mergeability and an in-progress CI run are not equivalent to successful exact-head validation or merge.
+
+### 16.5 Remaining research and development work
+
+1. #378 is validated and merged; recheck #379's exact head SHA, all required CI jobs, baseline verification and merge state before updating this section again.
+2. After #379 is merged, rescan the complete shutdown path from signal receipt through request admission, detached route work, registered producers, direct database writers, Writers, clean-marker persistence, process exit and keepalive restart. Add regressions only for demonstrated gaps.
+3. Continue the host/server evidence work: inspect the actual deployment contract and determine whether the Flask threaded server is the only entry point. Do not infer host behaviour from repository tests.
+4. Continue the faculty producer→consumer audit from #379, distinguishing construction, boot wiring, flag enablement, consumption and measured behavioural effect.
+5. Reconcile the G-84/G-92 status text and Phase 0 evidence pack only against a fresh current-main snapshot. The original #363 documentation reconciliation was deliberately not carried forward because its status text was stale.
+6. Keep S-01–S-25/M1.8, the Master Roadmap, Gate 0 and Phase 1 authority unchanged. No open PR, passing test suite or technical mergeability authorizes a phase transition.
+
+This section is a dated source/PR snapshot. Refresh it after subsequent merges rather than silently treating it as live status.
+
+
+### 16.6 Repository-side supervisor contract — source verified, host unit unverified
+
+The current-main `nex_keepalive.sh` source provides a concrete application/supervisor boundary:
+
+- It resolves the checkout directory from the script's own location and starts `.venv/bin/python3 run.py`; it does not bind the code checkout to one fixed home/Desktop path.
+- The NEX HTTP listener is supervised on port 8765. The script uses a separate power-switch port 8766.
+- The launcher keeps a single-instance `flock` lock, scopes child termination to the PID it launched, and sends SIGTERM for deliberate shutdown.
+- `graceful_stop_child()` polls the child for up to approximately 15 seconds (30 × 0.5 seconds), then escalates to SIGKILL if the child remains alive. It subsequently runs `fuser -k` against the NEX port and clears PID/identity bookkeeping.
+- The 12-second application shutdown budget introduced by #370 therefore leaves an intended three-second margin before the supervisor's approximately 15-second SIGKILL escalation. This is source arithmetic, not a measured host timing guarantee.
+- The launcher sets a large explicit environment for its child, including many NEX feature flags and `MOLTBOOK_DRY_RUN=1`. This is the tracked launch command, not proof that the user's currently running process was started from this exact checkout or environment.
+- The script writes its operational state under `/home/rr/.nex`; this is a host-specific assumption even though checkout resolution is portable. The launcher also contains logic for externally owned systemd power-switch and keepalive services.
+
+**Not verified:** the installed user/system systemd unit contents, effective unit environment, service manager timeout/kill settings, actual running PID/command line, live environment, active WSGI entry point, reverse-proxy topology, host thread inventory, and whether the currently running process uses this exact checkout. Those require authorized host evidence; repository source alone cannot establish them.
+
+This narrows the host-evidence task: compare the installed unit and effective process state with this tracked supervisor contract. Do not state that the 12-second/15-second relationship is operationally proven until that comparison and a controlled host shutdown observation exist.
+
+
+### 16.7 Faculty integration: tracked launch flags versus source gates
+
+A source-to-launch comparison of current-main `gui/server.py`, the `theory_x/stage_affect/` modules and `nex_keepalive.sh` narrows the runtime-integration claim:
+
+- The chat route calls the faculty stance functions only when both the corresponding environment flag equals `1` and the session is admin-scoped. These stance strings are prompt contributions; this path does not grant an authority to execute actions.
+- The tracked launcher explicitly sets `NEX5_COMPASS`, `NEX5_EQUANIMITY`, `NEX5_APRAMADA` and `NEX5_AFFECT_CARRY`.
+- The tracked launch line does **not** explicitly set `NEX5_COMPASSION`, `NEX5_VIRYA`, `NEX5_SRADDHA` or `NEX5_PRASRABDHI`. In particular, `NEX5_COMPASS` and `NEX5_COMPASSION` are distinct flags; do not conflate them.
+- Compass itself reads the situated compassion signal directly when it weighs care, clarity and affliction dimensions. Equanimity also reads the compassion distress signal to avoid flattening a warranted compassionate response. Therefore, the absence of the standalone compassion prompt flag does not imply that compassion data is absent from those faculty calculations.
+- The vīrya and praśrabdhi stance functions each have their own explicit OFF-by-default flag. Their pairwise tests in #379 characterize the functions and their dependencies under controlled inputs; those tests do not establish that the tracked launcher enables either prompt contribution.
+- The launcher may inherit additional environment from its parent service manager. Since the installed unit and effective process environment have not been inspected, the tracked launch line is not proof that these flags are OFF on the live host.
+
+This is an important distinction between a tested source dependency, a call site, a tracked launch setting and effective runtime enablement. Keep the #379 tests classified as deterministic source/function characterization until the exact deployment environment is observed. Do not change launch flags as part of this audit.
