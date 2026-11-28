@@ -430,3 +430,7 @@ Fountain's optional Metacognition rail injects only the generic cached formatter
 The Fountain model call returns a thought before the crystallizer checks Row 9 stillness and `signal_cooldown`. Those controls reject belief persistence after generation; the generator still logs/returns the thought. They are not generation brakes. The optional `NEX5_METACOG_VOICE` text rail is the only direct Metacognition-to-Fountain prompt influence found, default-off by source. See INDEX §134.
 Sample-ID provenance: exact repetition stores exact matching rows; template repetition stores templated IDs; n-gram and centroid store only the first five rows of their active window. Those latter IDs are samples, not exact causal parents. No active downstream consumer uses them for retrieval priority. See INDEX §133.
 Internal Fountain feedback is generic only; it does not receive GrooveSpotter pattern text, alert/source IDs, sample IDs or GUI Stage-SelfNarrative content. The pattern-specific path is GUI topic-filtered narrative; Fountain's pattern-specific effect is only post-generation cooldown. See INDEX §133.
+
+### 28 November 2026 — live Metacognition tick versus decay
+
+Correction of scope: Metacognition is connected to the live GUI chat path. `run.py` constructs/registers the shared object; `gui/server.py` calls `tick()` and `format_for_prompt()` during chat. The unlocated production path is specifically `decay(now)` for 14-day stale-event resolution. A targeted 24-file lifecycle sweep found no dispatcher but is not a whole-repository proof. See INDEX §135.
