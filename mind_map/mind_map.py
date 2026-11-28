@@ -244,7 +244,7 @@ def _source_ref_lines(lines: list[str]) -> set[int]:
             selected.add(ref.start_mark.line + 1)
     return selected
 
-def _blame_line_commits(map_path: Path, root: Path) -> dict[int, str]:def _blame_line_commits(map_path: Path, root: Path) -> dict[int, str]:
+def _blame_line_commits(map_path: Path, root: Path) -> dict[int, str]:
     """Map each YAML line number to the commit that last wrote it."""
     try:
         rel = map_path.resolve().relative_to(root.resolve()).as_posix()
