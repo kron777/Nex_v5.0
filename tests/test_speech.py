@@ -16,6 +16,7 @@ import tempfile
 import time
 import threading
 import unittest
+from unittest.mock import MagicMock
 from pathlib import Path
 
 import numpy as np
@@ -275,7 +276,7 @@ class TestSpeechConsumer(unittest.TestCase):
                 return [0.0, 0.0], 24000
 
         consumer.backend = _BlockingBackend()
-        consumer.player = unittest.mock.MagicMock()
+        consumer.player = MagicMock()
         worker = threading.Thread(
             target=lambda: consumer._speak_one(row, stop_event=stop),
             name="speech-shutdown-test",
