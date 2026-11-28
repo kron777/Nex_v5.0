@@ -13,7 +13,8 @@ from rdo_adapters.reviewed_seed_bridge import (
     submit_reviewed_selection,
 )
 from rdo_adapters.seed_proposals import SeedProposalError, SeedProposalStore
-from rdo_adapters.handoff import create_handoff
+from rdo_adapters.handoff import HandoffError, create_handoff
+from rdo.memory import CycleStore
 
 
 def _digest(value):
@@ -371,3 +372,15 @@ def test_approved_seed_lineage_survives_objective_cycle_resume_and_stage7(tmp_pa
     )
     assert handoff["proposal_lineage"] == lineage
     assert handoff["manifest_sha256"]
+
+    cycle_store = CycleStore(workdir)
+    corrupted_cycle = cycle_store.load(cycle["id"])
+    corrupted_cycle.objective_lineage = dict(lineage)
+    corrupted_cycle.objective_lineage["proposal_id"] = "seedprop_" + "f" * 24
+    cycle_store.save(corrupted_cycle)
+    with pytest.raises(ObjectiveInputError, match="CycleStore proposal lineage"):
+        resume_objective(workdir, "bridge-objective", 1)
+    with pytest.raises(HandoffError, match="cycle proposal lineage"):
+        create_handoff(
+            workdir, str(repo), "bridge-objective", 1, cycle["id"], package["key"]
+        )
