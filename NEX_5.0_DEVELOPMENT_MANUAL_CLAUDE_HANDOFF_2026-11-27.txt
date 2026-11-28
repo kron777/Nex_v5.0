@@ -2441,3 +2441,68 @@ Before changing implementation, add a focused registry test suite that exercises
 
 ---
 
+## 78. RDO Stage-7 execution verification versus bounded handoff verification — authority/evidence seam study (28 November 2026)
+
+**Question studied:** does NEX have one continuous execution verifier, or are there distinct mechanisms with different authority and evidence guarantees? In particular, what does an exact-path test allowlist actually authorize, and what does the newer independent Watcher process do?
+
+### Two mechanisms, deliberately not conflated
+
+The source exposes two separate paths:
+
+1. **Legacy/in-process execution integration — `rdo/execution.py::verify()`.** It reads the after-state using the RDO's read-only `_grep`, optionally invokes pytest, records per-obligation lifecycle in `watcher.ledger.ConnectionLedger`, and produces source/test/runtime evidence dimensions. Test execution requires the caller to pass the exact repository-relative path in `approved_test_files`; the evidence requirement's `test_file` field alone is not permission. The helper rejects absolute paths, parent traversal and paths resolving outside the repository. The tests show that an unapproved test is not run and that an escaping symlink is refused.
+2. **Newer independent handoff verifier — `watcher.handoff_verify`.** The Stage-7 handoff adapter launches the fixed Watcher verification process for source/path scope. Its own module contract explicitly says it does not execute tests, project scripts, agents, services or NEX runtime operations. The manifest is required to declare `execution_authority=none`, `tests_execution_authorized=false`, `runtime_operations_authorized=false`, `test_verified=not_authorized`, `runtime_observed=unknown_host_only`, and `human_acceptance=not_recorded`. It validates the immutable manifest, approval/event chain, planning revision, exact path scope and repository evidence. This is a read-only verification boundary, not an execution launcher.
+
+The second mechanism does not silently replace or upgrade the first. The Stage-7 handoff documentation explicitly preserves this distinction.
+
+### Important correction: exact-path allowlist is not a sandbox
+
+The legacy verifier's allowlist is a path-authorization check, not containment of arbitrary code effects. Once a test is allowlisted, `_run_test()` invokes `python -m pytest <path> -q` in the repository process environment. That test can execute Python, pytest configuration, `conftest.py` and plugins. The Stage-7 documentation explicitly says this is not an OS sandbox and arbitrary test execution remains unapproved until a disposable environment with no secrets, no live NEX data mounts and restricted network access is independently designed and verified.
+
+Therefore the safe interpretation is narrow:
+- Exact-path allowlisting prevents a declared test path from being treated as permission by default.
+- Repository containment prevents the selected path from escaping the repository root.
+- Neither property proves that the test's transitive code or side effects are contained.
+- A passed test in this legacy path is evidence about the controlled execution that occurred; it is not host/runtime observation of the live NEX organism.
+
+### Evidence semantics and a subtle ledger distinction
+
+The legacy verifier computes an obligation verdict from independent source evidence plus the optional test result:
+- source absent → `claim_unverified`, even if a completion claim or unrelated test exists;
+- source present, no test requested/authorized → `partial`;
+- source present and test failed → `failed`;
+- source present and test passed → `verified`.
+
+The runtime dimension is still a host-origin placeholder with `data=None`, evidence class `unknown`. Cloud source/test verification cannot promote it to runtime-observed.
+
+The generic `ConnectionLedger.seed_from_graph()` path is a different evidence operation: it can record `TEST_WRITTEN` and `TEST_PASSED` from a curated graph's `test_verified` assertion, while its own docstring says the ledger does not execute the cited test. Do not read that ledger state as an independently executed test result. By contrast, the legacy `rdo.execution.verify()` records its TEST state after its own pytest invocation returns. Provenance and the producer of the state matter; the state label alone is insufficient context.
+
+### Human decisions remain separate from technical evidence
+
+The bounded handoff manifest starts with test evidence not authorized, runtime unknown, and human acceptance not recorded. Scope review can authorize only the documented bounded preparation/edit actions; it does not authorize pytest, arbitrary commands, live NEX writes, database changes, experiment changes, service restarts or deployment. Reviewer/source fields are caller-attributed, not identity-authenticated.
+
+Criterion-level verification, overall human acceptance, source implementation, test verification and runtime observation are separate records/dimensions. A human acceptance event does not rewrite the immutable manifest's creation-time evidence statuses, and a passed criterion does not itself grant execution authority.
+
+### Research conclusion
+
+NEX currently has a layered progression rather than a single all-powerful execution path:
+- cognition/planning can form and refine work packages;
+- the handoff manifest binds a proposed task to an exact repository snapshot and bounded file scope;
+- human scope review records a limited preparation decision;
+- the independent Watcher verifies source/path facts without executing tests;
+- test execution remains a separate authority boundary;
+- live runtime observation remains host-only UNKNOWN;
+- human acceptance remains a distinct judgement.
+
+This separation is consistent with the governing architecture principle: interpretive cognition is not operation authority. A Mind Aspect, salience score, proposal, plan or completion claim must not become an implicit capability grant.
+
+### Next falsification / development work
+
+1. Keep the legacy test runner and new handoff verifier explicitly labelled as separate APIs in all documentation and reports.
+2. Add or retain regression coverage that the new handoff subprocess never launches pytest, project scripts, agents or runtime operations, and that its manifest rejects any attempt to claim those permissions.
+3. Design the disposable test-execution environment as a separate security project. Threat-model pytest startup hooks, `conftest.py`, plugins, environment variables, filesystem mounts, credentials, network access, subprocesses, time/resource exhaustion and artifact egress before enabling arbitrary test execution.
+4. Make evidence reports show the producer and method for each evidence state, not merely the label `TEST_PASSED`.
+5. Do not broaden handoff approval actions or infer Stage-7 completion. The real objective-to-verified-delivery demonstration, safe test boundary, host/runtime evidence and separate human acceptance remain outstanding.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `rdo/execution.py` blob `c4c3bb9b8c0dab5c16091c0ca3146921cf569c15`; `rdo/tests/test_stage7_execution_watcher.py` blob `832b6290a45c793274e0890037618a7fb5eeea36`; `watcher/handoff_verify.py` blob `fae4a9c6475f9d52d16a786e71d42b907d094407`; `watcher/ledger.py` blob `698ae962fe1dfad2d252b39a41066cd8cc0e4310`; `watcher/evidence.py` blob `0d235f79a562ae6fad14325915b0be8c34d4f382`; `rdo/STAGE7_HANDOFF.md` blob `1585d1f4ffe28608614ade6679429584126a0987`.
+
+**Unchanged boundaries:** no test execution, agent launch, RDO execution, handoff creation/review, approval action, sandbox, host operation, runtime flag, database, evidence policy, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed. This was a source-and-test review only.
