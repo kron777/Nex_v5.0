@@ -6130,6 +6130,12 @@ The feedback loop is source-observed, not runtime-observed. Repository source an
 - tests/test_gui.py::test_chat_calculation_uses_safe_tool_wire verifies that a chat sentence selects python_exec and that the numeric result 555 is injected into the voice prompt.
 - These are source/fixture tests, not proof of live host use or general action authority.
 
+### Separate manual observation path
+
+### Separate manual observation path
+
+StrikeProtocol is a different path: run.py constructs it with a separate StrikeCatalogue, and the GUI exposes POST /api/strikes/fire with an explicit StrikeType enum and optional custom_input. A human-triggered strike sends observation text to the voice model (or waits during SILENCE), captures a context snapshot, and stores a StrikeRecord in a separate strikes_catalogue.db. It does not execute an external action or convert the strike text into a machine operation. SELF_PROBE/RECURSIVE may retrieve belief context through the membrane, but this is context routing, not action approval or authority. tests/test_strikes.py covers the protocol and GUI route.
+
 ### Interpretation and next step
 
 This is a genuine but narrow sentence-to-capability bridge: a human arithmetic sentence becomes a bounded numeric expression, is interpreted by a constrained machine evaluator, and the result returns to natural-language composition. It is not arbitrary Python execution, natural-language code generation, a general operation planner or an approval pipeline.
