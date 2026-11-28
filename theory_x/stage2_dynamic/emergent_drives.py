@@ -51,7 +51,7 @@ class EmergentDriveDetector:
         self._dynamic_writer = dynamic_writer
 
     def scan_for_pressure(self, beliefs_reader: Reader,
-                          dynamic_state) -> list[dict]:
+                          dynamic_state, *, stop_event=None) -> list[dict]:
         """Scan Tier 4+ beliefs grouped by branch; return pressure proposals."""
         try:
             rows = beliefs_reader.read(
@@ -63,9 +63,14 @@ class EmergentDriveDetector:
             errors.record(f"scan_for_pressure read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return []
 
+        if stop_event is not None and stop_event.is_set():
+            return []
+
         # Group by branch_id
         grouped: dict[str, list[dict]] = {}
         for row in rows:
+            if stop_event is not None and stop_event.is_set():
+                return []
             bid = row["branch_id"]
             if bid not in grouped:
                 grouped[bid] = []
@@ -77,6 +82,8 @@ class EmergentDriveDetector:
             if dynamic_state is not None:
                 status = dynamic_state.status()
                 for b in status.get("branches", []):
+                    if stop_event is not None and stop_event.is_set():
+                        return []
                     existing_branches.add(b["branch_id"])
         except Exception:
             pass
@@ -97,8 +104,12 @@ class EmergentDriveDetector:
         except Exception:
             pass
 
+        if stop_event is not None and stop_event.is_set():
+            return []
         proposals = []
         for branch_id, beliefs in grouped.items():
+            if stop_event is not None and stop_event.is_set():
+                return []
             if branch_id in _SEED_BRANCH_IDS or branch_id in pending_branches:
                 continue
 
@@ -119,10 +130,12 @@ class EmergentDriveDetector:
 
         return proposals
 
-    def log_proposals(self, proposals: list[dict]) -> None:
+    def log_proposals(self, proposals: list[dict], *, stop_event=None) -> None:
         """Log proposals to errors channel and write to drive_proposals table."""
         now = time.time()
         for p in proposals:
+            if stop_event is not None and stop_event.is_set():
+                return
             errors.record(
                 f"emergent drive proposal: branch='{p['branch']}' "
                 f"pressure={p['pressure']:.3f} "
@@ -148,7 +161,7 @@ class EmergentDriveDetector:
 
     def apply_approved(self, dynamic_state, beliefs_writer: Writer,
                        dynamic_reader: Reader,
-                       coherence_gate=None) -> int:
+                       coherence_gate=None, *, stop_event=None) -> int:
         """Apply approved proposals to the bonsai tree. Returns count applied."""
         try:
             rows = dynamic_reader.read(
@@ -159,8 +172,12 @@ class EmergentDriveDetector:
             errors.record(f"apply_approved read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return 0
 
+        if stop_event is not None and stop_event.is_set():
+            return 0
         applied = 0
         for row in rows:
+            if stop_event is not None and stop_event.is_set():
+                break
             branch_id = row["branch_id"]
             curiosity = row["proposed_curiosity"]
             try:
