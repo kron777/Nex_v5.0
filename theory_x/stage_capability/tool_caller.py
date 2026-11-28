@@ -22,7 +22,7 @@ _CURRENT_PATTERNS = re.compile(
     re.I,
 )
 _MATH_PATTERNS = re.compile(
-    r"\b(calculate|compute|what is \d|math|formula|result of|evaluate)\b",
+    r"\b(calculate|compute|what is \d|what's \d|math|formula|result of|evaluate)\b",
     re.I,
 )
 _BELIEF_PATTERNS = re.compile(
@@ -34,6 +34,8 @@ _MATH_PREFIX = re.compile(
     re.I,
 )
 _MATH_CHARS = re.compile(r"^[0-9\s.+\-*/()%]+$")
+MAX_MATH_EXPRESSION_CHARS = 990  # leaves room for print(...) under the registry's 1000-char cap
+MAX_MATH_AST_NODES = 61  # leaves room for the print wrapper under the registry's 64-node cap
 
 
 def _extract_math_expression(query: str) -> Optional[str]:
@@ -42,13 +44,19 @@ def _extract_math_expression(query: str) -> Optional[str]:
     if not match:
         return None
     expression = query[match.end():].strip().rstrip("?.!").strip()
-    if not expression or not _MATH_CHARS.fullmatch(expression):
+    if (
+        not expression
+        or len(expression) > MAX_MATH_EXPRESSION_CHARS
+        or not _MATH_CHARS.fullmatch(expression)
+    ):
         return None
     if not re.search(r"[+*/%]|-(?=\s*\d)|(?<=\d)-", expression):
         return None
     try:
-        ast.parse(expression, mode="eval")
-    except SyntaxError:
+        tree = ast.parse(expression, mode="eval")
+        if sum(1 for _ in ast.walk(tree)) > MAX_MATH_AST_NODES:
+            return None
+    except (SyntaxError, ValueError, TypeError, RecursionError, MemoryError):
         return None
     return expression
 

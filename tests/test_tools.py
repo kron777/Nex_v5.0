@@ -6,6 +6,7 @@ rule that natural-language input must never become executable Python source.
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from tests import _bootstrap  # noqa: F401
 
@@ -171,6 +172,34 @@ class TestToolCaller(unittest.TestCase):
         kwargs = self.caller.build_tool_kwargs("calculate 2+2", "python_exec")
         self.assertEqual(kwargs, {"code": "print(2+2)"})
         self.assertNotIn("query", kwargs)
+
+
+    def test_whats_prefix_selects_bounded_arithmetic(self):
+        self.assertEqual(
+            self.caller.should_use_tool("what's 2 + 2", beliefs=[]),
+            "python_exec",
+        )
+
+    def test_oversized_math_expression_is_rejected_before_ast_parse(self):
+        query = "calculate " + ("1+" * 500) + "1"
+        with patch(
+            "theory_x.stage_capability.tool_caller.ast.parse"
+        ) as parse:
+            self.assertIsNone(self.caller.should_use_tool(query, beliefs=[]))
+            parse.assert_not_called()
+
+    def test_recursive_ast_parse_failure_is_a_non_selection(self):
+        with patch(
+            "theory_x.stage_capability.tool_caller.ast.parse",
+            side_effect=RecursionError("synthetic parser depth"),
+        ):
+            self.assertIsNone(
+                self.caller.should_use_tool("calculate 2 + 2", beliefs=[])
+            )
+
+    def test_expression_ast_node_budget_is_enforced(self):
+        query = "calculate " + "+".join(["1"] * 40)
+        self.assertIsNone(self.caller.should_use_tool(query, beliefs=[]))
 
 
 if __name__ == "__main__":
