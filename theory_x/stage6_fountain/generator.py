@@ -2918,6 +2918,8 @@ class FountainGenerator:
         except Exception:
             pass
 
+        if _stopping():
+            return thought
         try:
             from theory_x.diversity.loop import notify_fire
             notify_fire()
