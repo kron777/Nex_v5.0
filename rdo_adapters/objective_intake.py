@@ -308,7 +308,7 @@ def _validate_objective_lineage(record: dict, value: Any) -> Optional[dict]:
         "objective_input_sha256",
     }
     lineage = _object(value, "objective lineage", fields)
-    if lineage["schema_version"] != "rdo.reviewed_seed_bridge.v1":
+    if lineage["schema_version"] != "rdo.reviewed_seed_bridge.v2":
         raise ObjectiveInputError("unsupported objective lineage schema")
     if not isinstance(lineage["proposal_id"], str) or not re.fullmatch(
         r"seedprop_[0-9a-f]{24}", lineage["proposal_id"]
@@ -346,7 +346,7 @@ def _validate_objective_lineage(record: dict, value: Any) -> Optional[dict]:
             or lineage["objective_input_sha256"] != _digest(record)):
         raise ObjectiveInputError("objective lineage does not bind to this exact objective revision/digest")
     approval = _object(lineage["approval"], "objective lineage approval", {
-        "sequence", "event_sha256", "record",
+        "sequence", "event_sha256", "record", "event",
     })
     sequence = approval["sequence"]
     if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 1:
@@ -367,6 +367,29 @@ def _validate_objective_lineage(record: dict, value: Any) -> Optional[dict]:
     _text(review["rationale"], "lineage.approval.rationale")
     _text_list(review["evidence_references"], "lineage.approval.evidence_references",
                max_items=200, max_length=1000, allow_empty=False)
+    event = _object(approval["event"], "objective lineage approval event", {
+        "schema_version", "sequence", "previous_event_sha256", "event_kind",
+        "proposal_id", "recorded_at", "record", "event_sha256",
+    })
+    if (event["schema_version"] != 1
+            or event["event_kind"] != "review_decision"
+            or event["proposal_id"] != lineage["proposal_id"]
+            or event["sequence"] != sequence
+            or event["record"] != review
+            or event["event_sha256"] != approval["event_sha256"]):
+        raise ObjectiveInputError("objective lineage approval event fields do not match the review")
+    previous_event = event["previous_event_sha256"]
+    if previous_event is not None and (
+        not isinstance(previous_event, str) or not _SHA256.fullmatch(previous_event)
+    ):
+        raise ObjectiveInputError("objective lineage previous approval-event digest is invalid")
+    _text(event["recorded_at"], "lineage.approval.event.recorded_at", max_length=128)
+    event_body = {key: event[key] for key in (
+        "schema_version", "sequence", "previous_event_sha256", "event_kind",
+        "proposal_id", "recorded_at", "record",
+    )}
+    if _digest(event_body) != event["event_sha256"]:
+        raise ObjectiveInputError("objective lineage approval event digest does not verify")
     return json.loads(_canonical_json(lineage))
 
 
