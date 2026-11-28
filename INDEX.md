@@ -5786,3 +5786,66 @@ The content's first-person wording is not sufficient to establish its retrieval 
 **Source anchors:** theory_x/stage4_membrane/classifier.py; theory_x/stage4_membrane/router.py; theory_x/stage3_world_model/retrieval.py; gui/server.py; theory_x/stage6_fountain/generator.py; draft PR #454.
 
 **Authority boundary:** no runtime code, classifier allowlist, retrieval policy, schema, feature flag, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §156 — GeniusTagger is a passive producer, but its signal is no longer log-only at system level (28 November 2026)
+
+**Question studied:** does the current source still match GENIUS_SCORE_v2.md §7's statement that no behavioural consumers of genius_tags exist?
+
+### Specification and source-document comparison
+
+- GENIUS_SCORE_v2.md §7's "What the tagger does not do (yet)" says other components reading genius_tags and changing behaviour do not exist yet and are future builds. Git history shows the spec's latest commit is 2026-05-24.
+- The GeniusTagger module docstring and run.py Phase 9g comment likewise call the producer "LOG-ONLY" and say it has no behavioural effect on other nodes.
+- Those statements may accurately describe the tagger class in isolation: GeniusTagger itself scores and writes rows. They do not describe the integrated system at the inspected source revision, where multiple consumers already read those rows and change downstream state or prompts.
+
+### Current consumer inventory
+
+1. **Readiness consumer C — source-present and normally wired**
+   - FountainGenerator constructs ReadinessEvaluator with the injected conversations_reader.
+   - run.py passes the conversations reader through build_fountain().
+   - ReadinessEvaluator._genius_modulation() reads the last hour of genius_tags, requires at least five rows, targets a 40% STRIKING rate and subtracts up to 0.15 from Fountain readiness when the rate is lower.
+   - NEX5_FOUNTAIN_READINESS_MOD_OFF=1 disables it. With the normal reader wiring and no OFF flag, this is a behavioural cadence influence, not merely logging.
+
+2. **Recent STRIKING prompt consumer B — source-present**
+   - FountainGenerator._build_recent_striking_block() reads STRIKING tags from the last 24 hours, joins the corresponding Fountain thoughts, deduplicates similar first sentences and injects up to two examples into the Fountain prompt.
+   - _build_prompt() includes this block unless NEX5_GENIUS_PROMPT_OFF=1.
+   - The tag-time filter excludes rows tagged in the last five minutes, but it does not bound the original fountain_events.ts age. A 14-day-old event backfilled with a recent tagged_at can therefore enter the block after the five-minute tag-age delay, subject to scoring/deduplication.
+
+3. **Fountain governor / rut mirror — source-present**
+   - The governor reads the last 90 minutes of tag rows; with at least four and <=5% STRIKING it changes reanimation cadence from every 20th fire to every 5th fire and writes a self_rut_notice belief.
+   - NEX5_GOVERNOR_OFF=1 disables this block. See §§150–154 for the separate writer, flag, timestamp, startup and provenance boundaries.
+
+4. **Chat Metacognition rut observer — source-present**
+   - The GUI chat route calls Metacognition.tick(), which directly invokes SelfNarrative._maybe_notice_rut() and may write a rut_notice row into narrative_log.
+   - The direct helper call bypasses the NEX5_RUT_MIRROR_OFF check inside SelfNarrative.tick(). See §§148–150.
+
+5. **Continuity prompt layer — optional, default OFF**
+   - When NEX5_CONTINUITY_N is positive, FountainGenerator reads the top-scoring genius_tags rows and injects the corresponding prior Fountain thoughts as a continuity stream. The source query is not time-bounded and does not filter class.
+
+### Consequence
+
+The correct distinction is: **GeniusTagger is a write-only producer; the integrated Genius signal is not system-level log-only.** At least four consumer paths are source-present, and the normal Fountain wiring activates readiness modulation and the recent-STRIKING prompt block unless their respective OFF flags are set. Governor and Metacognition paths also have their own conditions and flags. The optional continuity layer is separately env-gated.
+
+This is a specification/documentation drift finding, not proof that every consumer is enabled or active on the host. It also means §152's backfill timestamp semantics can influence more than the rut observers: readiness modulation samples the last hour, while the prompt consumer samples the last 24 hours. A backfilled historic event can therefore affect readiness and later prompt content.
+
+### Test coverage
+
+- Existing tests/test_genius_tagger.py characterize the producer but do not cover the downstream consumer network.
+- Existing tests/test_fountain.py had no GeniusTagger consumer characterization at the inspected base.
+- PR #452 covers the Metacognition rut helper and wrapper flag boundary; exact-head CI passed.
+- PR #454 covers the Fountain governor writer and its explicit retrieval/membrane boundary; exact-head CI pending.
+- PR #455 adds test-only coverage for readiness modulation and the recent-STRIKING prompt block; exact-head CI pending.
+
+### Evidence classification
+
+- GENIUS_SCORE_v2.md latest commit date and the "consumers do not exist yet" text: document/history observed.
+- Readiness, prompt, governor, Metacognition and optional continuity consumer source paths: source-observed.
+- Normal Fountain reader wiring for readiness and prompt consumers: source-observed.
+- Actual deployed flags, host worker activity, live readiness penalties, prompt injections and rut writes: UNKNOWN.
+
+**Next bounded investigation:** validate PRs #454 and #455 exact-head CI; compare GENIUS_SCORE_v2.md and runtime source as separate evidence layers; then inspect the full consumer set's flag ownership and current host settings through approved read-only evidence. Do not change the spec's authority status, enable/disable flags or alter consumer behaviour in Phase 0.
+
+**Disposition:** stale "no behavioural consumers yet" specification text and system-level log-only description recorded. The producer remains passive; downstream consumers are not. No new defect ID pending authoritative intent and live activation evidence. G-83 remains OPEN.
+
+**Source anchors:** GENIUS_SCORE_v2.md; theory_x/genius/tagger.py; run.py; theory_x/stage6_fountain/readiness.py; theory_x/stage6_fountain/generator.py; theory_x/stage6_fountain/__init__.py; theory_x/stage9_metacognition/metacognition.py; gui/server.py; tests/test_genius_tagger.py; tests/test_fountain.py; draft PRs #454 and #455.
+
+**Authority boundary:** no runtime code, weights, schema, feature flag, consumer policy, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
