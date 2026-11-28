@@ -208,7 +208,7 @@ class RuleProposalStore:
                 }
                 event["event_sha256"] = _event_digest(event)
                 fh.seek(0, os.SEEK_END)
-                fh.write(json.dumps(event, sort_keys=True, ensure_ascii=False) + "\\n")
+                fh.write(json.dumps(event, sort_keys=True, ensure_ascii=False) + "\n")
                 fh.flush()
                 os.fsync(fh.fileno())
                 return event
@@ -318,7 +318,7 @@ class RuleProposalStore:
                 }
                 event["event_sha256"] = _event_digest(event)
                 fh.seek(0, os.SEEK_END)
-                fh.write(json.dumps(event, sort_keys=True, ensure_ascii=False) + "\\n")
+                fh.write(json.dumps(event, sort_keys=True, ensure_ascii=False) + "\n")
                 fh.flush()
                 os.fsync(fh.fileno())
                 return event
