@@ -22,6 +22,18 @@ temporary fixture; `handoff-verify` is source/path-only and never runs tests.
 
   python -m rdo handoff-verify --handoff-id <handoff-id> [--repo .] [--out rdo/.cycles]
         invoke independent Watcher source/path verification; no tests or runtime actions.
+
+  python -m rdo seed-propose --input proposal.json [--dir rdo/.cycles]
+        append a competing candidate seed proposal; no objective intake or execution.
+
+  python -m rdo seed-review --proposal-id <id> --decision <decision> ...
+        append one explicit review decision; approval must select an existing alternative.
+
+  python -m rdo seed-history [--proposal-id <id>] [--dir rdo/.cycles]
+        inspect proposal snapshots and their append-only event history.
+
+  python -m rdo seed-selection --proposal-id <id> [--dir rdo/.cycles]
+        read an explicitly approved alternative; never starts objective intake.
 """
 from __future__ import annotations
 
@@ -40,6 +52,7 @@ from .graph import compare_adjacent_relationship_impacts, failure_propagation_ca
 from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_file,
                                            objective_history, resume_objective,
                                            submit_objective)
+from rdo_adapters.seed_proposals import SeedProposalError, SeedProposalStore
 from rdo_adapters.handoff import (HandoffError, create_handoff, handoff_history,
                                   record_human_acceptance, record_scope_review,
                                   record_context_mapping, record_acceptance_verification,
@@ -192,6 +205,95 @@ def _feedback_replay(args) -> int:
     print(json.dumps({"cycle_id": cycle.id,
                       "feedback_loop_evidence_events": cycle.feedback_loop_evidence_events},
                      indent=2, default=str))
+    return 0
+
+
+def _seed_store(args):
+    return SeedProposalStore(os.path.join(args.dir, "seed_proposals.jsonl"))
+
+
+def _seed_propose(args) -> int:
+    try:
+        with open(args.input, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+        if not isinstance(payload, dict):
+            raise SeedProposalError("proposal input must be a JSON object")
+        required = {
+            "raw_objective", "alternatives", "proposer_kind",
+            "proposer_reference", "source_reference",
+        }
+        optional = {"supersedes_proposal_id"}
+        if not required.issubset(payload) or set(payload) - required - optional:
+            raise SeedProposalError(
+                "proposal input must contain exactly the documented fields: "
+                + ", ".join(sorted(required | optional))
+            )
+        result = _seed_store(args).submit(
+            payload["raw_objective"], payload["alternatives"],
+            proposer_kind=payload["proposer_kind"],
+            proposer_reference=payload["proposer_reference"],
+            source_reference=payload["source_reference"],
+            supersedes_proposal_id=payload.get("supersedes_proposal_id"),
+        )
+    except (SeedProposalError, OSError, ValueError, TypeError, KeyError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _seed_review(args) -> int:
+    try:
+        result = _seed_store(args).review(
+            args.proposal_id, args.decision,
+            reviewer=args.reviewer,
+            source_reference=args.source_reference,
+            rationale=args.rationale,
+            evidence_references=args.evidence_reference,
+            selected_alternative_id=args.selected_alternative_id,
+        )
+    except (SeedProposalError, OSError, ValueError, TypeError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _seed_history(args) -> int:
+    try:
+        store = _seed_store(args)
+        proposals = store.proposals()
+        if args.proposal_id:
+            proposals = [
+                item for item in proposals
+                if item["proposal"]["proposal_id"] == args.proposal_id
+            ]
+            if not proposals:
+                raise SeedProposalError("unknown seed proposal")
+        proposal_ids = {item["proposal"]["proposal_id"] for item in proposals}
+        events = [
+            event for event in store.events()
+            if event.get("proposal_id") in proposal_ids
+        ]
+        result = {
+            "proposal_count": len(proposals),
+            "proposals": proposals,
+            "events": events,
+        }
+    except (SeedProposalError, OSError, ValueError, TypeError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _seed_selection(args) -> int:
+    try:
+        result = _seed_store(args).approved_selection(args.proposal_id)
+    except (SeedProposalError, OSError, ValueError, TypeError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
     return 0
 
 
@@ -513,6 +615,32 @@ def main(argv=None) -> int:
     ha.add_argument("--note", default="")
     ha.add_argument("--out", default="rdo/.cycles")
     ha.set_defaults(fn=_handoff_acceptance)
+
+    sp = sub.add_parser("seed-propose", help="append a candidate-only competing seed proposal")
+    sp.add_argument("--input", required=True, help="JSON containing raw_objective, alternatives and proposer/source references")
+    sp.add_argument("--dir", default="rdo/.cycles", help="RDO evidence directory")
+    sp.set_defaults(fn=_seed_propose)
+
+    sr = sub.add_parser("seed-review", help="append an explicit review decision for a seed proposal")
+    sr.add_argument("--proposal-id", required=True)
+    sr.add_argument("--decision", required=True, choices=("approved", "changes_requested", "rejected"))
+    sr.add_argument("--reviewer", required=True)
+    sr.add_argument("--source-reference", required=True)
+    sr.add_argument("--rationale", required=True)
+    sr.add_argument("--evidence-reference", action="append", required=True)
+    sr.add_argument("--selected-alternative-id", help="required for approval; forbidden for other decisions")
+    sr.add_argument("--dir", default="rdo/.cycles")
+    sr.set_defaults(fn=_seed_review)
+
+    sh = sub.add_parser("seed-history", help="inspect seed proposal snapshots and append-only review events")
+    sh.add_argument("--proposal-id", help="optional proposal ID filter")
+    sh.add_argument("--dir", default="rdo/.cycles")
+    sh.set_defaults(fn=_seed_history)
+
+    ss = sub.add_parser("seed-selection", help="read the selected alternative after explicit approval")
+    ss.add_argument("--proposal-id", required=True)
+    ss.add_argument("--dir", default="rdo/.cycles")
+    ss.set_defaults(fn=_seed_selection)
 
     args = p.parse_args(argv)
     return args.fn(args)
