@@ -176,3 +176,48 @@ This increment remains external/advisory RDO code. It does not change NEX runtim
 - `rdo/tests/test_stage2_extrapolator_mvp.py`, `rdo/tests/test_rdo.py`, `rdo/tests/test_stage3_graph_intelligence.py`.
 
 **Conclusion:** RDO has a credible working Extrapolator vertical slice and meaningful parts of v1.4. It does not yet implement the full OFT model. The next justified development step is to define and test a traceable observed-failure evidence record linked to canonical relationship identity, observation window, operating envelope and provenance. Keep it distinct from structural failure-path candidates. Do not implement calibrated propagation, severity or probability verdicts until the exact v1.4 criteria and source measurements are available.
+
+
+## Update 2026-11-28 — post-merge implementation evidence
+
+### Merged slices
+
+- **#341:** directed-cycle identity now preserves distinct directed paths and deterministic ordering.
+- **#342:** Watcher ledger evidence-reference validation and disk-before-memory append ordering are merged.
+- **#339:** typed observed-failure evidence is persisted separately from structural failure-path candidates. It requires an exact dependency edge and canonical source/destination obligation endpoints, retains measured evidence and operating-envelope context, and does not infer causality or propagation probability.
+- **#343:** context mapping and criterion verification now use the existing digest-bound, append-only Stage-7 decision ledger. The independent Watcher validates both event kinds, their manifest identity, canonical obligation links, evidence-reference containers, status, timestamps and ordering.
+
+### CI evidence
+
+- #339 exact-head full suite: **2,819 passed, 7 skipped, 45 subtests passed**.
+- #343 exact-head full suite: **2,812 passed, 7 skipped, 45 subtests passed**.
+- Both exact-head runs completed the mind-map verification: 30 nodes, 0 unverified. Existing warnings remain for missing `VIRTUE_SLATE.md`, missing `mental_factors_inventory_alobha_spec.txt`, and overdue P13 finitude unblock.
+- Combined post-merge mainline CI is tracked on the main commit separately; exact-head PR success is not substituted for that result.
+
+### Corrections to earlier gap statements
+
+**Adversarial case J:** PR #331 already exposes adjacent-relationship impact comparison through the RDO CLI. The remaining limitation is interpretive: the comparison is correlation/structural impact, not causal attribution, and it does not automatically produce a system-level net-value or harm verdict.
+
+**G-91 — context mapping:** partially closed by #343. Human reviewers can now map each context item to canonical obligations and record criterion-level pending/passed/failed/not-applicable outcomes with provenance. Remaining: no automatic mapping, no independent dereferencing/authentication of caller-supplied evidence references, and no automatic application of reviewed mappings to a subsequent cycle. The immutable original cycle and handoff are not rewritten.
+
+### G-92 — first-level decomposition and novel expansion-rule lifecycle (open)
+
+The current objective intake requires externally supplied seed obligations; the recursive cycle starts from those seeds. The Extrapolator has a finite static rule catalogue. When a novel kind has no rule, the system records a frontier rather than inventing one. PatternMemory stores lessons, confirmations and disconfirmations, but it does not create or promote executable rules.
+
+This means the current repository can recursively expand a supplied seed graph, but it does not independently convert arbitrary raw objective text into a complete first-level seed graph or derive executable rules for every novel kind. The external LLM/human seed-proposal boundary is usable, but no provider is integrated.
+
+Recommended next research/development: a provider-neutral proposal contract for seed obligations and candidate expansion rules, preserving competing interpretations, assumptions, applicability, exceptions, disconfirmations, provenance and tests. Candidate rules must remain inactive until reviewed and approved; frequency alone must never promote a rule.
+
+### G-93 — feedback-loop assessment persistence (open)
+
+FeedbackLoopAssessment remains an UNKNOWN-first evidence model rather than a stability calculator. It is not yet persisted in CycleRecord or connected to orchestration. A future integration should validate measurement evidence, observation windows and provenance, preserve legacy-cycle loading, and avoid invented gain/damping/stability thresholds.
+
+### Next sequence
+
+1. Verify combined mainline CI after #339 and #343.
+2. Complete one traceable single-objective path through seed intake, expansion, context review, criterion verification, Stage-7 handoff and independent Watcher verification.
+3. Design the candidate-rule proposal and approval lifecycle for novel kinds.
+4. Persist FeedbackLoopAssessment with UNKNOWN-first semantics and measured evidence only.
+5. Continue Stage-2 belief-development and fresh-process persistence/resume research.
+
+No frozen S-01–S-25/M1.8 specification content or NEX runtime/deployment path was changed by these slices.
