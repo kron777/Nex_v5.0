@@ -493,8 +493,11 @@ def _repository_revision(repo_dir: str) -> str:
     return head
 
 
-def _cycle_id(objective_id: str, revision: int, repository_revision: str) -> str:
+def _cycle_id(objective_id: str, revision: int, repository_revision: str,
+              seed_proposal_reference: Optional[dict] = None) -> str:
     identity = f"{objective_id}\n{revision}\n{repository_revision}"
+    if seed_proposal_reference is not None:
+        identity += "\n" + _digest(seed_proposal_reference)
     token = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
     return f"obj_{token}_r{revision:06d}"
 
@@ -515,13 +518,37 @@ def _cycle_summary(cycle, summary: Optional[dict] = None) -> dict:
     }
 
 
-def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
+def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cycles",
+                     seed_proposal_reference: Optional[dict] = None) -> dict:
     """Persist one immutable objective revision and run the existing RDO pipeline."""
     record = validate_objective(payload)
+    if record["source"]["kind"] == "external_llm" and seed_proposal_reference is None:
+        raise ObjectiveInputError(
+            "external-LLM seed obligations require an explicitly approved seed proposal before intake"
+        )
+    verified_seed_reference = None
+    if seed_proposal_reference is not None:
+        from .seed_proposals import SeedProposalError, SeedProposalStore
+        try:
+            approved = SeedProposalStore(
+                os.path.join(workdir, "seed_proposals.jsonl")
+            ).verify_reference(seed_proposal_reference)
+        except SeedProposalError as exc:
+            raise ObjectiveInputError(f"seed proposal approval could not be verified: {exc}") from exc
+        approved_record = approved["objective"]
+        for key in record:
+            if key not in {"revision", "supersedes_sha256"} and record[key] != approved_record[key]:
+                raise ObjectiveInputError(
+                    f"objective field {key!r} does not match the approved seed proposal"
+                )
+        verified_seed_reference = approved["reference"]
     input_store = ObjectiveInputStore(os.path.join(workdir, "objectives"))
     stored = input_store.append(record)
     repository_revision = _repository_revision(repo_dir)
-    cycle_id = _cycle_id(record["objective_id"], record["revision"], repository_revision)
+    cycle_id = _cycle_id(
+        record["objective_id"], record["revision"], repository_revision,
+        verified_seed_reference,
+    )
     cycle_store = CycleStore(workdir)
     metadata = {
         "schema_version": record["schema_version"],
@@ -530,6 +557,8 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
         "sha256": stored["sha256"],
         "repository_revision": repository_revision,
     }
+    if verified_seed_reference is not None:
+        metadata["seed_proposal"] = verified_seed_reference
 
     if cycle_id in cycle_store.list_ids():
         existing = cycle_store.load(cycle_id)
