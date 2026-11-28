@@ -4618,3 +4618,69 @@ For every read, record whether it (a) gates, (b) selects/reorders, (c) alters a 
 **Source anchors:** theory_x/diversity/groove.py; theory_x/stage9_metacognition/metacognition.py; theory_x/diversity/consolidation.py; theory_x/diversity/panel.py; theory_x/stage_drives/competing_drives.py; run.py; theory_x/stage6_fountain/generator.py; theory_x/stage6_fountain/readiness.py; theory_x/harmonic/substrate_harmonic.py; theory_x/memory/snapshot_writer.py; theory_x/probes/context_snapshot.py; theory_x/probes/probe_runner.py; gui/server.py; gui/static/app.js; theory_x/stage_tom/raga_detector.py; theory_x/stage_tom/stakes_appraisal.py; scripts/trajectory.py; nex_keepalive.sh; substrate/schema/beliefs.sql; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
 
 **Evidence level:** source-observed boot construction, loop/caller paths, feature-flag conditions, SQL reads/writes and sink behaviour; exact host environment, live event chronology, external DB clients, and dynamically assembled/untracked SQL remain UNKNOWN.
+
+
+## §121 — GrooveSpotter's detector identity is process-local and type-specific (2026-11-28)
+
+### Four detector fingerprints, four different meanings of “same”
+
+The current GrooveSpotter implementation has four independent in-memory fingerprints:
+
+| Detector | Fingerprint stored in the GrooveSpotter instance | What unchanged means |
+|---|---|---|
+| Exact repetition | Exact repeated sentence content | The top repeated sentence is unchanged |
+| N-gram repetition | Top repeated trigram text | The most-common trigram remains the same |
+| Template repetition | frozenset of all participating templated belief IDs | The participating belief-ID set is unchanged |
+| Centroid tightening | Ordered tuple of all current-window belief IDs | The complete current-window order is unchanged |
+
+Each detector clears its fingerprint when its own condition falls below its threshold (or, for the centroid detector, when the required previous window/spread is unavailable). A still-present unchanged fingerprint skips insertion on the next 60-second scan. This addresses the historical stale-rescan flood recorded in the module comments.
+
+The fingerprints are **not durable**. They live on the GrooveSpotter instance created by DiversityLoop. The instance is recreated on process restart, so all four fingerprints start as None. The module comment explicitly allows one fresh emission after restart if the same condition is still present. Therefore:
+- repeated scans in one process can be suppressed;
+- a restart can create a new alert row for a still-present detector condition;
+- a new alert row after restart is not necessarily a new underlying groove episode;
+- the in-memory fingerprint is not available to Metacognition, the GUI, the probe snapshot, or the offline trajectory tool.
+
+### Stored alert fields do not preserve every detector fingerprint
+
+The four alert writers populate the common columns, but their sample_belief_ids fields are not a uniform identity contract:
+
+- N-gram alerts store the first five rows of the current 20-belief window, while the in-memory fingerprint is the top trigram string.
+- Exact-repetition alerts store IDs of the rows with the repeated exact content.
+- Template-repetition alerts store the participating templated IDs; this broadly corresponds to its frozenset fingerprint.
+- Centroid alerts store the first five current-window IDs, while the in-memory fingerprint includes the complete ordered current window.
+
+The common table does not store a dedicated detector fingerprint, detector process/boot ID, episode ID, or durable “already emitted” record. Thus the original detector-level identity cannot always be reconstructed exactly from a persisted row.
+
+### Offline trajectory grouping is a different equivalence relation
+
+scripts/trajectory.py groups consecutive rows by (alert_type, sample_belief_ids) and treats the first row of each run as an episode. This is useful for historical analysis, but it is not identical to the detector's internal identity:
+
+- For n-gram alerts, two different top trigram patterns can share the same alert_type and the same first-five sample IDs, causing the offline grouping to merge them.
+- For centroid alerts, the current-window fingerprint can change outside the first five IDs while the persisted sample_belief_ids stays the same, so the offline grouping can merge detector states that the producer treated as different.
+- A process restart can re-emit the same detector condition as a new row; the offline grouping may merge or separate it depending on adjacency and sample IDs, not on restart or process identity.
+
+The trajectory episode count therefore remains an analytical estimate, not the canonical detector episode count. It should not be used as a drop-in replacement for alert-row IDs or source fingerprints in Row 9.
+
+### Test boundary
+
+tests/test_diversity.py::TestGrooveSpotter tests individual detector conditions and cooldown-fragment filtering. It does not currently characterize repeated detect_all() calls against the same unchanged window for all four detector types, fingerprint clearing when each condition stops holding, or new-instance/restart replay. The current tests therefore do not prove the in-memory stale-rescan suppression contract or its restart boundary.
+
+### Bounded characterization matrix
+
+| Case | Expected property to characterize |
+|---|---|
+| Same unchanged window, same instance | First qualifying scan emits; subsequent identical scans do not reinsert for each detector type |
+| Condition clears, then returns | The detector resets its fingerprint and emits a new alert on the later recurrence |
+| New GrooveSpotter instance, same unchanged window | The new instance may emit once again; this is restart replay, not necessarily a new episode |
+| Same n-gram window, different top pattern | Producer fingerprint changes even if sample-belief window IDs remain the same |
+| Same centroid first-five IDs, changed remaining window | Producer fingerprint changes even if the persisted sample-belief summary does not |
+| Four or more eligible alerts downstream | Metacognition's independent LIMIT 3 selection remains separately characterized; detector dedup does not fix consumer replay |
+
+These are characterization expectations from the inspected implementation, not executed test results. No source code or tests were changed in this pass.
+
+**Disposition:** Phase 0 producer-identity refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** theory_x/diversity/groove.py (GrooveSpotter.__init__, detect_all, four detector methods); theory_x/diversity/loop.py (one per-loop instance and 60-second scan); run.py (loop startup); tests/test_diversity.py::TestGrooveSpotter; scripts/trajectory.py::_groove_episodes; theory_x/stage9_metacognition/metacognition.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** source-observed in-memory fingerprint rules and persistence fields; targeted test inventory; offline metric comparison. Restart chronology and actual production alert cardinality remain UNKNOWN.
