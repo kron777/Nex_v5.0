@@ -130,6 +130,40 @@ class TestReadinessEvaluator(unittest.TestCase):
         self.assertFalse(ev.is_ready(0.0))
 
 
+    def test_genius_rate_modulation_subtracts_readiness_when_all_tags_ordinary(self):
+        from theory_x.stage6_fountain.readiness import ReadinessEvaluator
+        now = time.time()
+        for i in range(5):
+            self.writers["conversations"].write(
+                "INSERT INTO genius_tags "
+                "(fountain_event_id, score, class, weights_version, tagged_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (i + 1, 0.1, "ordinary", "consumer-test", now - 60),
+            )
+        time.sleep(0.05)
+        ev = ReadinessEvaluator(conversations_reader=self.readers["conversations"])
+        with mock.patch.dict(os.environ, {"NEX5_FOUNTAIN_READINESS_MOD_OFF": "0"}):
+            penalty = ev._genius_modulation()
+        self.assertAlmostEqual(penalty, 0.15)
+        self.assertEqual(ev._last_sample_size, 5)
+
+    def test_genius_rate_modulation_off_flag_suppresses_penalty(self):
+        from theory_x.stage6_fountain.readiness import ReadinessEvaluator
+        now = time.time()
+        for i in range(5):
+            self.writers["conversations"].write(
+                "INSERT INTO genius_tags "
+                "(fountain_event_id, score, class, weights_version, tagged_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (i + 1, 0.1, "ordinary", "consumer-off-test", now - 60),
+            )
+        time.sleep(0.05)
+        ev = ReadinessEvaluator(conversations_reader=self.readers["conversations"])
+        with mock.patch.dict(os.environ, {"NEX5_FOUNTAIN_READINESS_MOD_OFF": "1"}):
+            penalty = ev._genius_modulation()
+        self.assertEqual(penalty, 0.0)
+
+
 # ---- FountainGenerator --------------------------------------------------------
 
 class TestFountainGenerator(unittest.TestCase):
@@ -413,3 +447,48 @@ class TestFountainBuilderStartupRollback(unittest.TestCase):
             self.assertFalse(attempted[0].is_alive())
         finally:
             _cleanup(writers, tmp)
+
+
+class TestGeniusPromptConsumer(unittest.TestCase):
+    """Characterize the active Fountain prompt consumer of GeniusTagger rows."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        from theory_x.stage6_fountain.generator import FountainGenerator
+        self.gen = FountainGenerator(
+            sense_writer=self.writers["sense"],
+            dynamic_writer=self.writers["dynamic"],
+            voice_client=_mock_voice_client(),
+            dynamic_reader=self.readers["dynamic"],
+            beliefs_writer=self.writers["beliefs"],
+            beliefs_reader=self.readers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+        )
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_recent_striking_prompt_block_can_surface_backfilled_old_fires(self):
+        now = time.time()
+        thoughts = [
+            "A copper bridge crossed the silent marsh at dawn with no traffic.",
+            "The blue ceramic compass rested beside a folded map in the workshop.",
+        ]
+        for thought in thoughts:
+            fire_id = self.writers["dynamic"].write(
+                "INSERT INTO fountain_events (ts, thought, readiness, hot_branch) "
+                "VALUES (?, ?, 0.8, ?)",
+                (now - 10 * 86400, thought, "systems"),
+            )
+            self.writers["conversations"].write(
+                "INSERT INTO genius_tags "
+                "(fountain_event_id, score, class, weights_version, tagged_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (fire_id, 0.99, "STRIKING", "prompt-consumer-test", now - 600),
+            )
+        time.sleep(0.05)
+
+        block = self.gen._build_recent_striking_block()
+        rendered = "\n".join(block)
+        self.assertIn("copper bridge", rendered)
+        self.assertIn("ceramic compass", rendered)
