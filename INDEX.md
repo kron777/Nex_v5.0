@@ -1239,3 +1239,12 @@ The shutdown gate has no cancellation hook into an admitted VoiceClient call. If
 This is fail-closed for the clean marker, but not a completed graceful shutdown. Pending Writer work may not be drained in that path; the source trace does not establish that data loss or database corruption actually occurs.
 
 A detailed source-bounded timing report is in `research/SHUTDOWN_REQUEST_VOICE_TIMEOUT_GAP_2026-11-28.md`. The next step is a controlled host experiment measuring ordinary/worst-case chat latency (including retries), then SIGTERM during an active voice request while observing request labels, Writer queue depth, exit code and clean-marker persistence. Do not reduce the 120-second VoiceClient timeout or change the 12/15-second shutdown budgets until that evidence exists.
+
+
+### 16.10 SenseScheduler stop-during-poll race — open PR #387
+
+Current-main `SenseScheduler._AdapterThread._run()` previously performed `adapter.poll()` and then `adapter.submit(events)` without rechecking the worker stop event. `SenseScheduler.shutdown()` signals stop but cannot interrupt a poll already blocked in network I/O. The default adapter fetch has a 10-second connect and 20-second read timeout, while `AppState.close()` gives producer quiescence at most five seconds (subject to the remaining 12-second total deadline) before attempting Writer closure.
+
+If shutdown begins during a poll, that poll can return after stop was signalled and the old worker loop would still begin a Writer submission. PR #387 proposes checking the stop event immediately after poll and discarding those results when shutdown has begun. It adds a deterministic blocked-poll regression test and a source note.
+
+**Boundary:** #387 is open and its exact-head CI is pending; the correction is not current-main behaviour yet. It does not interrupt the in-flight poll, change adapter timeouts/cadence, or cancel a submission that already started before stop. It narrows the late-submit window but does not establish complete producer or host-level shutdown safety.
