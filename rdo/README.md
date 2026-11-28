@@ -418,3 +418,12 @@ This is a provider-neutral handoff to a human or external LLM, not an automatica
 generated or activated rule. Candidate rules remain inert until an explicit review
 and approval lifecycle is implemented. Repeated pattern frequency alone does not
 activate a rule.
+
+
+## Novel expansion-rule proposals
+
+A novel obligation kind remains a visible frontier item; it is never silently expanded. Its provider-neutral request carries the source obligation, review requirements, and a digest of the exact expansion-rule/terminal-kind catalogue snapshot. Requests from an older schema or changed catalogue are rejected as stale.
+
+`rdo.rule_proposals.RuleProposalStore` records candidate proposals and explicit caller-attributed review decisions in an append-only, hash-chained JSONL ledger. Candidates must retain applicability, preconditions, constraints, exceptions, anti-requirements, assumptions, alternative interpretations, evidence references, disconfirming cases, and positive/negative test plans. The store does not execute proposal content or import generated code.
+
+Even `approved_for_catalogue` means only that a candidate is eligible for a separate code/catalogue change review. There is deliberately no activation API: `EXPANSION_RULES` remains the only active catalogue and changes only through an ordinary reviewed source change with tests and CI. Proposer/reviewer labels are caller-attributed, not identity-authenticated.
