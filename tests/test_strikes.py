@@ -155,13 +155,27 @@ class TestStrikeCatalogue(unittest.TestCase):
 class TestStrikeProtocol(unittest.TestCase):
     def setUp(self):
         self.writers, self.readers, self.tmp = _make_env()
+        self._protocols = []
+
+    def _make_protocol(self, *args, **kwargs):
+        protocol, catalogue = _make_protocol(*args, **kwargs)
+        self._protocols.append(protocol)
+        return protocol, catalogue
+
+    def _track_protocol(self, protocol):
+        self._protocols.append(protocol)
+        return protocol
 
     def tearDown(self):
+        for protocol in self._protocols:
+            protocol.stop()
+            for thread in list(protocol._threads):
+                thread.join(timeout=1.0)
         _cleanup(self.writers, self.tmp)
 
     def test_fire_novel_saves_record_with_correct_type(self):
         from strikes.protocols import StrikeType
-        proto, cat = _make_protocol(self.writers, self.readers, self.tmp, "primes smell like cold metal")
+        proto, cat = self._make_protocol(self.writers, self.readers, self.tmp, "primes smell like cold metal")
         record = proto.fire(StrikeType.NOVEL)
         self.assertEqual(record.strike_type, "NOVEL")
         self.assertEqual(record.response_text, "primes smell like cold metal")
@@ -169,13 +183,13 @@ class TestStrikeProtocol(unittest.TestCase):
 
     def test_fire_novel_uses_default_input(self):
         from strikes.protocols import StrikeType, _DEFAULT_INPUTS
-        proto, cat = _make_protocol(self.writers, self.readers, self.tmp)
+        proto, cat = self._make_protocol(self.writers, self.readers, self.tmp)
         record = proto.fire(StrikeType.NOVEL)
         self.assertEqual(record.input_text, _DEFAULT_INPUTS["NOVEL"])
 
     def test_fire_novel_custom_input_override(self):
         from strikes.protocols import StrikeType
-        proto, cat = _make_protocol(self.writers, self.readers, self.tmp)
+        proto, cat = self._make_protocol(self.writers, self.readers, self.tmp)
         record = proto.fire(StrikeType.NOVEL, custom_input="what is the texture of silence?")
         self.assertEqual(record.input_text, "what is the texture of silence?")
 
@@ -195,14 +209,14 @@ class TestStrikeProtocol(unittest.TestCase):
         from strikes.catalogue import StrikeCatalogue
         cat = StrikeCatalogue(db_path=str(Path(self.tmp) / "strikes_catalogue.db"))
         from strikes.protocols import StrikeProtocol
-        proto = StrikeProtocol(
+        proto = self._track_protocol(StrikeProtocol(
             voice=VoiceClient(request_fn=capture_fn),
             dynamic_state=_mock_dynamic(),
             beliefs_reader=self.readers["beliefs"],
             sense_writer=self.writers["sense"],
             catalogue=cat,
             membrane_state=None,
-        )
+        ))
         record = proto.fire(StrikeType.CONTRADICTION)
         self.assertEqual(record.strike_type, "CONTRADICTION")
         self.assertTrue(any("Philosophical" in r or "philosophical" in r for r in seen_registers),
@@ -210,7 +224,7 @@ class TestStrikeProtocol(unittest.TestCase):
 
     def test_fire_self_probe_uses_philosophical_register(self):
         from strikes.protocols import StrikeType
-        proto, cat = _make_protocol(self.writers, self.readers, self.tmp, "I am attention itself.")
+        proto, cat = self._make_protocol(self.writers, self.readers, self.tmp, "I am attention itself.")
         record = proto.fire(StrikeType.SELF_PROBE)
         self.assertEqual(record.strike_type, "SELF_PROBE")
         self.assertEqual(record.response_text, "I am attention itself.")
@@ -246,21 +260,21 @@ class TestStrikeProtocol(unittest.TestCase):
                     notes="",
                 )
 
-        proto = FastSilenceProtocol(
+        proto = self._track_protocol(FastSilenceProtocol(
             voice=VoiceClient(request_fn=counting_fn),
             dynamic_state=_mock_dynamic(),
             beliefs_reader=self.readers["beliefs"],
             sense_writer=self.writers["sense"],
             catalogue=cat,
             membrane_state=None,
-        )
+        ))
         record = proto.fire(StrikeType.SILENCE)
         self.assertEqual(record.strike_type, "SILENCE")
         self.assertEqual(call_count[0], 0, "SILENCE should not call voice")
 
     def test_fire_records_hottest_branch(self):
         from strikes.protocols import StrikeType
-        proto, cat = _make_protocol(self.writers, self.readers, self.tmp)
+        proto, cat = self._make_protocol(self.writers, self.readers, self.tmp)
         record = proto.fire(StrikeType.NOVEL)
         self.assertEqual(record.hottest_branch, "systems")
 
@@ -272,15 +286,20 @@ class TestStrikeContextSnapshot(unittest.TestCase):
 
     def setUp(self):
         self.writers, self.readers, self.tmp = _make_env()
+        self._protocols = []
 
     def tearDown(self):
+        for protocol in self._protocols:
+            protocol.stop()
+            for thread in list(protocol._threads):
+                thread.join(timeout=1.0)
         _cleanup(self.writers, self.tmp)
 
     def _make_proto(self, sense_reader):
         from strikes.catalogue import StrikeCatalogue
         from strikes.protocols import StrikeProtocol
         cat = StrikeCatalogue(db_path=str(Path(self.tmp) / "strikes_catalogue.db"))
-        return StrikeProtocol(
+        protocol = StrikeProtocol(
             voice=_mock_voice("test response"),
             dynamic_state=_mock_dynamic(),
             beliefs_reader=self.readers["beliefs"],
@@ -288,7 +307,9 @@ class TestStrikeContextSnapshot(unittest.TestCase):
             catalogue=cat,
             dynamic_reader=self.readers["dynamic"],
             sense_reader=sense_reader,
-        ), cat
+        )
+        self._protocols.append(protocol)
+        return protocol, cat
 
     def test_fire_with_sense_reader_captures_snapshot(self):
         """Wired sense_reader: context_snapshot is JSON with all 9 required keys."""
@@ -336,6 +357,7 @@ class TestStrikeContextSnapshot(unittest.TestCase):
                 dynamic_reader=self.readers["dynamic"],
                 sense_reader=boom,
             )
+            self._protocols.append(proto)
             record = proto.fire(StrikeType.NOVEL)
         self.assertIsNotNone(record.context_snapshot)
         self.assertTrue(
