@@ -5108,3 +5108,10 @@ The nullable `acknowledged_at` column is present when `groove_alerts` first appe
 ### §132 producer/consumer distinction — prior stale re-fire fix
 
 The earlier producer-side stale re-fire defect was explicitly fixed in commit `543e4ce957f2e3ad8e3ebf9fb25cd1bf977fed1a` (22 July 2026): GrooveSpotter now keeps one in-memory fingerprint per detector and suppresses an unchanged rolling-window condition, clearing the fingerprint when that condition stops holding. The commit explicitly distinguishes this producer-side insert deduplication from `_push_cooldown()`, and records that the fix stops the cooldown from being refreshed every 60-second scan. It does **not** add an acknowledgement write to `groove_alerts.acknowledged_at`. Therefore, the current G-83 replay is a separate consumer-side phenomenon: one already-created alert row is read repeatedly by Metacognition during its 600-second window. Do not reopen the already-fixed producer stale-insert issue as if it were the same defect.
+
+
+### §131 cache-age refinement
+
+`Metacognition.format_for_prompt()` reads only `_cached_recent`; it does not query the database, call `tick()`, or check `_cache_ts`/`_CACHE_TTL`. The TTL refresh condition exists inside `tick()`, which the inspected production chat handler calls; Fountain's optional reader does not call tick. Consequently, with `NEX5_METACOG_VOICE=1`, repeated Fountain fires can reuse the last chat-refreshed observation without independently refreshing or expiring it. If no later chat tick refreshes the cache, the same cached line can remain eligible for Fountain prompt injection; the uncalled 14-day decay path in §130 does not clear it. Runtime flag/cadence and actual persistence duration remain UNKNOWN.
+
+This is a stale-context possibility, not evidence of a live host occurrence. The PR #451 test checks flag gating and no-tick behaviour; it does not test stale-cache age. A separate controlled-clock characterization should verify whether a cached event older than the intended horizon is still returned to Fountain, without changing the cache or decay policy.
