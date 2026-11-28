@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from substrate import connect, Row, Connection, Error
+from substrate import Row, Connection, Error, Reader, Writer
 import threading
 import os
 import time
@@ -87,14 +87,28 @@ def _warn_unpromotable_branch_type(b_cx, cutoff: float) -> None:
 
 
 def _ensure_actioned_column(cx: Connection) -> None:
-    """Add 'actioned' column to signals table if missing.
-    Lets us mark signals we've converted, avoiding re-processing.
+    """Add 'actioned' column to signals table if missing, on a connection the
+    caller owns (fixtures/tools). The daemon tick uses the beliefs Writer via
+    _ensure_actioned_column_shared() instead.
     """
     cols = [r[1] for r in cx.execute("PRAGMA table_info(signals)")]
     if "actioned_at" not in cols:
         cx.execute("ALTER TABLE signals ADD COLUMN actioned_at REAL")
         cx.commit()
         log.info("added signals.actioned_at column")
+
+
+def _ensure_actioned_column_shared(writer, reader) -> None:
+    """Same additive column, through the beliefs Writer (one pen)."""
+    cols = [r[1] for r in reader.read("PRAGMA table_info(signals)")]
+    if "actioned_at" in cols:
+        return
+    try:
+        writer.write("ALTER TABLE signals ADD COLUMN actioned_at REAL")
+        log.info("added signals.actioned_at column")
+    except Exception as exc:
+        if "duplicate column" not in str(exc).lower():
+            raise
 
 
 def _extract_entity(payload: dict) -> str | None:
@@ -309,16 +323,26 @@ def _count_recent_opens(cv_cx: Connection, hours: int = 24) -> int:
     return row[0] if row else 0
 
 
-def signal_to_problem_tick() -> dict:
-    """One pass. Convert eligible recent signals into open problems."""
-    b_cx = connect(BELIEFS_DB, timeout=15)
-    b_cx.row_factory = Row
-    cv_cx = connect(CONVERSATIONS_DB, timeout=15)
-    cv_cx.row_factory = Row
+def _already_opened_from(cv_cx, sig_id) -> bool:
+    """Idempotency key for re-deciding a signal: _compose_description() stamps
+    every auto-opened problem with "Auto-opened from signal #<id> (type: ...)",
+    so a problem already opened from this signal -- in any state -- is found
+    here and never opened twice."""
+    return cv_cx.execute(
+        "SELECT 1 FROM open_problems WHERE description LIKE ? LIMIT 1",
+        (f"Auto-opened from signal #{int(sig_id)} (type:%",),
+    ).fetchone() is not None
 
-    try:
-        _ensure_actioned_column(b_cx)
 
+def _adjudicate(cv_cx, b_reader, marks: list) -> dict:
+    """Decide every eligible signal and insert its problem.
+
+    Runs inside the conversations Writer transaction (cv_cx is that Writer's
+    connection). Beliefs are only READ here, through a read-only Reader
+    connection opened on this thread; each signal to be marked actioned is
+    appended to `marks` as (actioned_at, signal_id) for the caller to write
+    through the beliefs Writer after this transaction commits."""
+    with b_reader.connection() as b_cx:
         # Check daily cap
         recent_opens = _count_recent_opens(cv_cx)
         if recent_opens >= DAILY_PROBLEM_CAP:
@@ -413,8 +437,7 @@ def signal_to_problem_tick() -> dict:
                         ("%signal:advancements_drift%",)
                     ).fetchone()
                     if _open_drift and _open_drift[0] > 0:
-                        b_cx.execute("UPDATE signals SET actioned_at=? WHERE id=?",
-                                     (time.time(), sig["id"]))
+                        marks.append((time.time(), sig["id"]))
                         log.debug("drift_gate: an advancements_drift problem is already open")
                         skipped += 1
                         continue
@@ -423,10 +446,7 @@ def signal_to_problem_tick() -> dict:
 
             if _has_recent_dupe(cv_cx, entity, DEDUPE_WINDOW_DAYS):
                 # Mark actioned anyway so we don't keep re-checking
-                b_cx.execute(
-                    "UPDATE signals SET actioned_at=? WHERE id=?",
-                    (time.time(), sig["id"])
-                )
+                marks.append((time.time(), sig["id"]))
                 skipped += 1
                 continue
 
@@ -434,8 +454,7 @@ def signal_to_problem_tick() -> dict:
             if (title.startswith("Signal: investigate '")
                     and not _entity_has_substance(entity, b_cx)):
                 # vague bare-word entity — blocks unconditionally before open
-                b_cx.execute("UPDATE signals SET actioned_at=? WHERE id=?",
-                             (time.time(), sig["id"]))
+                marks.append((time.time(), sig["id"]))
                 log.debug("quality_gate: blocked vague entity %r", entity)
                 skipped += 1
                 continue
@@ -452,23 +471,27 @@ def signal_to_problem_tick() -> dict:
                     and _entity_counts.get(entity.strip().lower(), 0) < _min_mentions):
                 # one-off, uncorroborated headline fragment — don't open a
                 # sustained problem for it; mark actioned so we stop re-checking.
-                b_cx.execute(
-                    "UPDATE signals SET actioned_at=? WHERE id=?",
-                    (time.time(), sig["id"])
-                )
+                marks.append((time.time(), sig["id"]))
                 skipped += 1
                 continue
             if (os.environ.get("NEX5_PROBLEM_SELF_GATE") == "1"
                     and str(sig["signal_type"]).endswith("_branch") and entity
                     and _external_branch_count(b_cx, entity, sig["detected_at"], payload) < 2):
-                b_cx.execute("UPDATE signals SET actioned_at=? WHERE id=?",
-                             (time.time(), sig["id"]))
+                marks.append((time.time(), sig["id"]))
                 log.info("self_gate: skipped %r (signal %s) — under 2 branches without "
                          "self-sources (hot_observer / scorecard)", entity, sig["id"])
                 skipped += 1
                 continue
             desc = _compose_description(sig["signal_type"], payload, sig["id"])
             now = time.time()
+
+            if _already_opened_from(cv_cx, sig["id"]):
+                # A previous tick committed this problem but not the mark.
+                marks.append((now, sig["id"]))
+                log.info("signal %s already opened its problem; marking actioned",
+                         sig["id"])
+                skipped += 1
+                continue
 
             try:
                 cv_cx.execute(
@@ -479,10 +502,7 @@ def signal_to_problem_tick() -> dict:
                     (title, desc, now, now,
                      json.dumps(["auto", f"signal:{sig['signal_type']}"]))
                 )
-                b_cx.execute(
-                    "UPDATE signals SET actioned_at=? WHERE id=?",
-                    (now, sig["id"])
-                )
+                marks.append((now, sig["id"]))
                 opened += 1
                 remaining_cap -= 1
                 log.info(
@@ -494,12 +514,63 @@ def signal_to_problem_tick() -> dict:
                             sig["id"], e)
                 skipped += 1
 
-        b_cx.commit()
-        cv_cx.commit()
         return {"considered": len(rows), "opened": opened, "skipped_dupe": skipped}
+
+
+def signal_to_problem_tick(
+    *, beliefs_writer: Writer | None = None, beliefs_reader: Reader | None = None,
+    conversations_writer: Writer | None = None,
+) -> dict:
+    """One pass. Convert eligible recent signals into open problems.
+
+    Persistence (one pen, SPECIFICATION.md section 8): problems are decided and
+    inserted in one conversations-Writer transaction; the decided signals are
+    then marked actioned through the beliefs Writer. The two databases are
+    separate transactions -- no cross-database atomicity -- and the order is
+    chosen so the failure window is recoverable: if the marks fail after the
+    problems commit, the signals stay unactioned and the next tick re-decides
+    them, where _already_opened_from() (and the existing dupe/debounce gates)
+    keep the problem from opening twice. Shared AppState handles are used when
+    supplied; standalone calls open short-lived Writers.
+    """
+    b_writer, own_b = _acquire_writer("beliefs", beliefs_writer)
+    try:
+        c_writer, own_c = _acquire_writer("conversations", conversations_writer)
+        try:
+            b_reader = beliefs_reader if beliefs_reader is not None \
+                else Reader(os.fspath(BELIEFS_DB))
+            _ensure_actioned_column_shared(b_writer, b_reader)
+            marks: list = []
+
+            def _tx(cv_cx):
+                prior = cv_cx.row_factory
+                cv_cx.row_factory = Row
+                try:
+                    del marks[:]          # a retried callback starts clean
+                    return _adjudicate(cv_cx, b_reader, marks)
+                finally:
+                    cv_cx.row_factory = prior
+
+            stats = c_writer.transaction(_tx)
+            if marks:
+                b_writer.write_many([
+                    ("UPDATE signals SET actioned_at=? WHERE id=?", (ts, sid))
+                    for ts, sid in marks
+                ])
+            return stats
+        finally:
+            if own_c:
+                c_writer.close()
     finally:
-        b_cx.close()
-        cv_cx.close()
+        if own_b:
+            b_writer.close()
+
+
+def _acquire_writer(name: str, supplied):
+    if supplied is not None:
+        return supplied, False
+    path = BELIEFS_DB if name == "beliefs" else CONVERSATIONS_DB
+    return Writer(os.fspath(path), name=f"signal_to_problem_{name}"), True
 
 
 def signal_to_problem_loop(state, stop: threading.Event) -> None:
@@ -521,7 +592,11 @@ def signal_to_problem_loop(state, stop: threading.Event) -> None:
                 except Exception as e:
                     log.warning("prose_stats rebuild failed: %s", e)
             _ticks += 1
-            stats = signal_to_problem_tick()
+            stats = signal_to_problem_tick(
+                beliefs_writer=state.writers["beliefs"],
+                beliefs_reader=state.readers["beliefs"],
+                conversations_writer=state.writers["conversations"],
+            )
             if stats.get("opened", 0) > 0:
                 log.info("signal_to_problem: %s", stats)
         except Exception as e:
