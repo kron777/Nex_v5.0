@@ -85,7 +85,6 @@ class WorldConsolidator:
                 except Exception as exc: _diag(f"  embed fail id={bid}: {exc!r}")
                 if stop_event is not None and stop_event.is_set():
                     return {"name": self.name, "state": "stopped"}
-                except Exception as exc: _diag(f"  embed fail id={bid}: {exc!r}")
             gc.collect()
             _diag(f"  batch {i//_BATCH+1} done ({len(vecs)} total)")
         ids = [b for b,_ in items if b in vecs]
