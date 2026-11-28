@@ -731,8 +731,9 @@ class AppState:
 
     def close(self) -> None:
         # One deadline is shared by the currently managed worker families. This
-        # increment adds Fountain to G-84's first dynamic-loop quiescence step;
-        # other producer families still require registration and join support.
+        # increment adds Fountain and HoldingZoneResolver to G-84's first
+        # dynamic-loop quiescence step; other producer families still require
+        # registration and join support.
         deadline = time.monotonic() + _DYNAMIC_STOP_TIMEOUT_S
 
         # Signal Fountain before waiting for any other worker so its idle wait
