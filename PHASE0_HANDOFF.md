@@ -435,3 +435,7 @@ Internal Fountain feedback is generic only; it does not receive GrooveSpotter pa
 
 Correction of scope: Metacognition is connected to the live GUI chat path. `run.py` constructs/registers the shared object; `gui/server.py` calls `tick()` and `format_for_prompt()` during chat. The unlocated production path is specifically `decay(now)` for 14-day stale-event resolution. A targeted 24-file lifecycle sweep found no dispatcher but is not a whole-repository proof. See INDEX §135.
 Persistence-loop effect: GrooveSpotter reads only stored Fountain/Synergized beliefs, so crystallization rejection prevents the generated thought from becoming future detector input. Row 9/cooldown regulate durable memory accumulation, not current LLM generation. See INDEX §134.
+
+### 28 November 2026 — lifecycle ownership split
+
+Theory X `register()/all_nodes()` is not a lifecycle dispatcher. `AppState._quiesce_producers()` is a separate bounded shutdown list for named worker services; `AppState.close()` shuts down the scheduler, quiesces workers and drains Writers, but does not iterate cognitive nodes or call `decay(now)`. Metacognition remains chat-tick-driven and has no autonomous worker in the inspected path. See INDEX §136.
