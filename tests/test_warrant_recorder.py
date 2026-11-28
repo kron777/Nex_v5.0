@@ -336,8 +336,6 @@ class TestGeneratorRetrievalLogGate(unittest.TestCase):
                         seg.index('"DROP TABLE IF EXISTS fountain_retrieval_log"'))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 class TestRecorderShutdown(unittest.TestCase):
     def setUp(self):
@@ -392,3 +390,6 @@ class TestRecorderShutdown(unittest.TestCase):
         self.assertFalse(worker.is_alive())
         self.assertEqual(later_reads, [])
         self.assertEqual(self._q("SELECT belief_id, day FROM belief_use_day"), [])
+
+if __name__ == "__main__":
+    unittest.main()
