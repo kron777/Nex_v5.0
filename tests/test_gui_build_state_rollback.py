@@ -169,11 +169,11 @@ class TestBuildStateRollback(unittest.TestCase):
             _threads = ()
 
             def stop(self):
-                raise RuntimeError("injected stop failure")
+                raise KeyboardInterrupt("injected stop interruption")
 
         class BrokenWriter:
             def close(self, timeout=10.0):
-                raise RuntimeError("injected close failure")
+                raise SystemExit("injected close interruption")
 
         _rollback_partial_app_state({
             "resolver": BrokenProducer(),
