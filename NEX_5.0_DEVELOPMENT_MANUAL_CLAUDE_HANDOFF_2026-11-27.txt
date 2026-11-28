@@ -2568,3 +2568,106 @@ The current source snapshot, not a stale note, is the implementation authority f
 **Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `theory_x/stage_capability/tool_caller.py` blob `07ef6c7f044b0c26c3e8ba78f51e5cf285890402`; `theory_x/stage_capability/tools.py` blob `b00052d6286d23b58599bfc463ebf051b0c08668`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `tests/test_tools.py` blob `6afdbf3bd88c5b5463443947e02d4a5ef3fdf6ee`; `research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md` blob `a4481c09219e3c85c41df886f79449599c5929bc`; `observation_reports/fire_path_tools_SCOPE.md` blob `9b83406fbb00fc9e62908fec2a1e840a70473ccc`.
 
 **Unchanged boundaries:** no tool call was made against a live NEX instance; no tool was invoked, no Fountain integration, autonomous caller, typed-operation implementation, approval gate, feature flag, runtime setting, database, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority was changed.
+## 80. Typed operation-contract inventory — reuse existing RDO records without mistaking planning records for executable authority (28 November 2026)
+
+**Question studied:** does NEX already have a typed operation representation, or does it have typed planning/evidence records that stop before an executable operation contract?
+
+### Existing typed structures found
+
+The current RDO has substantial typed building blocks:
+- `Obligation`: canonical key, kind, classification, parent/depth, rationale, provenance, assumptions, reconciliation status/evidence, confidence, impact and evidence needs.
+- `Relationship`: source/destination, typed relationship kind, an authority descriptor (`none|bounded|strong`), reversibility and optional interface/operating-envelope/performance-margin evidence.
+- `WorkPackage`: obligation keys, advisory eligibility, blockers, priority dimensions, anti-requirements and reversibility.
+- `ContextRequirement` and `AcceptanceVerificationRecord`: source-linked context/criterion records with explicit mapping and verification evidence fields.
+- `CycleRecord`: durable planning, graph, frontier, evidence, learning and lineage snapshot.
+- Stage-7 handoff manifest: immutable binding to objective revision/digest, cycle, repository revision, work package, exact file scope, obligations, relationships, deliverables, constraints, exclusions, evidence requirements and separate decision records.
+
+These are real typed structures, but their meanings are not interchangeable. An Obligation describes work to be considered; a Relationship describes a graph relation; a WorkPackage groups advisory work; a CycleRecord records planning; a handoff manifest binds a reviewed proposal to a repository snapshot and bounded path scope. None is by itself a canonical executable operation request.
+
+### The current explicit lifecycle is already usefully staged
+
+The reviewed proposal bridge makes the separation concrete:
+
+1. `prepare_reviewed_selection()` requires an explicit approved proposal, verifies proposal/alternative identity and the raw-objective digest, recovers the exact approval event, validates objective.v1 and returns graph diagnostics plus a dual-chain lineage envelope. It writes neither ledger, starts no planning and creates no handoff.
+2. `submit_reviewed_selection()` is a separate explicit call. It persists the validated objective and lineage together in the objective ledger and runs advisory RDO planning. It does not create a Stage-7 handoff or authorize execution.
+3. `create_handoff()` binds a selected eligible work package to the exact clean repository snapshot and objective input digest. It preserves blockers and begins test evidence as not authorized, runtime as host-only unknown and human acceptance as not recorded.
+4. Human scope review permits only the enumerated preparation/edit/review-branch actions. It does not authorize tests, arbitrary commands, live NEX writes, database/experiment changes, runtime flags, service restarts or deployment.
+5. The independent Watcher verifies the source/path boundary without executing tests or project operations. Test verification, host runtime observation and human acceptance remain separate.
+
+### Authority metadata is not authority enforcement
+
+The `Relationship.authority` field and the typed `authority_boundary` evidence dimension are useful descriptive inputs to interface analysis. Their presence does not establish a capability validator, approval decision or execution gate. Similarly, a proposal's recorded `approved` state means the selected interpretation may be prepared for intake; it is not an approval to execute the work. A Stage-7 scope approval is a bounded preparation permission, not a general execution grant.
+
+This is exactly where the architecture principle must hold: Mind Aspects may interpret intent, estimate relevance, expose uncertainty and contribute rationale. They must not turn their cognitive state, map position, score or preference into capability permission or an action veto.
+
+### Gap: the missing typed operation envelope
+
+No single general-purpose operation record was found in the inspected RDO/capability path that unifies the following fields and lifecycle:
+- stable operation identity and schema version;
+- originating request/intent and provenance chain;
+- operation kind and typed, validated arguments;
+- target/resource and requested capability;
+- declared side-effect class and scope;
+- preconditions and expiry/staleness binding;
+- required capability checks and separately recorded approval requirements;
+- idempotency/replay identity where relevant;
+- execution attempt/result reference;
+- postconditions and independent verification evidence.
+
+The chat ToolCaller still selects a named tool and builds tool-specific kwargs. The RDO records a proposed work package and handoff, not a canonical operation envelope. Do not fill this gap by treating WorkPackage, Relationship.authority, a natural-language plan or a Mind Aspect output as an executable request.
+
+### Recommended reuse-first design sequence
+
+1. Map existing fields to a candidate envelope and identify what must remain separate. Reuse objective, lineage, obligation, work-package, handoff and evidence references; do not duplicate their full payloads.
+2. Define a small versioned operation schema as a proposal only. It should carry references to immutable source records rather than copy mutable prose into a second authority store.
+3. Define deterministic capability validation against the requested operation and target. Validation answers “is this capability technically available and within its declared boundary?”, not “should the system want to do it?”
+4. Keep human/owner approval as a separate authority event where required. An approved proposal, an eligible work package and a valid capability are three different facts.
+5. Execute only through a separately authorized adapter; record attempt/result without rewriting the originating plan.
+6. Verify postconditions independently and retain UNKNOWN when required evidence is absent. Human acceptance remains a further distinct judgement.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `rdo/model.py` blob `11bb372469145d828d8163905b50afa63effc3ec`; `rdo/orchestrator.py` blob `e9dad9a11e8e09444b4ee2e7d77f60d580f7b104`; `rdo_adapters/reviewed_seed_bridge.py` blob `5b8580b0dabfa1f533301c18d86bf222ceb67114`; `rdo_adapters/handoff.py` blob `c0fe2afc90d3e5fe948c7555bde1cf1675d7c0be`; `rdo/REVIEWED_SEED_BRIDGE.md` blob `680791eb82ea29c43e54d875f4e522b624e351f6`; `rdo/OBJECTIVE_INTAKE.md` blob `4067c075e85f797a6555d06ce6e0d37cc7c8ae46`.
+
+**Unchanged boundaries:** no operation schema, capability validator, approval policy, runtime adapter, tool integration, database, flag, execution permission, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed. This is a source inventory and design study only.
+## 81. Recursive expansion growth and graph-analysis bounds — taming combinatorial propagation (28 November 2026)
+
+**Question studied:** what currently contains the growth of NEX's recursive development network, and is depth alone a sufficient resource bound?
+
+### Existing containment mechanisms
+
+The RDO Extrapolator uses breadth-first expansion and has several meaningful controls:
+- Objective v1 accepts 1–200 initial seed obligations, at most 1,000 relationships, and `max_depth` from 0 through 4.
+- The generic expansion catalogue has a finite number of child rules per kind; the largest inspected fan-out is six children for `persistence`. Many generated kinds are terminal.
+- A canonical-key map converges repeated discoveries. Compatible same-kind obligations merge provenance/evidence needs and preserve the stronger classification. A kind collision or build/anti-requirement contradiction raises `MergeConflict`; it is not silently collapsed.
+- Anti-requirements stop development; terminal kinds stop decomposition; depth budget stops further expansion; valid independently reviewed reuse can stop expansion.
+- Every stopping point is preserved in the frontier with its reason. A source-signature match alone does not prove semantic satisfaction, so the obligation continues conservatively.
+- The expansion catalogue digest helps identify stale rule-proposal requests; novel kinds produce candidate-only rule proposals and do not activate new rules automatically.
+
+The graph layer is also careful about expensive cyclic analysis. Tarjan SCC discovery is used to identify components. The reviewed-seed bridge limits detailed cycle enumeration to cyclic SCCs no larger than 7 nodes and 18 internal cycle edges. If any cyclic SCC exceeds either bound, detailed classification/system assessment is skipped and the graph remains `bounded_unknown`. A test with an 8-node cycle asserts that no cycles are enumerated and no system verdict is fabricated.
+
+### The important remaining gap: no total expansion budget observed
+
+The inspected `expand()` loop enforces depth and stopping rules but does not expose a separate maximum for total unique obligations, total generated relationships, total queue work or elapsed planning budget. The objective schema bounds initial input size and depth, but those are not the same as a hard cap on the expanded graph.
+
+A deliberately loose theoretical illustration shows why this matters: with up to 200 seeds, a maximum six-child rule at each of four expansion levels gives a naive tree upper bound of 1 + 6 + 36 + 216 + 1,296 = 1,555 nodes per seed before accounting for actual rule-kind restrictions, terminal kinds and canonical convergence. That is not a prediction of actual RDO output; it is a warning that a depth cap alone is not a strict total-work budget. Actual expansion rules and convergence reduce the result, but no explicit total-node/edge ceiling was found in the inspected function.
+
+### Design implication
+
+The right response is not to suppress recursion or flatten the network. It is to bound the *resources spent exploring it* while preserving the unresolved network honestly.
+
+A future, separately reviewed increment should consider:
+1. A deterministic per-cycle unique-obligation budget and relationship budget, with explicit configuration/version provenance.
+2. A frontier stop reason such as `node_budget_exhausted` or `edge_budget_exhausted`, preserving the unexpanded parent and remaining candidate rule outputs for later continuation.
+3. A deterministic breadth-first ordering and stable canonical keys so the same snapshot/budget produces reproducible partial graphs.
+4. No partial result may be described as complete merely because the budget was reached. Completeness must expose budget exhaustion separately from terminal, anti-requirement, semantic reuse and novel-kind stops.
+5. Tests for adversarial fan-out, convergence-heavy graphs, incompatible key collisions, deterministic replay, budget-boundary off-by-one behaviour and persistence/resume of deferred frontier.
+6. Separate limits for graph cycle enumeration and expansion generation; one must not be mistaken for the other.
+
+This would tame combinatorial growth without denying the network's capacity to reveal relationships. The system retains the frontier instead of pretending to have completed the exploration.
+
+### Research conclusion
+
+NEX already has depth, fan-out-by-rule, terminal, reuse, convergence and SCC-enumeration controls. It does not yet demonstrate a strict total expansion-work budget in the inspected path. A deterministic total-node/edge budget is therefore a credible next RDO improvement candidate, but it must be designed against the frozen roadmap/specification boundaries and tested as an additive control. No budget value is invented here.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `rdo/extrapolator.py` blob `330e1aaec7504fdc1315b1b88b9c304942318c17`; `rdo/schemas/objective.v1.schema.json` blob `118ff013bfdb1193c4630ab5a3d07b2c05d0dc5b`; `rdo_adapters/seed_proposals.py` blob `4bebbba632cedef1bd74127dd0a152dfb45badb5`; `rdo/graph.py` blob `65d5443c2fa874e4408c563bccc8e5b88793699d`; `rdo/tests/test_stage2_extrapolator_mvp.py` blob `4f3642d7f90485ff3ab22d05e9f09c22a0989465`; `rdo/tests/test_reviewed_seed_bridge.py` blob `fef4fe2363f29cef3d8fc7a700e099095584ace5`.
+
+**Unchanged boundaries:** no expansion rules, max depth, graph algorithms, proposal limits, runtime data, flags, database, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority is changed. No tests were executed; existing test source was inspected only.
