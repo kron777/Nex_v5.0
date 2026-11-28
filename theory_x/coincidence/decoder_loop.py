@@ -174,6 +174,8 @@ def _set_last_fid(cx: Connection, fid: int) -> None:
 def decoder_tick(
     dynamic_writer: Writer | None = None,
     sense_reader: Reader | None = None,
+    *,
+    stop_event: threading.Event | None = None,
 ) -> dict:
     """Process pending fires inside the canonical dynamic Writer transaction.
 
@@ -204,10 +206,15 @@ def decoder_tick(
                 "ORDER BY id ASC LIMIT 200",
                 (last_fid,),
             ).fetchall()
-            if not rows:
+            if not rows or (stop_event is not None and stop_event.is_set()):
                 return {"processed": 0, "words": 0}
             total_words = 0
+            processed = 0
             for r in rows:
+                # Finish the current event atomically (including its words and
+                # cursor), then stop before admitting another event.
+                if stop_event is not None and stop_event.is_set():
+                    break
                 words = _tokenize(r["thought"])
                 if not words:
                     _set_last_fid(cx, r["id"])
@@ -232,7 +239,8 @@ def decoder_tick(
                     )
                     total_words += 1
                 _set_last_fid(cx, r["id"])
-            return {"processed": len(rows), "words": total_words}
+                processed += 1
+            return {"processed": processed, "words": total_words}
 
         return writer.transaction(_process)
     finally:
@@ -249,6 +257,7 @@ def decoder_loop(state, stop: threading.Event) -> None:
             result = decoder_tick(
                 dynamic_writer=state.writers["dynamic"],
                 sense_reader=state.readers["sense"],
+                stop_event=stop,
             )
             if result["processed"]:
                 log.info("decoder: %s fires, %s words logged",
