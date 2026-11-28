@@ -152,6 +152,72 @@ class TestScheduler(unittest.TestCase):
         self.scheduler = SenseScheduler(adapters)
         return self.scheduler
 
+    def test_duplicate_adapter_ids_rejected_before_any_thread_starts(self):
+        from unittest import mock
+        from theory_x.stage1_sense.scheduler import SenseScheduler
+
+        class FakeAdapter:
+            stream = "test.duplicate"
+            poll_interval_seconds = 9999
+            provenance = "mock://duplicate"
+            is_internal = False
+            enabled = False
+
+            def __init__(self, adapter_id):
+                self.id = adapter_id
+
+            def poll(self):
+                return []
+
+            def submit(self, events):
+                return 0
+
+        with mock.patch("threading.Thread.start") as start:
+            with self.assertRaisesRegex(ValueError, "duplicate sense adapter"):
+                SenseScheduler([FakeAdapter("same"), FakeAdapter("same")])
+        start.assert_not_called()
+
+    def test_partial_thread_start_failure_rolls_back_without_polling(self):
+        from unittest import mock
+        from theory_x.stage1_sense.scheduler import SenseScheduler, _AdapterThread
+
+        poll_called = threading.Event()
+
+        class FakeAdapter:
+            stream = "test.startup"
+            poll_interval_seconds = 9999
+            provenance = "mock://startup"
+            is_internal = False
+            enabled = False
+
+            def __init__(self, adapter_id):
+                self.id = adapter_id
+
+            def poll(self):
+                poll_called.set()
+                return []
+
+            def submit(self, events):
+                return 0
+
+        original_start = _AdapterThread.start
+        attempted = []
+
+        def fail_second_start(worker):
+            attempted.append(worker)
+            if len(attempted) == 2:
+                raise RuntimeError("injected thread start failure")
+            return original_start(worker)
+
+        with mock.patch.object(_AdapterThread, "start", new=fail_second_start):
+            with self.assertRaisesRegex(RuntimeError, "injected thread start failure"):
+                SenseScheduler([FakeAdapter("first"), FakeAdapter("second")])
+
+        self.assertEqual(len(attempted), 2)
+        self.assertFalse(attempted[0]._thread.is_alive())
+        self.assertFalse(attempted[1]._thread.is_alive())
+        self.assertFalse(poll_called.is_set(), "adapter polled before startup transaction committed")
+
     def test_starts_running_for_external(self):
         # 2026-05-09: auto-start on boot (commit 6815330). Was: assertFalse(global_running).
         from theory_x.stage1_sense.feeds.reuters import Reuters
@@ -299,6 +365,7 @@ class TestScheduler(unittest.TestCase):
         import threading as _th
         global_run = _th.Event()
         t = _AdapterThread(adapter, global_run)
+        t.start()
         t.enable()
         global_run.set()
 
