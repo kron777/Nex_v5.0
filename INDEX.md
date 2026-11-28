@@ -5512,38 +5512,37 @@ The original spec's trigger table has not been revised to reflect these addition
 **Authority boundary:** this spec is historical design intent, not an elevation over frozen S-01–S-25/M1.8 or Founder Sign-Off. No retention horizon, trigger policy, schema, code, flags, roadmap, Gate 0 or Phase 1 authority changed.
 
 
-## §148 — SelfNarrative rut-mirror tick has no demonstrated normal-path dispatcher (28 November 2026)
+## §148 — SelfNarrative rut observer is indirectly invoked by chat Metacognition, not its own tick (28 November 2026)
 
-**Question studied:** does the self-rut observation hook inside `SelfNarrative.tick()` actually run in the normal NEX lifecycle, or is it only a callable implementation surface?
+**Question studied:** is the rut observer actually reachable through normal source wiring, even though `SelfNarrative.tick()` itself has no demonstrated dispatcher?
 
-### Source trace
+### Corrected source trace
 
-- `run.py` constructs one `SelfNarrative` instance, registers it with Theory X, and passes it to CoherenceGate, ProblemMemory, GoalManager, Metacognition and NovelAssociation. The normal boot path does not attach a dedicated worker/loop to SelfNarrative.
-- `theory_x/__init__.py` documents the registry as process-level monitoring. `register()` appends a node and `all_nodes()` returns the list; neither function dispatches `tick()` or `decay()`. The protocol's general description says tick is called once per chat turn, but that interface statement is not itself a caller.
-- In the inspected `gui/server.py` chat path, the SelfNarrative integration calls only `format_for_prompt()` with `current_topic=prompt[:100]`. It does not call `state.self_narrative.tick()`.
-- `Metacognition.tick()` reads GrooveSpotter alerts and writes narrative rows for each returned groove event. It does not call `SelfNarrative.tick()`; the two operations are separate.
-- `SelfNarrative.tick()` conditionally calls `_maybe_notice_rut()` unless `NEX5_RUT_MIRROR_OFF=1`. That helper checks for at least four recent `genius_tags` in a 90-minute window, writes a rut notice when the STRIKING rate is at most 5%, and throttles notices to one per two hours.
-- `run.py` separately constructs `GeniusTagger` and starts its own 60-second loop, which writes `conversations.db.genius_tags`. This is the source-level producer for the rut helper's input data; it does not dispatch `SelfNarrative.tick()`. Successful host startup and fresh live tag production remain UNKNOWN.
-- Existing `test_tick_is_noop` uses an empty fixture and verifies that no row is written in that fixture. It does not establish a production caller or exercise the rut threshold, throttle or flag boundary.
+- `run.py` constructs and registers one `SelfNarrative` instance and injects it into Metacognition, GoalManager, ProblemMemory, CoherenceGate and NovelAssociation. It does not attach a dedicated loop to SelfNarrative.
+- `theory_x/__init__.py` registration is not a dispatcher: `register()` appends a node and `all_nodes()` returns the registered list.
+- The inspected GUI chat path calls `state.metacognition.tick()` when Metacognition is present. `Metacognition.tick()` directly obtains `self._narrative._maybe_notice_rut` and invokes it when the injected narrative object is present. This is an indirect call into the SelfNarrative implementation; it is not a call to `SelfNarrative.tick()`.
+- The direct helper checks for at least four recent `genius_tags` in a 90-minute window, writes a rut notice when the STRIKING rate is at most 5%, and throttles narrative rows using the most recent `rut_notice` row in `narrative_log` (two hours).
+- `run.py` separately constructs GeniusTagger and starts its own 60-second loop, which is the source-level producer for `conversations.db.genius_tags`. Successful host startup and fresh live tag production remain UNKNOWN.
+- The `NEX5_RUT_MIRROR_OFF=1` check is inside `SelfNarrative.tick()`; the inspected Metacognition direct-helper call does not pass through that check. The flag's effective scope therefore requires explicit characterization; it cannot be assumed to disable the chat-path helper.
+- Existing `test_tick_is_noop` uses an empty fixture and verifies only that no row is written when there are no qualifying tags. It does not prove that the method is intrinsically a no-op or establish the runtime call path.
 
 ### Evidence classification and consequence
 
-- Rut-mirror implementation: source-present.
-- SelfNarrative construction and registry membership on normal `run.py` boot: source-observed.
-- Registry tick dispatch: not implemented by the inspected registry functions.
-- Chat-path SelfNarrative tick call: not present in the inspected route; formatter-only consumption is source-observed.
-- Rut-mirror execution in a live process, flag value, and actual narrative writes from this hook: UNKNOWN.
+- SelfNarrative construction/injection and GeniusTagger loop startup: source-observed in `run.py`.
+- Normal chat route to `Metacognition.tick()`: source-observed in `gui/server.py`.
+- Metacognition-to-`_maybe_notice_rut()` direct helper invocation: source-observed in `metacognition.py`.
+- `SelfNarrative.tick()` itself being dispatched: not demonstrated in the inspected boot/chat paths.
+- Rut helper live execution, deployed environment values, fresh host tags and actual narrative writes: UNKNOWN.
 
-The hook therefore exists, but its normal-path execution is not established. This is not evidence that the feature is intentionally disabled, nor proof that no external/manual caller exists. It is a lifecycle ownership gap in the evidence: a protocol method and registry entry must not be mistaken for scheduled execution. Do not add a tick call, worker, schedule or flag change on this finding alone.
+**Correction to the previous §148 conclusion:** the observer is not unowned in the broad sense. Its helper has a normal source-level chat caller through Metacognition. What remains uncalled is the public `SelfNarrative.tick()` wrapper. The distinction matters because the wrapper contains the OFF-flag check while the indirect helper call bypasses it. See §150 for the separate flag and dual-writer analysis.
 
-**Next bounded investigation:** check the complete repository call-site census for `SelfNarrative.tick()` and any external dispatcher; then, only if an existing approved runtime observation route is available, establish the deployed flag and live call cadence without starting or changing services. If no owner exists, preserve the finding as unowned lifecycle behaviour for Gate 0 review.
+**Next bounded investigation:** characterize the direct Metacognition caller under `NEX5_RUT_MIRROR_OFF=1`, inspect the independent Fountain governor writer, and establish whether the two stores/throttles are intended to be separate. Do not change either path or flag before the contract is known.
 
-**Disposition:** source-observed implementation and normal boot wiring; absence of a caller is bounded to the inspected normal boot/chat/registry paths. Runtime execution remains UNKNOWN. No new defect ID is created pending complete call-site census and operational impact. G-83 remains OPEN for its separate GrooveSpotter/narrative replay and provenance findings.
+**Disposition:** source-level chat reachability established; actual runtime execution and flag state remain UNKNOWN. No runtime fix or new defect disposition made yet. G-83 remains OPEN for its separate GrooveSpotter/narrative replay and provenance findings.
 
-**Source anchors:** `run.py`; `theory_x/__init__.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/stage9_metacognition/metacognition.py`; `gui/server.py`; `tests/test_self_narrative.py`.
+**Source anchors:** `run.py`; `theory_x/__init__.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/stage9_metacognition/metacognition.py`; `gui/server.py`; `tests/test_self_narrative.py`; historical implementation commit `8bf08cbfb455303be5236612e1915813257d23c6`.
 
-**Authority boundary:** no runtime code, test, schema, flag, retention policy, lifecycle schedule, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
-
+**Authority boundary:** no runtime code, schema, flag, retention policy, lifecycle schedule, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
 
 ## §149 — Rut-mirror write/read asymmetry: fixed reflection is filtered by literal chat-prefix matching (28 November 2026)
 
@@ -5557,6 +5556,8 @@ The hook therefore exists, but its normal-path execution is not established. Thi
 - Because the GUI supplies a topic, the formatter takes its topic-filtered branch. The unfiltered newest-five branch is used only when no topic is supplied.
 - Consequently, a rut note is returned on this GUI path only when the first 100 characters of the user's prompt occur as a literal substring in the fixed note. An unrelated prompt prefix produces no rut-note retrieval, even if the note exists in the database.
 - The note's own wording invites reflection, but that wording is not independently injected as a generic reflective cue. The reader's literal topic filter controls whether it reaches the assembled chat context.
+
+**Scope clarification:** this literal-topic restriction applies to rows read from `narrative_log` through SelfNarrative. The Fountain governor's separate rut mirror writes a belief row to `beliefs`; that second persistence path has its own retrieval chain and is not governed by this `current_topic` SQL filter.
 
 ### Evidence classification
 
@@ -5575,3 +5576,44 @@ This is a second, independent boundary after §148. Even if a future approved pa
 **Source anchors:** `theory_x/stage_self_narrative/self_narrative.py`; `gui/server.py`; `tests/test_self_narrative.py`; draft PR #452.
 
 **Authority boundary:** no runtime code, database schema, flag, prompt policy, retrieval policy, lifecycle schedule, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §150 — Two rut-mirror persistence paths and a direct-caller flag bypass (28 November 2026)
+
+**Question studied:** is there one rut-mirror mechanism, or do chat Metacognition and the Fountain governor independently persist the same first-person observation?
+
+### Source trace
+
+1. **Chat / narrative path**
+   - `gui/server.py` calls `Metacognition.tick()` on the chat route.
+   - `Metacognition.tick()` directly invokes the injected `SelfNarrative._maybe_notice_rut()` helper.
+   - The helper reads recent `genius_tags`, applies the four-row minimum and <=5% STRIKING threshold, checks the latest `rut_notice` row, and writes the fixed note to `conversations.db.narrative_log`.
+   - Its two-hour throttle is database-backed (latest `created_at` for trigger `rut_notice`).
+
+2. **Fountain / belief path**
+   - `FountainGenerator._retrieve_context_beliefs()` contains a separate governor check over the same recent `genius_tags` signal.
+   - When `NEX5_GOVERNOR_OFF` is not `1`, at least four tags exist and the STRIKING rate is <=5%, the governor accelerates reanimation cadence and separately writes the same first-person rut text into `beliefs` with source `self_rut_notice`, tier 6, confidence 0.6 and branch `self`.
+   - Its two-hour throttle is a generator-instance in-memory timestamp (`_last_rut_notice_ts`), not the narrative database throttle.
+   - The historical implementation commit `8bf08cbfb455303be5236612e1915813257d23c6` introduced both the Fountain belief write and the Metacognition-to-SelfNarrative helper call in the same change.
+
+### Consequences
+
+- There are two source-level writers to different stores for substantially the same observation: `beliefs` and `narrative_log`.
+- Their throttles are independent and use different persistence scopes. A generator restart resets its in-memory throttle; the narrative path checks persisted history.
+- `NEX5_GOVERNOR_OFF` guards the Fountain governor block. `NEX5_RUT_MIRROR_OFF` is checked only by `SelfNarrative.tick()`; the normal chat caller invokes `_maybe_notice_rut()` directly and therefore bypasses that wrapper check.
+- The existing test `test_tick_respects_rut_mirror_off_flag` covers only the public wrapper. It does not cover the actual Metacognition caller. Draft PR #452 now adds a test-only characterization of that direct-caller bypass; exact-head CI is pending.
+- No test coverage for the Fountain belief writer's governor/flag/throttle path was found in the inspected `tests/test_fountain.py` or `tests/test_metacognition.py`.
+
+### Evidence classification
+
+- Both writers, stores, conditions and throttle implementations: source-observed.
+- Metacognition chat caller and Fountain generation call path: source-observed.
+- Whether both paths execute in the current host, the deployed values of either flag, whether both rows have co-occurred, and whether the two-path design is intentional: UNKNOWN.
+- A global OFF guarantee cannot be claimed from the present source. Whether `NEX5_RUT_MIRROR_OFF` was intended as a wrapper-local switch or a system-wide kill switch is not documented in the inspected sources.
+
+**Next bounded investigation:** characterize the Fountain writer and its governor OFF boundary; inspect all readers of `source='self_rut_notice'` and `trigger='rut_notice'`; then compare provenance and co-occurrence using approved read-only host evidence if available. Do not unify the stores, alter flags, add shared deduplication, or change the thresholds without an authoritative design decision.
+
+**Disposition:** source-level dual-path and flag-scope mismatch recorded. Potential control-scope defect remains unconfirmed pending intended flag contract and live evidence. No new defect ID yet. G-83 remains OPEN.
+
+**Source anchors:** `run.py`; `gui/server.py`; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/stage6_fountain/generator.py`; `tests/test_self_narrative.py`; `tests/test_metacognition.py`; `tests/test_fountain.py`; commit `8bf08cbfb455303be5236612e1915813257d23c6`.
+
+**Authority boundary:** no runtime code, database schema, feature flag, prompt policy, persistence policy, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
