@@ -4677,3 +4677,37 @@ These are characterization expectations from the inspected implementation, not e
 **Source anchors:** theory_x/diversity/groove.py (GrooveSpotter.__init__, detect_all, four detector methods); theory_x/diversity/loop.py (one per-loop instance and 60-second scan); run.py (loop startup); tests/test_diversity.py::TestGrooveSpotter; scripts/trajectory.py::_groove_episodes; theory_x/stage9_metacognition/metacognition.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
 
 **Evidence level:** source-observed in-memory fingerprint rules and persistence fields; targeted test inventory; offline metric comparison. Restart chronology and actual production alert cardinality remain UNKNOWN.
+
+
+## §122 — Test-only GrooveSpotter fingerprint characterization candidate (2026-11-28)
+
+### Separate PR #448
+
+A separate, test-only branch has been opened as draft PR #448:
+https://github.com/kron777/Nex_v5.0/pull/448
+
+Head commit: f4447ad5b243b97c91c28fc00abbef88fe7c51f9. Base: current main 18c8f06171e1de35c3210831a49b63d0e2487af0. One file added: tests/test_groove_spotter_fingerprints.py (177 lines, no deletions).
+
+The tests exercise the four existing GrooveSpotter detector fingerprints independently:
+- n-gram top-pattern string;
+- exact repeated sentence content;
+- template participating-belief-ID set;
+- centroid ordered current-window ID tuple.
+
+For each detector, the characterization checks: first qualifying observation emits, unchanged repeat in the same instance is suppressed, loss of the qualifying condition clears the fingerprint, the same condition can emit again after clearing, and a new GrooveSpotter instance can emit once again because fingerprints are process-local.
+
+### Scope and validation boundary
+
+This is characterization of existing source behaviour only. It does not change GrooveSpotter, thresholds, detection logic, alert schema, acknowledgement semantics, Metacognition, Row 9, feature flags, or NEX cognitive behaviour. It does not choose a canonical groove episode identity and does not claim that restart replay is a new semantic episode.
+
+The repository's GitHub Actions workflow for this exact head was created as run 46173749707, event pull_request, status queued at the time of this snapshot. Commit status reports pending with zero completed status contexts. No test result is available yet. No local tests were run. Keep PR #448 draft until exact-head CI, review and evidence interpretation are complete.
+
+### Next evidence after CI
+
+If the workflow passes, record only that the characterization tests pass on this exact head; do not upgrade it to live runtime observation. If it fails, inspect the precise failure and correct the test fixture without touching runtime detector semantics. Then consider separate characterization of detect_all() call ordering and integration with the background loop, again without changing behaviour.
+
+**Disposition:** Phase 0 test-characterization candidate under G-83. One test file only; no runtime source or behaviour change. G-83 remains OPEN. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Evidence anchors:** PR #448; commit f4447ad5b243b97c91c28fc00abbef88fe7c51f9; tests/test_groove_spotter_fingerprints.py; theory_x/diversity/groove.py; tests/test_diversity.py; workflow run 46173749707; main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** test source committed; exact-head CI queued, not yet test-verified; no runtime observation.
