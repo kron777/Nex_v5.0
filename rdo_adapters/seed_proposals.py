@@ -600,7 +600,10 @@ def load_seed_proposal_file(path: str) -> dict:
             payload = json.load(fh, object_pairs_hook=_reject_duplicate_keys)
     except (json.JSONDecodeError, SeedProposalError) as exc:
         raise SeedProposalError(f"invalid seed proposal JSON: {exc}") from exc
-    return _object(payload, "seed_proposal_input", {
-        "raw_objective", "alternatives", "proposer_kind",
+    result = _object(payload, "seed_proposal_input", {
+        "schema_version", "raw_objective", "alternatives", "proposer_kind",
         "proposer_reference", "source_reference",
     }, optional={"supersedes_proposal_id"})
+    if result["schema_version"] != "rdo.seed_proposal.v1":
+        raise SeedProposalError("seed proposal input schema_version must be 'rdo.seed_proposal.v1'")
+    return result
