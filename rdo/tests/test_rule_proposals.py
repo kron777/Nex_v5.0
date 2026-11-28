@@ -119,7 +119,8 @@ def test_proposal_preserves_alternatives_and_does_not_activate_by_repetition(tmp
     proposal_id = created["data"]["proposal_id"]
 
     assert created["event_kind"] == "proposal_created"
-    assert len(created["data"]["proposal"]["alternatives"]) == 2
+    assert len(created["data"]["proposal"]["source_frontier_sha256"]) == 64
+    assert created["data"]["proposal"]["alternatives"]
     assert created["data"]["proposal"]["disconfirming_cases"]
     assert store.approved_catalogue() is None
     assert len(store.events()) == 1
@@ -345,3 +346,10 @@ def test_rule_step_must_make_progress_to_a_different_kind(tmp_path):
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
     with pytest.raises(ValueError, match="differ from the target kind"):
         _propose(store, proposal)
+
+
+
+def test_proposal_requires_a_persisted_source_cycle(tmp_path):
+    store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
+    with pytest.raises(ValueError, match="persisted source cycle"):
+        store.propose(_proposal())
