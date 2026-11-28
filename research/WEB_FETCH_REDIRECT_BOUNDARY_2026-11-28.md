@@ -9,7 +9,7 @@
 
 The original host parsing also used `parsed.netloc.lstrip("www.")`. `lstrip` removes any leading characters from a character set, not one exact prefix; `netloc` also includes optional user-info and port. This could reject legitimate allowlisted hostnames with ports and did not explicitly reject embedded URL credentials or non-HTTP schemes.
 
-The existing tests covered an unknown initial domain, but did not characterize redirect handling, explicit ports, credentials or scheme validation.
+The existing tests covered an unknown initial domain, but did not characterize redirect handling, explicit ports, credentials or scheme validation. A second trace found that `ToolCaller.should_use_tool()` selected `web_fetch` for generic current/factual questions even though the fetcher only accepts an explicit URL or a small supported CoinGecko symbol map. The chat route passes `[]` as the beliefs argument, so the generic `not beliefs` fallback always treated the belief context as absent. Those generic calls then failed with `no URL to fetch`. The CoinGecko builder also used substring matching, so `eth` inside an unrelated word such as `whether` could be mistaken for a symbol.
 
 ## 2. Bounded correction
 
@@ -17,12 +17,14 @@ The existing tests covered an unknown initial domain, but did not characterize r
 - Reject URLs containing username/password components.
 - Compare the normalized `hostname` (lowercase, trailing dot removed) against the existing exact/subdomain allowlist; the port no longer contaminates hostname matching.
 - Supply a custom `HTTPRedirectHandler` whose `redirect_request` returns `None`. Redirect responses therefore fail rather than silently requesting a second destination.
+- Require a concrete fetch target in `ToolCaller`: an explicit URL, or a supported CoinGecko symbol paired with price/current wording. Generic current/factual questions and unsupported price targets no longer select a fetcher that cannot satisfy them. This does not add general web search.
+- Match CoinGecko symbols as whole words, avoiding substring false positives.
 - Preserve the existing 10-second request timeout, 8 KiB read cap, HTML-tag stripping and 2,000-character result cap.
-- Add tests for an allowlisted subdomain with an explicit port, the no-redirect handler, embedded credentials and unsupported schemes.
+- Add tests for an allowlisted subdomain with an explicit port, the no-redirect handler, embedded credentials, unsupported schemes, generic query selection, explicit URL selection, unsupported price targets and whole-word coin matching.
 
 ## 3. Security and capability boundary
 
-This closes the specific automatic-redirect bypass. It does **not** establish a complete network sandbox:
+This closes the specific automatic-redirect bypass and the known selection/fetch-target mismatch. It does **not** establish a complete network sandbox:
 
 - DNS resolution is not pinned or independently checked against private/reserved address ranges; DNS rebinding and a compromised/repurposed allowlisted domain remain outside this increment.
 - The allowlisted page body remains untrusted external content. This change does not solve prompt injection or establish a trusted-content policy for model consumption.
@@ -31,7 +33,7 @@ This closes the specific automatic-redirect bypass. It does **not** establish a 
 
 ## 4. Validation
 
-The new unit tests assert the hostname/port acceptance path, reject credentials and non-HTTP schemes before opener construction, and verify that the configured redirect handler refuses a 302 target. Exact-head full-suite CI and baseline verification are required before merge.
+The new unit tests assert the hostname/port acceptance path, reject credentials and non-HTTP schemes before opener construction, verify that the configured redirect handler refuses a 302 target, and characterize supported versus unsupported ToolCaller fetch targets. Exact-head full-suite CI and baseline verification are required before merge.
 
 ## 5. Follow-on questions
 
