@@ -1030,3 +1030,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 §153 rut provenance qualification: both rut observers select only genius_tags.class and do not preserve fountain_event_id, weights_version or the contributing row IDs. The narrative writer passes source_id=None; the belief writer stores only source='self_rut_notice'/tier/confidence/branch. The source rows remain queryable, but the output has no frozen input manifest. This compounds §152's timestamp/version ambiguity. Exact host rows and any external trace coverage remain UNKNOWN. See INDEX §153.
+
+
+§154 startup-readiness qualification: run.py starts GeniusTagger asynchronously through _own_and_start(); that helper returns after start(), not after the first tick/backfill. The chat and Fountain rut readers do not check _backfill_done. Combined with §152's backfill timestamping, a partial historical backfill can be evaluated as a recent sample. Host overlap and any premature notice remain UNKNOWN. See INDEX §154.
