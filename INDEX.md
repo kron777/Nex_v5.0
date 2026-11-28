@@ -2035,9 +2035,9 @@ This is complementary to merged PR #420: #421 owns the individual partially star
 
 ---
 
-## 64. Provider-neutral CLI for inert expansion-rule proposals — candidate PR #429 (28 November 2026)
+## 64. Provider-neutral CLI for inert expansion-rule proposals — candidate PR #432 (28 November 2026)
 
-**Candidate:** [PR #429](https://github.com/kron777/Nex_v5.0/pull/429), branch `feat/rule-proposal-cli-rebased-2026-11-28`. This exposes the already-implemented `RuleProposalStore` lifecycle through three commands: `rule-propose` submits an exact-schema request/candidate envelope; `rule-review` appends an explicit review decision; and `rule-history` inspects proposals/events with an optional proposal filter. The default ledger remains `rdo/.cycles/rule_proposals.jsonl`.
+**Candidate:** [PR #432](https://github.com/kron777/Nex_v5.0/pull/432), branch `feat/rule-proposal-cli-release-final-2026-11-28`. This exposes the already-implemented `RuleProposalStore` lifecycle through three commands: `rule-propose` submits an exact-schema request/candidate envelope; `rule-review` appends an explicit review decision; and `rule-history` inspects proposals/events with an optional proposal filter. The default ledger remains `rdo/.cycles/rule_proposals.jsonl`.
 
 The commands reuse the existing store and its catalogue fingerprint, schema validation, append-only hash chain, exclusive locking, prospective-event replay validation and fsync behavior. No second ledger or rule engine is introduced. The JSON envelope rejects unknown fields and duplicate JSON properties before store access. Proposer/reviewer labels remain caller-attributed, not identity-authenticated.
 
