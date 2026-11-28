@@ -5,7 +5,7 @@ import pytest
 
 from rdo.extrapolator import EXPANSION_RULES, expand
 from rdo.model import MISSING, Obligation
-from rdo.rule_proposals import RuleProposalError, RuleProposalStore
+from rdo_adapters.rule_proposals import RuleProposalError, RuleProposalStore
 
 
 def _request():
