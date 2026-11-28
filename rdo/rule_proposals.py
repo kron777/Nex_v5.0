@@ -19,6 +19,7 @@ from .model import CLASSIFICATIONS
 EVENT_SCHEMA = "rdo.rule_proposal_event.v1"
 _TOKEN = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 _ALT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
+_FRONTIER_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,255}\Z")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -119,7 +120,7 @@ def _normalise_proposal(raw: dict) -> dict:
     source_frontier_key = _text(raw["source_frontier_key"], "source_frontier_key", 256)
     if not _ALT_ID.fullmatch(source_cycle_id):
         raise ValueError("source_cycle_id must be a portable cycle identifier")
-    if not _ALT_ID.fullmatch(source_frontier_key):
+    if not _FRONTIER_KEY.fullmatch(source_frontier_key):
         raise ValueError("source_frontier_key must be a portable obligation key")
     if not _TOKEN.fullmatch(target):
         raise ValueError("target_kind must be a lowercase snake_case kind")
