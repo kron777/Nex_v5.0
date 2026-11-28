@@ -74,7 +74,7 @@ def _reject_duplicate_json_keys(pairs):
     result = {}
     for key, value in pairs:
         if key in result:
-            raise RuleProposalError(f"duplicate JSON property: {key}")
+            raise ValueError(f"duplicate JSON property: {key}")
         result[key] = value
     return result
 from rdo_adapters.handoff import (HandoffError, create_handoff, handoff_history,
@@ -317,7 +317,7 @@ def _seed_store(args):
 def _seed_propose(args) -> int:
     try:
         with open(args.input, "r", encoding="utf-8") as fh:
-            payload = json.load(fh)
+            payload = json.load(fh, object_pairs_hook=_reject_duplicate_json_keys)
         if not isinstance(payload, dict):
             raise SeedProposalError("proposal input must be a JSON object")
         required = {
