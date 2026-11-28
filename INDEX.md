@@ -1209,3 +1209,35 @@ RDO remains advisory and separate from NEX runtime cognition. Its source-signatu
 The loop is iterative, not a rigid waterfall. Research and implementation may proceed together where the evidence and authority permit. Stop expanding when the next obligation is actionable, an existing mechanism should be reused, a required authority/runtime fact is unavailable, or expected information gain has materially diminished. Record the unresolved boundary and continue elsewhere rather than inventing certainty.
 
 **No NEX runtime code, feature flags, databases, frozen S-01–S-25/M1.8 content, Master Roadmap, mind-map authority, Gate 0 or Phase 1 status was changed by this method study.** This entry is a refinement of engineering practice only.
+
+
+## 50. Boot-time worker ownership and partial-construction boundary (28 November 2026)
+
+**Source snapshot:** `main` at `b680b13006a767cf0567c952697659fb92a831f7`. This is a source/test-coverage finding from the boot orchestrator, AppState shutdown registry, SenseScheduler, SignalLoop, DiversityLoop, EdgeGeneratorLoop and `tests/test_sense.py`. It is not a claim that a production boot failure or leaked thread has been observed.
+
+### Verified construction and ownership paths
+
+- `run.py` constructs the SenseScheduler at boot. Its constructor creates one `_AdapterThread` per adapter, and each `_AdapterThread` starts its daemon thread immediately. The scheduler then auto-starts external feeds.
+- `build_signal_loop()` constructs and starts SignalLoop internally before returning it.
+- `build_diversity_loop()` constructs only; `run.py` calls `.start()` separately.
+- `run.py` starts SpeechQueueConsumer, DiversityLoop and EdgeGeneratorLoop before constructing AppState. SignalLoop and SenseScheduler are also already running by then.
+- AppState's `_quiesce_producers()` has explicit stop/join handling for the registered services, and `close()` correctly refuses a clean result when registered producers remain alive or report errors. This registry is bounded to the services passed into AppState; it is not a process-wide thread census.
+- The decoder thread is started after AppState construction and is then attached to state for shutdown handling.
+
+### The uncovered lifecycle boundary
+
+The normal post-construction shutdown path is substantially covered, but the inspected `tests/test_sense.py` scheduler tests do not exercise constructor rollback when adapter construction fails partway through `SenseScheduler.__init__`. Since each worker starts inside `_AdapterThread.__init__`, an exception while constructing a later adapter can leave earlier workers running without a successfully returned scheduler object to own and stop them. Duplicate adapter IDs are another untested ownership edge: the current dictionary assignment can replace a prior worker reference after its thread has already started.
+
+The broader boot sequence has the same class of risk: if boot raises after one or more services start but before AppState is constructed, the normal AppState registry is not yet available to clean them up. The inspected source establishes the ordering and the missing owner during that interval; it does not establish that any particular exception path has occurred in a live host.
+
+### Refinement direction — bounded, test-first
+
+1. Make SenseScheduler construction transactional: validate adapter IDs before starting threads; if any worker construction/start fails, signal and join every worker already created before re-raising the original failure.
+2. Add deterministic tests for duplicate IDs, failure after at least one successful worker start, and bounded cleanup when an earlier worker is blocked. Assert no worker is silently orphaned and preserve the original exception.
+3. Separately design a boot-scope owner/rollback boundary that is established before the first background worker starts, or defer all starts until a complete state owner exists. Do not add a second competing shutdown registry; reuse the existing stop/join contracts and absolute deadline.
+4. Keep builder semantics explicit. A builder that starts a worker must advertise that side effect and return an object with a defined stop/join lifecycle. Avoid silently mixing auto-start and caller-start conventions.
+5. Re-run exact-head tests and rescan every boot-created producer against the AppState registry before claiming process-wide lifecycle completeness.
+
+This finding does not justify changing graceful-shutdown timeouts, forcibly cancelling threads, altering scheduler feed policy, changing frozen specifications, or asserting a host leak. The next implementation should begin with the narrow SenseScheduler constructor invariant; the cross-boot rollback design is a separate increment because it spans many subsystems and must preserve their ownership contracts.
+
+**Evidence boundary:** source ordering and normal-path tests inspected; no live host boot fault was injected. Partial-construction failure, duplicate-ID orphaning and boot-time leaked threads remain unobserved hypotheses requiring deterministic tests. No runtime code, feature flags, databases, frozen S-01–S-25/M1.8 content, Master Roadmap, mind-map authority, Gate 0 or Phase 1 status changed in this study.
