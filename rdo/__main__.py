@@ -142,7 +142,10 @@ def _rule_propose(args) -> int:
     try:
         with open(args.input, "r", encoding="utf-8") as fh:
             proposal = json.load(fh)
-        event = RuleProposalStore(os.path.join(args.dir, "rule_proposals.jsonl")).propose(proposal)
+        source_cycle = CycleStore(args.dir).load(args.cycle_id)
+        event = RuleProposalStore(os.path.join(args.dir, "rule_proposals.jsonl")).propose(
+            proposal, source_cycle=source_cycle
+        )
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
         return 2
@@ -387,6 +390,7 @@ def main(argv=None) -> int:
 
     rp = sub.add_parser("rule-propose", help="record a candidate decomposition rule; never activates it")
     rp.add_argument("--input", required=True, help="JSON proposal with alternatives, scope, exceptions and test cases")
+    rp.add_argument("--cycle-id", required=True, help="persisted cycle containing the exact novel-kind frontier")
     rp.add_argument("--dir", default="rdo/.cycles")
     rp.set_defaults(fn=_rule_propose)
 
