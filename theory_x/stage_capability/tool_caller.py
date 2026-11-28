@@ -30,7 +30,7 @@ _BELIEF_PATTERNS = re.compile(
     re.I,
 )
 _SUPPORTED_COIN_PATTERN = re.compile(
-    r"\\b(btc|bitcoin|eth|ethereum|sol|solana)\\b",
+    r"\b(btc|bitcoin|eth|ethereum|sol|solana)\b",
     re.I,
 )
 _MATH_PREFIX = re.compile(
