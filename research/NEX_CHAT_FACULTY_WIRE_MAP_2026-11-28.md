@@ -80,6 +80,8 @@ NEX5_CHAT_WORKSPACE is a separate prompt-assembly mechanism:
 
 This is competition for limited prompt space, not a cognitive action score and not an authority to approve, block or veto machine operations. It can still change which aspects influence a particular reply, so its effects need separate characterization when armed.
 
+Do not confuse this chat selector with the other Global Workspace path in the same module. Fountain-side arbitration uses candidates such as surprise, stakes, momentum, Bonsai focus and drive to frame one leading signal. Chat-side selection uses the thirteen faculty text blocks and keeps multiple blocks within a character budget. They reuse the global_workspace module but have different inputs, output semantics and downstream effects. Likewise, the Stage-2 Bonsai branch-focus vector is not the same thing as the per-faculty chat salience vector.
+
 ### Cross-turn carry: NEX5_SELF_PRESENT
 
 When both NEX5_CHAT_WORKSPACE=1 and NEX5_SELF_PRESENT=1, _assemble_chat_blocks() passes the raw per-kind salience vector through theory_x.stage_tom.self_present.update() before selection.
