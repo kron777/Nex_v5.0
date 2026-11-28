@@ -112,20 +112,35 @@ class GeniusTagger:
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
-    def tick(self, context: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def tick(
+        self,
+        context: Optional[dict[str, Any]] = None,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> dict[str, Any]:
         """Score new fountain fires and write rows. Never raises."""
+        if stop_event is None:
+            stop_event = self._stop
+        if stop_event is not None and stop_event.is_set():
+            return self._stats()
         self._tick_count += 1
         ts_now = time.time()
         weights = self._load_weights()
+        if stop_event is not None and stop_event.is_set():
+            return self._stats()
         if weights is None:
             return self._stats()
 
         try:
             if not self._backfill_done:
-                self._backfill(weights, ts_now)
-                self._backfill_done = True
-            else:
-                self._tag_window(weights, ts_now, _CONTINUOUS_LOOKBACK_SECONDS)
+                completed = self._backfill(weights, ts_now, stop_event=stop_event)
+                if completed:
+                    self._backfill_done = True
+            elif stop_event is None or not stop_event.is_set():
+                self._tag_window(
+                    weights, ts_now, _CONTINUOUS_LOOKBACK_SECONDS,
+                    stop_event=stop_event,
+                )
         except Exception as exc:
             errors.record(
                 f"genius_tagger tick failed: {exc}",
@@ -162,7 +177,7 @@ class GeniusTagger:
         def _run() -> None:
             # First tick fires immediately so backfill begins at boot
             try:
-                self.tick()
+                self.tick(stop_event=self._stop)
             except Exception as exc:
                 errors.record(
                     f"genius_tagger initial tick failed: {exc}",
@@ -171,7 +186,7 @@ class GeniusTagger:
             while not self._stop.is_set():
                 self._stop.wait(interval_seconds)
                 if not self._stop.is_set():
-                    self.tick()
+                    self.tick(stop_event=self._stop)
 
         self._thread = threading.Thread(
             target=_run, name="genius_tagger", daemon=True,
@@ -343,21 +358,37 @@ class GeniusTagger:
                 source=_LOG_SOURCE, level="WARNING", exc=exc,
             )
 
-    def _backfill(self, weights: dict[str, Any], ts_now: float) -> None:
-        """First-run backfill: tag every fire in the backfill window that
-        is not already tagged for this weights_version."""
+    def _backfill(
+        self,
+        weights: dict[str, Any],
+        ts_now: float,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> bool:
+        """First-run backfill. False means stopped before all pending fires were tagged."""
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return False
         version = str(weights["version"])
         since_ts = ts_now - self._backfill_hours * 3600
         fires = self._load_fires_window(since_ts)
+        if _stopping():
+            return False
         if not fires:
             errors.record(
                 f"genius_tagger: backfill found no fountain_events in "
                 f"last {self._backfill_hours}h",
                 source=_LOG_SOURCE, level="INFO",
             )
-            return
+            return True
         already = self._existing_tag_ids(version, since_ts=None)
+        if _stopping():
+            return False
         t6 = self._get_t6_beliefs(ts_now)
+        if _stopping():
+            return False
 
         to_tag = [f for f in fires if int(f["id"]) not in already]
         if not to_tag:
@@ -366,7 +397,7 @@ class GeniusTagger:
                 f"already tagged under version '{version}'",
                 source=_LOG_SOURCE, level="INFO",
             )
-            return
+            return True
 
         errors.record(
             f"genius_tagger: backfill starting — {len(to_tag)} fires to tag "
@@ -377,16 +408,19 @@ class GeniusTagger:
 
         # Walk fires in ts order; prior_thoughts is the last N before each
         thoughts_in_order = [f["thought"] for f in fires]
-        ids_in_order = [int(f["id"]) for f in fires]
         to_tag_set = {int(f["id"]) for f in to_tag}
         processed = 0
         striking = 0
         for i, fire in enumerate(fires):
+            if _stopping():
+                return False
             fid = int(fire["id"])
             if fid not in to_tag_set:
                 continue
             prior = thoughts_in_order[max(0, i - _PRIOR_FIRES_WINDOW):i]
             score, cls = self._score_fire(fire, prior, t6, weights)
+            if _stopping():
+                return False
             self._write_tag(fid, score, cls, version, ts_now)
             processed += 1
             if cls == "STRIKING":
@@ -403,27 +437,43 @@ class GeniusTagger:
             f"{striking} striking ({striking/max(1,processed):.1%})",
             source=_LOG_SOURCE, level="INFO",
         )
+        return True
 
     def _tag_window(
         self,
         weights: dict[str, Any],
         ts_now: float,
         lookback_seconds: float,
-    ) -> None:
-        """Continuous mode: tag any new fires in the lookback window."""
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> bool:
+        """Continuous mode: tag new fires, stopping between scoring/write stages."""
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return False
         version = str(weights["version"])
         since_ts = ts_now - lookback_seconds
         # Pull a bit more context for prior_thoughts (last 50 fires before window)
         context_since = ts_now - 6 * 3600  # 6h is enough for 50-fire prior context
         fires = self._load_fires_window(context_since)
+        if _stopping():
+            return False
         if not fires:
-            return
+            return True
         already = self._existing_tag_ids(version, since_ts=context_since - 1)
+        if _stopping():
+            return False
         t6 = self._get_t6_beliefs(ts_now)
+        if _stopping():
+            return False
         thoughts_in_order = [f["thought"] for f in fires]
 
         new_count = 0
         for i, fire in enumerate(fires):
+            if _stopping():
+                return False
             fid = int(fire["id"])
             if fid in already:
                 continue
@@ -434,6 +484,8 @@ class GeniusTagger:
                 continue
             prior = thoughts_in_order[max(0, i - _PRIOR_FIRES_WINDOW):i]
             score, cls = self._score_fire(fire, prior, t6, weights)
+            if _stopping():
+                return False
             self._write_tag(fid, score, cls, version, ts_now)
             new_count += 1
         if new_count:
@@ -442,6 +494,7 @@ class GeniusTagger:
                 f"(version={version})",
                 source=_LOG_SOURCE, level="DEBUG",
             )
+        return True
 
     # ── Status ────────────────────────────────────────────────────────────────
 
