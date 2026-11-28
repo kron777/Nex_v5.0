@@ -297,7 +297,7 @@ class FeedbackLoopEvidenceStore:
         if dimension not in MEASURED_DIMENSIONS:
             raise ValueError(f"dimension must be one of {MEASURED_DIMENSIONS}")
         measured = InterfaceEvidence(
-            status="measured", value=value, unit=unit,
+            status="measured", value=value, unit=_text(unit, "unit", 128),
             evidence=_references(evidence, "evidence"),
             confidence=_text(confidence, "confidence", 128),
         )
