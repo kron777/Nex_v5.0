@@ -4971,3 +4971,10 @@ Trace the other GrooveSpotter alert types (exact repetition, template repetition
 ### §128 audit note — exact-repetition threshold remains ambiguous
 
 One small producer detail is not yet closed: `groove.py` defines `EXACT_REPEAT_MIN = 2`, and `_detect_exact_repetition()` uses that constant, but the method docstring says the same sentence must appear at least three times. The current PR #448 fingerprint test uses three repeated rows, so it proves fingerprint behaviour but does not discriminate between a threshold of two and three. The inspected `tests/test_diversity.py` contains no explicit exact-repeat threshold assertion. Treat the implemented threshold as two for source-trace purposes, but leave the intended threshold UNKNOWN; do not change it or encode it as a normative requirement without locating the decision/history. This is a documentation/test-coverage discrepancy, not yet a new verified defect ID.
+
+
+### §128 cadence refinement — two producer clocks, one consumer trigger
+
+The Fountain loop itself is not fire-on-every-chat. `build_fountain()` starts a dedicated worker; each pass waits for the active mode's `fountain_interval_seconds`, evaluates readiness, and calls `generator.generate()`. The mode definition defaults to 120 seconds; the named `chat` mode sets 300 seconds; `silent` disables Fountain. The actual host mode was not inspected and remains UNKNOWN. Separately, DiversityLoop waits 60 seconds between GrooveSpotter scans. Metacognition remains request-driven by the chat handler, not by either periodic worker.
+
+Thus the source-level cadence is: Fountain candidate generation at mode-dependent intervals (default 120s / chat 300s) → GrooveSpotter scan every 60s → Metacognition replay on a subsequent chat request. This is a multi-clock feedback path, not a single synchronous loop and not evidence of exponential autonomous growth.
