@@ -6062,3 +6062,35 @@ Keep the two paths separate in architecture maps, tests and evidence. Do not uni
 **Source anchors:** theory_x/SELF_NARRATIVE_SPEC.md; theory_x/DOCTRINE.md; theory_x/stage_self_narrative/self_narrative.py; theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; nex_keepalive.sh; nex_config.py; commits 6a591c936c49e5d0c136731e4a2fc9b22f4c92d2 and 84e7d5daf345f75d6c6d0431223a2d2dfff70f5c.
 
 **Authority boundary:** no runtime code, launcher, feature flag, narrative store, schema, prompt policy, cognitive authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §163 — Fountain's Stage-TOM narrative is a conditional text-feedback loop, not sentence-to-code synthesis (28 November 2026)
+
+**Question studied:** does the living narrative prompt form a closed source-level feedback loop, and what does that loop actually encode?
+
+### Causal path
+
+1. On the normal Fountain path, _generate() calls _build_prompt(); when NEX5_SELF_NARRATIVE=1 and the Stage-TOM object exists, _build_prompt() calls get_narrative() and appends the composed text before the static spectrum standing-points.
+2. The normal route calls VoiceClient.speak() with that prompt. The returned response text is stripped and passed through the existing output filters.
+3. The completed fire is persisted as a sense_events row with stream internal.fountain and a dynamic.fountain_events row containing thought, readiness, hot_branch, word_count, droplet, stillness_reason, mode and focal_item. The event row is written before optional post-fire attachments.
+4. On a later eligible fire, Stage-TOM _real_fires() reads recent substantive thought/hot_branch pairs from fountain_events. build_narrative() can then compose those prior outputs into a later prompt. This is a source-level natural-language feedback loop: prompt context -> model text -> structured event row -> later prompt context.
+
+### Important bypasses and conditions
+
+- The Stage-TOM injection is part of the normal _build_prompt() route, not every Fountain fire.
+- The every-fifth-fire quiescent branch writes a bare sense/tick event and returns before _build_prompt().
+- The RECONCILE branch uses its own problem-pair prompt and can emit before the normal _build_prompt() route when NEX5_RECONCILE=1 and at least two eligible open problems are selected. The tracked nex_keepalive.sh sets NEX5_RECONCILE=1, so this bypass is eligible; actual frequency depends on host problem state.
+- Substrate-voice replay and early shutdown can also return before the normal prompt path. Voice failure after prompt construction can produce a fallback event rather than a model-generated narrative response.
+- The tracked launch profile also sets NEX5_GOVERNOR_OFF=1, disabling the specific self_rut_notice belief producer while leaving Stage-TOM prompt composition enabled. Other recent fires and tier-6 beliefs remain possible inputs.
+
+### What this does and does not establish
+
+The stored Fountain event is structured data around a natural-language thought; the Stage-TOM reader later reuses selected text as prompt context. It does not parse the sentence into an AST, typed operation, executable Python, capability request, approval or verified action. It is therefore a genuine text/database feedback wire, but not yet the requested human-sentence-to-machine-code synthesis.
+
+The feedback loop is source-observed, not runtime-observed. Repository source and tests do not establish how often the normal path runs on the host, whether the model attends to the injected text, whether a later output is semantically caused by it, or whether the effect persists across repeated cycles. PR #457 characterizes construction and prompt-string insertion; it does not prove semantic influence or the full output-to-next-fire round trip.
+
+**Disposition:** source-level conditional natural-language feedback loop confirmed. Its route conditions and bypasses are recorded. No runtime change or new defect ID. The next evidence step is a controlled, read-only host trace that correlates one exact prompt injection to the resulting Fountain event and the next prompt, if/when host access is available. Do not enable flags, alter cadence, add execution semantics or claim behavioural integration during Phase 0. G-83 remains OPEN.
+
+**Source anchors:** theory_x/stage6_fountain/generator.py; theory_x/stage_tom/self_narrative.py; substrate/schema/dynamic.sql; nex_keepalive.sh; PR #457.
+
+**Authority boundary:** no runtime code, feature flag, prompt policy, execution path, database, schema, cognitive authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
