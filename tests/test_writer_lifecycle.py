@@ -205,9 +205,9 @@ def test_writer_constructor_start_failure_after_thread_creation_rolls_back(
     def start_then_fail(thread):
         started_threads.append(thread)
         original_start(thread)
-        # Let the worker reach its queue wait before injecting the post-create
-        # failure. Writer.start must enqueue its sentinel and join it.
-        thread.join(timeout=0.05)
+        # Wait until the worker has opened its connection and reached its
+        # queue wait before injecting the post-create failure.
+        assert instances[0]._started.wait(timeout=2)
         raise RuntimeError("injected Thread.start failure after creation")
 
     monkeypatch.setattr(Writer, "__init__", capture_init)
