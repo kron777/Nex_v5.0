@@ -999,7 +999,7 @@ def _rollback_partial_app_state(scope: dict) -> None:
                     stop = getattr(worker, "stop_loop", None)
                 if callable(stop):
                     stop()
-        except Exception:
+        except BaseException:
             log.exception("build_state rollback: %s signal failed", label)
 
         add_thread(worker if isinstance(worker, threading.Thread)
@@ -1020,7 +1020,7 @@ def _rollback_partial_app_state(scope: dict) -> None:
                 alive = join(timeout=max(0.0, deadline - time.monotonic()))
                 if alive:
                     log.error("build_state rollback: scheduler workers survived: %s", alive)
-            except Exception:
+            except BaseException:
                 log.exception("build_state rollback: scheduler join failed")
 
     # Second pass: join all other discovered workers against one shared deadline.
@@ -1031,7 +1031,7 @@ def _rollback_partial_app_state(scope: dict) -> None:
             thread.join(max(0.0, deadline - time.monotonic()))
             if thread.is_alive():
                 log.error("build_state rollback: worker survived: %s", thread.name)
-        except Exception:
+        except BaseException:
             log.exception("build_state rollback: join failed for %s", thread.name)
 
     # Finally close every Writer that was successfully constructed. Unwrap
@@ -1048,7 +1048,7 @@ def _rollback_partial_app_state(scope: dict) -> None:
             if callable(close):
                 try:
                     close(timeout=max(0.0, deadline - time.monotonic()))
-                except Exception:
+                except BaseException:
                     log.exception("build_state rollback: Writer %s close failed", name)
 
 
