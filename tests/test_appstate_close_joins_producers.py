@@ -248,7 +248,7 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
                 voice_client=_mock_voice_client(),
                 dynamic_state=_mock_dynamic_state(),
             )
-        self.assertTrue(entered.wait(1.0), "Fountain did not enter its tick")
+            self.assertTrue(entered.wait(1.0), "Fountain did not enter its tick")
 
         state = _state(self.writers, self.readers, fountain=fountain)
         closer = threading.Thread(target=state.close, name="test_appstate_close")
