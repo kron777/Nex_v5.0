@@ -91,6 +91,16 @@ class TestRunPyRegistersProducers(unittest.TestCase):
                             and t.value.id == "state"):
                         assigned.add(t.attr)
         registered = kwargs | assigned
+        owned_starts = {
+            node.args[1].value
+            for node in ast.walk(self.tree)
+            if (isinstance(node, ast.Call)
+                and getattr(node.func, "id", None) == "_own_and_start"
+                and len(node.args) >= 2
+                and isinstance(node.args[1], ast.Constant)
+                and isinstance(node.args[1].value, str))
+        }
+        registered |= owned_starts
         for name in _RUNPY_FIELDS:
             with self.subTest(producer=name):
                 self.assertIn(name, registered, f"run.py never registers {name} on AppState")
