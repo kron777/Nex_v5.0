@@ -115,10 +115,9 @@ class TestFlagOnSalienceRanking(unittest.TestCase):
         _cleanup(self.writers, self.tmp)
 
     def test_severe_older_event_outranks_fresh_mild_one(self):
-        """The exact live shape: severity 1.0 @ 9 days old (decay ~0.357,
-        score ~0.357) must beat severity 0.37 @ same-day (decay 1.0, score
-        0.37 in the raw-recency case) -- wait, close call by design: assert
-        via the real formula rather than hand-waving."""
+        """The exact live shape: severity 1.0 @ 9 days old (quadratic decay ~0.587,
+        score ~0.587) beats severity 0.37 @ same-day (score 0.37). Assert
+        through the real formula rather than hand-waving."""
         _seed_event(self.writers, "groove", severity=1.0, days_ago=9.0)
         _seed_event(self.writers, "value_drift_abandonment", severity=0.37, days_ago=0.0)
         mc = _build_mc(self.writers, self.readers)
