@@ -21,7 +21,7 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 - q/tau performance-margin evidence now validates arithmetic, identity and comparable envelope constraints, but capacity/headroom assessment, operating-envelope classification, feedback-loop stability, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
 - the twelve adversarial cases are only partly represented in tests.
 
-**The next vertical-slice increment is to make the new structural analyses usable over persisted RDO cycles, then close the evidence link between structural failure paths and observed failure outcomes.** The interface profile, operating-envelope evidence, q/tau margin records, failure-path candidate tracer and before/after neighbour comparator now exist. The persisted-cycle CLI integration from PR #331 is merged. After that, any failure-propagation assessment must distinguish structural possibility from observed propagation and retain UNKNOWN where event evidence or calibrated criteria are absent. Extend the existing model; do not replace the orchestrator or create a parallel RDO.
+**Current vertical-slice status:** persisted-cycle CLI exposure from #331, typed observed-failure evidence from #339, and context-mapping/criterion-review events from #343 are now merged. The remaining work is to connect these records into one traceable cycle-level assessment path without collapsing structural candidates, measured observations and reviewed interpretations into one claim. No causal attribution, propagation probability, stability calculation or calibrated threshold is supplied by these increments. Extend the existing RDO; do not replace the orchestrator or create a parallel system.
 
 ## 2. Current implementation inventory
 
@@ -123,7 +123,7 @@ The case labels below are concise summaries recovered from the v1.4 review conte
 | G | Speculative obligation | Hypothesis classification and `test_genius_feedback_is_hypothesis` | **Partial** — demonstrated for one domain hypothesis, not a general adversarial obligation-quality test |
 | H | Protected experiment | Watcher registry and fail-closed eligibility; active/unknown registry tests | **Covered** |
 | I | Local improvement causes global regression | No multi-objective local/global net-value comparison | **Missing** |
-| J | Neighbouring capability changes | `run_cycle()` recomputes assessments; PR #330 adds `compare_adjacent_relationship_impacts()` for persisted before/after snapshots, incident relationships and their relationship assessments | **Partial** — the comparison is available as a library function but not yet surfaced through the RDO CLI; it reports correlation, not causality or system-level benefit/harm |
+| J | Neighbouring capability changes | `run_cycle()` recomputes assessments; PR #330 adds `compare_adjacent_relationship_impacts()` and PR #331 exposes persisted before/after comparison through the RDO CLI | **Partial** — CLI exposure is complete; the comparison reports structural association/correlation, not causal attribution or an automatic system-level net-benefit/harm verdict |
 | K | Excessive recursion | max-depth, terminal kinds and frontier reasons; `test_max_depth_bounds_expansion` | **Covered** |
 | L | Negative development outcome | Predicted/actual comparison, disconfirmation and confidence reduction; PR #314 merged an objective-scoped regression-risk candidate into current main | **Partial** — a scoped candidate can be surfaced, but it does not yet mechanically reverse or restrict a recommendation |
 
@@ -158,7 +158,7 @@ Next bounded sequence:
 3. Add an evidence-linking failure-propagation assessment only after defining how observed failure events, relationship identity, observation window, operating envelope and provenance are represented. Do not infer observed propagation from `depends_on` topology alone.
 4. Extend adversarial coverage for insufficient headroom, unstable feedback and neighbouring-capability changes. Assert evidence completeness and UNKNOWN-first behaviour where thresholds or measurements are absent.
 5. Investigate local-improvement/global-regression with actual objective/evidence data before proposing net-value weights or Pareto rules.
-6. Run the Stage-2 belief-development slice and fresh-process persistence/resume against current main.
+6. **Completed baseline:** Stage-2 belief-development and fresh-process CycleStore persistence/resume are already implemented and covered by `rdo/tests/test_stage2_extrapolator_mvp.py`; exact-head full-suite CI passed them. Preserve this regression rather than rebuilding Stage 2.
 7. Consider Pareto/net-value and marginal-value stopping only after the exact specification criteria and grounded calibration are available.
 
 This increment remains external/advisory RDO code. It does not change NEX runtime, the frozen S-register, Master Roadmap, feature flags, live beliefs or protected experiments. It does not authorise the final v1.4 expansion stage to bypass existing safety and approval gates.
