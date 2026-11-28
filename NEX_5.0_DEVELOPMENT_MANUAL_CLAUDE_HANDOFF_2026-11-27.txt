@@ -1089,7 +1089,7 @@ These are separate consumers of a shared state, not one single arbiter. Fountain
 - a deterministic high-temperature draw can select a lower-focus branch;
 - the same Bonsai snapshot produces an `ai_research` Global Workspace candidate and wins against a deliberately lower-salience momentum candidate.
 
-The existing internal-telemetry negative control remains separate: `internal.proprioception` maps to `systems` at the match layer but produces zero magnitude and no Bonsai focus change/F-step event. This protects the known anti-starvation boundary.
+The existing internal-telemetry negative control remains separate: `internal.proprioception` maps to `systems` at the match layer but produces zero magnitude, no Bonsai focus change, no F-step event and no Global Workspace Bonsai candidate. The negative control now also asserts that the same unchanged Bonsai snapshot produces no Global Workspace Bonsai candidate. This protects the known anti-starvation boundary across both downstream consumers.
 
 ### Interpretation and limits
 
