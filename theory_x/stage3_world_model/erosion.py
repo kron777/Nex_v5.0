@@ -108,7 +108,7 @@ class ProvenanceErosion:
             except Exception as exc:
                 errors.record(f"erosion_check write error: {exc}", source=_LOG_SOURCE, exc=exc)
 
-    def erosion_pass(self) -> int:
+    def erosion_pass(self, *, stop_event=None) -> int:
         """Check every eligible belief in stable ID order using bounded keyset pages.
 
         Advancing a belief to nex_core removes it from the eligible result set.
@@ -119,6 +119,8 @@ class ProvenanceErosion:
         last_id = 0
 
         while True:
+            if stop_event is not None and stop_event.is_set():
+                break
             try:
                 rows = self._reader.read(
                     "SELECT id, source, erosion_stage, reinforce_count, locked FROM beliefs "
@@ -130,7 +132,7 @@ class ProvenanceErosion:
                 errors.record(f"erosion_pass read error: {exc}", source=_LOG_SOURCE, exc=exc)
                 return advanced
 
-            if not rows:
+            if not rows or (stop_event is not None and stop_event.is_set()):
                 break
 
             # Advance over every returned row, including protected and
@@ -138,6 +140,8 @@ class ProvenanceErosion:
             last_id = rows[-1]["id"]
 
             for row in rows:
+                if stop_event is not None and stop_event.is_set():
+                    break
                 if row["source"] in PROTECTED_SOURCES:
                     continue
                 stage = row["erosion_stage"] or "external"
@@ -163,6 +167,8 @@ class ProvenanceErosion:
                             source=_LOG_SOURCE, exc=exc,
                         )
 
+            if stop_event is not None and stop_event.is_set():
+                break
             if len(rows) < _PAGE_SIZE:
                 break
 
