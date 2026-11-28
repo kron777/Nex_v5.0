@@ -45,6 +45,8 @@ class WorldConsolidator:
         if stop_event is not None and stop_event.is_set():
             return {"name": self.name, "state": "stopped"}
         try:
+            if stop_event is None:
+                return self._run(armed=(mode == "1"))
             return self._run(armed=(mode == "1"), stop_event=stop_event)
         except BaseException as exc:
             _diag(f"FATAL in _run (isolated, NEX unaffected): {exc!r}")
