@@ -234,7 +234,7 @@ class Harmonizer:
 
     # ── Conflict detection ────────────────────────────────────────────────────
 
-    def scan_for_conflicts(self) -> list[tuple[int, int]]:
+    def scan_for_conflicts(self, *, stop_event=None) -> list[tuple[int, int]]:
         """Find conflicting belief pairs in the working belief body (Tier 3-7).
 
         Excludes Tier 1-2 keystones/bedrock (immutable per SPEC §2) and
@@ -253,22 +253,36 @@ class Harmonizer:
             errors.record(f"scan_for_conflicts read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return []
 
+        if stop_event is not None and stop_event.is_set():
+            return []
         conflicts = []
         beliefs = [dict(r) for r in rows]
-        token_cache = {b["id"]: _tokenize(b["content"]) for b in beliefs}
+        token_cache = {}
+        for belief in beliefs:
+            if stop_event is not None and stop_event.is_set():
+                return []
+            token_cache[belief["id"]] = _tokenize(belief["content"])
 
         for i, a in enumerate(beliefs):
+            if stop_event is not None and stop_event.is_set():
+                return []
             for b in beliefs[i + 1:]:
+                if stop_event is not None and stop_event.is_set():
+                    return []
                 score = _conflict_score(
                     token_cache[a["id"]], a["content"],
                     token_cache[b["id"]], b["content"],
                 )
+                if stop_event is not None and stop_event.is_set():
+                    return []
                 if score == 0.0:
                     # Only tried when the token path found nothing -- never
                     # overrides or changes a score the token path produced.
                     score = _semantic_conflict_score(
                         a["id"], a["content"], b["id"], b["content"],
                     )
+                if stop_event is not None and stop_event.is_set():
+                    return []
                 if score >= 0.15:
                     conflicts.append((a["id"], b["id"]))
 
@@ -776,20 +790,28 @@ class Harmonizer:
 
     # ── Orchestration ─────────────────────────────────────────────────────────
 
-    def run_scan_and_resolve(self, world_model_state=None) -> int:
+    def run_scan_and_resolve(self, world_model_state=None, *, stop_event=None) -> int:
         """Full scan pass. Returns count of actions taken (paradox + escalations).
 
         First detection  → mark_paradox (edge + disturbance, no retirement)
         Re-detection after PARADOX_INCUBATION_SECONDS → resolve (retire/synthesize)
         Still incubating → skip
         """
-        conflicts = self.scan_for_conflicts()
+        if stop_event is not None and stop_event.is_set():
+            return 0
+        conflicts = self.scan_for_conflicts(stop_event=stop_event)
+        if stop_event is not None and stop_event.is_set():
+            return 0
         acted = 0
         disturbance_set = False
 
         for a_id, b_id in conflicts:
+            if stop_event is not None and stop_event.is_set():
+                break
             entry = self._check_paradox_entry(a_id, b_id)
 
+            if stop_event is not None and stop_event.is_set():
+                break
             if entry is None:
                 # First detection
                 result = self.mark_paradox(a_id, b_id)
@@ -811,12 +833,14 @@ class Harmonizer:
                     )
             # else: still incubating — skip
 
-        acted += self._escalate_stale_paradoxes()
+        if stop_event is not None and stop_event.is_set():
+            return acted
+        acted += self._escalate_stale_paradoxes(stop_event=stop_event)
         return acted
 
     # ── Direct re-check of already-flagged pairs (the LIMIT-200 fix) ───────────
 
-    def _open_paradox_pairs(self) -> list[tuple[int, int, float]]:
+    def _open_paradox_pairs(self, *, stop_event=None) -> list[tuple[int, int, float]]:
         """(belief_id_a, belief_id_b, paradox_ts) for every unordered pair whose
         MOST RECENT harmonizer_events row is 'paradox' -- i.e. flagged but not
         yet escalated or superseded. Computed directly from the event log, not
@@ -831,8 +855,12 @@ class Harmonizer:
         except Exception as exc:
             errors.record(f"_open_paradox_pairs read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return []
+        if stop_event is not None and stop_event.is_set():
+            return []
         latest: dict[tuple[int, int], tuple[str, float]] = {}
         for r in rows:
+            if stop_event is not None and stop_event.is_set():
+                return []
             key = (r["belief_id_a"], r["belief_id_b"])
             key = (min(key), max(key))
             latest[key] = (r["resolution"], r["ts"])
@@ -854,7 +882,7 @@ class Harmonizer:
             return False
         return 3 <= row["tier"] <= 7 and not row["locked"] and not row["paused"]
 
-    def _escalate_stale_paradoxes(self) -> int:
+    def _escalate_stale_paradoxes(self, *, stop_event=None) -> int:
         """Dark by default (_PARADOX_FIX_FLAG). Escalates every open paradox
         pair past incubation regardless of whether scan_for_conflicts()
         resampled it this pass -- see the flag's module-level comment for why
@@ -862,9 +890,13 @@ class Harmonizer:
         prior behaviour."""
         if os.environ.get(_PARADOX_FIX_FLAG) != "1":
             return 0
+        if stop_event is not None and stop_event.is_set():
+            return 0
         acted = 0
         now = time.time()
-        for a_id, b_id, ts in self._open_paradox_pairs():
+        for a_id, b_id, ts in self._open_paradox_pairs(stop_event=stop_event):
+            if stop_event is not None and stop_event.is_set():
+                break
             if now - ts < PARADOX_INCUBATION_SECONDS:
                 continue
             if not (self._still_eligible(a_id) and self._still_eligible(b_id)):
@@ -879,7 +911,7 @@ class Harmonizer:
                 )
         return acted
 
-    def detect_cross_domain(self) -> int:
+    def detect_cross_domain(self, *, stop_event=None) -> int:
         """Scan Tier 3-7 beliefs for cross-domain pattern matches.
 
         For each pair in different branch_ids with keyword overlap >= 0.4
@@ -896,11 +928,17 @@ class Harmonizer:
             errors.record(f"detect_cross_domain read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return 0
 
+        if stop_event is not None and stop_event.is_set():
+            return 0
         beliefs = [dict(r) for r in rows]
         if len(beliefs) < 2:
             return 0
 
-        token_cache = {b["id"]: _tokenize(b["content"]) for b in beliefs}
+        token_cache = {}
+        for belief in beliefs:
+            if stop_event is not None and stop_event.is_set():
+                return 0
+            token_cache[belief["id"]] = _tokenize(belief["content"])
 
         ids = [b["id"] for b in beliefs]
         placeholders = ",".join("?" * len(ids))
@@ -912,6 +950,8 @@ class Harmonizer:
                 tuple(ids) * 2,
             )
             for e in edge_rows:
+                if stop_event is not None and stop_event.is_set():
+                    return 0
                 existing.add((e["source_id"], e["target_id"]))
                 existing.add((e["target_id"], e["source_id"]))
         except Exception:
@@ -919,7 +959,11 @@ class Harmonizer:
 
         written = 0
         for i, a in enumerate(beliefs):
+            if stop_event is not None and stop_event.is_set():
+                break
             for b in beliefs[i + 1:]:
+                if stop_event is not None and stop_event.is_set():
+                    return written
                 if a["branch_id"] == b["branch_id"]:
                     continue
                 if (a["id"], b["id"]) in existing:
