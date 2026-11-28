@@ -2731,3 +2731,65 @@ NEX has robust cycle-record persistence and tests for reload across process boun
 **Source anchors inspected at main 18c8f06171e1de35c3210831a49b63d0e2487af0:** rdo/memory.py blob ff0abb6d6ebdd91c4567362e238363d41ddb57e1; rdo/model.py blob 11bb372469145d828d8163905b50afa63effc3ec; rdo/orchestrator.py blob e9dad9a11e8e09444b4ee2e7d77f60d580f7b104; rdo/extrapolator.py blob 330e1aaec7504fdc1315b1b88b9c304942318c17; rdo/tests/test_stage2_extrapolator_mvp.py blob 4f3642d7f90485ff3ab22d05e9f09c22a0989465.
 
 **Unchanged boundaries:** no CycleStore format, continuation API, queue algorithm, expansion rule, budget, runtime data, database, flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority is changed. This is a source-and-test study only; no tests were executed in this turn.
+
+## 83. Mind-map policy enforcement and the cognitive/capability boundary (28 November 2026)
+
+**Question studied:** how is the descriptive-only mind-map doctrine protected in code, and does that protection itself establish the full separation between cognitive interpretation and action authority?
+
+### What is explicitly enforced
+
+The mind-map source states that it is a descriptive index, not a runtime decision authority. The YAML doctrine is explicit: no node may gate, score, block or veto an action. Its node schema also distinguishes evidence/status modifiers such as dark and blocked from permission semantics.
+
+The Python policy checker in mind_map/mind_map.py implements several concrete protections:
+- It requires the descriptive-only/no-action-authority doctrine to remain in the map metadata.
+- It rejects node fields whose names imply action authority, including gate, veto, authority, permission, priority, score, action_gate and execution_authority.
+- It deliberately permits the blocked field because it describes evidence/status, not permission to block an action.
+- It scans a declared set of runtime roots (including run.py, gui, theory_x, substrate, speech, voice, admin and strikes) and parses Python source with the AST.
+- It rejects direct imports of mind_map and non-docstring string constants containing MIND_MAP.yaml in those scanned runtime files.
+- It allows RDO/Watcher and developer tooling outside the runtime roots to read the map as evidence.
+
+The policy tests characterize these rules: current map passes; action-authority fields and missing doctrine fail; runtime import and YAML loading fail; an external RDO reader is allowed; and selected boot-imported roots are included in the scan.
+
+This is stronger than a comment-only doctrine. It is a source-level CI guard against the most direct route by which the map could become a runtime dependency.
+
+### What this guard does not prove
+
+The checker is a bounded static policy check, not a universal proof about every possible execution path:
+- Its coverage depends on the declared RUNTIME_ROOTS. A new runtime root must be added deliberately.
+- It looks for direct AST imports and literal string constants. Indirect loading, dynamically assembled paths, generated code or other non-Python mechanisms are not established as covered by these checks.
+- It does not by itself prove that every other cognitive faculty is unable to influence action selection through a separate runtime pathway.
+- It does not validate the semantics of every capability validator, approval event, executor or postcondition verifier.
+
+Therefore the correct conclusion is narrow: **the mind-map artefact is guarded against direct runtime consumption through the currently scanned source roots**. Do not inflate this into a claim that all NEX action authority is already completely formalized.
+
+### Cross-check against the current bounded capability route
+
+The current Stage-B ToolCaller selects among three named capabilities: web_fetch, python_exec and beliefs_query. It constructs tool-specific arguments; ToolRegistry dispatches only names in its fixed registry. The arithmetic path interprets a deliberately small AST language rather than arbitrary Python source. This is a bounded capability surface, but the ToolCaller/Registry route is not a general approval system.
+
+The inspected ToolCaller and ToolRegistry contain no mind_map import and do not consult the mind-map YAML. This is consistent with the policy. It does not mean a cognitive preference is an approval, nor does the presence of a registered tool mean every possible caller has permission to execute it.
+
+The architecture must continue to keep these concepts separate:
+1. **Cognitive interpretation:** Mind Aspects contribute perception, relevance, appraisal, uncertainty, memory and rationale.
+2. **Operation representation:** a typed request names the intended operation, target and declared side effects.
+3. **Capability validation:** deterministic checks establish whether that operation is technically available and within scope.
+4. **Approval authority:** the required owner/human/system authority is recorded independently of cognitive preference.
+5. **Execution:** a separately authorized adapter performs the operation.
+6. **Verification:** independent evidence establishes what actually happened; human acceptance remains distinct where required.
+
+A Mind Aspect may inform the first layer and provide evidence to later reviewers. It must not silently become any of layers 3–5, or veto an operation merely because of its map position or score.
+
+### Design and maintenance implications
+
+- Treat mind_map/mind_map.py and tests/test_mind_map_policy.py as an architectural invariant, not cosmetic diagram tooling.
+- When runtime roots are added or renamed, update the policy scan and add a regression test for the new path.
+- Consider adversarial tests for indirect/dynamic map loading if future runtime code introduces plugin discovery, generated modules or dynamic imports. Do not add brittle source heuristics without a concrete bypass case.
+- Keep mind-map evidence/status terms distinct from executable permission vocabulary. In particular, blocked remains descriptive status, never an action switch.
+- Keep separate tests for cognitive influence, capability validation, approval provenance, execution scope and post-execution verification. A passing mind-map policy test cannot substitute for those tests.
+
+### Research conclusion
+
+The repository has an explicit, tested descriptive-only doctrine and a static AST policy checker that prevents direct mind-map imports or literal YAML loads in its declared runtime roots. The Stage-B capability route is separately bounded and does not read the mind map. This supports the intended cognitive/action separation, while leaving the broader operation-envelope and approval formalization as separate work. No runtime policy or capability behavior was changed in this study.
+
+**Source anchors inspected at main 18c8f06171e1de35c3210831a49b63d0e2487af0:** mind_map/MIND_MAP.yaml blob d569d6e50e5541f1845581b052ffdb9db8e2857f; mind_map/mind_map.py blob 6eda2aa414802374e18db242d8ccbc26c9ee06ad; tests/test_mind_map_policy.py blob de6a30f6d4ce92b28b70e9b5ef1d318c3844ed6c; theory_x/stage_capability/tool_caller.py blob 07ef6c7f044b0c26c3e8ba78f51e5cf285890402; theory_x/stage_capability/tools.py blob b00052d6286d23b58599bfc463ebf051b0c08668.
+
+**Unchanged boundaries:** no Mind Aspect policy, mind-map schema, capability registry, approval rule, runtime code, tool behavior, database, flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority is changed. This is a source-and-test study only; no tests were executed in this turn.
