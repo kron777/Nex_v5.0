@@ -1137,7 +1137,7 @@ The isolated Warrant shutdown regression had been appended below an earlier `if 
 
 ### Improvement questions and remaining boundaries
 
-1. A stop Event checked immediately before a Writer call still leaves a check-to-submit race. The sweep does not establish an atomic admission barrier between stop and write submission.
+1. A stop Event check is not atomically coupled to a later Writer submission: a producer can observe the pre-stop state, then submit after the stop request but before AppState reaches Writer.close(). The Writer itself does have a separate lifecycle lock that atomically orders accepted submissions before its shutdown sentinel and rejects submissions after close admission shuts. Such a late-but-accepted request is drained; if a producer outlives its join budget, later submissions fail and shutdown must remain unclean. This distinction is important: the remaining question is stop-to-submit admission semantics, not an unprotected Writer-close/sentinel race.
 2. A blocked synchronous Reader/Writer, embedding/model/TTS call or playback call can outlive the cooperative checkpoint. The producer join timeout and subsequent Writer close ordering therefore need separate lifecycle evidence; an Event alone cannot prove all work has quiesced.
 3. Detached route workers and any producer not registered with AppState require a complete ownership census. Thread creation, registration, stop, join and resource ownership must be traced together.
 4. Tests should distinguish “stop requested”, “stop observed”, “no new operation admitted”, “in-flight operation returned”, and “resource safely closed”. A clean thread join is not evidence that every detached or unregistered worker was included.
@@ -1148,3 +1148,36 @@ The isolated Warrant shutdown regression had been appended below an earlier `if 
 PR #413 remains a candidate pending fresh exact-head full-suite CI, baseline verification and mind-map verification. Earlier failed runs remain failures and cannot be substituted for the final head. No shutdown budget, retry policy, feature flag, formula, prompt, schema, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Gate 0 or Phase 1 authority is changed by this documentation/test-harness correction. No live runtime or database was accessed.
 
 **Next bounded work:** verify the exact PR head and CI; then continue the shutdown ownership audit at the boundary between producer quiescence, synchronous Writer admission/drain and resource closure. Do not introduce a new cancellation or locking protocol until the current shared-Writer ownership and shutdown ordering are fully traced.
+
+
+## 50. Shutdown ownership and Writer admission — source-level follow-up (28 November 2026)
+
+**Evidence:** `run.py` blob `d4482e2c2a2da5e165ec810fd40cf9536c45f49c`; `gui/server.py` blob `cb399a337441bebe23f3f52079ea79bf1b7ab460`; `gui/shutdown_gate.py` blob `c03e8e83b2b27c79e050605f75cd37e590848852`; `substrate/writer.py` blob `455329e3c25aa1a3e7fd977241bb4cd7f8a61e34`. Source inspection only; no host/runtime observation.
+
+### Confirmed shutdown order
+
+1. The SIGTERM/SIGINT handler in `run.py` establishes one monotonic deadline.
+2. `ShutdownGate.begin_shutdown()` atomically closes HTTP request admission under a Condition and waits for every admitted Flask request to leave.
+3. The decoder stop Event is set.
+4. `AppState.close(deadline=...)` shuts down the scheduler, signals registered producers, joins their known threads against the remaining producer budget, then closes Writers against the same absolute deadline.
+5. A successful report is required before the clean-shutdown marker is written; incomplete request drain, producer join, Writer close or marker persistence exits without a clean marker.
+
+### Important Writer lifecycle detail
+
+`Writer.submit()` and `Writer.close()` share `_lifecycle_lock`. Close first stops acceptance and enqueues one sentinel while holding that lock. Therefore every accepted request is queued before the sentinel, and submissions that lose the race to close fail synchronously. The worker drains accepted requests FIFO before it sees the sentinel and closes SQLite. This is stronger than a bare stop Event and closes the queue-ordering race at the Writer boundary.
+
+The remaining producer-level window is different: a producer can pass its stop check, then submit while Writer admission is still open because AppState deliberately waits for producers before closing Writers. That request is accepted and drained. If a producer survives the bounded join, Writer closure prevents later submissions; AppState reports the live producer and the caller refuses a clean-shutdown marker. Do not describe this as an atomic stop-to-submit barrier or as forced cancellation.
+
+### Ownership census status and improvement questions
+
+- `run.py` directly creates the decoder thread, then exposes its stop Event and thread through `state.decoder_loop`, allowing the AppState registry to stop and join it. The same entrypoint registers `state.close` with `atexit`; the explicit signal handler is the bounded clean-shutdown path.
+- `AppState._quiesce_producers()` explicitly describes its registry as bounded, not a claim that every process thread is registered. It snapshots selected multi-thread worker registries under their service lock where available, signals all managed workers before joining, and reports survivors.
+- This inspection did not establish a repository-wide census of thread creation, detached route workers, subprocesses, model calls or every service-owned worker. Do not infer completeness from the current managed tuple.
+- The separate `gui/server.py` direct-entrypoint path also registers `state.close` with `atexit`; its signal/deployment lifecycle should be compared with the production `run.py` entrypoint before treating the two launch modes as equivalent.
+- The exact-head workflow run associated with the Warrant test-harness correction (`46134718448`) was cancelled and exposed no jobs. It is not a pass or a failure diagnosis. The PR's final head still needs a fresh full-suite, baseline and mind-map result.
+
+### Next bounded research/development
+
+Complete the source-to-sink ownership census for thread/process creation and route-spawned work; reconcile every discovered worker with AppState ownership, stop semantics, join semantics and resource dependencies. Then test Writer acceptance ordering under a deterministic submit-vs-close race and test the AppState timeout path with a producer that remains alive. Keep the existing per-Writer lifecycle lock unless evidence demonstrates a defect; do not add a second global lock or alter shutdown budgets by assumption.
+
+No live runtime, host process, database, feature flag, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority was changed.
