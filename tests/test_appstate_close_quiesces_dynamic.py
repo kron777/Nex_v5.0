@@ -128,6 +128,51 @@ class TestAppStateCloseQuiescesDynamic(unittest.TestCase):
                 "INSERT INTO daemon_kv (key, value, updated_at) VALUES ('late-fountain', 'x', 0)"
             )
 
+    def test_fountain_finishes_inflight_write_before_writer_close(self):
+        import theory_x.stage6_fountain as fountain_module
+        from theory_x.stage6_fountain import build_fountain
+
+        entered = threading.Event()
+        release = threading.Event()
+        wrote = threading.Event()
+        with mock.patch.object(
+            fountain_module, "FOUNTAIN_CHECK_INTERVAL_SECONDS", 0.01
+        ):
+            fountain = build_fountain(
+                self.writers, self.readers,
+                voice_client=_mock_voice_client(),
+                dynamic_state=_mock_dynamic_state(),
+            )
+
+        def in_flight_tick(*_args, **_kwargs):
+            entered.set()
+            release.wait(2.0)
+            self.writers["dynamic"].write(
+                "INSERT INTO daemon_kv (key, value, updated_at) VALUES (?, ?, ?)",
+                ("g84-fountain-final-tick", "done", time.time()),
+            )
+            wrote.set()
+            return None
+
+        fountain.generator.generate = in_flight_tick
+        self.assertTrue(entered.wait(1.0), "Fountain did not enter its tick")
+        state = _state(self.writers, self.readers)
+        state.fountain = fountain
+        closer = threading.Thread(target=state.close, name="test_appstate_close")
+        closer.start()
+        time.sleep(0.05)
+        self.assertTrue(closer.is_alive(), "close did not wait for the in-flight Fountain tick")
+        release.set()
+        closer.join(timeout=1.0)
+
+        self.assertFalse(closer.is_alive(), "close exceeded its bounded join")
+        self.assertTrue(wrote.is_set(), "in-flight Fountain write was not completed")
+        row = self.readers["dynamic"].read_one(
+            "SELECT value FROM daemon_kv WHERE key = 'g84-fountain-final-tick'"
+        )
+        self.assertEqual(row["value"], "done")
+        self.assertFalse(fountain._thread.is_alive())
+
     def test_close_without_dynamic_is_unchanged(self):
         _state(self.writers, self.readers).close()
         with self.assertRaises(Exception):
