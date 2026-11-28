@@ -5663,3 +5663,36 @@ This creates a producer/consumer split across two separate channels:
 **Source anchors:** `theory_x/stage6_fountain/generator.py`; `theory_x/stage3_world_model/retrieval.py`; `gui/server.py`; `theory_x/diversity/reanimate.py`.
 
 **Authority boundary:** no runtime code, schema, retrieval policy, feature flag, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §152 — GeniusTagger backfill time and version multiplicity distort the rut observers' 90-minute sample (28 November 2026)
+
+**Question studied:** does genius_tags.tagged_at >= now - 5400 actually select Fountain events from the last 90 minutes, and does one Fountain event always contribute only one sample?
+
+### Source trace
+
+- GeniusTagger._backfill() loads Fountain events from the configured backfill horizon (14 days by default), then calls _write_tag(..., ts_now) for every event. _write_tag() stores that processing timestamp in genius_tags.tagged_at, not the original fountain_events.ts.
+- GeniusTagger._tag_window() also stores its processing timestamp as tagged_at; in continuous mode it only writes fires whose event timestamp is inside its 180-second lookback.
+- Both rut observers (SelfNarrative._maybe_notice_rut() and the Fountain governor block) query SELECT class FROM genius_tags WHERE tagged_at >= now - 5400. Neither query filters on the Fountain event timestamp, weights_version, nor distinct fountain_event_id.
+- The schema defines UNIQUE(fountain_event_id, weights_version), deliberately allowing one event to have rows under multiple weights versions. The tagger reloads weights when the file mtime changes; with the backfill already complete, continuous tagging can write a new-version row for a recent event. A new process/version backfill can also tag the same historical fire under a second version.
+- Consequently, during a 14-day backfill, a ten-day-old Fountain event can receive tagged_at=now and immediately enter the rut observers' 90-minute sample. During overlapping weights versions, the same event can contribute multiple rows to the denominator and potentially both classes if its classification changes.
+
+### Consequences
+
+The rut detector's nominal "recent 90-minute striking rate" is actually a rate over recently processed tag rows. During backfill it can represent up to 14 days of historical Fountain events stamped at one processing time. With multiple weight versions it can count one Fountain event more than once. This may distort both the minimum-row threshold and the <=5% STRIKING rate; whether it materially changes the decision depends on actual backfill volume, version overlap and class stability.
+
+This is a signal-definition issue, not proof that the score model is wrong. If the intended signal is recent Fountain activity, the current timestamp/query combination does not implement that contract. If the intended signal is recent tagging activity, the 14-day backfill burst and version multiplicity still need explicit treatment.
+
+### Evidence classification
+
+- Backfill horizon, _write_tag(..., ts_now), continuous-window timestamp and weights-version uniqueness: source-observed.
+- Rut readers' tagged_at query without version or event-ID deduplication: source-observed.
+- A historical event entering the 90-minute window after backfill and one event appearing twice across versions: deterministic fixture characterization added in draft PR #453; exact-head CI pending.
+- Actual host backfill history, current weights version, duplicate rate, class disagreement and resulting rut decisions: UNKNOWN.
+
+**Next bounded investigation:** validate PR #453 exact-head CI; inspect historical weights-version and tag timestamp distributions through an approved read-only host snapshot if available; compare tagged_at against joined fountain_events.ts and count distinct event IDs per rut window. Do not change timestamp semantics, deduplication, detector threshold or weights policy until the intended signal contract is established.
+
+**Disposition:** source-level sample-window mismatch and possible version-multiplicity weighting recorded. Potential detector-signal defect remains pending intended semantics and live impact evidence. No defect ID yet. G-83 remains OPEN.
+
+**Source anchors:** theory_x/genius/tagger.py; substrate/init_db.py (genius_tags schema); theory_x/stage_self_narrative/self_narrative.py; theory_x/stage6_fountain/generator.py; tests/test_genius_tagger.py; draft PR #453.
+
+**Authority boundary:** no runtime code, schema, feature flag, detector threshold, weights, retention policy, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
