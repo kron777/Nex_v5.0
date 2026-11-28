@@ -513,6 +513,8 @@ class CycleRecord:
     context_assessment: Dict[str, Any] = dataclasses.field(default_factory=dict)
     # Observed endpoint evidence; separate from structural failure-path candidates.
     observed_failure_evidence: List[dict] = dataclasses.field(default_factory=list)
+    # Exact approved expansion catalogue used for this cycle; empty for legacy/default runs.
+    rule_catalogue: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.kind not in CYCLE_KINDS:
