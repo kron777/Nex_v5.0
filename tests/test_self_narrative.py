@@ -480,6 +480,23 @@ class TestRutMirrorTick(unittest.TestCase):
                 self.sn.tick()
         time.sleep(0.05)
         self.assertEqual(self._rut_count(), 1)
+    def test_rut_notice_retrieval_is_literal_topic_matched(self):
+        note = (
+            "I notice my recent thinking has circled the same few frames "
+            "without surprising me. Many thoughts, little that landed. "
+            "Perhaps it is time to reach for something I have not touched."
+        )
+        self.sn.write_narrative(note, "rut_notice", None)
+        time.sleep(0.05)
+
+        unrelated = MagicMock()
+        unrelated.current_topic = "What should I explore next?"
+        self.assertEqual(self.sn.format_for_prompt(unrelated), "")
+
+        matching = MagicMock()
+        matching.current_topic = "my recent thinking has circled"
+        self.assertIn(note, self.sn.format_for_prompt(matching))
+
 
 
 if __name__ == "__main__":
