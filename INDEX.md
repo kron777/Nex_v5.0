@@ -1344,3 +1344,12 @@ AffectState is always started by `run.py`, registered with AppState and performs
 PR #402 passes the existing Event into the active tick and checks it between preparation stages and once under the state lock before integration. The optional mood-nudge audit is deferred into the persistence phase so a prepared-but-aborted tick is not recorded as applied. Once in-memory integration begins, the current persistence sequence is allowed to finish rather than deliberately splitting a logical update. Deterministic tests cover stop during preparation, before commit, already-stopped entry and stop during commit.
 
 **Boundary:** #402 is open and exact-head CI is pending; no pass count is claimed. Substrate reads are not cancelled. The final check is cooperative, not an atomic Event/state transaction. Affect, nudge and history writes remain separate Writer submissions rather than one database transaction. See `research/AFFECT_STATE_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
+
+
+### 16.22 SelfMindView snapshot and nested self-binding — open PR #403
+
+SelfMindView is started by `run.py` and registered with AppState. Its active tick previously received no stop Event. The snapshot path performs multiple substrate reads, calls `self_binding.bind()`, generates tags and writes a `self_mind_snapshots` row. The nested binder reads several faculties, including direct SQLite operations with 10-second timeouts, then writes `self_state` and `self_state_history`. The five-second producer join allowance is shorter than some individual read timeouts.
+
+PR #403 passes the existing stop Event through the worker tick, snapshot and current-state stages; it checks between the five read-only aspects and before the final snapshot write. The nested binder receives the same Event and checks between faculty reads, including between the two attention queries, and before its own state persistence. Once the self-state current row begins, its history append is allowed to finish as one logical persistence unit. If stop arrives during binding, the later SelfMindView snapshot row is skipped. Deterministic tests cover stop between aspects, during binding, before writes and during the binding commit pair.
+
+**Boundary:** #403 is open and exact-head CI is pending; no pass count is claimed. Individual SQLite/Reader and detector calls are not cancelled. The self-state writes remain separate Writer submissions, not one transaction; already-started schema, state or snapshot writes may finish after the signal. See `research/SELFMINDVIEW_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
