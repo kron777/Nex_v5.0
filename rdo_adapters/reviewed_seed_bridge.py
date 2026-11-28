@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from typing import Any
 
 from rdo.graph import tarjan_sccs
@@ -204,6 +205,8 @@ def prepare_reviewed_selection(
         existing = existing_matches[-1]
         existing_lineage = existing["lineage"]
         if (existing_lineage.get("raw_objective_sha256") != raw_digest
+                or existing_lineage.get("raw_objective_revision") != raw["revision"]
+                or existing_lineage.get("raw_objective_supersedes_sha256") != raw["supersedes_sha256"]
                 or existing_lineage.get("selected_alternative_id") != alternative_id):
             raise ReviewedSeedBridgeError(
                 "this proposal already has an intake revision with conflicting lineage"
@@ -330,6 +333,11 @@ def submit_reviewed_selection(
     is read-only here. A retry reuses the same objective revision and CycleStore
     identity; it does not create another revision for the same approved proposal.
     """
+    expected_objective_dir = os.path.abspath(os.path.join(workdir, "objectives"))
+    if os.path.abspath(objective_store.directory) != expected_objective_dir:
+        raise ReviewedSeedBridgeError(
+            "objective_store must point to the objectives directory inside workdir"
+        )
     prepared = prepare_reviewed_selection(proposal_store, proposal_id, objective_store)
     intake = submit_objective(
         prepared["objective"],
