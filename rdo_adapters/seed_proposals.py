@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
+from datetime import datetime
 import json
 import os
 import re
@@ -507,7 +508,13 @@ class SeedProposalStore:
                 raise SeedProposalError(f"unsupported seed-proposal event kind on line {number}")
             if not isinstance(event["proposal_id"], str) or not _PROPOSAL_ID.fullmatch(event["proposal_id"]):
                 raise SeedProposalError(f"invalid seed-proposal identity on line {number}")
-            _text(event["recorded_at"], "recorded_at", 128)
+            recorded_at = _text(event["recorded_at"], "recorded_at", 128)
+            try:
+                parsed = datetime.fromisoformat(recorded_at.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise SeedProposalError("recorded_at must be ISO-8601") from exc
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise SeedProposalError("recorded_at must include a timezone offset")
             body = dict(event)
             claimed = body.pop("event_sha256")
             if not isinstance(claimed, str) or not _SHA256.fullmatch(claimed) or claimed != _digest(body):
@@ -541,6 +548,7 @@ class SeedProposalStore:
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         if os.path.islink(self.path):
             raise SeedProposalError("seed-proposal ledger path must not be a symlink")
+        created = not os.path.exists(self.path)
         with open(self.path, "a+", encoding="utf-8") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
             try:
@@ -643,6 +651,8 @@ class SeedProposalStore:
         return self.get(proposal_id)
 
     def get(self, proposal_id: str) -> dict:
+        if not isinstance(proposal_id, str) or not _PROPOSAL_ID.fullmatch(proposal_id):
+            raise SeedProposalError("proposal_id is invalid")
         snapshot = self._snapshot(self._read_events())
         if proposal_id not in snapshot:
             raise SeedProposalError("unknown seed proposal")
