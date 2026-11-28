@@ -413,3 +413,47 @@ class TestFountainBuilderStartupRollback(unittest.TestCase):
             self.assertFalse(attempted[0].is_alive())
         finally:
             _cleanup(writers, tmp)
+
+
+class TestStageTomSelfNarrativePromptInjection(unittest.TestCase):
+    """Characterize the optional Stage-TOM narrative prompt seam."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def _build_prompt_with_narrative(self, enabled):
+        from theory_x.stage6_fountain.generator import FountainGenerator
+
+        with mock.patch.dict(
+            os.environ, {"NEX5_SELF_NARRATIVE": "1" if enabled else "0"}
+        ):
+            gen = FountainGenerator(
+                sense_writer=self.writers["sense"],
+                dynamic_writer=self.writers["dynamic"],
+                voice_client=_mock_voice_client(),
+                dynamic_reader=self.readers["dynamic"],
+                beliefs_reader=self.readers["beliefs"],
+            )
+            gen._self_narrative = mock.Mock()
+            gen._self_narrative.get_narrative.return_value = (
+                "STAGE_TOM_NARRATIVE_PROMPT_SENTINEL"
+            )
+            prompt, _ = gen._build_prompt(
+                _mock_dynamic_state().status(), 5, {"5": 5}
+            )
+            return prompt, gen._self_narrative
+
+    def test_enabled_stage_tom_narrative_is_added_to_fountain_prompt(self):
+        prompt, narrative = self._build_prompt_with_narrative(enabled=True)
+
+        self.assertIn("STAGE_TOM_NARRATIVE_PROMPT_SENTINEL", prompt)
+        narrative.get_narrative.assert_called_once_with()
+
+    def test_disabled_stage_tom_narrative_is_not_read_or_added(self):
+        prompt, narrative = self._build_prompt_with_narrative(enabled=False)
+
+        self.assertNotIn("STAGE_TOM_NARRATIVE_PROMPT_SENTINEL", prompt)
+        narrative.get_narrative.assert_not_called()
