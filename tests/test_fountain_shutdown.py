@@ -7,17 +7,27 @@ from theory_x.stage6_fountain.generator import FountainGenerator
 
 
 def _generator(voice):
-    generator = FountainGenerator(
-        sense_writer=MagicMock(),
-        dynamic_writer=MagicMock(),
-        voice_client=voice,
-        dynamic_reader=MagicMock(),
-        beliefs_writer=MagicMock(),
-        beliefs_reader=MagicMock(),
-        problem_memory=None,
-        sense_reader=MagicMock(),
-        conversations_reader=MagicMock(),
-    )
+    with patch.dict("os.environ", {
+        "NEX5_QUALITY_SYNTH": "0",
+        "NEX5_SELF_NARRATIVE": "0",
+        "NEX5_STAGE_TRACE": "0",
+    }):
+        sense_writer = MagicMock()
+        dynamic_writer = MagicMock()
+        generator = FountainGenerator(
+            sense_writer=sense_writer,
+            dynamic_writer=dynamic_writer,
+            voice_client=voice,
+            dynamic_reader=MagicMock(),
+            beliefs_writer=MagicMock(),
+            beliefs_reader=MagicMock(),
+            problem_memory=None,
+            sense_reader=MagicMock(),
+            conversations_reader=MagicMock(),
+        )
+    # Constructor performs idempotent schema writes; isolate the generation path.
+    sense_writer.reset_mock()
+    dynamic_writer.reset_mock()
     generator._emphasis_engine = None
     generator._condenser = None
     generator._problem_memory = None
