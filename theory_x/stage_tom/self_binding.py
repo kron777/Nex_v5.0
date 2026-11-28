@@ -42,6 +42,8 @@ from __future__ import annotations
 import sys
 import json
 import time
+import threading
+from typing import Optional
 from substrate import connect, Row, Writer
 
 sys.path.insert(0, ".")
@@ -55,7 +57,9 @@ def _db(name: str) -> str:
         return f"data/{name}.db"
 
 
-def _read_emotion() -> dict:
+def _read_emotion(stop_event: Optional[threading.Event] = None) -> dict:
+    if stop_event is not None and stop_event.is_set():
+        return {"emotion": "unknown"}
     try:
         from theory_x.stage_affect import compositional_emotion as ce  # type: ignore
         return ce.current()
@@ -63,7 +67,9 @@ def _read_emotion() -> dict:
         return {"emotion": "unknown", "error": str(e)}
 
 
-def _read_raga() -> dict:
+def _read_raga(stop_event: Optional[threading.Event] = None) -> dict:
+    if stop_event is not None and stop_event.is_set():
+        return {"raga": "unknown"}
     try:
         from theory_x.stage_tom import raga_detector as rd  # type: ignore
         return rd.detect()
@@ -71,8 +77,10 @@ def _read_raga() -> dict:
         return {"raga": "unknown", "error": str(e)}
 
 
-def _read_dominant_drive() -> str:
+def _read_dominant_drive(stop_event: Optional[threading.Event] = None) -> str:
     # drives_competing stores each drive as its own column, not a JSON blob.
+    if stop_event is not None and stop_event.is_set():
+        return "unknown"
     try:
         c = connect(_db("conversations"), timeout=10)
         c.row_factory = Row
@@ -90,12 +98,14 @@ def _read_dominant_drive() -> str:
     return "unknown"
 
 
-def _read_substrate() -> dict:
+def _read_substrate(stop_event: Optional[threading.Event] = None) -> dict:
     """Read NEX's interoceptive substrate signal — the 'hum'. Latest CPU load
     from proprioception, mapped to a felt tone-word. This is the body-signal
     bound INTO the self, not perceived as an external object."""
     import json as _json
     out = {"cpu": 0.0, "tone": ""}
+    if stop_event is not None and stop_event.is_set():
+        return out
     try:
         c = connect(_db("sense"), timeout=10)
         c.row_factory = Row
@@ -120,8 +130,10 @@ def _read_substrate() -> dict:
     return out
 
 
-def _read_attention() -> dict:
+def _read_attention(stop_event: Optional[threading.Event] = None) -> dict:
     out = {"thought": "", "readiness": 0.0, "problem": ""}
+    if stop_event is not None and stop_event.is_set():
+        return out
     try:
         c = connect(_db("dynamic"), timeout=10)
         c.row_factory = Row
@@ -135,6 +147,8 @@ def _read_attention() -> dict:
             out["readiness"] = float(r["readiness"] or 0.0)
     except Exception:
         pass
+    if stop_event is not None and stop_event.is_set():
+        return out
     try:
         c = connect(_db("conversations"), timeout=10)
         c.row_factory = Row
@@ -214,18 +228,49 @@ def _synthesize(emotion: str, raga: str, drive: str, att: dict, substrate: dict 
     return "Right now, " + ", ".join(parts) + "."
 
 
-def bind(dynamic_writer: Writer | None = None) -> dict:
+def bind(
+    dynamic_writer: Writer | None = None,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> dict:
+    """Bind current faculties; a supplied stop Event aborts between read stages.
+
+    The two self_state writes are treated as one completed persistence unit:
+    once the current row write starts, its history append is allowed to finish.
+    """
+    def _stopping() -> bool:
+        return stop_event is not None and stop_event.is_set()
+
+    def _aborted() -> dict:
+        return {"synthesis": "", "components": {}, "aborted": True}
+
+    if _stopping():
+        return _aborted()
     owns_writer = dynamic_writer is None
     writer = dynamic_writer
     try:
         if writer is None:
             writer = Writer(_db("dynamic"), name="self_binding")
+        if _stopping():
+            return _aborted()
         _ensure_table(writer)
-        emo = _read_emotion()
-        raga = _read_raga()
-        drive = _read_dominant_drive()
-        att = _read_attention()
-        substrate = _read_substrate()
+        if _stopping():
+            return _aborted()
+        emo = _read_emotion(stop_event)
+        if _stopping():
+            return _aborted()
+        raga = _read_raga(stop_event)
+        if _stopping():
+            return _aborted()
+        drive = _read_dominant_drive(stop_event)
+        if _stopping():
+            return _aborted()
+        att = _read_attention(stop_event)
+        if _stopping():
+            return _aborted()
+        substrate = _read_substrate(stop_event)
+        if _stopping():
+            return _aborted()
 
         emotion = emo.get("emotion", "unknown")
         raga_level = raga.get("raga", "unknown")
@@ -246,6 +291,9 @@ def bind(dynamic_writer: Writer | None = None) -> dict:
         bound_ts = time.time()
         components_json = json.dumps(components)
         readiness = att.get("readiness", 0.0)
+
+        if _stopping():
+            return _aborted()
 
         writer.write(
             "INSERT OR REPLACE INTO self_state "
