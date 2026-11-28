@@ -957,3 +957,38 @@ A read-only host re-run needs founder authorisation.
 4. **G-61:** does the one-pen rule extend to non-substrate databases such as `strikes_catalogue.db`?
 
 Gate 0 remains pending and Phase 1 is not authorised. G-69/#259 stays on HOLD. G-58 is unchanged.
+
+
+
+## 45. Feedback-loop evidence update path — G-93 (28 November 2026)
+
+**Evidence snapshot:** merged main commit `6f12f403e13b94a4b019aa666abac448b8a9a62d` (PR #357). Exact-head sandbox run `46101032854`.
+
+### Merged capability
+
+- `FeedbackLoopAssessment` remains UNKNOWN-first. Any dimension marked `measured` must now carry a finite numeric value, a unit, traceable evidence references and a confidence label.
+- `FeedbackLoopEvidenceStore` records measurement and stability-review events in a separate append-only, hash-chained JSONL ledger.
+- Every event is bound to the existing feedback-loop ID, members and directed relationships. Replay refuses to apply evidence if the loop topology has changed.
+- Measurement and stability review remain separate. A measurement never calculates stability. A new measurement after a review resets the current verdict to UNKNOWN until another explicit review is recorded.
+- A non-UNKNOWN stability state requires an explicit review with caller-attributed reviewer, source reference, assessment evidence and confidence. The local ledger does not authenticate reviewer identity.
+- Event history is also persisted in the trailing, legacy-compatible `CycleRecord.feedback_loop_evidence_events` field. `feedback-replay` recovers a cycle snapshot if a ledger append succeeds but snapshot persistence does not.
+- CLI commands: `feedback-measure`, `feedback-review`, `feedback-replay`.
+- Operator guide: `rdo/FEEDBACK_LOOP_EVIDENCE.md`.
+
+### Exact-head verification
+
+- Full sandbox suite: **2,864 passed, 7 skipped, 45 subtests passed**.
+- Mind-map verification: **30 nodes, 0 unverified**. Existing warnings remain for missing `VIRTUE_SLATE.md`, missing `mental_factors_inventory_alobha_spec.txt`, and overdue P13 finitude unblock; 14 dark and 2 blocked nodes are existing map status, not new unverified nodes.
+- The sandbox probe confirmed unprivileged execution, no capabilities/credentials, read-only source, disposable data/tmpfs and no outbound network.
+
+### Gap status and boundary
+
+**G-93 update-path gap: closed.** The repository can now append measured dimensions and separately reviewed stability evidence to the existing CycleRecord while preserving topology and history. This does **not** implement calibrated stability, gain, damping, oscillation thresholds, causal propagation or automatic stability verdicts. Those remain UNKNOWN/unevaluated until exact v1.4 criteria and grounded measurements are available.
+
+**G-92: partially closed.** PR #352 already merged the provider-neutral, hash-chained candidate-rule proposal lifecycle. Its `approved_for_catalogue` state remains deliberately inert: no dynamic activation, no automatic promotion and no changes to `EXPANSION_RULES`. The remaining raw-idea-to-handoff gap is the provider-neutral candidate-seed proposal and approval path; objective intake still requires externally supplied seed obligations.
+
+### Next bounded development
+
+Design the raw-idea → candidate-seed alternatives → explicit human review → objective.v1 intake → recursive expansion → Stage-7 handoff lineage. Bind each candidate to the exact raw objective revision; preserve competing interpretations, assumptions, evidence needs, acceptance-criterion coverage, disconfirming cases and provenance. Do not run planning from an unreviewed external-LLM seed proposal, and do not make the candidate-rule ledger an active rule loader.
+
+No frozen S-01–S-25/M1.8 specification content, NEX runtime, protected experiment, deployment path, Gate 0 or Phase 1 authority was changed.
