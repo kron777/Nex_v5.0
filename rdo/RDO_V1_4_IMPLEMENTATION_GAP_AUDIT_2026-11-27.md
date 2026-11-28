@@ -198,7 +198,7 @@ This increment remains external/advisory RDO code. It does not change NEX runtim
 
 **Adversarial case J:** PR #331 already exposes adjacent-relationship impact comparison through the RDO CLI. The remaining limitation is interpretive: the comparison is correlation/structural impact, not causal attribution, and it does not automatically produce a system-level net-value or harm verdict.
 
-**G-91 — context mapping:** partially closed by #343. Human reviewers can now map each context item to canonical obligations and record criterion-level pending/passed/failed/not-applicable outcomes with provenance. Remaining: no automatic mapping, no independent dereferencing/authentication of caller-supplied evidence references, and no automatic application of reviewed mappings to a subsequent cycle. The immutable original cycle and handoff are not rewritten.
+**G-91 — context mapping:** partially closed by #343. Human reviewers can now map each context item to canonical obligations and record criterion-level pending/passed/failed/not-applicable outcomes with provenance. Remaining: no automatic mapping, no independent dereferencing/authentication of caller-supplied evidence references, and no automatic application of reviewed mappings to a subsequent cycle. Context-review events do not rewrite the original cycle or handoff manifest.
 
 ### G-92 — first-level decomposition and novel expansion-rule lifecycle (open)
 
