@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `b5e78842f43ac93c2624697f686da0b600306177`  
+**Last verified against:** `main` at `2cd3f67a95437e715e521e73305c153c3dc742de`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -1119,3 +1119,219 @@ The first exact-head CI exposed one stale self-assessment expectation: RDO corre
 The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.tension._find_cycles`, `_classify_cycle`, `assess_system` and `rdo.graph` SCC machinery to distinguish prerequisite cycles, influence feedback loops and unknown cases. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
+
+
+---
+
+## 16. Current-main reconciliation — lifecycle hardening and cognitive wire characterization (28 November 2026)
+
+**Verified base:** `main` at `2cd3f67a95437e715e521e73305c153c3dc742de`. This section supersedes the 27 November mainline/PR inventory in §11 for changes merged after that snapshot. It does not retroactively refresh older evidence artefacts or convert PR-only work into mainline capability.
+
+### 16.1 Graceful shutdown: merged lifecycle increments
+
+The following changes are present on the verified mainline:
+
+- **#370 — bounded graceful shutdown and truthful close reporting** (merge `88df7413b31e3ab9898c9ee99eef7fb552e70745`). One 12-second monotonic deadline begins at signal receipt and is shared by producer stop/join and all Writer drains. `AppState.close(deadline=...)` returns a structured report; Writer wrappers receive only the remaining budget; a clean-shutdown marker is written only after successful close and successful marker persistence. An incomplete drain exits non-zero and does not claim a clean shutdown. Exact-head full-suite evidence recorded in the PR: 2,923 passed, 7 skipped, 62 subtests; baseline verification passed. This is a bounded application-level protocol, not proof that every process thread is registered.
+- **#375 — remaining known Writer producers** (merge `ee88ae41b979ba802aef42a0350c2a410d16d519`). Adds interruptible stop Events and retained thread handles for the identified AppState-held and `run.py`-started producers; registers them with AppState so in-flight Writer work is joined before Writer closure. The membrane thread is retained. Cadences, first delays, tick order and processing policy are intended to remain unchanged. This closes the identified producer set in that increment, not the repository-wide thread census.
+- **#377 — StrikeProtocol catalogue workers** (merge `3377197c4d216aedc7708a9d1ee758144bd0b09b`, which was main head immediately before #378). StrikeProtocol's delayed direct-SQLite belief-count workers and in-flight `fire()` callers now have stop/ownership tracking. Long waits are interruptible; new fire calls are rejected after stop begins; a worker cannot schedule a delayed write after shutdown starts. Interrupted SILENCE observation is marked incomplete rather than represented as completed. Exact-head GitHub Actions `tests` workflow reports success. This is a direct-catalogue lifecycle correction, not a migration of that catalogue to the shared Writer and not a change to strike policy.
+
+### 16.2 Flask request lifecycle — merged PR #378
+
+PR #378 (`fix/shutdown: drain in-flight Flask requests before AppState close`) is merged as `3d7205536588e34a887939784d436ec70e8c6777` and is present in the verified mainline. Its `ShutdownGate` atomically closes HTTP request admission, counts active Flask requests, rejects new requests with HTTP 503 after shutdown begins, and waits for admitted requests to finish before decoder stop and `AppState.close()`. The same 12-second monotonic deadline covers request drain, producer shutdown and Writer drain. The previous fixed 1.5-second wait is removed. SIGTERM and SIGINT share the guarded handler.
+
+Exact-head full-suite workflow run 2339 completed successfully: **2,971 passed, 7 skipped, 86 subtests**; baseline verification reported **OK**. The CI job also ran the mind-map verifier. This is repository CI evidence, not host-level shutdown observation.
+
+**Boundary:** the gate covers requests entering through this Flask application. Detached work spawned by a route must still be registered with AppState. Alternate WSGI servers, reverse-proxy workers, direct non-HTTP callers and host/service-manager behaviour remain outside the demonstrated boundary. A timeout reports active request labels, thread names and elapsed durations; it does not close Writers under active requests, does not write a clean marker and exits non-zero.
+
+A source scan of the current 4,763-line `gui/server.py` found no direct `threading.Thread` construction, thread `.start()` call, executor submission, `create_task()` or subprocess spawn in the route module. The matches were thread lifecycle inspection/ownership code. This narrows the direct route-spawn concern but does not rule out detached work inside services called by routes, tasks created elsewhere, or alternate WSGI/server entry points. The gate is installed before the authentication and route-specific request hooks.
+
+The request gate is now current-main code. Do not overstate it as proof of complete process/thread quiescence or verified host shutdown behaviour. A stale comment beside the 12-second budget referred to the removed 1.5-second in-flight-fire wait. PR #389 merged as `a3fd532e12cbc84fa9505819ce475eef6101a06c` and corrected the comment; runtime behaviour was unchanged.
+
+### 16.3 Cognitive integration characterization — merged PR #381
+
+PR #381 is merged as `81ec438a7be7fe3cc81112cbb39c715b76ffe026`, carrying the test/research-only work originally proposed in #379 into current main. It adds source maps and deterministic characterization for chat-time affect faculty dependencies and the Stage-2 Bonsai attention state flowing into Fountain branch selection and Global Workspace framing. It also extends a scoped Sentience 5.5 comparison across Integration, Self-Model, Meta-Awareness, Cognitive-Control, Orchestrator, System-Integration and Control sources.
+
+The tests exercise actual Stage-2 A–F events, the Bonsai focus admission threshold, Fountain's hottest-branch selection, the opt-in positive-temperature alternative, and Global Workspace candidate competition. Its negative control checks that internal telemetry alone does not create Bonsai focus, an F-step event or a workspace candidate.
+
+**Interpretation boundary:** this characterizes specific source pathways and deterministic test behaviour; it is not a broad demonstration of cognitive efficacy or consciousness. The Sentience comparison is explicitly limited to inspected files because repository-wide search indexing was incomplete.
+
+Mind Aspects remain interpretive faculties. They must not become action-control gates, approval authorities or vetoes by virtue of their position in a descriptive mind map. Keep interpretive cognition separate from typed operation representation, capability validation, approval authority, execution and post-execution verification.
+
+PR #381 exact-head full-suite workflow run 2350 passed: **2,979 passed, 7 skipped, 86 subtests**; baseline verification reported **OK**. The mind-map verifier reported **30 nodes, 0 unverified, 12 dark, 2 blocked**. This is source/test characterization evidence, not a claim of broad cognitive efficacy or consciousness.
+
+### 16.4 Superseded branches and status discipline
+
+- **#373** is closed without merge; it was a stacked G-84 step-4 branch superseded by the clean current-main replay #375.
+- **#376** is closed without merge; its StrikeProtocol work was superseded by the current-main replay #377.
+- **#378** is merged as `3d7205536588e34a887939784d436ec70e8c6777`. **#381** is merged as `81ec438a7be7fe3cc81112cbb39c715b76ffe026`; original #379 is closed as superseded. **#384** is merged as `d7d204c24807eb3e46c37d70f2c1dcaae63830dc`.
+- Historical test results from superseded heads must not be represented as current-main validation.
+- PR metadata, mergeability and an in-progress CI run are not equivalent to successful exact-head validation or merge.
+
+### 16.5 Remaining research and development work
+
+1. Recheck #398, #399 and #400 exact head SHAs, all required CI jobs, baseline verification and merge state before updating this section again.
+2. Rescan the complete shutdown path now that #378 is merged: signal receipt, request admission, detached route work, registered producers, direct database writers, Writers, clean-marker persistence, process exit and keepalive restart. Add regressions only for demonstrated gaps.
+3. Continue the host/server evidence work: inspect the actual deployment contract and determine whether the Flask threaded server is the only entry point. Do not infer host behaviour from repository tests.
+4. Continue the faculty producer→consumer audit from #381, distinguishing construction, boot wiring, flag enablement, consumption and measured behavioural effect. Extend the producer lifecycle audit beyond the three targeted loops already corrected.
+5. Reconcile the G-84/G-92 status text and Phase 0 evidence pack only against a fresh current-main snapshot. The original #363 documentation reconciliation was deliberately not carried forward because its status text was stale. The #379 cognitive characterization was replayed as #381 after #378 advanced main.
+6. Keep S-01–S-25/M1.8, the Master Roadmap, Gate 0 and Phase 1 authority unchanged. No open PR, passing test suite or technical mergeability authorizes a phase transition.
+
+This section is a dated source/PR snapshot. Refresh it after subsequent merges rather than silently treating it as live status.
+
+
+### 16.6 Repository-side supervisor contract — source verified, host unit unverified
+
+The current-main `nex_keepalive.sh` source provides a concrete application/supervisor boundary:
+
+- It resolves the checkout directory from the script's own location and starts `.venv/bin/python3 run.py`; it does not bind the code checkout to one fixed home/Desktop path.
+- The NEX HTTP listener is supervised on port 8765. The script uses a separate power-switch port 8766.
+- The launcher keeps a single-instance `flock` lock, scopes child termination to the PID it launched, and sends SIGTERM for deliberate shutdown.
+- `graceful_stop_child()` polls the child for up to approximately 15 seconds (30 × 0.5 seconds), then escalates to SIGKILL if the child remains alive. It subsequently runs `fuser -k` against the NEX port and clears PID/identity bookkeeping.
+- The 12-second application shutdown budget introduced by #370 therefore leaves an intended three-second margin before the supervisor's approximately 15-second SIGKILL escalation. This is source arithmetic, not a measured host timing guarantee.
+- The launcher sets a large explicit environment for its child, including many NEX feature flags and `MOLTBOOK_DRY_RUN=1`. This is the tracked launch command, not proof that the user's currently running process was started from this exact checkout or environment.
+- The script writes its operational state under `/home/rr/.nex`; this is a host-specific assumption even though checkout resolution is portable. The launcher also contains logic for externally owned systemd power-switch and keepalive services.
+
+**Not verified:** the installed user/system systemd unit contents, effective unit environment, service manager timeout/kill settings, actual running PID/command line, live environment, active WSGI entry point, reverse-proxy topology, host thread inventory, and whether the currently running process uses this exact checkout. Those require authorized host evidence; repository source alone cannot establish them.
+
+This narrows the host-evidence task: compare the installed unit and effective process state with this tracked supervisor contract. Do not state that the 12-second/15-second relationship is operationally proven until that comparison and a controlled host shutdown observation exist.
+
+
+### 16.7 Faculty integration: tracked launch flags versus source gates
+
+A source-to-launch comparison of current-main `gui/server.py`, the `theory_x/stage_affect/` modules and `nex_keepalive.sh` narrows the runtime-integration claim:
+
+- The chat route calls the faculty stance functions only when both the corresponding environment flag equals `1` and the session is admin-scoped. These stance strings are prompt contributions; this path does not grant an authority to execute actions.
+- The tracked launcher explicitly sets `NEX5_COMPASS`, `NEX5_EQUANIMITY`, `NEX5_APRAMADA` and `NEX5_AFFECT_CARRY`.
+- The tracked launch line does **not** explicitly set `NEX5_COMPASSION`, `NEX5_VIRYA`, `NEX5_SRADDHA` or `NEX5_PRASRABDHI`. In particular, `NEX5_COMPASS` and `NEX5_COMPASSION` are distinct flags; do not conflate them.
+- Compass itself reads the situated compassion signal directly when it weighs care, clarity and affliction dimensions. Equanimity also reads the compassion distress signal to avoid flattening a warranted compassionate response. Therefore, the absence of the standalone compassion prompt flag does not imply that compassion data is absent from those faculty calculations.
+- The vīrya and praśrabdhi stance functions each have their own explicit OFF-by-default flag. Their pairwise tests in #381 characterize the functions and their dependencies under controlled inputs; those tests do not establish that the tracked launcher enables either prompt contribution.
+- The launcher may inherit additional environment from its parent service manager. Since the installed unit and effective process environment have not been inspected, the tracked launch line is not proof that these flags are OFF on the live host.
+
+This is an important distinction between a tested source dependency, a call site, a tracked launch setting and effective runtime enablement. Keep the #381 tests classified as deterministic source/function characterization until the exact deployment environment is observed. Do not change launch flags as part of this audit.
+
+
+### 16.8 Capability execution boundary — current-main source trace and merged corrections
+
+The current `theory_x/stage_capability/` registry exposes exactly three tools:
+
+- `web_fetch`: bounded HTTP GET against the existing hostname allowlist, with redirects disabled, URL scheme/credentials checked, and at most 2,000 characters of extracted text returned.
+- `python_exec`: a deliberately restricted arithmetic AST interpreter; it does not execute arbitrary Python source.
+- `beliefs_query`: read-only retrieval from NEX's own belief graph.
+
+The chat route now calls `ToolCaller.should_use_tool(prompt)`, then `build_tool_kwargs(...)`, then `ToolRegistry.execute(...)` synchronously in the same request path. PR #384 removed the unused beliefs-list parameter and the route's placeholder empty-list argument. The registry is a capability allowlist, but this path does not expose a general typed operation envelope or a separate approval-authority decision before execution. The current three tools are bounded read/calculation operations; `web_fetch` makes an outbound network GET but does not write to an external system. Do not describe this as a current arbitrary-action executor. The chat trace records tool execution success/error metadata and prompt-injection length; those are observability records, not an independent verification of an external effect or a post-execution verifier.
+
+Two source-level gaps were identified on the pre-merge base and corrected in **PR #384**, now merged as `d7d204c24807eb3e46c37d70f2c1dcaae63830dc`:
+
+1. **Redirect/URL validation:** the old implementation validated only the initial URL and used `urllib.request.urlopen()`, whose default redirect handler could follow a 3xx response without reapplying the allowlist. #384 now validates HTTP/HTTPS, rejects embedded URL credentials, normalizes `urlsplit().hostname`, and disables automatic redirects. A redirect response fails instead of fetching an unvalidated destination.
+2. **Tool-selection/fetch-target mismatch:** the old `ToolCaller` selected `web_fetch` for generic current/factual wording and unsupported price targets, even though the fetcher only accepts an explicit URL or a supported CoinGecko price query. #384 now selects it only for an explicit URL or a supported CoinGecko symbol paired with explicit price intent, matches symbols as whole words, and removes the unused beliefs argument. Generic factual/current/news queries and unsupported price targets no longer select a fetcher that cannot satisfy them; this does not add general web search.
+
+Exact-head full-suite workflow run 2378 passed: **2,986 passed, 7 skipped, 86 subtests**; baseline verification reported **OK**. The mind-map verifier reported **30 nodes, 0 unverified, 12 dark, 2 blocked**.
+
+The fetched page text is still wrapped as a tool result and inserted into the voice prompt. The inspected call site does not establish a dedicated untrusted-content delimiter or a tested prompt-injection boundary. The #384 corrections do not solve prompt injection or DNS rebinding; these remain explicit follow-up research.
+
+**Authority separation for future capabilities:** keep interpretive Mind Aspects separate from typed operation representation, capability validation, approval authority, execution and post-execution verification. The descriptive Tibetan mind map is not an action-control policy. Before adding consequential write/action tools, establish these stages explicitly; do not let a cognitive faculty score or veto an operation merely because of its descriptive position.
+
+
+### 16.9 Request-drain budget versus voice-call timeout — measured risk, not yet host-verified
+
+A source trace found a material timing mismatch: the total request/shutdown budget is **12 seconds**, while the default `VoiceClient` HTTP request timeout is **120 seconds**. The chat route may also perform one anti-repeat retry and one provenance retry, each as another sequential `state.voice.speak()` call when the relevant admin-session and response conditions are met. The tracked `nex_keepalive.sh` launch line explicitly sets both `NEX5_CHAT_MEMORY=1` and `NEX5_PROVENANCE=1`, so both retry paths are armed; their actual host frequency is unmeasured.
+
+The shutdown gate has no cancellation hook into an admitted VoiceClient call. If an active request remains blocked beyond the 12-second deadline, `begin_shutdown()` reports failure and `run.py` calls `os._exit(1)` before `AppState.close()`, producer quiescence, Writer draining or clean-marker persistence. The supervisor can then force-kill the child at approximately 15 seconds.
+
+This is fail-closed for the clean marker, but not a completed graceful shutdown. Pending Writer work may not be drained in that path; the source trace does not establish that data loss or database corruption actually occurs.
+
+A detailed source-bounded timing report is in `research/SHUTDOWN_REQUEST_VOICE_TIMEOUT_GAP_2026-11-28.md`. The next step is a controlled host experiment measuring ordinary/worst-case chat latency (including retries), then SIGTERM during an active voice request while observing request labels, Writer queue depth, exit code and clean-marker persistence. Do not reduce the 120-second VoiceClient timeout or change the 12/15-second shutdown budgets until that evidence exists.
+
+
+### 16.10 SenseScheduler stop-during-poll race — merged PR #388
+
+Before #388, `SenseScheduler._AdapterThread._run()` performed `adapter.poll()` and then `adapter.submit(events)` without rechecking the worker stop event. `SenseScheduler.shutdown()` signals stop but cannot interrupt a poll already blocked in network I/O. The default adapter fetch has a 10-second connect and 20-second read timeout, while `AppState.close()` gives producer quiescence at most five seconds (subject to the remaining 12-second total deadline) before attempting Writer closure. The adapter source also records measured 5–6-second TLS handshakes for some slow-but-working hosts, already longer than the five-second join allowance.
+
+PR #388 merged as `1180a8922584802dcadfb1edaad1f28adbc0ef2f`. The worker now checks the stop event immediately after poll and discards results when shutdown began during the poll. It adds a deterministic blocked-poll regression test and a source note.
+
+Exact-head full-suite workflow run 2404 passed: **2,987 passed, 7 skipped, 86 subtests**; baseline verification reported **OK**. The mind-map verifier reported **30 nodes, 0 unverified, 12 dark, 2 blocked**.
+
+**Boundary:** this does not interrupt an in-flight poll, change adapter timeouts/cadence, or cancel a submission that already started before stop. It narrows the late-submit window but does not establish complete producer or host-level shutdown safety; slow polls can still cause a non-clean exit.
+
+
+### 16.11 Active prediction loops versus producer-stop budget — merged PR #391
+
+The tracked launcher explicitly enables `NEX5_WORLD_PRED=1` and `NEX5_SELF_PRED=1`. `run.py` constructs both loops and passes them into AppState for stop/join during shutdown. Their producer join allowance is at most five seconds. The SelfPredictionLoop performs its first tick immediately on startup before waiting; the WorldPredictionLoop waits its interval before its first tick.
+
+The WorldPredictionLoop can perform a 10-second price fetch, a 10-second recent-context fetch and a 30-second local voice request before writing paired predictions and a trust stamp. The SelfPredictionLoop can block up to ten seconds reading the fountain status endpoint, then write prediction rows and continue through additional Writer-backed stages. Before PR #391, stop events were not passed into the active ticks/functions, so those paths could continue into later writes after shutdown had been requested.
+
+PR #391 merged as `93f39f8eb12a24ce703e6cc76c4e4c1d4be71872`. Both loops now receive cooperative stop checkpoints; the world prediction path checks after blocking network calls before beginning prediction writes, and the self-prediction path checks after the status fetch and between sequential write stages. The direct `tick()` and standalone function interfaces remain usable. Detailed source evidence is in `research/PREDICTION_LOOP_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
+
+Exact-head full-suite workflow run 2437 passed: **2,991 passed, 7 skipped, 86 subtests**; baseline verification reported **OK**. The mind-map verifier reported **30 nodes, 0 unverified, 12 dark, 2 blocked**.
+
+**Boundary:** this does not cancel in-flight HTTP calls or change their 10/30-second timeouts, so either loop can still outlive the five-second join and cause the existing non-clean shutdown path. The checks are not an atomic stop/write handshake and do not prove every producer has been audited.
+
+
+### 16.12 PersonaResponderLoop stop-during-model-call path — merged PR #393
+
+The tracked launcher sets `NEX5_PERSONA_RESPONDER=1`; `run.py` constructs the loop and registers it with AppState. The loop performs its first tick immediately on startup. Its `one_exchange()` path can block in `_ask_persona()` for up to 30 seconds, then write a reply to the sense Writer (or a rejected reply to the dynamic Writer) and optionally evolve interlocutor state in the conversations Writer. Before PR #392, the stop event interrupted only the interval wait and was not passed into the active exchange. The five-second producer join allowance is shorter than the model-call timeout.
+
+PR #393 carries the current-main replay of the proposed #392 correction, passing the existing stop event through `tick()`, `one_exchange()` and `_ask_persona()`, checking it before model work and after the response before starting Writer operations. It adds deterministic blocked-call tests and a source research note.
+
+**Validation:** #393 exact-head full-suite workflow run 2447 passed: **2,993 passed, 7 skipped, 86 subtests**; baseline verification reported **OK**; mind-map verification reported **30 nodes, 0 unverified, 12 dark, 2 blocked**. PR #393 merged as `2cd3f67a95437e715e521e73305c153c3dc742de`; original #392 is closed as superseded. **Boundary:** the in-flight HTTP call is not cancelled and can still outlive the producer join and cause the existing non-clean shutdown path. It does not cancel an in-flight HTTP call or create an atomic stop/write handshake. A slow model call can still outlive the producer join and cause the existing non-clean shutdown path. The broader producer audit remains open.
+
+
+### 16.13 Manual refresh and replay discipline
+
+This manual snapshot is being replayed from the #390/#394 documentation work onto current main after #393 merged. The earlier documentation branches are superseded by this clean replay. The voice-timeout research note is carried forward unchanged as a source-bounded historical analysis based on its stated source revision; its timing conclusion remains a code-derived risk, not a host observation. The next manual refresh must record the outcomes of #398–#400 and update the verified-main SHA after each merge. Do not merge stale documentation snapshots simply because their historical CI passed.
+
+
+
+### 16.14 run.py worker ownership census — source-mapped, not exhaustive
+
+A source comparison of current-main `run.py` direct worker-start sites with `AppState._quiesce_producers()` found a corresponding shutdown owner for each explicitly started worker in the boot path: resolver, novel association, optional throw-net monitor, substrate harmonic, genius tagger, counterfactual node, drive emergence, optional warrant recorder, competing drives, affect state, predictive substrate, optional persona responder, self-mind view, optional world/self prediction loops, optional self-maintenance shadow, speech consumer, diversity loop, edge generator and the decoder thread attached after AppState construction. Builder-owned scheduler, dynamic, world-model, membrane, fountain, signal-loop and strike-protocol workers also have explicit shutdown paths in the inspected registry.
+
+This narrows the direct `run.py` ownership gap: no obvious direct start site was found without an AppState shutdown owner. It does **not** establish a repository-wide thread census, prove the internals of every `stop()` implementation, or rule out dynamically spawned tasks, thread pools, subprocesses, route-called workers, independent SQLite writers or host-only processes. The registry itself describes its scope as bounded. See `research/RUN_PY_BACKGROUND_WORKER_OWNERSHIP_CENSUS_2026-11-28.md` for the worker-by-worker mapping and residuals.
+
+The next audit unit is not merely another list of threads: trace each enabled worker from its blocking calls to its first subsequent Writer/direct-SQLite side effect, then add stop-aware checkpoints and deterministic tests where a post-stop continuation is demonstrated. Keep the five-second producer join and 12/15-second shutdown budgets unchanged pending evidence.
+
+
+### 16.15 HoldingZoneResolver reshape after stop — open PR #395
+
+The HoldingZoneResolver is registered with AppState, but its stop Event previously interrupted only the 300-second wait. During an active tick, `_process_reshape_pending()` could call the ReshapeTransformer, which calls the shared VoiceClient (default HTTP request timeout 120 seconds), then submit the returned packet through CoherenceGate and mark the holding-zone row complete/failed. The five-second producer join allowance is shorter than the model-call timeout.
+
+PR #395 adds cooperative stop checkpoints: the worker passes its existing Event into `tick()`; the resolver checks before starting reshape work; the transformer checks before and after the VoiceClient call; and the resolver discards a response returned after stop rather than submitting it through the gate or marking the row complete. It also checks after gate submission before starting the subsequent completion write. Existing direct `tick(context)`, standalone transform and reshape calls remain compatible when no stop Event is supplied. Deterministic tests cover stop during the model call, during gate checking, and during the preceding fade stage.
+
+**Boundary:** #395 is open and exact-head CI is pending; this is not current-main behaviour yet. The in-flight VoiceClient request is not cancelled. Gate.check itself is synchronous and may perform Writer-backed work; if stop arrives during it, that work is not interrupted, although the later reshape-completion write is skipped. This is a cooperative checkpoint, not an atomic stop/write handshake or proof of total producer quiescence. See `research/RESOLVER_RESHAPE_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
+
+
+### 16.16 NovelAssociation active scan after stop — open PR #396
+
+NovelAssociation is always constructed and started by `run.py`, then registered with AppState. Its stop Event previously interrupted only the 1,800-second interval wait; the active scan did not receive that Event. A scan pulls belief candidates, performs two local embedding calls per cross-branch pair, calculates similarity, then writes a synthesises edge and a log row, with an optional SelfNarrative write for strong pairs. It could continue into later pairs after shutdown began, while AppState allows at most five seconds for producer joining.
+
+PR #396 passes the existing stop Event through the worker-owned `tick()` and `_scan()`, with compatibility-preserving optional keyword-only arguments. It checks before/after candidate retrieval and embedding calls, before each pair, and before the subsequent narrative write. An edge+log pair already started before stop is allowed to finish as one logical write unit; the worker then stops before beginning another pair. Deterministic tests cover stop during embedding, already-stopped scan and stop between pairs.
+
+**Boundary:** #396 is open and exact-head CI is pending; this is not current-main behaviour yet. Embedding calls are not cancelled. The edge and log remain two separate Writer submissions rather than one atomic transaction; an already-started pair may finish after the signal. This is cooperative stop handling, not an atomic stop/write handshake or complete producer-quiescence proof. See `research/NOVEL_ASSOCIATION_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
+
+
+### 16.17 CounterfactualNode active cycle after stop — open PR #397
+
+CounterfactualNode is always constructed and started by `run.py`, then registered with AppState. Its stop Event previously interrupted only the 300-second wait. An active cycle could read the oldest open problem, fetch up to ten belief candidates, score them, submit buildable candidates through `CoherenceGate.check()`, and insert accepted beliefs through the shared Writer after shutdown began. The producer join allowance is at most five seconds.
+
+PR #397 passes the existing Event through the worker-owned `tick()` and `_process_one()`, preserving direct-call compatibility with optional keyword-only parameters. It checks after problem retrieval, candidate fetch and scoring, before each gate call, and after gate return before beginning the accepted-belief insertion. Deterministic tests cover stop during candidate fetch, stop during gate checking, and an already-stopped tick.
+
+**Boundary:** #397 is open and exact-head CI is pending; this is not current-main behaviour yet. TimeFetch, RefinementEngine and Gate.check are synchronous and not cancellable. Gate.check may perform its own Writer-backed work before returning; this increment prevents the later accepted-belief insert once stop is observed, but does not interrupt or roll back gate work already in progress. See `research/COUNTERFACTUAL_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
+
+
+### 16.18 HoldingZoneResolver reshape stop-aware replay — open PR #398
+
+PR #398 is the clean current-main replay of the resolver reshape correction originally proposed in #395, rebased onto main after #393 merged. It passes the resolver's existing stop Event into the worker-owned tick and reshape pipeline, checks before and after the VoiceClient call, discards responses returned after stop, and checks after gate submission before the subsequent reshape-completion write. Deterministic tests cover stop during model call, stop during gate check and stop during fade.
+
+**Boundary:** #398 is open and its exact-head full-suite CI is pending; no pass count is claimed. The in-flight VoiceClient call is not cancelled. Gate.check is not cancellable and may perform synchronous Writer-backed work; this increment is cooperative and does not establish atomic stop/write quiescence.
+
+### 16.19 NovelAssociation scan stop-aware replay — open PR #399
+
+PR #399 is the clean current-main replay of the NovelAssociation scan correction originally proposed in #396, rebased onto main after #393 merged. It passes the stop Event into the worker-owned tick/scan, checks around candidate retrieval and embeddings, stops before later pairs, and skips the subsequent narrative write after stop. An edge+log pair already started before stop is allowed to finish as one logical write unit.
+
+**Boundary:** #399 is open and its exact-head full-suite CI is pending; no pass count is claimed. Embedding calls are not cancelled, and the two Writer submissions for a pair are not an atomic transaction.
+
+### 16.20 CounterfactualNode stop-aware candidate replay — open PR #400
+
+PR #400 is the clean current-main replay of the CounterfactualNode correction originally proposed in #397, rebased onto main after #393 merged. It passes the stop Event through the active tick and checks after problem retrieval, candidate fetch and scoring, before each gate call, and after gate return before starting the accepted-belief insert.
+
+**Boundary:** #400 is open and its exact-head full-suite CI is pending; no pass count is claimed. TimeFetch, RefinementEngine and Gate.check are synchronous and not cancellable. Gate.check may perform its own Writer-backed work before returning; the correction prevents later candidate insertion once stop is observed but cannot interrupt work already inside the gate.
