@@ -116,7 +116,7 @@ def _normalise_proposal(raw: dict) -> dict:
                 raise ValueError("child kinds must be unique lowercase snake_case tokens per alternative")
             seen_children.add(child)
             classification = step["classification"]
-            if classification not in CLASSIFICATIONS:
+            if not isinstance(classification, str) or classification not in CLASSIFICATIONS:
                 raise ValueError(f"unsupported child classification: {classification!r}")
             rationale = _text(step["rationale"], "step rationale")
             shared = step["shared_target"]
@@ -301,10 +301,13 @@ class RuleProposalStore:
                         for e in events
                     ):
                         raise ValueError("target kind already has an approved rule")
-                    version = 1 + max(
-                        (e["data"].get("catalogue_version", 0) for e in events
-                         if e["event_kind"] == "proposal_reviewed"), default=0
-                    )
+                    prior_versions = [
+                        e["data"]["catalogue_version"] for e in events
+                        if e["event_kind"] == "proposal_reviewed"
+                        and isinstance(e["data"].get("catalogue_version"), int)
+                        and not isinstance(e["data"].get("catalogue_version"), bool)
+                    ]
+                    version = 1 + max(prior_versions, default=0)
                 event = {
                     "schema_version": EVENT_SCHEMA,
                     "event_kind": "proposal_reviewed",
