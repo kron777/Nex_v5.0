@@ -1021,3 +1021,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **§151 Fountain consumption qualification:** the governor writes `self_rut_notice` after the current Fountain call has fetched its own/seed candidates; the explicit `_OWN_CONTENT_SOURCES`, `_SEED_SOURCES` and HOT-observer slot omit this source. The generic GUI BeliefRetriever does include all eligible tier<=6/confidence>=0.15 beliefs, so the row is a candidate there, but delivery remains query/top-k/route-dependent. Reanimation is a possible but unproven path. See INDEX §151.
+
+
+§152 GeniusTagger rut-window signal qualification: _backfill() processes Fountain events up to 14 days old but stamps each tag with current ts_now; both rut readers filter only on tagged_at >= now-5400. Thus old fires can enter the nominal 90-minute sample during backfill. genius_tags permits multiple rows per fire across weights_version, and rut queries do not deduplicate event IDs or filter versions. Draft PR #453 characterizes historical backfill timestamping and same-fire multi-version rows; exact-head CI pending. See INDEX §152.
