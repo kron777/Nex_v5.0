@@ -215,7 +215,7 @@ FeedbackLoopAssessment remains an UNKNOWN-first evidence model rather than a sta
 ### Next sequence
 
 1. Verify combined mainline CI after #339 and #343.
-2. Complete one traceable single-objective path through seed intake, expansion, context review, criterion verification, Stage-7 handoff and independent Watcher verification.
+2. Extend the existing seeded-objective end-to-end test to cover a completed criterion outcome through the independent Watcher, while preserving the pending-state regression. Keep raw-idea-to-seed generation explicitly external until a provider-neutral proposal contract is designed.
 3. Design the candidate-rule proposal and approval lifecycle for novel kinds.
 4. Persist FeedbackLoopAssessment with UNKNOWN-first semantics and measured evidence only.
 5. Preserve the already implemented Stage-2 belief-development and fresh-process CycleStore-resume tests as a regression baseline; focus next on novel-kind rule proposals and the raw-idea-to-handoff boundary.
