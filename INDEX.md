@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `321a156e162a6554e27ae329522f253e8f6fe676`  
+**Last verified against:** `main` at `60cc178ba1f3c895651c86ad95345c98fd5a2198`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -922,7 +922,7 @@ This update records implementation evidence and remaining capability boundaries;
 
 ## 44. One-pen census, G-78 validation consequence and persistence corrections (28 November 2026)
 
-**Evidence snapshot:** `main` at `321a156e162a6554e27ae329522f253e8f6fe676`. Source and fixture-test evidence only; host and runtime state remains **UNKNOWN**.
+**Evidence snapshot:** `main` at `60cc178ba1f3c895651c86ad95345c98fd5a2198`. Source and fixture-test evidence only; host and runtime state remains **UNKNOWN**.
 
 ### One-pen census (G-61)
 
