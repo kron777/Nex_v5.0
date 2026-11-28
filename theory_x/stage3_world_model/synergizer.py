@@ -69,6 +69,8 @@ class BeliefSynergizer:
                 return None
             text = resp.text.strip() if resp and resp.text else ""
         except Exception as exc:
+            if stop_event is not None and stop_event.is_set():
+                return None
             self._errors.record(
                 f"synergizer voice error: {exc}",
                 source=_LOG_SOURCE, exc=exc,
@@ -89,7 +91,10 @@ class BeliefSynergizer:
 
         if stop_event is not None and stop_event.is_set():
             return None
-        if not self._quality_check(text):
+        quality_ok = self._quality_check(text)
+        if stop_event is not None and stop_event.is_set():
+            return None
+        if not quality_ok:
             self._log(belief_a["id"], belief_b["id"], None, None)
             return None
 
@@ -105,6 +110,8 @@ class BeliefSynergizer:
                 branch_id=belief_b.get("branch_id"),
             )
             decision = self._gate.check(packet)
+            if stop_event is not None and stop_event.is_set():
+                return None
             if decision.outcome != GateOutcome.ACCEPT:
                 self._errors.record(
                     f"Synergizer gate {decision.outcome.value} ({decision.reason}): {text[:60]}",
