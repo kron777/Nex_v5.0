@@ -8,12 +8,58 @@ calculation and defaults all conclusions to UNKNOWN.
 from __future__ import annotations
 
 import dataclasses
-from typing import List, Optional
+import fcntl
+import hashlib
+import json
+import math
+import os
+from typing import Any, Dict, List, Optional, Tuple
+
+from watcher.evidence import utc_now
 
 from .model import InterfaceEvidence, _has_traceable_evidence
 
 STABILITY_STATES = ("stable", "unstable", "conditionally_stable")
 UNKNOWN = "unknown"
+MEASURED_DIMENSIONS = (
+    "gain", "delay", "damping", "oscillation", "overshoot", "recovery",
+    "observation_window",
+)
+OPERATING_ENVELOPES = ("normal", "busy", "degraded", "stress", "recovery", UNKNOWN)
+_EVENT_SCHEMA = "rdo.feedback_loop_evidence.v1"
+
+
+def _text(value: Any, name: str, maximum: int = 2000) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value) > maximum:
+        raise ValueError(f"{name} must be non-blank text of at most {maximum} characters")
+    return value.strip()
+
+
+def _references(value: Any, name: str) -> List[str]:
+    if not _has_traceable_evidence(value):
+        raise ValueError(f"{name} must contain non-blank evidence references")
+    return list(dict.fromkeys(item.strip() for item in value))
+
+
+def _validate_measured_dimension(evidence: InterfaceEvidence, name: str) -> None:
+    if (isinstance(evidence.value, bool)
+            or not isinstance(evidence.value, (int, float))
+            or not math.isfinite(evidence.value)):
+        raise ValueError(f"measured feedback dimension {name!r} requires a finite numeric value")
+    _text(evidence.unit, f"{name}.unit", 128)
+    _references(evidence.evidence, f"{name}.evidence")
+    _text(evidence.confidence, f"{name}.confidence", 128)
+
+
+def _canonical(value: dict) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False, allow_nan=False).encode("utf-8")
+
+
+def _event_digest(event: dict) -> str:
+    return hashlib.sha256(_canonical({
+        key: value for key, value in event.items() if key != "event_sha256"
+    })).hexdigest()
 
 
 @dataclasses.dataclass
@@ -54,6 +100,12 @@ class FeedbackLoopAssessment:
                 not isinstance(value, str) or not value.strip() for value in values
             ):
                 raise ValueError(f"{field_name} must contain non-blank references")
+        for dimension in MEASURED_DIMENSIONS:
+            evidence = getattr(self, dimension)
+            if not isinstance(evidence, InterfaceEvidence):
+                raise ValueError(f"feedback dimension {dimension!r} must be InterfaceEvidence")
+            if evidence.status == "measured":
+                _validate_measured_dimension(evidence, dimension)
         if not self.members:
             raise ValueError("a feedback loop requires at least one member")
         if not self.relationships:
