@@ -1027,3 +1027,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **PR #452 validation update:** exact-head workflow 46181820624 completed successfully at e3e1e037f0769e66e62b84fe982abf37f49e1485. Its test-only characterization confirms the Metacognition direct-helper call bypasses the OFF check inside SelfNarrative.tick(). This does not establish host flag state or runtime execution.
+
+
+§153 rut provenance qualification: both rut observers select only genius_tags.class and do not preserve fountain_event_id, weights_version or the contributing row IDs. The narrative writer passes source_id=None; the belief writer stores only source='self_rut_notice'/tier/confidence/branch. The source rows remain queryable, but the output has no frozen input manifest. This compounds §152's timestamp/version ambiguity. Exact host rows and any external trace coverage remain UNKNOWN. See INDEX §153.
