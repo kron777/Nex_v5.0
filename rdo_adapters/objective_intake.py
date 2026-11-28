@@ -506,10 +506,21 @@ class ObjectiveInputStore:
                 if checked_lineage is not None:
                     wrapper["lineage"] = checked_lineage
                 # One append-only record per revision. Never rewrite an earlier revision.
+                # The file fsync protects its contents; on first creation also
+                # fsync the containing directory so the new ledger entry itself
+                # survives a crash/power loss.
+                created = not os.path.exists(path)
                 with open(path, "a", encoding="utf-8") as fh:
                     fh.write(_canonical_json(wrapper) + "\n")
                     fh.flush()
                     os.fsync(fh.fileno())
+                if created:
+                    directory = os.path.dirname(os.path.abspath(path)) or "."
+                    dir_fd = os.open(directory, os.O_RDONLY)
+                    try:
+                        os.fsync(dir_fd)
+                    finally:
+                        os.close(dir_fd)
                 return {**wrapper, "replayed": False}
             finally:
                 fcntl.flock(lock.fileno(), fcntl.LOCK_UN)

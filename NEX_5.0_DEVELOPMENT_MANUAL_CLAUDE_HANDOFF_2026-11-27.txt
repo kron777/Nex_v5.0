@@ -2055,3 +2055,16 @@ The commands reuse the existing store and its catalogue fingerprint, schema vali
 **Unchanged boundaries:** no frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, or cognitive/action authority is changed.
 
 ---
+
+## 66. Objective intake first-revision directory durability — candidate PR #438 (28 November 2026)
+
+**Source-derived gap:** `ObjectiveInputStore.append()` fsynced each appended revision file but did not fsync the containing directory after creating the first `<objective_id>.jsonl` entry. A file fsync protects file contents; it does not by itself guarantee that the newly created directory entry survives a crash or power loss.
+
+**Bounded correction:** while holding the per-objective exclusive lock, detect first creation; append and fsync the revision file; then fsync the containing directory. Later revisions retain the existing file-only fsync behavior. The immutable revision schema, SHA-256 chain, lineage checks, locking and replay semantics are unchanged.
+
+**Regression coverage:** `rdo/tests/test_objective_intake_durability.py` verifies first creation fsyncs the file then the parent directory, while a later revision fsyncs only the existing file. README records the durability boundary. Exact-head CI is pending; no pass is claimed.
+
+**Boundaries:** no objective schema, approval, planning, Stage-7, execution, runtime state, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed. No live database or host process was accessed.
+
+---
+
