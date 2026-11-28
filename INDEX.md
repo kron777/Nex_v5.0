@@ -5120,3 +5120,8 @@ This is a stale-context possibility, not evidence of a live host occurrence. The
 ### §129 session-scope refinement
 
 The conversations schema also defines nullable `meta_cognition_events.session_id`, but `Metacognition.tick(context=None)` does not use its context argument and `_write_event()` does not insert `session_id`. The inspected GUI caller invokes `tick()` without a context. The Row 9 aggregate query has no session predicate. Thus the current source path is process/database-global rather than session-scoped: source-alert identity is lost in the event row, and session identity is not populated either. Whether this is intended for a single local NEX instance or a missing isolation boundary remains UNKNOWN; no session policy is changed.
+
+
+### §131 authority classification
+
+The Metacognition string is appended to Fountain's textual prompt context after workspace/focus composition; it is not consumed as a typed operation, capability grant, approval signal, execution command, or verification result. This source path is interpretive context only. It does not make the Tibetan mind map or a Mind Aspect an action gate, score, block or veto.
