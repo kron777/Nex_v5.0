@@ -285,19 +285,61 @@ def build_world_model(writers: dict, readers: dict,
 
     stop = threading.Event()
     state._stop = stop  # type: ignore[attr-defined]
-    # Kept so shutdown can join the loops after setting `stop` (G-84).
+    # Publish the complete worker registry before starting any thread. The
+    # shared gate prevents an early loop from doing work until every start
+    # succeeds, so a partial start can be rolled back without orphaning work.
+    start_gate = threading.Event()
     state._threads = []  # type: ignore[attr-defined]
 
-    for fn, name in [
+    def _run_after_start(fn, loop_state, stop_event, gate):
+        gate.wait()
+        if not stop_event.is_set():
+            fn(loop_state, stop_event)
+
+    worker_specs = [
         (_decay_loop,        "world_model.decay"),
         (_harmonizer_loop,   "world_model.harmonizer"),
         (_cross_domain_loop, "world_model.cross_domain"),
         (_erosion_loop,      "world_model.erosion"),
         (_synergizer_loop,   "world_model.synergizer"),
         (_world_consolidation_loop, "world_model.world_consolidation"),
-    ]:
-        t = threading.Thread(target=fn, args=(state, stop), name=name, daemon=True)
-        t.start()
-        state._threads.append(t)  # type: ignore[attr-defined]
+    ]
+    threads = [
+        threading.Thread(
+            target=_run_after_start,
+            args=(fn, state, stop, start_gate),
+            name=name,
+            daemon=True,
+        )
+        for fn, name in worker_specs
+    ]
+    state._threads = threads  # type: ignore[attr-defined]
 
+    try:
+        for thread in threads:
+            thread.start()
+    except BaseException:
+        # Stop first, then release the gate: started wrappers exit without
+        # entering their loop bodies. Use one shared rollback deadline.
+        stop.set()
+        start_gate.set()
+        deadline = time.monotonic() + 1.0
+        alive = []
+        for thread in threads:
+            if thread.ident is None:  # Thread.start() never succeeded.
+                continue
+            thread.join(max(0.0, deadline - time.monotonic()))
+            if thread.is_alive():
+                alive.append(thread.name)
+        if alive:
+            errors.record(
+                "world_model builder startup rollback left workers alive: "
+                + ", ".join(alive),
+                source=_LOG_SOURCE,
+                level="ERROR",
+            )
+        raise
+
+    # Startup commits only after all six Thread.start() calls succeed.
+    start_gate.set()
     return state
