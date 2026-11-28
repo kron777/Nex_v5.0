@@ -168,8 +168,11 @@ def make_voice_prediction(
     if baseline is None:
         return {"error": "price_fetch_failed"}
 
+    ask_kwargs = {}
+    if stop_event is not None:
+        ask_kwargs["stop_event"] = stop_event
     voice_dir = _ask_voice_direction(
-        asset, baseline, horizon_seconds, stop_event=stop_event
+        asset, baseline, horizon_seconds, **ask_kwargs
     )
     if stop_event is not None and stop_event.is_set():
         return {"error": "shutdown_requested", "baseline": baseline}
