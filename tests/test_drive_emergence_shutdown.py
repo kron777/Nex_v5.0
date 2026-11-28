@@ -121,6 +121,10 @@ def test_drive_emergence_does_not_start_when_already_stopped():
     stop = threading.Event()
     stop.set()
     node = _node(_candidates())
+    # Constructor performs one startup state read; isolate the tick itself.
+    node._cr.read_one.reset_mock()
+    node._br.read.reset_mock()
+    node._cw.write.reset_mock()
 
     node._background_tick(stop_event=stop)
 
