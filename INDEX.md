@@ -1174,10 +1174,29 @@ The remaining producer-level window is different: a producer can pass its stop c
 - `AppState._quiesce_producers()` explicitly describes its registry as bounded, not a claim that every process thread is registered. It snapshots selected multi-thread worker registries under their service lock where available, signals all managed workers before joining, and reports survivors.
 - This inspection did not establish a repository-wide census of thread creation, detached route workers, subprocesses, model calls or every service-owned worker. Do not infer completeness from the current managed tuple.
 - The separate `gui/server.py` direct-entrypoint path also registers `state.close` with `atexit`; its signal/deployment lifecycle should be compared with the production `run.py` entrypoint before treating the two launch modes as equivalent.
-- The first workflow run after the Warrant test-harness correction (`46134718448`) was cancelled and exposed no jobs; it is not a pass or a failure diagnosis. A new exact-head tests workflow (`46134838495`) is pending on code commit `7a2b8aef23fa625d3eaf5cdc7fac4e6788afb448`. The PR branch also adds a concurrent submit-vs-close characterization in `tests/test_writer_lifecycle.py`: either the request is accepted and drained before the sentinel, or it is rejected after close wins; no accepted Future may be stranded. No result or pass count is claimed until the pending run completes. Baseline and mind-map verification remain required.
+- The first workflow run after the Warrant test-harness correction (`46134718448`) was cancelled and exposed no jobs; it is not a pass or a failure diagnosis. Exact-head workflow `46134838495` was subsequently cancelled with no jobs. The PR branch now contains two Writer lifecycle regressions in `tests/test_writer_lifecycle.py`: a single submitter and eight concurrent submitters race close; every submission must either be accepted and drained before the sentinel or rejected after close wins, with no accepted Future stranded. The latest code commit is `a5b8b31749fab85b92c9174d723b8f59b90fdea0`; no workflow result is currently exposed for that head. No pass count is claimed. Baseline and mind-map verification remain required.
 
 ### Next bounded research/development
 
 Complete the source-to-sink ownership census for thread/process creation and route-spawned work; reconcile every discovered worker with AppState ownership, stop semantics, join semantics and resource dependencies. Then test Writer acceptance ordering under a deterministic submit-vs-close race and test the AppState timeout path with a producer that remains alive. Keep the existing per-Writer lifecycle lock unless evidence demonstrates a defect; do not add a second global lock or alter shutdown budgets by assumption.
 
 No live runtime, host process, database, feature flag, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority was changed.
+
+
+## 51. Request-drain versus voice-call timeout — operational improvement candidate (28 November 2026)
+
+**Evidence source:** `research/SHUTDOWN_REQUEST_VOICE_TIMEOUT_GAP_2026-11-28.md` on the shutdown candidate branch; source snapshot after #378/#381. This is a code-derived timing risk, not an observed host failure.
+
+### Finding
+
+- The graceful shutdown budget is 12 seconds and includes HTTP request drain, producer quiescence and Writer drains; the tracked supervisor escalation is approximately 15 seconds.
+- `ShutdownGate` closes new HTTP admission and waits for admitted requests, but it does not cancel the work inside a request.
+- `VoiceClient` uses a 120-second per-request timeout. The inspected Chat route can make the initial voice call plus two sequential conditional retries (anti-repeat and provenance) when the corresponding conditions apply.
+- The theoretical cumulative timeout exposure is therefore up to 360 seconds if all three calls stall to their individual timeout. This is not measured latency and does not mean every request makes three calls.
+- If an admitted request remains inside a voice call beyond the 12-second drain deadline, the process exits non-zero before AppState producer quiescence, Writer draining or clean-marker persistence. This is fail-closed for the clean marker, but not a successful graceful shutdown. The source trace does not establish actual data loss or corruption.
+
+### Betterment path
+
+Do not silently change the 120-second voice timeout or the 12/15-second shutdown budgets. First measure normal and retry-path latency on the authorized host, then test SIGTERM during an active voice request with disposable/restorable data while recording active-request labels, Writer queue depth, exit code and clean-marker result. Only then compare a cancellable request path, bounded response abort, or a revised operational budget. Preserve the distinction between a request being admitted, a model call being attempted, a call returning and audio being physically heard.
+
+This remains a host-evidence requirement, not permission to alter the frozen specifications, Master Roadmap, Gate 0 or Phase 1 authority. No host process, live database, runtime flag or timeout was changed.
