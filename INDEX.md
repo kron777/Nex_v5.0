@@ -5243,3 +5243,36 @@ Because GrooveSpotter's source query reads only persisted `fountain_insight`/`sy
 **Next bounded step:** determine whether stale-event resolution is expected to be event-triggered, chat-turn-triggered or scheduled independently; identify the authority for that policy and inspect the full set of registered nodes for any similar implemented-but-unowned `decay()` methods. Do not introduce a generic dispatcher or alter node semantics before that comparison.
 
 **Authority boundary:** no code, schema, schedule, event retention, cognitive behaviour, frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §137 — Registered-node decay inventory: four persistent cleanup methods, different effects (28 November 2026)
+
+This expands §136 from Metacognition to the relevant persistent-node set. The distinction is between a method existing, a test invoking it, a worker running, and a production caller actually invoking the method.
+
+| Component | Decay rule | What the method changes | Observed production path |
+|---|---|---|---|
+| Metacognition | 14 days | Sets stale unresolved `meta_cognition_events.resolved_at`; invalidates recent cache | Chat calls `tick()`, not `decay()`; `get_recent()` selects unresolved rows without an age cutoff, so decay affects which old events can occupy the newest three slots |
+| GoalManager | 60 days | Cancels stale open goals; invalidates cache | Constructed and registered in `run.py`; chat calls `get_active()`, not `tick()` or `decay()`; `list_open()` has no age cutoff |
+| ProblemMemory | 30 days | Closes stale open problems; invalidates cache | Constructed in `run.py`; not registered there (the optional `create_app(with_tools=True)` fixture path does register it); chat `find_matching()` reads all open problems without an age cutoff, so stale open rows can remain eligible for matching |
+| NovelAssociation | 14 days | Marks stale unannotated association rows annotated | Constructed, registered and background-started in `run.py`; its worker calls `tick()`/scan, not `decay()`; prompt formatter independently excludes entries older than its 2-hour `_ANNOTATION_LOOKBACK_S` |
+
+### Test versus runtime evidence
+
+- `tests/test_metacognition.py`, `tests/test_goal_manager.py`, `tests/test_problem_memory.py` and `tests/test_novel_association.py` directly invoke their respective `decay()` methods to verify stale/fresh handling and cache effects.
+- These tests verify the methods' effects when called. They do not establish a production scheduler or call site.
+- The targeted lifecycle sweep plus inspection of `run.py`, `gui/server.py`, `theory_x/__init__.py` and NovelAssociation's own worker found no generic dispatcher or production call to these four decay methods.
+- Other inspected registered nodes use no-op `decay()` methods or explicitly perform their time updates inside their own tick/background loop (e.g. SelfNarrative, resolver, DriveEmergence, AffectState, FocalSet, ExecutiveControl, SubstrateHarmonic and GeniusTagger). They are not evidence of a universal decay scheduler.
+
+### Consequence and classification
+
+This is not one uniform bug. The missing invocation has different potential consequences:
+- **Metacognition:** unresolved old rows remain eligible for the three newest unresolved-event slots; this is a direct prompt-context freshness concern.
+- **ProblemMemory:** old open problems can remain eligible for GUI chat matching because `find_matching()` starts from all open rows.
+- **GoalManager:** stale goals remain in the open-goal set and can remain the reported active goal; the inspected GUI route currently reads/logs `get_active()` but no longer injects that goal text into chat.
+- **NovelAssociation:** the missing 14-day annotation cleanup is not the prompt freshness gate; the formatter's independent 2-hour cutoff already excludes old entries. Its unannotated stale rows can nevertheless persist in the log table.
+
+**Disposition:** source-observed inventory of implemented persistent cleanup methods and their distinct readers. The production dispatcher remains unlocated in inspected paths; the whole repository and active host have not been exhaustively proven free of other callers. Keep this as a Phase 0 lifecycle finding, not a new defect ID or permission to add a generic scheduler.
+
+**Next bounded step:** trace any existing scripts, service entrypoints or host cron/systemd units that may invoke cleanup externally, and establish the policy owner for each stale horizon. Then compare the intended retention semantics before considering any common lifecycle mechanism.
+
+**Authority boundary:** no runtime code, schema, retention horizon, feature flag, cognitive behaviour, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
