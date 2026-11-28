@@ -4833,3 +4833,55 @@ Separate draft PR #449 (head 50c2e083de1dab3e40301b37dc14b614a0d08f23) is testin
 **Evidence anchors:** PR #448; exact head f4447ad5b243b97c91c28fc00abbef88fe7c51f9; run 46173749707; job 141067710930; full log; tests/test_groove_spotter_fingerprints.py; main base 18c8f06171e1de35c3210831a49b63d0e2487af0. Pending separate PR #449/run 46174148899.
 
 **Evidence level:** exact-head full-suite CI test-verified; no production runtime observation.
+
+
+## §126 — G-83 consumer replay verified; trace the repeated observation into chat prompt paths (28 November 2026)
+
+**Question studied:** after one unacknowledged GrooveSpotter alert is repeatedly re-read, what actually reaches the chat prompt, what is persisted separately, and which downstream effects count the repeats?
+
+**Evidence snapshot:** current code main at `18c8f06171e1de35c3210831a49b63d0e2487af0`; test-only PR #449 exact head `50c2e083de1dab3e40301b37dc14b614a0d08f23`. Static source trace plus exact-head isolated CI. No live host, process, database or feature-flag state was inspected.
+
+### Exact-head consumer characterization result
+
+PR #449 adds one controlled-clock test to `tests/test_metacognition.py`. Exact-head workflow **46174148899** completed successfully:
+
+- 3,078 passed;
+- 7 skipped;
+- 86 subtests passed;
+- baseline gate OK;
+- disposable test sandbox probe OK;
+- mind-map verifier: 30 nodes, 0 unverified, 12 dark, 2 blocked.
+
+The test seeds one unacknowledged source alert, invokes `Metacognition.tick()` five times at controlled timestamps, and observes five derived groove events plus two 60-second stillness activations (at 1020 and 1081) from that same source row. This is test-verified current behaviour, not approval of its semantics and not a live-host frequency measurement. PR #449 remains a test-only characterization candidate; exact-head CI is not a merge or runtime-authority decision.
+
+### Source-to-prompt trace
+
+The repeated source row has more than one downstream path:
+
+1. **Boot wiring:** `run.py` constructs Stage-SelfNarrative using the conversations Writer/Reader and passes that instance to `Metacognition(..., narrative=self_narrative)`.
+2. **Chat-turn caller:** `gui/server.py` calls `state.metacognition.tick()` on the chat path, immediately calls `format_for_prompt()`, and appends any returned text to `belief_text`. This is request-driven, not evidence of an independent 60-second Metacognition worker.
+3. **Repeated source read:** `Metacognition._detect_groove()` selects up to three rows with `acknowledged_at IS NULL` and `detected_at > now - 600`, newest first. It does not mark the source row acknowledged.
+4. **Derived event write:** each selected row becomes a new `meta_cognition_events` row. `_write_event()` invalidates the recent-event cache; `tick()` refreshes it before returning.
+5. **Generic prompt observation:** `format_for_prompt()` reads only the newest cached event. For event type `groove`, it returns the fixed sentence “Self-observation: I notice repeated patterns in my recent thinking.” It does not include the specific alert pattern.
+6. **Pattern-specific narrative side path:** for each repeated event, `tick()` also calls `self_narrative.write_narrative()` with “I noticed I am repeatedly returning to {pattern}”, storing the source alert ID. Later in the same GUI route, the separate Stage-SelfNarrative formatter receives `current_topic=prompt[:100]` and performs a substring `LIKE` filter over narrative content. The alert-derived narrative is therefore conditionally eligible; its presence in `narrative_log` does not prove it is injected into every chat prompt.
+
+This separates three things that must not be collapsed: repeated source observation, generic Metacognition prompt text, and topic-filtered pattern-specific narrative.
+
+### Downstream effect classification
+
+- **Row 9 stillness:** counts all `meta_cognition_events` rows of type `groove` in the preceding 1,800 seconds. Three events trigger a 60-second `stillness_log` hold. If the hold expires while repeated source reads continue, a later chat tick can renew it. PR #449 verifies this in an isolated fixture.
+- **Fountain crystallization:** the FountainCrystallizer reads the active stillness window and returns a HOLD before writing a belief. This is a crystallization hold, not proof that thought generation, the speech queue, or all other output paths are paused (see §§114–119).
+- **CompetingDrives and Recent STRIKING:** these inspected consumers read the original `groove_alerts` table directly (severity and pattern respectively), not the derived repeated `meta_cognition_events` count. Do not multiply their effects by the number of Metacognition re-reads. Their distinct prompt/drive effects remain as classified in §120.
+- **Recent self-observation slots:** the default recent-event query selects the three newest unresolved rows. Repeated groove events can therefore occupy multiple recent slots when they are the newest events; the formatter still emits one generic line based on the top row.
+
+### Interpretation and next bounded trace
+
+The feedback is **chat-turn-triggered repetition**, not an established autonomous exponential loop. One unchanged source row can be counted again on successive chat requests while it remains unacknowledged and inside the ten-minute lookback. Those repeats can renew Row 9 and populate recent self-observation history. The exact host request cadence, alert population, and prompt exposure remain UNKNOWN.
+
+The next safe characterization is a separate fixture-level test of the complete prompt boundary: pass the real Stage-SelfNarrative instance into Metacognition; assert repeated pattern-specific narrative rows; compare matching and non-matching `current_topic` filters; assert the generic Metacognition line independently; and verify whether repeated groove rows displace an older independent event from the three-row recent window. Do not change acknowledgement semantics, episode identity, Row 9 threshold/duration, prompt policy or feature flags in that test.
+
+**Disposition:** G-83 consumer replay is now exact-head test-verified. The prompt/narrative consequences above are source-observed; the additional combined formatter/caller test remains a candidate. G-83 remains OPEN pending an explicit semantic decision about source-alert acknowledgement and the unit counted as one groove episode. Documentation and test characterization only; no runtime source, schema, flags, cognitive behaviour, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. No live host, database, process or service accessed.
+
+**Source anchors:** `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `theory_x/stage6_fountain/crystallizer.py` blob `c0a5cf1388825e7fc9438cf1188aedd8e2ed8959`; PR #449 exact head `50c2e083de1dab3e40301b37dc14b614a0d08f23`; workflow 46174148899, job 141068939254.
+
+**Evidence level:** source-observed caller/reader/writer/prompt paths; exact-head full-suite CI test-verified for repeated source-row re-consumption and Row 9 renewal; combined narrative/prompt exposure remains untested; production runtime observation remains absent.
