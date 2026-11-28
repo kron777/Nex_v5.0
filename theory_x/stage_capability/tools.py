@@ -184,7 +184,7 @@ class ToolRegistry:
             with urllib.request.urlopen(req, timeout=10) as resp:
                 raw = resp.read(8192).decode("utf-8", errors="replace")
             page_text = re.sub(r"<[^>]+>", " ", raw)
-            page_text = re.sub(r"\\s+", " ", page_text).strip()
+            page_text = re.sub(r"\s+", " ", page_text).strip()
             return ToolResult("web_fetch", target_url, page_text[:2000], True)
         except Exception as exc:
             return ToolResult("web_fetch", target_url, "", False, str(exc))
@@ -240,7 +240,7 @@ class ToolRegistry:
 
 def _extract_url_from_query(query: str) -> str:
     """Pull an explicit URL from a query string if present."""
-    match = re.search(r"https?://\\S+", query)
+    match = re.search(r"https?://\S+", query)
     return match.group(0) if match else ""
 
 
