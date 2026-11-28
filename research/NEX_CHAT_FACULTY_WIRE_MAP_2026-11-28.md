@@ -1,6 +1,6 @@
 # NEX chat faculty wire map — 2026-11-28
 
-**Evidence snapshot:** NEX main at 3377197c4d216aedc7708a9d1ee758144bd0b09b (post-G-84 producer and StrikeProtocol shutdown integration)  
+**Evidence snapshot:** NEX main at 3d7205536588e34a887939784d436ec70e8c6777 (post-G-84 producer, StrikeProtocol and Flask request-drain integration)  
 **Scope:** source trace of the existing chat-time cognitive/affective faculty blocks. No code, runtime state, feature flag, threshold, prompt policy or frozen specification changed.
 
 ## 1. What is connected to the central response path
