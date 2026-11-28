@@ -34,7 +34,7 @@ def test_internal_prediction_stops_after_blocked_embedding():
         release.wait(timeout=3.0)
         return np.array([1.0, 0.0], dtype=np.float32)
 
-    node._embed_belief = blocked_embedding
+    node._embed_belief = MagicMock(side_effect=blocked_embedding)
     result = {}
     thread = threading.Thread(
         target=lambda: result.update(
@@ -49,7 +49,7 @@ def test_internal_prediction_stops_after_blocked_embedding():
 
     assert not thread.is_alive()
     assert result["value"] == 0
-    node._embed_belief  # retain the patched worker for explicit call count below
+    node._embed_belief.assert_called_once()
     node._cr.read.assert_not_called()
     node._dw.write.assert_not_called()
 
@@ -69,7 +69,7 @@ def test_verify_one_stops_after_blocked_embedding():
         release.wait(timeout=3.0)
         return np.array([1.0, 0.0], dtype=np.float32)
 
-    node._embed_belief = blocked_embedding
+    node._embed_belief = MagicMock(side_effect=blocked_embedding)
     prediction = {
         "id": 5,
         "prediction_type": "internal_belief",
@@ -92,6 +92,7 @@ def test_verify_one_stops_after_blocked_embedding():
 
     assert not thread.is_alive()
     assert result["value"] is False
+    node._embed_belief.assert_called_once()
     node._dw.write.assert_not_called()
 
 
