@@ -540,3 +540,8 @@ TRACK_THEORY.md's 2026-05-27 afterword anticipates the retrieval, prompt and rea
 ### 28 November 2026 — GeniusTagger fan-out contract
 
 The GeniusTagger signal fans out to independent consumers with different windows, thresholds and flags: readiness 1h/5 rows/40%; prompt block 24h; governor 90m/4 rows/5%; Metacognition rut 90m/4 rows/5%; optional continuity all-time top scores. There is no common sample manifest or shared decision contract. Do not harmonize these during Phase 0. PRs #452/#453 passed; #454/#455 pending. See INDEX §157.
+
+
+### 28 November 2026 — Genius reporting denominator
+
+Genius HUD/panel stats and provenance reports aggregate tag rows across weights versions, not unique Fountain events/current version. The HUD's current_version is from the latest row while its rate is all-row aggregate. /api/fountain/recent instead keeps the latest row per event. Actual host duplicates and live metric impact remain UNKNOWN. See INDEX §158.
