@@ -5783,7 +5783,7 @@ The content's first-person wording is not sufficient to establish its retrieval 
 
 - Source classification rule and _INSIDE_SOURCES contents: source-observed.
 - QueryRouter INSIDE/OUTSIDE side-filter behavior: source-observed.
-- Test-only characterization of OUTSIDE classification and INSIDE exclusion added in draft PR #454; exact-head CI pending.
+- Test-only characterization of OUTSIDE classification and INSIDE exclusion added in draft PR #454; exact-head workflow 46182737858 passed at 7b9ae6c3f0debbc87882b8d8e8c8932f79cb5c5e.
 - Actual host queries and whether a self_rut_notice row has ever been selected for an OUTSIDE prompt: UNKNOWN.
 
 **Next bounded investigation:** await PR #454 exact-head CI; inspect the original intended classification contract for self_rut_notice and any source-level rationale. Do not add the source to _INSIDE_SOURCES or alter membrane policy without an authoritative decision.
