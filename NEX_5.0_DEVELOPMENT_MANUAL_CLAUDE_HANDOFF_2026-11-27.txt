@@ -1004,7 +1004,7 @@ This is a genuine chain of connected representations and consumers, but the prom
 
 **Unresolved semantic edges (not changed in this PR):**
 
-1. `self_binding.bind()` currently assigns `drift = "clean"` as a placeholder. The nearby comment says it reads the last logged verdict, but the inspected function contains no such read. The field is persisted but is not included in the returned `components` or synthesis. Do not treat `clean` as a measured value-drift result.
+1. `self_binding.bind()` currently assigns `drift = "clean"` as a placeholder. At the base snapshot, the nearby comment claimed the binder read the last logged verdict, but the inspected function contained no such read. This PR corrects that misleading comment; the persisted value remains `clean` for compatibility and is still not a measured value-drift result. The field is not included in the returned `components` or synthesis.
 2. The binder's attention input is the latest Fountain thought/readiness plus the newest open problem. It does not read the live Bonsai focus vector or identify the current hottest branch. That may be a deliberate narrow definition, but it is not a complete representation of Stage-2 attention.
 3. The recursive perturbation currently consumes rāga and emotion (plus the named attending text); drive, readiness and substrate tone are bound but do not directly participate in its nudge rules. Their presence in the unified record does not prove they influence the recursive loop.
 4. SelfMindView's Chat summary is recomputed from its five live aspects and is not the same object as the last persisted `bound_self_synthesis`. The snapshot and conversational summary are parallel views, not one shared narrative.
