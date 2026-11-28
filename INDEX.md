@@ -2071,3 +2071,15 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 ---
 
+## 67. Objective intake symlink and special-file path rejection — candidate PR #439 (28 November 2026)
+
+**Source-derived gap:** unlike the seed and rule-proposal stores, `ObjectiveInputStore` previously opened objective revision and lock paths without rejecting symlinks. A dangling ledger symlink could be treated as an empty history, and an existing symlink could redirect reads/appends outside the configured store directory. FIFO/device paths could also block or behave unlike regular ledger files.
+
+**Bounded correction:** centralize safe opens for objective ledger and lock files. Reject symlinks before open and use `O_NOFOLLOW` where supported to close the check/open race; use non-blocking opens and require regular files so FIFOs and other special files are rejected. Preserve the existing per-objective flock, append-only revision chain, file/directory fsync, lineage validation and replay behavior.
+
+**Regression coverage:** `rdo/tests/test_objective_intake_path_safety.py` covers dangling and existing ledger symlinks, lock-file symlinks, and FIFO rejection without blocking. Exact-head CI is pending; no pass is claimed.
+
+**Boundaries:** no objective schema, revision hash-chain, approval, planning, Stage-7, execution, runtime state, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed. No live database or host process was accessed.
+
+---
+
