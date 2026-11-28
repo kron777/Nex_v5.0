@@ -1908,7 +1908,7 @@ def create_app(state: AppState, shutdown_gate: Optional[ShutdownGate] = None) ->
         tool_result = None
         if state.tool_caller is not None and state.tool_registry is not None:
             try:
-                tool_name = state.tool_caller.should_use_tool(prompt, [])
+                tool_name = state.tool_caller.should_use_tool(prompt)
                 if tool_name:
                     kwargs = state.tool_caller.build_tool_kwargs(prompt, tool_name)
                     tool_result = state.tool_registry.execute(tool_name, **kwargs)
