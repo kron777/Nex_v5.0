@@ -2314,3 +2314,15 @@ These tests substantiate the nested-startup pattern in §79; they complement rat
 
 No duplicate tests or builder code changes are included in this PR. This is source/test inspection; the latest exact-head CI run remains the authority for executed validation. No cognitive semantics, action authority, registry API, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
+---
+
+## 81. Close the HoldingZoneResolver parent-rollback test gap (28 November 2026)
+
+Added `tests/test_gui_build_state_rollback.py::TestBuildStateRollback::test_resolver_start_then_raise_is_recovered_by_parent_rollback`.
+
+The test uses the real `build_state()` factory, isolated temporary SQLite paths and the real `HoldingZoneResolver`; unrelated gate/zone/trigger dependencies are inert test doubles and optional builders are disabled. Patched `threading.Thread.start` starts the real `holding_zone_resolver` worker and then raises an injected `RuntimeError`, exercising the case where a worker exists although `start_loop()` fails to return.
+
+Assertions verify the original construction error propagates, the resolver stop event is set, its thread has exited, and all four constructed Writers are closed with worker references cleared. This closes the narrow resolver test gap noted in §80 and complements the five stage-builder partial-start regressions.
+
+**Validation:** exact-head CI is required before claiming pass. Test-only change; no resolver or cognitive behaviour changed. No registry API, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
