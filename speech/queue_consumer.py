@@ -249,6 +249,10 @@ class SpeechQueueConsumer(threading.Thread):
                 playback_completed or playback_started
                 or synthesis_completed or trace_parent
             )
+            if self._stop.is_set():
+                self._mark_skipped(qid, "shutdown before spoken status")
+                trace_event("skipped_shutdown", parent=failure_parent)
+                return
             try:
                 self.writer.write(
                     "UPDATE speech_queue SET status='spoken', spoken_at=? WHERE id=?",
