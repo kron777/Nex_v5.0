@@ -687,8 +687,6 @@ TABLES_PER_DB: dict[str, tuple[str, ...]] = {
 # 3s before nex_keepalive.sh's 15s forced-kill limit.
 _SHUTDOWN_TOTAL_BUDGET_S = 12.0
 _PRODUCER_STOP_TIMEOUT_S = 5.0
-# The keepalive force-kills after 15s. Reserve 3s for supervisor/exit overhead.
-_SHUTDOWN_TOTAL_BUDGET_S = 12.0
 
 
 @dataclass
@@ -780,6 +778,7 @@ class AppState:
             )
 
         writer_errors = []
+        writer_threads_alive = []
         for name, writer in self.writers.items():
             remaining = max(0.0, deadline - time.monotonic())
             try:
@@ -791,6 +790,11 @@ class AppState:
                     source="gui.server",
                     exc=e,
                 )
+            finally:
+                inner = getattr(writer, "_inner", writer)
+                thread = getattr(inner, "_thread", None)
+                if isinstance(thread, threading.Thread) and thread.is_alive():
+                    writer_threads_alive.append(name)
 
         finished = time.monotonic()
         deadline_exceeded = finished > deadline
@@ -799,6 +803,7 @@ class AppState:
             or producer_alive
             or producer_errors
             or writer_errors
+            or writer_threads_alive
             or deadline_exceeded
         )
         return {
@@ -812,6 +817,7 @@ class AppState:
             "producer_errors": producer_errors,
             "scheduler_errors": scheduler_errors,
             "writer_errors": writer_errors,
+            "writer_threads_alive": writer_threads_alive,
         }
 
     def _quiesce_producers(self, timeout: float) -> dict:
