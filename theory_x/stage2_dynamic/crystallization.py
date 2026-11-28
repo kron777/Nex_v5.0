@@ -117,7 +117,11 @@ class Crystallizer:
             return False
 
         # Write belief to beliefs.db
-        belief_id = self._write_belief(belief_content, branch_id, ts, stream=stream)
+        belief_id = self._write_belief(
+            belief_content, branch_id, ts, stream=stream, stop_event=stop_event
+        )
+        if stop_event is not None and stop_event.is_set() and belief_id is None:
+            return False
 
         # Log crystallization event to dynamic.db
         self._dynamic_writer.write(
@@ -172,6 +176,8 @@ class Crystallizer:
             patterns = self._beliefs_reader.read("SELECT pattern FROM belief_blacklist")
         except Exception:
             return False
+        if stop_event is not None and stop_event.is_set():
+            return False
         content_lower = content.lower()
         return any(row["pattern"].lower() in content_lower for row in patterns)
 
@@ -183,13 +189,15 @@ class Crystallizer:
                 "WHERE content = ? AND ts >= ?",
                 (content, cutoff),
             )
+            if stop_event is not None and stop_event.is_set():
+                return False
             return bool(row)
         except Exception as exc:
             errors.record(f"crystallization dedup error: {exc}", source=_LOG_SOURCE, exc=exc)
             return False
 
     def _write_belief(self, content: str, branch_id: str, ts: float,
-                      stream: Optional[str] = None) -> Optional[int]:
+                      stream: Optional[str] = None, *, stop_event=None) -> Optional[int]:
         """Write Tier 7 Impression to beliefs.db. Returns rowid or None."""
         # Phase 22 — Coherence Gate (before INSERT)
         if self._gate is not None:
@@ -225,6 +233,8 @@ class Crystallizer:
                     source=_LOG_SOURCE, exc=exc,
                 )
 
+        if stop_event is not None and stop_event.is_set():
+            return None
         try:
             rowid = self._beliefs_writer.write(
                 "INSERT INTO beliefs "
