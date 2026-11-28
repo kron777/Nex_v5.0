@@ -120,8 +120,14 @@ def main() -> None:
     paths = db_paths()
     writers = {}
 
+    _partial_shutdown_deadline = None
+
     def _close_partial_writers() -> None:
-        deadline = _time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S
+        deadline = (
+            _partial_shutdown_deadline
+            if _partial_shutdown_deadline is not None
+            else _time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S
+        )
         for _writer in list(writers.values()):
             _raw = getattr(_writer, "_inner", _writer)
             try:
@@ -133,6 +139,9 @@ def main() -> None:
     _partial_shutdown_requested = threading.Event()
 
     def _partial_boot_shutdown(signum, frame):
+        nonlocal _partial_shutdown_deadline
+        if _partial_shutdown_deadline is None:
+            _partial_shutdown_deadline = _time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S
         _partial_shutdown_requested.set()
         log.warning("Shutdown during Writer construction; cleanup requested")
 
@@ -167,6 +176,7 @@ def main() -> None:
 
     def _boot_shutdown(signum, frame):
         if not state._boot_shutdown_requested.is_set():
+            state._boot_shutdown_deadline = _time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S
             log.warning("Shutdown during NEX boot; cleanup requested")
             state._boot_shutdown_requested.set()
         # Return instead of closing underneath a builder. The current startup
