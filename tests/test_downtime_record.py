@@ -10,6 +10,7 @@ import sqlite3
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from tests import _bootstrap  # noqa: F401
@@ -114,6 +115,25 @@ class TestDowntimeRecord(unittest.TestCase):
         ).fetchone()
         self.assertIsNotNone(got)
         self.assertIn("boot #", got["content"])
+
+
+    def test_clean_marker_fsyncs_file_and_directory(self):
+        with mock.patch.object(D.os, "fsync", wraps=os.fsync) as fsync:
+            self.assertTrue(D.mark_clean_shutdown(self.dir, ts=time.time()))
+            self.assertGreaterEqual(fsync.call_count, 2)
+
+    def test_marker_fsync_failure_returns_false_without_valid_marker(self):
+        with mock.patch.object(D.os, "fsync", side_effect=OSError("fsync failed")):
+            self.assertFalse(D.mark_clean_shutdown(self.dir, ts=time.time()))
+        self.assertIsNone(D._read_marker(self.dir))
+
+    def test_consuming_marker_fsyncs_directory_entry(self):
+        self.assertTrue(D.mark_clean_shutdown(self.dir, ts=time.time()))
+        with mock.patch.object(D.os, "fsync", wraps=os.fsync) as fsync:
+            D._consume_marker(self.dir)
+            self.assertGreaterEqual(fsync.call_count, 1)
+        self.assertIsNone(D._read_marker(self.dir))
+
 
 
 if __name__ == "__main__":
