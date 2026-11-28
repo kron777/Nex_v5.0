@@ -4769,3 +4769,31 @@ It does not establish current alert frequency, present acknowledgement state, re
 **Source anchor:** journal/INVESTIGATION_2026-11-14_groove_facts.txt, especially its Q2 alert count/type/acknowledgement breakdown, 30-minute gap-clustering distribution, Q3 incident rows/cooldown evidence, and final evidence limitations. Current implementation comparison: theory_x/diversity/groove.py, theory_x/diversity/loop.py, theory_x/stage9_metacognition/metacognition.py; manual §§112–123.
 
 **Evidence level:** historical runtime-observed counts and event rows as reported by the contemporaneous read-only journal; source-observed current identity model; retrospective 30-minute grouping method. Current live database state and cross-restart episode identity remain UNKNOWN.
+
+
+## §124 — Dual G-83 characterization candidates: producer and consumer (2026-11-28)
+
+### Producer-side characterization: PR #448
+
+Draft PR #448, head f4447ad5b243b97c91c28fc00abbef88fe7c51f9, adds tests/test_groove_spotter_fingerprints.py. It characterizes all four producer fingerprints (ngram, exact, template, centroid) for same-instance unchanged suppression, clearing/re-emission after the condition disappears, and fresh-instance replay. Exact-head full test workflow run 46173749707 is IN_PROGRESS; no result yet.
+
+### Consumer-side characterization: PR #449
+
+Draft PR #449, head 50c2e083de1dab3e40301b37dc14b614a0d08f23, adds one controlled-clock test to tests/test_metacognition.py. It seeds exactly one unacknowledged source alert and calls Metacognition.tick() five times. The assertions characterize the current path:
+- one source alert remains singular and unacknowledged;
+- five derived groove events are written from that same source alert;
+- the third event starts a 60-second Row 9 stillness window;
+- the fourth event is written while the hold is active but does not stack a hold;
+- after expiry, the fifth event causes a second stillness activation without a new source alert.
+
+Exact-head full test workflow run 46174148899 is IN_PROGRESS; no result yet.
+
+### Combined scope and interpretation
+
+Both are test-only Phase 0 characterization candidates. Neither changes runtime code, thresholds, schemas, feature flags, detector or Metacognition behaviour, the frozen specifications, or the roadmap. Together they test the two separate replay boundaries documented in §121 and G-83: detector instance identity and downstream consumer re-observation. They do not settle what should count as a semantic episode or whether the Row 9 threshold should be global/topic-specific/source-based. G-83 remains OPEN.
+
+No test has been run locally and no CI pass is claimed. Keep both PRs in draft until each exact-head workflow completes and the test results are reviewed. A failure must be diagnosed before updating the evidence status; do not treat queued/in-progress as validation.
+
+**Disposition:** Phase 0 test-characterization evidence candidates only. No live host, database, process, API, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Evidence anchors:** PR #448 / run 46173749707 / commit f4447ad5b243b97c91c28fc00abbef88fe7c51f9; PR #449 / run 46174148899 / commit 50c2e083de1dab3e40301b37dc14b614a0d08f23; main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
