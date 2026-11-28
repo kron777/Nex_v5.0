@@ -5607,6 +5607,7 @@ This is a second, independent boundary after §148. Even if a future approved pa
 - There are two source-level writers to different stores for substantially the same observation: `beliefs` and `narrative_log`.
 - Their throttles are independent and use different persistence scopes. A generator restart resets its in-memory throttle; the narrative path checks persisted history.
 - `NEX5_GOVERNOR_OFF` guards the Fountain governor block. `NEX5_RUT_MIRROR_OFF` is checked only by `SelfNarrative.tick()`; the normal chat caller invokes `_maybe_notice_rut()` directly and therefore bypasses that wrapper check.
+- The Fountain belief write occurs after the current call has already fetched its own-content and seed candidate rows. It cannot be in that same invocation's selected context. The explicit Fountain source allowlists also omit `self_rut_notice`; this does not rule out other generic retrieval paths or later reanimation.
 - The existing test `test_tick_respects_rut_mirror_off_flag` covers only the public wrapper. It does not cover the actual Metacognition caller. Draft PR #452 now adds a test-only characterization of that direct-caller bypass; exact-head CI is pending.
 - No test coverage for the Fountain belief writer's governor/flag/throttle path was found in the inspected `tests/test_fountain.py` or `tests/test_metacognition.py`.
 
@@ -5621,6 +5622,44 @@ This is a second, independent boundary after §148. Even if a future approved pa
 
 **Disposition:** source-level dual-path and flag-scope mismatch recorded. Potential control-scope defect remains unconfirmed pending intended flag contract and live evidence. No new defect ID yet. G-83 remains OPEN.
 
-**Source anchors:** `run.py`; `gui/server.py`; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/stage6_fountain/generator.py`; `tests/test_self_narrative.py`; `tests/test_metacognition.py`; `tests/test_fountain.py`; commit `8bf08cbfb455303be5236612e1915813257d23c6`.
+**Source anchors:** `run.py`; `gui/server.py`; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/stage6_fountain/generator.py`; `theory_x/stage3_world_model/retrieval.py`; `tests/test_self_narrative.py`; `tests/test_metacognition.py`; `tests/test_fountain.py`; commit `8bf08cbfb455303be5236612e1915813257d23c6`.
 
 **Authority boundary:** no runtime code, database schema, feature flag, prompt policy, persistence policy, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §151 — Fountain rut belief is written after candidate selection and omitted from its explicit source pools (28 November 2026)
+
+**Question studied:** once the Fountain governor writes `source='self_rut_notice'`, does the Fountain retrieval path actually select that belief for a subsequent prompt?
+
+### Source trace
+
+- `FountainGenerator._retrieve_context_beliefs()` first reads its `own_rows` using `_OWN_CONTENT_SOURCES`, and separately reads `seed_rows` using `_SEED_SOURCES`.
+- The Fountain governor's `self_rut_notice` INSERT occurs only after both candidate queries and after the initial own/seed selection work has begun. The newly written row cannot be present in the same invocation's already-fetched candidates.
+- `_OWN_CONTENT_SOURCES` is explicitly limited to `fountain_insight`, `synergized`, `precipitated_from_dynamic`, `precipitated_from_sense`, `behavioural_observation` and `auto_probe`. `_SEED_SOURCES` is a separate explicit allowlist; neither includes `self_rut_notice`.
+- The dedicated HOT-observer slot queries only `source='hot_observer'`; it does not select `self_rut_notice`.
+- The same generator method may prepend a pending reanimation result by ID, but the inspected code does not establish that every new `self_rut_notice` is marked dormant or enters that queue. Treat this as a possible alternate route, not a proven reader.
+- A separate generic `BeliefRetriever.retrieve()` used by the GUI fallback path loads all unpaused beliefs with `tier <= 6` and either `locked=1` or `confidence >= 0.15`. The rut belief's source-level write values (tier 6, confidence 0.6, locked 0) make it eligible for that candidate pool. Actual return still depends on query scoring, route selection, top-k and the GUI's shared-token filter; eligibility is not proof of delivery.
+
+### Consequence
+
+The Fountain writer's claim that the note enters the belief stream is source-supported. The stronger claim that the Fountain's own next prompt retrieves it is not supported by its explicit source allowlists. The GUI's generic retriever is a distinct possible consumer, with query-dependent selection. The narrative_log route is another distinct path and retains its literal prompt-prefix restriction from §149.
+
+This creates a producer/consumer split across two separate channels:
+- Fountain writes a belief after the current fire's candidates were fetched.
+- GUI generic retrieval may later select that belief by relevance.
+- Fountain's explicit own/seed/HOT source slots do not select it by source.
+- Chat SelfNarrative separately writes and retrieves a narrative_log row by literal topic match.
+
+### Evidence classification
+
+- Writer position relative to candidate reads: source-observed.
+- Fountain own/seed/HOT source allowlists: source-observed.
+- Generic GUI retriever eligibility for tier-6/confidence-0.6 belief rows: source-observed.
+- Actual belief-row existence, later query hit rate, any reanimation route, and prompt delivery: UNKNOWN.
+
+**Next bounded investigation:** trace `dormant_beliefs` eligibility and the generic GUI retrieval filter for this source; add isolated tests for the Fountain write timing/source eligibility only if they can be kept test-only and deterministic. Do not add `self_rut_notice` to Fountain allowlists or alter retrieval ranking without an approved contract.
+
+**Disposition:** Fountain self-rut belief's own-path consumption is not established; generic GUI retrieval is an eligible but query-dependent reader. No runtime change and no defect ID yet. G-83 remains OPEN.
+
+**Source anchors:** `theory_x/stage6_fountain/generator.py`; `theory_x/stage3_world_model/retrieval.py`; `gui/server.py`; `theory_x/diversity/reanimate.py`.
+
+**Authority boundary:** no runtime code, schema, retrieval policy, feature flag, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
