@@ -465,3 +465,165 @@ def test_cycle_snapshot_cannot_claim_feedback_events_when_ledger_is_missing(tmp_
     path.unlink()
     with pytest.raises(ValueError, match="does not match the append-only ledger"):
         ledger.apply(cycle)
+
+
+def test_topology_drift_is_rejected_before_another_event_is_appended(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    cycle = _cycle_with_feedback_loop()
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    ledger = FeedbackLoopEvidenceStore(str(path))
+    ledger.record_measurement(
+        cycle, "loop.alpha", "gain", 0.5, "ratio",
+        ["lab:gain-1"], "medium", ["experiment:gain-1"],
+    )
+    before = path.read_bytes()
+    _loop_record(cycle)["members"] = ["node_a", "node_c"]
+
+    with pytest.raises(ValueError, match="topology changed"):
+        ledger.record_measurement(
+            cycle, "loop.alpha", "delay", 120, "ms",
+            ["trace:delay-2"], "medium", ["experiment:delay-2"],
+        )
+
+    assert path.read_bytes() == before
+    assert len(ledger.events(cycle.id)) == 1
+
+
+def test_stability_review_preflights_existing_topology_before_append(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    cycle = _cycle_with_feedback_loop()
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    ledger = FeedbackLoopEvidenceStore(str(path))
+    ledger.record_measurement(
+        cycle, "loop.alpha", "gain", 0.5, "ratio",
+        ["lab:gain-1"], "medium", ["experiment:gain-1"],
+    )
+    before = path.read_bytes()
+    _loop_record(cycle)["relationships"] = ["node_a->node_c", "node_c->node_a"]
+
+    with pytest.raises(ValueError, match="topology changed"):
+        ledger.record_stability_review(
+            cycle, "loop.alpha", "stable", "reviewer", "review:stable",
+            ["test:stable-response"], "high",
+        )
+
+    assert path.read_bytes() == before
+    assert len(ledger.events(cycle.id)) == 1
+
+
+def test_missing_ledger_is_detected_before_a_new_event_can_recreate_it(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    cycle = _cycle_with_feedback_loop()
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    ledger = FeedbackLoopEvidenceStore(str(path))
+    ledger.record_measurement(
+        cycle, "loop.alpha", "gain", 0.5, "ratio",
+        ["lab:gain-1"], "medium", ["experiment:gain-1"],
+    )
+    path.unlink()
+
+    with pytest.raises(ValueError, match="does not match the append-only ledger"):
+        ledger.record_stability_review(
+            cycle, "loop.alpha", "stable", "reviewer", "review:stable",
+            ["test:stable-response"], "high",
+        )
+    assert not path.exists()
+
+
+def test_feedback_evidence_ledger_rejects_blank_lines_and_duplicate_json_keys(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    cycle = _cycle_with_feedback_loop()
+    ledger = FeedbackLoopEvidenceStore(str(path))
+    ledger.record_measurement(
+        cycle, "loop.alpha", "gain", 0.5, "ratio",
+        ["lab:gain"], "medium", ["experiment:gain"],
+    )
+    path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="blank or unterminated"):
+        ledger.events(cycle.id)
+
+    path.write_text(
+        '{"schema_version":"rdo.feedback_loop_evidence.v1",'
+        '"schema_version":"rdo.feedback_loop_evidence.v1"}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="duplicate JSON key"):
+        ledger.events(cycle.id)
+
+
+def test_feedback_evidence_ledger_enforces_byte_and_event_limits(tmp_path, monkeypatch):
+    import rdo.feedback_loop as feedback_module
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    path.write_text("x" * 32, encoding="utf-8")
+    monkeypatch.setattr(feedback_module, "_MAX_LEDGER_BYTES", 16)
+    with pytest.raises(ValueError, match="size limit"):
+        FeedbackLoopEvidenceStore(str(path)).events()
+
+    path.unlink()
+    monkeypatch.setattr(feedback_module, "_MAX_LEDGER_BYTES", 1024 * 1024)
+    monkeypatch.setattr(feedback_module, "_MAX_LEDGER_EVENTS", 0)
+    cycle = _cycle_with_feedback_loop()
+    ledger = FeedbackLoopEvidenceStore(str(path))
+    with pytest.raises(ValueError, match="event limit"):
+        ledger.record_measurement(
+            cycle, "loop.alpha", "gain", 0.5, "ratio",
+            ["lab:gain"], "medium", ["experiment:gain"],
+        )
+    assert not path.read_text(encoding="utf-8")
+
+
+def test_feedback_evidence_ledger_validates_deterministic_event_identity(tmp_path):
+    import rdo.feedback_loop as feedback_module
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    cycle = _cycle_with_feedback_loop()
+    ledger = FeedbackLoopEvidenceStore(str(path))
+    ledger.record_measurement(
+        cycle, "loop.alpha", "gain", 0.5, "ratio",
+        ["lab:gain"], "medium", ["experiment:gain"],
+    )
+    event = json.loads(path.read_text(encoding="utf-8"))
+    event["data"]["event_id"] = "fle_" + "0" * 24
+    event["event_sha256"] = feedback_module._event_digest(event)
+    path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="event identity digest mismatch"):
+        ledger.events(cycle.id)
+
+
+def test_feedback_evidence_append_refuses_to_exceed_byte_limit(tmp_path, monkeypatch):
+    import rdo.feedback_loop as feedback_module
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    monkeypatch.setattr(feedback_module, "_MAX_LEDGER_BYTES", 8)
+    cycle = _cycle_with_feedback_loop()
+    ledger = FeedbackLoopEvidenceStore(str(path))
+
+    with pytest.raises(ValueError, match="size limit"):
+        ledger.record_measurement(
+            cycle, "loop.alpha", "gain", 0.5, "ratio",
+            ["lab:gain"], "medium", ["experiment:gain"],
+        )
+    assert path.read_text(encoding="utf-8") == ""
+
+
+def test_feedback_evidence_ledger_rejects_symlink(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    target = tmp_path / "target.jsonl"
+    target.write_text("", encoding="utf-8")
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    path.symlink_to(target)
+    ledger = FeedbackLoopEvidenceStore(str(path))
+
+    with pytest.raises(ValueError, match="must not be a symlink"):
+        ledger.events()
