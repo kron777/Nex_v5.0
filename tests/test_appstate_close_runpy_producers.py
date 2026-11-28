@@ -174,6 +174,7 @@ class TestRunPyEarlyBootOwnership(unittest.TestCase):
         ]
         self.assertTrue(starts)
         self.assertLess(state_line, min(starts))
+        self.assertIn('_own_and_start(state, "decoder_loop"', source)
 
     def test_owner_is_published_before_start_and_failed_start_is_quiesced(self):
         from run import _own_and_start
@@ -232,6 +233,44 @@ class TestRunPyEarlyBootOwnership(unittest.TestCase):
             _own_and_start(state, "resolver", worker, "start_loop", "stop_loop")
 
         self.assertIs(state.resolver, worker)
+        self.assertFalse(worker._thread.is_alive())
+        report = state.close()
+        self.assertTrue(report["success"], report)
+
+    def test_decoder_start_failure_after_thread_creation_is_quiesced(self):
+        from run import _own_and_start
+
+        state = _state(self.writers, self.readers)
+
+        class DecoderOwner:
+            def __init__(self):
+                self.stop_event = threading.Event()
+                self._thread = threading.Thread(
+                    target=self.stop_event.wait,
+                    name="boot-decoder-start-then-fail",
+                    daemon=True,
+                )
+
+            def start(self):
+                self._thread.start()
+
+            def stop(self):
+                self.stop_event.set()
+
+        worker = DecoderOwner()
+        real_start = threading.Thread.start
+
+        def start_then_raise(thread):
+            real_start(thread)
+            if thread.name == "boot-decoder-start-then-fail":
+                raise RuntimeError("injected decoder start failure after creation")
+
+        with mock.patch.object(threading.Thread, "start", new=start_then_raise):
+            with self.assertRaisesRegex(RuntimeError, "decoder start failure"):
+                _own_and_start(state, "decoder_loop", worker, "start", "stop")
+
+        self.assertIs(state.decoder_loop, worker)
+        self.assertTrue(worker.stop_event.is_set())
         self.assertFalse(worker._thread.is_alive())
         report = state.close()
         self.assertTrue(report["success"], report)
