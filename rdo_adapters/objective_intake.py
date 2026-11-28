@@ -455,7 +455,6 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
     """Persist one immutable objective revision and run the existing RDO pipeline."""
     record = validate_objective(payload)
     input_store = ObjectiveInputStore(os.path.join(workdir, "objectives"))
-    stored = input_store.append(record)
     repository_revision = _repository_revision(repo_dir)
     approved_catalogue = None
     if approved_rule_kinds is not None:
@@ -473,6 +472,7 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
             raise ObjectiveInputError(f"cannot load approved rule catalogue: {exc}") from exc
         if approved_catalogue is None:
             raise ObjectiveInputError("no approved expansion rules were selected")
+    stored = input_store.append(record)
     catalogue_digest = approved_catalogue.sha256 if approved_catalogue else None
     cycle_id = _cycle_id(
         record["objective_id"], record["revision"], repository_revision, catalogue_digest
