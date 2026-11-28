@@ -1054,3 +1054,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **PR #454 validation update:** exact-head workflow 46182737858 passed at 7b9ae6c3f0debbc87882b8d8e8c8932f79cb5c5e. Its isolated tests verify the governor belief write and OFF boundary, current/next Fountain source-pool omission, generic retrieval eligibility, and OUTSIDE classification/INSIDE self-inquiry exclusion. This remains fixture evidence, not host retrieval observation.
+
+
+§159 dual SelfNarrative qualification: run.py constructs the persistent StageSelfNarrative and injects it into CoherenceGate/Metacognition/GoalManager/ProblemMemory/NovelAssociation; FountainGenerator separately constructs a Stage-TOM SelfNarrative only under NEX5_SELF_NARRATIVE=1 and uses get_narrative() for Fountain prompt injection. The Stage-TOM class's write_narrative() appends to a private _log not read by get_narrative(), and the inspected gate receives the other class. No Stage-TOM write_narrative caller found in the normal construction path. Host flag and external callers UNKNOWN. See INDEX §159.
