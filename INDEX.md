@@ -5396,6 +5396,23 @@ This does not invalidate the 30-day source-level backstop; it narrows the test e
 
 **Authority boundary:** no reaper target, retention value, service/timer, test, database or runtime behaviour changed. See §138 for the retention semantics.
 
+## §143 — Host-side DB-reaper deployment history: path repair observed, successful run not established (28 November 2026)
+
+The earlier host diagnostic record adds an important qualification to §138:
+
+- On 25 November 2026, the old loaded user-systemd units initially failed with `203/EXEC` because they pointed to `/home/rr/Desktop/Desktop/nex5`, which was no longer the actual checkout path.
+- The user's actual checkout was `/mnt/games/storage/Desktop/Desktop/nex5`.
+- A later host check verified that the loaded `nex5-db-reaper.service` had been corrected to the actual checkout path, and that `nex_db_reaper.py` existed there.
+- No service was deliberately started or restarted during that check. No successful service execution, timer activation state, last-run log or completed nightly retention pass was established.
+- The repository's versioned `deploy/systemd/nex5-db-reaper.service` still contains the old `/home/rr/Desktop/Desktop/nex5` paths. The active loaded unit had been corrected independently; copying the unchanged repository reference unit over it could reintroduce the old path.
+
+**Corrected operational status:** the earlier execution-path failure was diagnosed and the loaded unit path was later corrected. This is not evidence that the timer is enabled or that the reaper has completed a successful run. The 30-day Metacognition retention backstop remains runtime-unverified.
+
+**Configuration-drift classification:** versioned reference unit and historically corrected loaded unit diverge. This is a deployment reproducibility risk, not permission to edit or reinstall service units during this Phase 0 trace.
+
+**Next bounded observation:** inspect the current loaded unit and timer with `systemctl --user cat/status/list-timers nex5-db-reaper.timer nex5-db-reaper.service`, then inspect the last service journal entry and reaper log. Do not start/restart the service as part of an evidence-only check.
+
+**Authority boundary:** no unit, path, timer, service, database or runtime state changed. This records historical host evidence and the remaining unknowns only.
 
 ## §144 — G-83 narrative retention: pattern-specific reflections outlive source-event eligibility (28 November 2026)
 
@@ -5428,22 +5445,3 @@ The user-level reaper timer's presence in the repository does not prove that it 
 **Disposition:** source-observed repeated narrative insertion and no-age-cutoff prompt reader; exact-head fixture verifies same-source duplicate rows. No narrative cleanup path was located in the inspected SelfNarrative/reaper sources. Active host timer state and intended retention semantics remain UNKNOWN. G-83 remains OPEN; no new defect ID or behaviour change is introduced.
 
 **Source anchors:** `substrate/init_db.py` blob `494d0a86d2fc42053fd3005d6a6b4e19c376d262`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `nex_db_reaper.py` blob `5cfb609a8ad8a5f9bd0ab83729d8b42220700658`; PR #449 exact head `8132db2a338727e580e3269ad148277db727b0d4`.
-
-
-## §143 — Host-side DB-reaper deployment history: path repair observed, successful run not established (28 November 2026)
-
-The earlier host diagnostic record adds an important qualification to §138:
-
-- On 25 November 2026, the old loaded user-systemd units initially failed with `203/EXEC` because they pointed to `/home/rr/Desktop/Desktop/nex5`, which was no longer the actual checkout path.
-- The user's actual checkout was `/mnt/games/storage/Desktop/Desktop/nex5`.
-- A later host check verified that the loaded `nex5-db-reaper.service` had been corrected to the actual checkout path, and that `nex_db_reaper.py` existed there.
-- No service was deliberately started or restarted during that check. No successful service execution, timer activation state, last-run log or completed nightly retention pass was established.
-- The repository's versioned `deploy/systemd/nex5-db-reaper.service` still contains the old `/home/rr/Desktop/Desktop/nex5` paths. The active loaded unit had been corrected independently; copying the unchanged repository reference unit over it could reintroduce the old path.
-
-**Corrected operational status:** the earlier execution-path failure was diagnosed and the loaded unit path was later corrected. This is not evidence that the timer is enabled or that the reaper has completed a successful run. The 30-day Metacognition retention backstop remains runtime-unverified.
-
-**Configuration-drift classification:** versioned reference unit and historically corrected loaded unit diverge. This is a deployment reproducibility risk, not permission to edit or reinstall service units during this Phase 0 trace.
-
-**Next bounded observation:** inspect the current loaded unit and timer with `systemctl --user cat/status/list-timers nex5-db-reaper.timer nex5-db-reaper.service`, then inspect the last service journal entry and reaper log. Do not start/restart the service as part of an evidence-only check.
-
-**Authority boundary:** no unit, path, timer, service, database or runtime state changed. This records historical host evidence and the remaining unknowns only.
