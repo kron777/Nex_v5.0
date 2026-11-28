@@ -5125,3 +5125,8 @@ The conversations schema also defines nullable `meta_cognition_events.session_id
 ### §131 authority classification
 
 The Metacognition string is appended to Fountain's textual prompt context after workspace/focus composition; it is not consumed as a typed operation, capability grant, approval signal, execution command, or verification result. This source path is interpretive context only. It does not make the Tibetan mind map or a Mind Aspect an action gate, score, block or veto.
+
+
+### §131 chat-refresh cadence refinement
+
+The cache TTL is `_CACHE_TTL = 60.0` seconds. Every GUI chat request calls `Metacognition.tick()`, so detectors, source re-reads, event writes, narrative writes and Row 9 counting can run on every chat turn. But the recent-event cache is refreshed only when empty or older than 60 seconds. `format_for_prompt()` then reads the last cached snapshot. Thus database/Row 9 consequences can advance on a chat turn while the prompt line still reflects the previous cached top event until the 60-second refresh boundary. Fountain's optional consumer reads that same cache without triggering a refresh. This is a source-observed timing split; actual request cadence remains UNKNOWN.
