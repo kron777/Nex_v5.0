@@ -175,6 +175,25 @@ class TestAppStateCloseQuiescesDynamic(unittest.TestCase):
         self.assertEqual(row["value"], "done")
         self.assertFalse(fountain._thread.is_alive())
 
+    def test_resolver_is_stopped_and_joined_before_writers_close(self):
+        from theory_x.stage_gate.holding_zone import HoldingZone
+        from theory_x.stage_gate.resolver import HoldingZoneResolver
+
+        zone = HoldingZone(self.writers["beliefs"], self.readers["beliefs"])
+        resolver = HoldingZoneResolver(zone, beliefs_writer=self.writers["beliefs"])
+        resolver.start_loop(interval_seconds=3600)
+        state = _state(self.writers, self.readers)
+        state.resolver = resolver
+
+        state.close()
+
+        self.assertTrue(resolver.join(timeout=0))
+        self.assertFalse(resolver._thread.is_alive())
+        with self.assertRaises(Exception):
+            self.writers["beliefs"].write(
+                "INSERT INTO daemon_kv (key, value, updated_at) VALUES ('late-resolver', 'x', 0)"
+            )
+
     def test_close_without_dynamic_is_unchanged(self):
         _state(self.writers, self.readers).close()
         with self.assertRaises(Exception):
