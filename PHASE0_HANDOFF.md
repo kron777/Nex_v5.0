@@ -571,3 +571,6 @@ The beliefs schema has a paused column, but Stage-TOM _recent_t6() does not filt
 ### 28 November 2026 — Phase 26 SelfNarrative design provenance
 
 The 10 May Phase 26 draft spec describes persistent narrative_log accumulation and read-only prompt formatting. A separate Stage-TOM living narrative composer was introduced on 28 June and assembles current Fountain context from recent fires, T6 beliefs and other readers. The tracked nex_keepalive.sh still sets NEX5_SELF_NARRATIVE=1, but host launcher selection and effective environment are UNKNOWN. The spec and Doctrine remain drafts, not Frozen V2.1 or Founder Sign-Off. Keep both implementations distinct; do not infer replacement or unify them without authority. No runtime change. See INDEX §162.
+
+
+PR #457 exact-head workflow 46183886214 passed: 3,079 passed, 7 skipped, 86 subtests; baseline and sandbox checks OK. PR #456 first failed on an assertion expecting full T6 text; the source truncates to 80 characters, so the test now checks the emitted prefix and awaits re-run. See INDEX §160.
