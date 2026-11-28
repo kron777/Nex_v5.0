@@ -11,6 +11,8 @@ Pinned here, on isolated temporary databases:
   so each one's in-flight write lands;
 - producers are signalled first and joined against ONE shared deadline, so
   several stuck producers cannot multiply the shutdown time;
+- if any producer remains alive or its stop fails, no shared Writer is closed
+  underneath it; the supervisor enforces the final hard deadline;
 - build_world_model() keeps its loop threads, so they can be joined.
 
 Fountain and HoldingZoneResolver are now included through explicit stop and
@@ -194,6 +196,7 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
                diversity_loop=_LoopLike(later)).close()
         self.assertFalse(report["success"], report)
         self.assertTrue(any("stop failed" in e for e in report["producer_errors"]))
+        self.assertEqual(set(report["writer_close_skipped"]), set(self.writers))
         self.assertIs(later.wrote, True)
         self.assertTrue(self._landed("after_the_bad_one"))
 
