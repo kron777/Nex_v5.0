@@ -5397,7 +5397,7 @@ This does not invalidate the 30-day source-level backstop; it narrows the test e
 **Authority boundary:** no reaper target, retention value, service/timer, test, database or runtime behaviour changed. See §138 for the retention semantics.
 
 
-## §143 — G-83 narrative retention: pattern-specific reflections outlive source-event eligibility (28 November 2026)
+## §144 — G-83 narrative retention: pattern-specific reflections outlive source-event eligibility (28 November 2026)
 
 **Question studied:** when a GrooveSpotter alert falls out of Metacognition's 600-second source query, what happens to the pattern-specific narrative rows created by repeated consumption?
 
