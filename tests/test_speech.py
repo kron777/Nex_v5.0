@@ -353,6 +353,7 @@ class TestSpeechConsumer(unittest.TestCase):
         self.assertIn("shutdown", status["error"])
 
     def test_stop_wakes_paused_poll_loop(self):
+        _StubPlayer.stop_calls = 0
         consumer = self._make_consumer(paused=True)
         thread = threading.Thread(target=consumer.run)
         thread.start()
