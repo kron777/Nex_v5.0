@@ -98,6 +98,8 @@ def _ask_voice_direction(
         "NEX5_VOICE_URL", "http://localhost:11434/v1/chat/completions"
     )
     model = os.environ.get("NEX5_VOICE_MODEL", "qwen2.5:3b")
+    if stop_event is not None and stop_event.is_set():
+        return None
     ctx = _recent_context(asset)
     if stop_event is not None and stop_event.is_set():
         return None
@@ -161,6 +163,8 @@ def make_voice_prediction(
     Returns {'voice_id', 'voice_dir', 'random_id', 'random_dir', 'baseline'} or
     an 'error' key if the price or the voice call failed.
     """
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
     db_path = db_path or wp._default_db_path()
     baseline = wp.fetch_price(asset)
     if stop_event is not None and stop_event.is_set():
