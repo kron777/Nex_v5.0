@@ -88,3 +88,15 @@ The bridge should map the selected alternative's seeds, relationships and reconc
 ## First reviewed-selection bridge increment
 
 The first bridge-preparation implementation is documented in REVIEWED_SEED_BRIDGE.md. It accepts only an explicit approval, prepares and validates an objective.v1 payload, returns the approval event and dual-ledger lineage, and reuses the existing SCC/cycle classifier. It deliberately does not append the intake ledger or call submit_objective(); no recursive expansion, planning cycle or Stage-7 handoff is started. The bridge's cycle enumeration is bounded per cyclic SCC; larger components remain UNKNOWN rather than being exhaustively enumerated.
+
+
+## Durable reviewed intake and lineage propagation
+
+The reviewed-selection bridge now has two deliberately separate operations:
+
+- `prepare_reviewed_selection()` is read-only. It validates an explicit approval, maps the selected alternative into objective.v1, and returns graph diagnostics plus the dual-chain lineage envelope.
+- `submit_reviewed_selection()` is the explicit persistence/planning operation. It writes the validated objective and lineage together in one objective revision-ledger wrapper, then invokes the existing advisory RDO cycle pipeline.
+
+The objective.v1 schema remains unchanged. The optional wrapper-level `lineage` field is validated against the objective ID/revision/digest and approval record; legacy `{record, sha256}` entries remain compatible. The lineage is copied into `CycleRecord.objective_lineage`, survives `resume_objective()`, and is included in the Stage-7 immutable manifest. Repeating the same approved selection is idempotent; a different lineage for the same stored revision is rejected.
+
+Planning does not automatically create a Stage-7 handoff or authorize execution. Scope review, delivery verification, human acceptance and any later execution remain separate boundaries.
