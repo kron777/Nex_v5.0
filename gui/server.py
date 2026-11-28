@@ -978,7 +978,7 @@ def _rollback_partial_app_state(scope: dict) -> None:
         producers.append((label, worker))
 
     for name in (
-        "scheduler", "resolver", "dynamic", "world_model", "membrane",
+        "scheduler", "resolver", "_resolver", "dynamic", "world_model", "membrane",
         "fountain", "throw_net_monitor", "counterfactual_node",
     ):
         add_producer(name, scope.get(name))
@@ -1004,10 +1004,26 @@ def _rollback_partial_app_state(scope: dict) -> None:
 
         add_thread(worker if isinstance(worker, threading.Thread)
                    else getattr(worker, "_thread", None))
-        for thread in getattr(worker, "_threads", ()) or ():
-            add_thread(thread)
+        owned = getattr(worker, "_threads", ()) or ()
+        owned_workers = owned.values() if isinstance(owned, dict) else owned
+        for owned_worker in owned_workers:
+            add_thread(owned_worker if isinstance(owned_worker, threading.Thread)
+                       else getattr(owned_worker, "_thread", None))
 
-    # Second pass: join all discovered workers against one shared deadline.
+    # Scheduler owns adapter wrappers in a mapping; use its public join API
+    # so each adapter receives the same remaining deadline.
+    scheduler = scope.get("scheduler")
+    if scheduler is not None:
+        join = getattr(scheduler, "join", None)
+        if callable(join):
+            try:
+                alive = join(timeout=max(0.0, deadline - time.monotonic()))
+                if alive:
+                    log.error("build_state rollback: scheduler workers survived: %s", alive)
+            except Exception:
+                log.exception("build_state rollback: scheduler join failed")
+
+    # Second pass: join all other discovered workers against one shared deadline.
     for thread in threads:
         if thread.ident is None or thread is threading.current_thread():
             continue
