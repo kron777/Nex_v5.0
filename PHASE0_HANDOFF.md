@@ -532,3 +532,6 @@ PR #453 exact-head workflow 46182191953 passed at 2d15c4d4c87881138c937c5600f1a2
 ### 28 November 2026 — GeniusTagger consumer inventory
 
 The tagger producer is write-only, but its integrated signal is consumed by ReadinessEvaluator (up to .15 readiness penalty), recent-STRIKING Fountain prompt injection, the governor (reanimation cadence 20->5 plus self_rut_notice), Metacognition rut narrative, and optional NEX5_CONTINUITY_N prompt context. GENIUS_SCORE_v2.md §7's statement that consumers do not yet exist is stale against the inspected source. Actual host flags/activity remain UNKNOWN. PR #455 covers readiness/prompt consumers; #454 governor; #452 Metacognition. See INDEX §156.
+
+
+TRACK_THEORY.md's 2026-05-27 afterword anticipates the retrieval, prompt and readiness consumers; GENIUS_SCORE_v2.md §7's final paragraph was not reconciled. Treat the mismatch as stale documentation, not proof of unauthorized runtime behaviour.
