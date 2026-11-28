@@ -244,3 +244,35 @@ New boundary adapter: `rdo_adapters/rule_proposals.py`.
 - Proposer/reviewer labels are caller-attributed and not identity-authenticated. The ledger is tamper-evident, not an authentication or authorization system.
 
 **Validation status:** focused proposal-store tests and the full repository CI are pending on the exact PR head. No active rule has been added, no existing rule has been changed, and no RDO specification has been amended.
+
+
+
+## Update 2026-11-28 — G-93 update path merged; G-92 decomposition boundary narrowed
+
+### G-93 — feedback-loop measurement and review update path (closed for this capability slice)
+
+PR #357 merged as `6f12f403e13b94a4b019aa666abac448b8a9a62d`.
+
+- `FeedbackLoopAssessment` remains UNKNOWN-first. A dimension with status `measured` now requires a finite numeric value, unit, evidence references and confidence.
+- `FeedbackLoopEvidenceStore` appends measurement and stability-review events to a separate hash-chained JSONL ledger.
+- Every event is bound to the exact loop ID, member list and directed relationships. Replay refuses to apply events if the loop topology changes.
+- Measurements do not calculate stability. A measurement recorded after a stability review invalidates that review and resets the current verdict to UNKNOWN until another explicit review is recorded.
+- A non-UNKNOWN verdict requires a separate review event with reviewer attribution, source reference, assessment evidence and confidence. Reviewer identity remains caller-supplied and unauthenticated by this local ledger.
+- Applied events are also persisted in the trailing `CycleRecord.feedback_loop_evidence_events` field. Legacy CycleRecords load with an empty event list. The replay command recovers the cycle snapshot if the ledger append succeeded but the snapshot save did not.
+- CLI: `feedback-measure`, `feedback-review`, `feedback-replay`. Operator instructions are in `rdo/FEEDBACK_LOOP_EVIDENCE.md`.
+
+Exact-head full sandbox run `46101032854`: **2,864 passed, 7 skipped, 45 subtests passed**. Mind-map verification completed: 30 nodes, 0 unverified. Existing warnings remain for the missing doctrine files and overdue P13 finitude unblock.
+
+The G-93 update-path gap is closed for measured evidence and separately reviewed state updates. Calibrated stability, gain/damping/oscillation thresholds, causal propagation and automated verdicts remain deliberately unimplemented. The code does not infer thresholds or stability from graph topology.
+
+### G-92 — candidate rule proposals merged; raw-idea seed boundary remains open
+
+PR #352 is now part of main and provides the provider-neutral, append-only, hash-chained candidate-rule proposal lifecycle. Its `approved_for_catalogue` decision is intentionally inert: it does not mutate `EXPANSION_RULES`, dynamically load code or automatically activate a new decomposition rule. The proposal ledger preserves review decisions, provenance and supersession history.
+
+The remaining G-92 gap is upstream of recursive expansion: objective intake still requires seed obligations supplied by a human or external LLM. There is no integrated raw-idea → candidate seed alternatives → explicit review/approval → objective.v1 intake → recursive expansion → Stage-7 handoff path.
+
+### Next bounded development: provider-neutral candidate-seed lifecycle
+
+Research and implement the seed proposal boundary using existing objective validation, immutable objective-input revisions, CycleStore and Stage-7 handoff evidence. Candidate alternatives should preserve competing interpretations, seed graphs, relationships, assumptions, constraints, evidence needs, acceptance-criterion coverage, open questions, disconfirming cases and provenance. Approval must select one alternative explicitly and bind it to the exact raw-objective revision/hash. The resulting objective input and later handoff must retain that lineage.
+
+Do not run a planning cycle from an unreviewed external-LLM seed proposal. Keep candidate expansion rules inert until a separate explicit activation authority is designed and approved. Do not change the frozen S-01–S-25/M1.8 register or infer missing v1.4 thresholds.
