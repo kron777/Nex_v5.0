@@ -4011,3 +4011,49 @@ This does not establish that the pathway has occurred in the live runtime, how o
 **Source anchors:** theory_x/diversity/loop.py (60-second detector cadence); theory_x/diversity/groove.py (in-memory detector fingerprints and alert inserts); theory_x/stage9_metacognition/metacognition.py (tick(), _detect_groove(), _write_event(), _maybe_engage_stillness()); gui/server.py (INSIDE chat call site); tests/test_metacognition.py; tests/test_stillness.py; journal/INVESTIGATION_2026-11-14_groove_facts.txt (historical 0/1,198 acknowledgement observation).
 
 **Evidence level:** source-observed caller cadence and write/read/count path; test-coverage inspection; historical database aggregate reported in a journal; live event chronology and complete acknowledgement writer census UNKNOWN.
+
+
+## §108 — Groove alert identity, producer semantics, and idempotency boundary (2026-11-28)
+
+### Additional source inspection
+
+This follow-on inspection uses the current `main` snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`. It narrows the producer/consumer contract but does not close the repository-wide acknowledgement-writer census.
+
+- `DiversityLoop._run()` invokes `GrooveSpotter.detect_all()`, then the other diversity stages, then waits 60 seconds. This is a detector cadence, not proof that each alert is consumed once by Metacognition.
+- The inspected GrooveSpotter detectors insert rows into `groove_alerts` for n-gram repetition, exact repetition, template repetition, and centroid tightening. Their duplicate suppression is held in per-instance fields such as `_last_ngram_pattern`, `_last_exact_content`, `_last_template_ids`, and `_last_centroid_ids`. These are process-memory comparisons, not durable acknowledgement of a database row. A process restart therefore resets those in-memory comparisons; whether this produces a repeated alert depends on the next detector window and remains a separate runtime question.
+- `Metacognition._detect_groove()` selects the three newest unacknowledged source rows within its 600-second lookback. It returns the source row ID as transient `groove_id`, but the inspected `_write_event()` persists only event type, description, severity, source, and timestamp into `meta_cognition_events`; the source row ID is not stored in that derived event.
+- `_maybe_engage_stillness()` counts derived `event_type='groove'` rows, not distinct source alert IDs. The threshold is three derived events in 1,800 seconds. Consequently, the same eligible source row being returned on multiple Metacognition ticks can increment this count repeatedly. This is a source-level causal pathway; no live occurrence is asserted.
+- `substrate.Writer` documents and implements one writer worker per SQLite database. The observed source alert producer writes through the beliefs writer, while Metacognition writes derived events through the conversations writer. A future once-only design must therefore make its cross-database failure semantics explicit rather than assume an atomic transaction spans both stores.
+
+### What the evidence does and does not establish
+
+**Established from inspected source:** detector inserts; in-memory fingerprint suppression; 60-second detector loop; unacknowledged-row selection; transient source ID; derived-event insertion without persisted source ID; stillness count over derived rows; separate per-database Writer instances.
+
+**Not established:** every tracked or dynamically loaded writer of `groove_alerts.acknowledged_at`; whether another maintenance path acknowledges rows; the exact production cadence of chat-triggered `tick()`; whether a live database has repeated derived rows from one source alert; whether restart has caused duplicate alert production; and the intended semantic unit of a groove event.
+
+The GitHub code-search endpoint returned no matches for the acknowledgement field in this pass, so that result is not treated as a negative writer census. Targeted inspection of the core substrate, detector, metacognition, GUI, and tests also did not prove the absence of writers elsewhere. Census remains OPEN.
+
+### Research refinement — identity must survive the boundary
+
+The central design question is not simply “where should we set acknowledged_at?” It is “what identity is the system promising to preserve as a signal crosses components?” Keep these identities separate:
+
+1. **Detector observation** — one detector evaluated one evidence window.
+2. **Alert row** — one persisted GrooveSpotter output with a stable database ID.
+3. **Episode/fingerprint** — a semantic pattern that may span multiple observations or rows.
+4. **Metacognitive observation** — one act of Metacognition noticing an alert.
+5. **Stillness evidence** — the distinct observations that satisfy the Row 9 threshold.
+
+A future implementation must explicitly choose which of these is counted, deduplicated, acknowledged, and retained. Do not collapse them into a single “event” label. A stable provenance key on the derived event (or a separately justified consumption ledger) may be necessary if the intended unit is once per alert, but this remains a design candidate, not an approved change. The correct solution must define crash windows, retries, replay, retention, and cross-database partial failure before code is touched.
+
+### Bounded next actions
+
+1. Continue a tracked-source census for all SQL and wrapper-based writes that could target `groove_alerts` or `acknowledged_at`; record exact files and line ranges, including indirect SQL builders.
+2. Inspect the table's authoritative creation/migration path and all consumers of `groove_id` before proposing a schema or transaction change.
+3. Extend the proposed regression matrix to distinguish repeated observation of one alert from three distinct alert IDs and from repeated detector episodes with different row IDs.
+4. Only after the census and semantic contract are complete, decide whether a bounded test-only probe is authorised. No production fix is justified yet.
+
+**Disposition:** Phase 0 source-level refinement; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors:** `theory_x/diversity/loop.py`; `theory_x/diversity/groove.py`; `theory_x/stage9_metacognition/metacognition.py`; `substrate/writer.py`; `gui/server.py`; `tests/test_metacognition.py`; `tests/test_stillness.py`. Snapshot: `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed producer and consumer path; source-observed database boundary; test-coverage inspection. Complete writer census, runtime chronology, and semantic event identity remain UNKNOWN.
