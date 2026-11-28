@@ -545,3 +545,6 @@ The GeniusTagger signal fans out to independent consumers with different windows
 ### 28 November 2026 — Genius reporting denominator
 
 Genius HUD/panel stats and provenance reports aggregate tag rows across weights versions, not unique Fountain events/current version. The HUD's current_version is from the latest row while its rate is all-row aggregate. /api/fountain/recent instead keeps the latest row per event. Actual host duplicates and live metric impact remain UNKNOWN. See INDEX §158.
+
+
+PR #454 exact-head workflow 46182737858 passed at 7b9ae6c3f0debbc87882b8d8e8c8932f79cb5c5e. Isolated tests verify the Fountain governor write, retrieval boundary, and membrane side classification; live host behaviour remains UNKNOWN.
