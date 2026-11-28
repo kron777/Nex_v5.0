@@ -966,7 +966,7 @@ nodes:
     falsifier: "Should be visible as a budget that can actually be spent."
     falsifier_status: unrun
     source: { kind: composite, refs: ["theory_x/stage_tom/stakes_appraisal.py:50-149", "theory_x/stage6_fountain/readiness.py:104-140", "theory_x/stage_world/frozen_at_made.py:100-107", "theory_x/stage_world/self_prediction.py:177-193", "theory_x/stage_world/self_prediction.py:234-313"] }
-    last_verified: 2026-11-27
+    last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: this is a real, named function (L4_stakes self-referent
       appraisal) with two live appraisals (appraise(), measured inert on the live instrument per
@@ -1001,6 +1001,11 @@ nodes:
       these frozen stakes columns. This confirms snapshot/write, not downstream use. No evidence
       yet shows groove_cost_at_made is consumed by a later decision or score; the falsifier
       therefore remains unrun. No live database was inspected in this source-only review.
+
+      2026-11-28 re-verification (self_prediction.py changed by G-84 step 3: SelfPredictionLoop
+      now waits on a stop Event and keeps its thread, near line 1040): the cited ranges
+      177-193 and 234-313 are byte-identical to main bbca5deb, and snapshot_stakes() is still
+      called from the same two sites (:183, :588). The claim above holds; live state UNKNOWN.
 
   - id: p4_interoception
     label: "4 · Honest interoception"
@@ -1297,7 +1302,7 @@ nodes:
       retry_bridge_for_tensions() periodically re-attempts a synthesis bridge without forcing one.
       39 tests pass (test_held_tension.py, test_retry_bridge_for_tensions.py,
       test_harmonizer_active_count_fix.py, test_hud_tensions_episodes.py), all run in isolation
-      2026-11-09. A read-only HUD endpoint exists (gui/server.py:3490, api_harmonizer_tensions; pointer corrected 2026-11-28 from a drifted :3056); nothing live consumes it.
+      2026-11-09. A read-only HUD endpoint exists (gui/server.py:3538, api_harmonizer_tensions; pointer corrected 2026-11-28 from a drifted :3056, re-pinned after the G-84 producer edits); nothing live consumes it.
 
       SENTIENCE_PROGRAM.md's own summary row (line 36) still cited `stage_warrant`/`NEX5_WARRANT` --
       an unrelated belief-support-scoring module, not a dissonance mechanism -- as if it were the
@@ -1396,7 +1401,7 @@ nodes:
         - "tests/test_episodic_falsifier.py:42-54"
         - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
-        - "gui/server.py:3564-3578"
+        - "gui/server.py:3573-3587"
         - "nex_keepalive.sh:219-220"
         - "SENTIENCE_PROGRAM.md:148-157"
     last_verified: 2026-11-28
@@ -1432,6 +1437,8 @@ nodes:
       Follow-up source check after the registered-producer shutdown expansion (Fountain,
       HoldingZoneResolver, scheduler adapters and additional AppState workers): the endpoint
       is now at gui/server.py:3564-3578. Its SELECT-only body remains unchanged.
+      G-84 step 3 then added four producer fields and their quiesce entries above it:
+      the endpoint moved by 9 lines to :3573-3587 with byte-identical content.
 
       Falsifier run 2026-11-09, isolated test env (NEX5_DATA_DIR override, never the live DB/loop):
       tests/test_episodic_falsifier.py adds two checks against the real query_episodes()/
