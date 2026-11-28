@@ -267,7 +267,7 @@ class DriveEmergence:
         stop_event = stop_event or threading.Event()
         while not stop_event.is_set():
             try:
-                self._background_tick()
+                self._background_tick(stop_event=stop_event)
             except Exception as exc:
                 errors.record(
                     f"drive_emergence tick error: {exc}",
@@ -276,12 +276,12 @@ class DriveEmergence:
             if stop_event.wait(self._interval):
                 break
 
-    def _own_voice_df(self):
-        """DF over her own generated voice (fountain_insight + synergized) for the
-        content-topic IDF. Returns (Counter, n_docs), or (None, 0) on any error /
-        thin corpus so the caller falls back to plain frequency synthesis. This is
-        where her standing register concentrates ('item'/'aligns' scaffold), so
-        it is the right basis to demote it from. NEX5_DRIVE_CONTENT only."""
+    def _own_voice_df(
+        self, *, stop_event: Optional[threading.Event] = None
+    ):
+        """DF over own generated voice; stop cooperatively between documents."""
+        if stop_event is not None and stop_event.is_set():
+            return None, 0
         try:
             rows = self._br.read(
                 "SELECT content FROM beliefs "
@@ -290,11 +290,15 @@ class DriveEmergence:
                 "ORDER BY created_at DESC LIMIT ?",
                 (_DRIVE_DF_LIMIT,),
             )
+            if stop_event is not None and stop_event.is_set():
+                return None, 0
             if not rows:
                 return None, 0
             df: Counter = Counter()
             n = 0
             for r in rows:
+                if stop_event is not None and stop_event.is_set():
+                    return None, 0
                 n += 1
                 content = r["content"] if hasattr(r, "__getitem__") else getattr(r, "content", "")
                 for tok in set(_tokens(content or "")):
@@ -303,15 +307,25 @@ class DriveEmergence:
         except Exception:
             return None, 0
 
-    def _background_tick(self) -> None:
+    def _background_tick(
+        self, *, stop_event: Optional[threading.Event] = None
+    ) -> None:
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return
         now = time.time()
 
         # 1. Decay existing drive
         existing = self._cr.read_one("SELECT * FROM drives WHERE id = 1")
+        if _stopping():
+            return
         if existing:
             existing = dict(existing)
             new_strength = existing["drive_strength"] * _DECAY_RATE
             if new_strength < _MIN_DRIVE_STRENGTH:
+                # A delete already started is allowed to complete as one operation.
                 self._cw.write("DELETE FROM drives WHERE id = 1", ())
                 existing = None
                 self._clear_state()
@@ -319,6 +333,8 @@ class DriveEmergence:
                 existing["drive_strength"] = new_strength
 
         # 2. Pull candidates
+        if _stopping():
+            return
         cutoff = now - _WINDOW_DAYS * 86400
         rows = self._br.read(
             "SELECT id, content, confidence, branch_id, use_count, created_at "
@@ -327,23 +343,27 @@ class DriveEmergence:
             "ORDER BY created_at DESC LIMIT ?",
             (cutoff, _CANDIDATE_LIMIT),
         )
+        if _stopping():
+            return
         candidates = [dict(r) for r in rows] if rows else []
 
         if len(candidates) < _MIN_CLUSTER_SIZE:
             if existing:
-                self._persist_decay(existing, now)
+                self._persist_decay(existing, now, stop_event=stop_event)
             return
 
         # CONTENT-TOPIC synthesis (NEX5_DRIVE_CONTENT, default OFF): compute the
-        # own-voice DF once per tick and dispatch every topic through the IDF-
-        # weighted synthesis so register vocabulary self-demotes. Fail-safe: any
-        # error / thin corpus -> plain frequency synthesis (current behaviour).
+        # own-voice DF once per tick. Stop between documents if shutdown begins.
         _cdf, _cn = (None, 0)
         if os.environ.get("NEX5_DRIVE_CONTENT") == "1":
+            if _stopping():
+                return
             try:
-                _cdf, _cn = self._own_voice_df()
+                _cdf, _cn = self._own_voice_df(stop_event=stop_event)
             except Exception:
                 _cdf, _cn = (None, 0)
+            if _stopping():
+                return
 
         def _topic(_cl):
             if _cdf is not None:
@@ -353,26 +373,36 @@ class DriveEmergence:
                     return _synthesize_topic(_cl)
             return _synthesize_topic(_cl)
 
-        # 3. Embed candidates
+        # 3. Embed candidates. A stop during one embedding discards this partial
+        # pass; no clustering, observability or drive write starts afterwards.
         try:
             from theory_x.diversity.embeddings import embed_belief
-            embeddings = {
-                c["id"]: embed_belief(c["id"], c["content"] or "")
-                for c in candidates
-            }
+            embeddings = {}
+            for candidate in candidates:
+                if _stopping():
+                    return
+                embedding = embed_belief(
+                    candidate["id"], candidate["content"] or ""
+                )
+                if _stopping():
+                    return
+                embeddings[candidate["id"]] = embedding
         except Exception as exc:
             errors.record(
                 f"drive_emergence embed error: {exc}",
                 source=_LOG_SOURCE, exc=exc,
             )
             if existing:
-                self._persist_decay(existing, now)
+                self._persist_decay(existing, now, stop_event=stop_event)
             return
 
-        # 4. Cluster by cosine similarity
+        # 4. Cluster by cosine similarity. The clustering operation itself is
+        # synchronous; observe stop immediately after it returns.
         clusters = _cluster(candidates, embeddings, _CLUSTER_SIMILARITY)
+        if _stopping():
+            return
 
-        # 5. Score each cluster; keep strongest qualifier
+        # 5. Score each cluster; keep strongest qualifier.
         best: Optional[dict] = None
         _obs_all_scored: list = []
         _obs_rejections: dict = {
@@ -380,18 +410,22 @@ class DriveEmergence:
             "no_cluster_match": 0, "time_window_miss": 0, "other": 0,
         }
         for cluster in clusters:
+            if _stopping():
+                return
             if len(cluster) < _MIN_CLUSTER_SIZE:
                 _obs_rejections["no_cluster_match"] += 1
                 continue
-            rep_score  = _repetition_score(cluster, now)
+            rep_score = _repetition_score(cluster, now)
             conv_score = _convergence_score(cluster)
             _obs_all_scored.append({
-                "theme_label":       _topic(cluster)[:40],
-                "member_count":      len(cluster),
-                "repetition_score":  round(rep_score, 4),
+                "theme_label": _topic(cluster)[:40],
+                "member_count": len(cluster),
+                "repetition_score": round(rep_score, 4),
                 "convergence_score": round(conv_score, 4),
                 "combined_strength": round(_W_REP * rep_score + _W_CONV * conv_score, 4),
             })
+            if _stopping():
+                return
             if rep_score < _MIN_REPETITION or conv_score < _MIN_CONVERGENCE:
                 if rep_score < _MIN_REPETITION:
                     _obs_rejections["below_repetition"] += 1
@@ -405,13 +439,16 @@ class DriveEmergence:
             strength = _W_REP * rep_score + _W_CONV * conv_score
             if best is None or strength > best["drive_strength"]:
                 best = {
-                    "cluster":          cluster,
-                    "drive_strength":   strength,
+                    "cluster": cluster,
+                    "drive_strength": strength,
                     "repetition_score": rep_score,
                     "convergence_score": conv_score,
                 }
 
-        # Observability log — post-scoring, pre-emergence (Phase 29b)
+        if _stopping():
+            return
+
+        # Observability log — post-scoring, pre-emergence (Phase 29b).
         try:
             _tick_duration_ms = round((time.time() - now) * 1000, 1)
             _top5 = sorted(
@@ -420,15 +457,17 @@ class DriveEmergence:
                 reverse=True,
             )[:5]
             _thresholds_snap = {
-                "min_cluster_size":    _MIN_CLUSTER_SIZE,
-                "min_repetition":      _MIN_REPETITION,
-                "min_convergence":     _MIN_CONVERGENCE,
-                "min_branch_count":    _MIN_BRANCH_COUNT,
-                "min_drive_strength":  _MIN_DRIVE_STRENGTH,
-                "cluster_similarity":  _CLUSTER_SIMILARITY,
-                "window_days":         _WINDOW_DAYS,
+                "min_cluster_size": _MIN_CLUSTER_SIZE,
+                "min_repetition": _MIN_REPETITION,
+                "min_convergence": _MIN_CONVERGENCE,
+                "min_branch_count": _MIN_BRANCH_COUNT,
+                "min_drive_strength": _MIN_DRIVE_STRENGTH,
+                "cluster_similarity": _CLUSTER_SIMILARITY,
+                "window_days": _WINDOW_DAYS,
                 "recency_window_days": _RECENCY_WINDOW_DAYS,
             }
+            if _stopping():
+                return
             self._cw.write(
                 "INSERT INTO drive_emergence_log "
                 "(tick_at, candidates_examined, top_candidates, rejection_reasons, "
@@ -447,11 +486,15 @@ class DriveEmergence:
         except Exception as _obs_exc:
             print(f"drive_emergence_log write failed: {_obs_exc}", file=sys.stderr)
 
-        # 6. Replace, reinforce, or persist decayed state
+        # 6. Replace, reinforce, or persist decayed state.
+        if _stopping():
+            return
         if best is not None and best["drive_strength"] >= _MIN_DRIVE_STRENGTH:
-            topic         = _topic(best["cluster"])
-            source_ids    = [b["id"] for b in best["cluster"]]
-            formed_at     = existing["formed_at"] if existing else now
+            topic = _topic(best["cluster"])
+            if _stopping():
+                return
+            source_ids = [b["id"] for b in best["cluster"]]
+            formed_at = existing["formed_at"] if existing else now
             reinforce_cnt = (int(existing["reinforce_count"]) + 1) if existing else 1
             self._cw.write(
                 "INSERT OR REPLACE INTO drives "
@@ -470,25 +513,27 @@ class DriveEmergence:
                 ),
             )
             with self._lock:
-                self._topic              = topic
-                self._drive_strength     = best["drive_strength"]
-                self._repetition_score   = best["repetition_score"]
-                self._convergence_score  = best["convergence_score"]
-                self._reinforce_count    = reinforce_cnt
-                self._formed_at          = formed_at
+                self._topic = topic
+                self._drive_strength = best["drive_strength"]
+                self._repetition_score = best["repetition_score"]
+                self._convergence_score = best["convergence_score"]
+                self._reinforce_count = reinforce_cnt
+                self._formed_at = formed_at
                 self._last_reinforced_at = now
         elif existing:
-            self._persist_decay(existing, now)
+            self._persist_decay(existing, now, stop_event=stop_event)
 
+        if _stopping():
+            return
         try:
             with open(_DRIVE_LOG, "a") as _f:
                 _f.write(json.dumps({
-                    "ts":               now,
-                    "topic":            self._topic,
-                    "drive_strength":   self._drive_strength,
+                    "ts": now,
+                    "topic": self._topic,
+                    "drive_strength": self._drive_strength,
                     "repetition_score": self._repetition_score,
                     "convergence_score": self._convergence_score,
-                    "reinforce_count":  self._reinforce_count,
+                    "reinforce_count": self._reinforce_count,
                 }) + "\n")
         except Exception:
             pass
@@ -503,7 +548,15 @@ class DriveEmergence:
             self._formed_at          = None
             self._last_reinforced_at = None
 
-    def _persist_decay(self, existing: dict, now: float) -> None:
+    def _persist_decay(
+        self,
+        existing: dict,
+        now: float,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> None:
+        if stop_event is not None and stop_event.is_set():
+            return
         strength = existing["drive_strength"]
         if strength >= _MIN_DRIVE_STRENGTH:
             self._cw.write(
