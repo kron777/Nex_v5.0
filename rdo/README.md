@@ -403,7 +403,7 @@ the directory. A failure before replacement leaves the previous cycle intact.
 append and fsync them before publishing the updated in-memory pattern. A failed
 append therefore does not advance the in-memory learning state. This is a
 single-writer failure-safety guarantee; concurrent multi-process PatternMemory
-transactions are not yet serialized and must not be assumed safe.
+transactions are not yet serialized and must not be assumed safe. CycleStore atomic replacement also does not serialize concurrent read-modify-write transactions: use one writer per cycle ID, since the last successful replacement wins.
 
 
 ## Novel-kind proposal boundary
