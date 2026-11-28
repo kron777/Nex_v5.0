@@ -1033,3 +1033,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 §154 startup-readiness qualification: run.py starts GeniusTagger asynchronously through _own_and_start(); that helper returns after start(), not after the first tick/backfill. The chat and Fountain rut readers do not check _backfill_done. Combined with §152's backfill timestamping, a partial historical backfill can be evaluated as a recent sample. Host overlap and any premature notice remain UNKNOWN. See INDEX §154.
+
+
+§155 membrane-side qualification: self_rut_notice is absent from MembraneClassifier._INSIDE_SOURCES, so classify_belief() returns OUTSIDE. QueryRouter's INSIDE path uses side_filter='INSIDE' and excludes it; OUTSIDE retrieval can still score it. Draft PR #454 adds isolated classification/retrieval characterization; exact-head CI pending. Intended side remains UNKNOWN. See INDEX §155.
