@@ -20,6 +20,7 @@ frontier stays visible.
 """
 from __future__ import annotations
 
+import re
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .rule_proposals import ApprovedRuleCatalogue
@@ -291,7 +292,7 @@ def expand(seeds: List[Obligation],
                     "schema_version": 1,
                     "target_kind": ob.kind,
                     "source_obligation": ob.to_dict(),
-                    "known_rule_kinds": sorted(EXPANSION_RULES),
+                    "known_rule_kinds": sorted(rules_by_kind),
                     "terminal_kinds": sorted(TERMINAL_KINDS),
                     "proposal_requirements": [
                         "decomposition_steps",
