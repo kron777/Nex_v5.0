@@ -364,3 +364,18 @@ def test_proposal_requires_a_persisted_source_cycle(tmp_path):
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
     with pytest.raises(ValueError, match="persisted source cycle"):
         store.propose(_proposal())
+
+
+
+def test_review_rejects_a_source_frontier_changed_after_proposal_creation(tmp_path):
+    store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
+    proposal = _proposal()
+    source_cycle = _source_cycle(proposal)
+    created = _propose(store, proposal, source_cycle=source_cycle)
+    source_cycle.frontier[0]["reason"] = "frontier content was changed after proposal"
+    with pytest.raises(ValueError, match="frontier digest changed"):
+        store.review(
+            created["data"]["proposal_id"], "changes_requested", "reviewer",
+            "review:source-check", ["review:source-check"],
+            source_cycle=source_cycle,
+        )
