@@ -953,6 +953,89 @@ class AppState:
         return {"alive": alive, "errors": errors}
 
 
+def _rollback_partial_app_state(scope: dict) -> None:
+    """Best-effort, bounded rollback for a failed build_state() transaction.
+
+    Signal every already-published producer before joining any of them, then
+    drain Writers. The caller re-raises the original construction exception.
+    """
+    deadline = time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S
+    log = logging.getLogger("gui.server")
+    producers = []
+    seen_objects = set()
+    threads = []
+    seen_threads = set()
+
+    def add_thread(thread):
+        if isinstance(thread, threading.Thread) and id(thread) not in seen_threads:
+            seen_threads.add(id(thread))
+            threads.append(thread)
+
+    def add_producer(label, worker):
+        if worker is None or id(worker) in seen_objects:
+            return
+        seen_objects.add(id(worker))
+        producers.append((label, worker))
+
+    for name in (
+        "scheduler", "resolver", "dynamic", "world_model", "membrane",
+        "fountain", "throw_net_monitor", "counterfactual_node",
+    ):
+        add_producer(name, scope.get(name))
+
+    # First pass: signal every producer. No joins occur until this pass ends.
+    for label, worker in producers:
+        try:
+            if label == "scheduler":
+                shutdown = getattr(worker, "shutdown", None)
+                if callable(shutdown):
+                    shutdown()
+            else:
+                stop_event = getattr(worker, "_stop", None)
+                if stop_event is not None and callable(getattr(stop_event, "set", None)):
+                    stop_event.set()
+                stop = getattr(worker, "stop", None)
+                if not callable(stop):
+                    stop = getattr(worker, "stop_loop", None)
+                if callable(stop):
+                    stop()
+        except Exception:
+            log.exception("build_state rollback: %s signal failed", label)
+
+        add_thread(worker if isinstance(worker, threading.Thread)
+                   else getattr(worker, "_thread", None))
+        for thread in getattr(worker, "_threads", ()) or ():
+            add_thread(thread)
+
+    # Second pass: join all discovered workers against one shared deadline.
+    for thread in threads:
+        if thread.ident is None or thread is threading.current_thread():
+            continue
+        try:
+            thread.join(max(0.0, deadline - time.monotonic()))
+            if thread.is_alive():
+                log.error("build_state rollback: worker survived: %s", thread.name)
+        except Exception:
+            log.exception("build_state rollback: join failed for %s", thread.name)
+
+    # Finally close every Writer that was successfully constructed. Unwrap
+    # decorators (e.g. TaggingBeliefWriter) and deduplicate shared instances.
+    writers = scope.get("writers")
+    if isinstance(writers, dict):
+        closed = set()
+        for name, writer in list(writers.items()):
+            inner = getattr(writer, "_inner", writer)
+            if inner is None or id(inner) in closed:
+                continue
+            closed.add(id(inner))
+            close = getattr(inner, "close", None)
+            if callable(close):
+                try:
+                    close(timeout=max(0.0, deadline - time.monotonic()))
+                except Exception:
+                    log.exception("build_state rollback: Writer %s close failed", name)
+
+
 def build_state(
     *,
     voice_url: Optional[str] = None,
@@ -966,212 +1049,219 @@ def build_state(
     with_tools: bool = True,
 ) -> "AppState":
     """Default state: real Writers/Readers against db_paths(), real VoiceClient."""
-    from theory_x.stage1_sense import build_scheduler
-
-    paths = db_paths()
-    writers = {name: Writer(p, name=name) for name, p in paths.items()}
-    readers = {name: Reader(p) for name, p in paths.items()}
-    # Tag Protocol — wrap beliefs writer so new INSERTs auto-generate tags
-    from theory_x.tag_protocol.writer_wrapper import TaggingBeliefWriter as _TBW
-    writers["beliefs"] = _TBW(writers["beliefs"])
-    voice = VoiceClient(
-        url=voice_url or os.environ.get(
-            "NEX5_VOICE_URL", "http://localhost:8080/v1/chat/completions"
-        ),
-        model=os.environ.get("NEX5_VOICE_MODEL", voice_model),
-    )
-    scheduler = build_scheduler(writers, readers) if with_scheduler else None
-
-    # Phase 22 + 23 + 24 + 25a — Coherence Gate + Holding Zone + Reshape Path + TriggerDetector
-    coherence_gate = None
-    trigger_detector = None
-    if "beliefs" in writers and "beliefs" in readers:
-        from theory_x.stage_gate.coherence_gate import CoherenceGate
-        from theory_x.stage_gate.holding_zone import HoldingZone
-        from theory_x.stage_gate.resolver import HoldingZoneResolver
-        from theory_x.stage_gate.transformer import ReshapeTransformer
-        from theory_x.stage_throw_net.trigger_detector import TriggerDetector
-        _holding_zone = HoldingZone(writers["beliefs"], readers["beliefs"])
-        _resolver = HoldingZoneResolver(_holding_zone, beliefs_writer=writers["beliefs"])
-        trigger_detector = TriggerDetector(writers["beliefs"], readers["beliefs"])
-        coherence_gate = CoherenceGate(
-            beliefs_reader=readers["beliefs"],
-            beliefs_writer=writers["beliefs"],
-            conversations_reader=readers.get("conversations"),
-            holding_zone=_holding_zone,
-            resolver=_resolver,
-            trigger_detector=trigger_detector,
+    try:
+        from theory_x.stage1_sense import build_scheduler
+    
+        paths = db_paths()
+        writers = {}
+        for name, path in paths.items():
+            writers[name] = Writer(path, name=name)
+        readers = {name: Reader(p) for name, p in paths.items()}
+        # Tag Protocol — wrap beliefs writer so new INSERTs auto-generate tags
+        from theory_x.tag_protocol.writer_wrapper import TaggingBeliefWriter as _TBW
+        writers["beliefs"] = _TBW(writers["beliefs"])
+        voice = VoiceClient(
+            url=voice_url or os.environ.get(
+                "NEX5_VOICE_URL", "http://localhost:8080/v1/chat/completions"
+            ),
+            model=os.environ.get("NEX5_VOICE_MODEL", voice_model),
         )
-        _resolver.set_gate(coherence_gate)
-        _transformer = ReshapeTransformer(voice)
-        _resolver.set_transformer(_transformer)
-        _resolver.start_loop()
-
-    dynamic = None
-    if with_dynamic:
-        from theory_x.stage2_dynamic import build_dynamic
-        dynamic = build_dynamic(writers, readers, coherence_gate=coherence_gate)
-
-    world_model = None
-    if with_world_model and dynamic is not None:
-        from theory_x.stage3_world_model import build_world_model
-        world_model = build_world_model(writers, readers, dynamic_state=dynamic,
-                                        coherence_gate=coherence_gate)
-
-    membrane = None
-    if with_membrane and dynamic is not None:
-        from theory_x.stage4_membrane import build_membrane
-        membrane = build_membrane(
-            writers, readers,
-            dynamic_state=dynamic,
-            world_model_state=world_model,
-            coherence_gate=coherence_gate,
-        )
-
-    fountain = None
-    if with_fountain and dynamic is not None:
-        from theory_x.stage6_fountain import build_fountain
-        fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic,
-                                  coherence_gate=coherence_gate)
-
-    strike_protocol = None
-    catalogue = None
-    if with_strikes and dynamic is not None:
-        from strikes.catalogue import StrikeCatalogue
-        from strikes.protocols import StrikeProtocol
-        catalogue = StrikeCatalogue()
-        strike_protocol = StrikeProtocol(
-            voice=voice,
-            dynamic_state=dynamic,
-            beliefs_reader=readers["beliefs"],
-            sense_writer=writers["sense"],
-            catalogue=catalogue,
-            membrane_state=membrane,
-            dynamic_reader=readers["dynamic"],
-        )
-
-    problem_memory = None
-    goal_manager = None
-    metacognition = None
-    novel_association = None
-    tool_registry = None
-    tool_caller = None
-    if with_tools:
-        from theory_x.stage7_sustained.problem_memory import ProblemMemory
-        from theory_x.stage8_goal_manager.goal_manager import GoalManager
-        from theory_x.stage9_metacognition.metacognition import Metacognition
-        from theory_x.stage_capability.tools import ToolRegistry
-        from theory_x.stage_capability.tool_caller import ToolCaller
-        if "conversations" in writers and "conversations" in readers:
-            problem_memory = ProblemMemory(writers["conversations"], readers["conversations"])
-            try:
-                from theory_x import register as _tx_register_pm
-                _tx_register_pm(problem_memory)
-            except Exception:
-                pass
-            goal_manager = GoalManager(writers["conversations"], readers["conversations"])
-            try:
-                from theory_x import register as _tx_register_gm
-                _tx_register_gm(goal_manager)
-            except Exception:
-                pass
-            if "beliefs" in readers:
-                metacognition = Metacognition(
-                    writers["conversations"],
-                    readers["conversations"],
-                    readers["beliefs"],
-                )
-                try:
-                    from theory_x import register as _tx_register_mc
-                    _tx_register_mc(metacognition)
-                except Exception:
-                    pass
-            if "beliefs" in writers and "beliefs" in readers:
-                from theory_x.stage10_imagination.novel_association import NovelAssociation
-                novel_association = NovelAssociation(
-                    writers["beliefs"],
-                    readers["beliefs"],
-                )
-        tool_registry = ToolRegistry(beliefs_reader=readers.get("beliefs"))
-        tool_caller = ToolCaller(tool_registry)
-
-    # Phase 25a TN-5 — ThrowNetMonitor (needs coherence_gate + problem_memory)
-    throw_net_monitor = None
-    if (coherence_gate is not None
-            and problem_memory is not None
-            and trigger_detector is not None
-            and "beliefs" in writers and "beliefs" in readers):
-        from theory_x.stage_throw_net.time_fetch import TimeFetch
-        from theory_x.stage_throw_net.refinement_engine import RefinementEngine
-        from theory_x.stage_throw_net.throw_net_engine import ThrowNetEngine
-        from theory_x.stage_throw_net.monitor import ThrowNetMonitor
-        _time_fetch = TimeFetch(readers["beliefs"], problem_memory)
-        _refinement = RefinementEngine(readers["beliefs"])
-        _throw_net_engine = ThrowNetEngine(
-            beliefs_writer=writers["beliefs"],
-            beliefs_reader=readers["beliefs"],
-            trigger_detector=trigger_detector,
-            time_fetch=_time_fetch,
-            refinement_engine=_refinement,
-            coherence_gate=coherence_gate,
-        )
-        throw_net_monitor = ThrowNetMonitor(_throw_net_engine)
-        # RETIRED 2026-10-05 (repair queue item 4) — see run.py; NEX5_THROWNET=1 restores.
-        if os.environ.get("NEX5_THROWNET") == "1":
-            throw_net_monitor.start_loop()
-
-    # Phase 25b CN — CounterfactualNode (needs coherence_gate + problem_memory)
-    counterfactual_node = None
-    if (coherence_gate is not None
-            and problem_memory is not None
-            and "beliefs" in writers and "beliefs" in readers
-            and "conversations" in writers and "conversations" in readers):
-        try:
-            from theory_x.stage_counterfactual import CounterfactualNode as _CN
-            from theory_x.stage_throw_net.time_fetch import TimeFetch as _TFcn
-            from theory_x.stage_throw_net.refinement_engine import RefinementEngine as _REcn
-            _tf_cn = _TFcn(readers["beliefs"], problem_memory)
-            _re_cn = _REcn(readers["beliefs"])
-            counterfactual_node = _CN(
+        scheduler = build_scheduler(writers, readers) if with_scheduler else None
+    
+        # Phase 22 + 23 + 24 + 25a — Coherence Gate + Holding Zone + Reshape Path + TriggerDetector
+        coherence_gate = None
+        trigger_detector = None
+        if "beliefs" in writers and "beliefs" in readers:
+            from theory_x.stage_gate.coherence_gate import CoherenceGate
+            from theory_x.stage_gate.holding_zone import HoldingZone
+            from theory_x.stage_gate.resolver import HoldingZoneResolver
+            from theory_x.stage_gate.transformer import ReshapeTransformer
+            from theory_x.stage_throw_net.trigger_detector import TriggerDetector
+            _holding_zone = HoldingZone(writers["beliefs"], readers["beliefs"])
+            _resolver = HoldingZoneResolver(_holding_zone, beliefs_writer=writers["beliefs"])
+            trigger_detector = TriggerDetector(writers["beliefs"], readers["beliefs"])
+            coherence_gate = CoherenceGate(
                 beliefs_reader=readers["beliefs"],
                 beliefs_writer=writers["beliefs"],
-                conversations_reader=readers["conversations"],
-                conversations_writer=writers["conversations"],
+                conversations_reader=readers.get("conversations"),
+                holding_zone=_holding_zone,
+                resolver=_resolver,
+                trigger_detector=trigger_detector,
+            )
+            _resolver.set_gate(coherence_gate)
+            _transformer = ReshapeTransformer(voice)
+            _resolver.set_transformer(_transformer)
+            _resolver.start_loop()
+    
+        dynamic = None
+        if with_dynamic:
+            from theory_x.stage2_dynamic import build_dynamic
+            dynamic = build_dynamic(writers, readers, coherence_gate=coherence_gate)
+    
+        world_model = None
+        if with_world_model and dynamic is not None:
+            from theory_x.stage3_world_model import build_world_model
+            world_model = build_world_model(writers, readers, dynamic_state=dynamic,
+                                            coherence_gate=coherence_gate)
+    
+        membrane = None
+        if with_membrane and dynamic is not None:
+            from theory_x.stage4_membrane import build_membrane
+            membrane = build_membrane(
+                writers, readers,
+                dynamic_state=dynamic,
+                world_model_state=world_model,
                 coherence_gate=coherence_gate,
-                time_fetch=_tf_cn,
-                refinement_engine=_re_cn,
             )
-            counterfactual_node.start_loop()
-        except Exception as _cn_err:
-            import logging as _log_cn
-            _log_cn.getLogger("server").warning(
-                "CounterfactualNode failed to start (non-fatal): %s", _cn_err
+    
+        fountain = None
+        if with_fountain and dynamic is not None:
+            from theory_x.stage6_fountain import build_fountain
+            fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic,
+                                      coherence_gate=coherence_gate)
+    
+        strike_protocol = None
+        catalogue = None
+        if with_strikes and dynamic is not None:
+            from strikes.catalogue import StrikeCatalogue
+            from strikes.protocols import StrikeProtocol
+            catalogue = StrikeCatalogue()
+            strike_protocol = StrikeProtocol(
+                voice=voice,
+                dynamic_state=dynamic,
+                beliefs_reader=readers["beliefs"],
+                sense_writer=writers["sense"],
+                catalogue=catalogue,
+                membrane_state=membrane,
+                dynamic_reader=readers["dynamic"],
             )
-
-    return AppState(
-        writers=writers,
-        readers=readers,
-        voice=voice,
-        scheduler=scheduler,
-        dynamic=dynamic,
-        world_model=world_model,
-        membrane=membrane,
-        fountain=fountain,
-        strike_protocol=strike_protocol,
-        catalogue=catalogue,
-        problem_memory=problem_memory,
-        goal_manager=goal_manager,
-        metacognition=metacognition,
-        novel_association=novel_association,
-        tool_registry=tool_registry,
-        tool_caller=tool_caller,
-        coherence_gate=coherence_gate,
-        resolver=_resolver if "beliefs" in writers and "beliefs" in readers else None,
-        trigger_detector=trigger_detector,
-        throw_net_monitor=throw_net_monitor,
-        counterfactual_node=counterfactual_node,
-    )
-
+    
+        problem_memory = None
+        goal_manager = None
+        metacognition = None
+        novel_association = None
+        tool_registry = None
+        tool_caller = None
+        if with_tools:
+            from theory_x.stage7_sustained.problem_memory import ProblemMemory
+            from theory_x.stage8_goal_manager.goal_manager import GoalManager
+            from theory_x.stage9_metacognition.metacognition import Metacognition
+            from theory_x.stage_capability.tools import ToolRegistry
+            from theory_x.stage_capability.tool_caller import ToolCaller
+            if "conversations" in writers and "conversations" in readers:
+                problem_memory = ProblemMemory(writers["conversations"], readers["conversations"])
+                try:
+                    from theory_x import register as _tx_register_pm
+                    _tx_register_pm(problem_memory)
+                except Exception:
+                    pass
+                goal_manager = GoalManager(writers["conversations"], readers["conversations"])
+                try:
+                    from theory_x import register as _tx_register_gm
+                    _tx_register_gm(goal_manager)
+                except Exception:
+                    pass
+                if "beliefs" in readers:
+                    metacognition = Metacognition(
+                        writers["conversations"],
+                        readers["conversations"],
+                        readers["beliefs"],
+                    )
+                    try:
+                        from theory_x import register as _tx_register_mc
+                        _tx_register_mc(metacognition)
+                    except Exception:
+                        pass
+                if "beliefs" in writers and "beliefs" in readers:
+                    from theory_x.stage10_imagination.novel_association import NovelAssociation
+                    novel_association = NovelAssociation(
+                        writers["beliefs"],
+                        readers["beliefs"],
+                    )
+            tool_registry = ToolRegistry(beliefs_reader=readers.get("beliefs"))
+            tool_caller = ToolCaller(tool_registry)
+    
+        # Phase 25a TN-5 — ThrowNetMonitor (needs coherence_gate + problem_memory)
+        throw_net_monitor = None
+        if (coherence_gate is not None
+                and problem_memory is not None
+                and trigger_detector is not None
+                and "beliefs" in writers and "beliefs" in readers):
+            from theory_x.stage_throw_net.time_fetch import TimeFetch
+            from theory_x.stage_throw_net.refinement_engine import RefinementEngine
+            from theory_x.stage_throw_net.throw_net_engine import ThrowNetEngine
+            from theory_x.stage_throw_net.monitor import ThrowNetMonitor
+            _time_fetch = TimeFetch(readers["beliefs"], problem_memory)
+            _refinement = RefinementEngine(readers["beliefs"])
+            _throw_net_engine = ThrowNetEngine(
+                beliefs_writer=writers["beliefs"],
+                beliefs_reader=readers["beliefs"],
+                trigger_detector=trigger_detector,
+                time_fetch=_time_fetch,
+                refinement_engine=_refinement,
+                coherence_gate=coherence_gate,
+            )
+            throw_net_monitor = ThrowNetMonitor(_throw_net_engine)
+            # RETIRED 2026-10-05 (repair queue item 4) — see run.py; NEX5_THROWNET=1 restores.
+            if os.environ.get("NEX5_THROWNET") == "1":
+                throw_net_monitor.start_loop()
+    
+        # Phase 25b CN — CounterfactualNode (needs coherence_gate + problem_memory)
+        counterfactual_node = None
+        if (coherence_gate is not None
+                and problem_memory is not None
+                and "beliefs" in writers and "beliefs" in readers
+                and "conversations" in writers and "conversations" in readers):
+            try:
+                from theory_x.stage_counterfactual import CounterfactualNode as _CN
+                from theory_x.stage_throw_net.time_fetch import TimeFetch as _TFcn
+                from theory_x.stage_throw_net.refinement_engine import RefinementEngine as _REcn
+                _tf_cn = _TFcn(readers["beliefs"], problem_memory)
+                _re_cn = _REcn(readers["beliefs"])
+                counterfactual_node = _CN(
+                    beliefs_reader=readers["beliefs"],
+                    beliefs_writer=writers["beliefs"],
+                    conversations_reader=readers["conversations"],
+                    conversations_writer=writers["conversations"],
+                    coherence_gate=coherence_gate,
+                    time_fetch=_tf_cn,
+                    refinement_engine=_re_cn,
+                )
+                counterfactual_node.start_loop()
+            except Exception as _cn_err:
+                import logging as _log_cn
+                _log_cn.getLogger("server").warning(
+                    "CounterfactualNode failed to start (non-fatal): %s", _cn_err
+                )
+    
+        return AppState(
+            writers=writers,
+            readers=readers,
+            voice=voice,
+            scheduler=scheduler,
+            dynamic=dynamic,
+            world_model=world_model,
+            membrane=membrane,
+            fountain=fountain,
+            strike_protocol=strike_protocol,
+            catalogue=catalogue,
+            problem_memory=problem_memory,
+            goal_manager=goal_manager,
+            metacognition=metacognition,
+            novel_association=novel_association,
+            tool_registry=tool_registry,
+            tool_caller=tool_caller,
+            coherence_gate=coherence_gate,
+            resolver=_resolver if "beliefs" in writers and "beliefs" in readers else None,
+            trigger_detector=trigger_detector,
+            throw_net_monitor=throw_net_monitor,
+            counterfactual_node=counterfactual_node,
+        )
+    
+    
+    except BaseException:
+        _rollback_partial_app_state(locals())
+        raise
 
 def create_app(state: AppState, shutdown_gate: Optional[ShutdownGate] = None) -> Flask:
     app = Flask(
