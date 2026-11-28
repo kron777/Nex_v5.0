@@ -161,6 +161,40 @@ def test_terminal_kind_records_frontier_stop_reason():
     }]
 
 
+def test_novel_kind_frontier_exposes_rule_proposal_request_without_auto_expansion():
+    from rdo.extrapolator import EXPANSION_RULES, TERMINAL_KINDS, frontier_breakdown
+
+    novel = Obligation(
+        "deployment.specialized",
+        "specialized deployment mechanism",
+        "specialized_deployment",
+        rationale="A deployment-specific mechanism is required.",
+        evidence_needs=["Demonstrate the deployment environment and constraints."],
+    )
+    obligations, relationships, frontier = expand(
+        [novel], reconcile_fn=lambda _ob: MISSING, max_depth=4
+    )
+
+    assert set(obligations) == {novel.key}
+    assert relationships == []
+    assert len(frontier) == 1
+    item = frontier[0]
+    assert item["reason"] == "no expansion rule for kind 'specialized_deployment'"
+    assert item["frontier_type"] == "novel_kind_requires_rule_proposal"
+    request = item["rule_proposal_request"]
+    assert request["schema_version"] == 1
+    assert request["target_kind"] == novel.kind
+    assert request["source_obligation"] == novel.to_dict()
+    assert request["known_rule_kinds"] == sorted(EXPANSION_RULES)
+    assert request["terminal_kinds"] == sorted(TERMINAL_KINDS)
+    assert request["activation_policy"] == "candidate_only_until_explicit_review"
+    assert "disconfirming_cases" in request["proposal_requirements"]
+    assert "positive_and_negative_tests" in request["proposal_requirements"]
+    assert frontier_breakdown(frontier)["deferred"] == 1
+
+
+
+
 # ---- under-expansion avoided: a MISSING necessary mechanism decomposes ----
 
 def test_under_expansion_builds_children_when_missing():
