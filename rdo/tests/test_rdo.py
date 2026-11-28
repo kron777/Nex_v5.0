@@ -182,7 +182,9 @@ def test_novel_kind_frontier_exposes_rule_proposal_request_without_auto_expansio
     assert item["reason"] == "no expansion rule for kind 'specialized_deployment'"
     assert item["frontier_type"] == "novel_kind_requires_rule_proposal"
     request = item["rule_proposal_request"]
-    assert request["schema_version"] == 1
+    assert request["schema_version"] == 2
+    from rdo.extrapolator import expansion_catalogue_digest
+    assert request["catalogue_digest"] == expansion_catalogue_digest()
     assert request["target_kind"] == novel.kind
     assert request["source_obligation"] == novel.to_dict()
     assert request["known_rule_kinds"] == sorted(EXPANSION_RULES)
