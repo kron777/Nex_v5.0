@@ -266,6 +266,7 @@ def expand(seeds: List[Obligation],
                 "reason": f"no expansion rule for kind '{ob.kind}'",
                 "frontier_type": "novel_kind_requires_rule_proposal",
                 "rule_proposal_request": {
+                    "schema_version": 1,
                     "target_kind": ob.kind,
                     "source_obligation": ob.to_dict(),
                     "known_rule_kinds": sorted(EXPANSION_RULES),
