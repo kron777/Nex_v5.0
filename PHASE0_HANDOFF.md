@@ -585,3 +585,8 @@ On the normal path, Fountain composes Stage-TOM narrative context, calls the voi
 
 
 PR #456 corrected exact-head workflow 46184315945 passed: 3,078 passed, 7 skipped, 86 subtests; baseline/sandbox OK. The first failure was a test assertion expecting full text despite the 80-character source truncation; the test now matches the source contract. PR #457 initial head passed; constructor-gate follow-up awaits CI. See INDEX §160.
+
+
+### 28 November 2026 — Existing sentence-to-capability bridge
+
+The current GUI path parses a human sentence into one of three bounded capabilities: allowlisted HTTP GET, AST-interpreted arithmetic or read-only belief retrieval. It executes the selected capability and injects the result into the voice prompt. Arithmetic does not execute arbitrary Python. There is no approval/operation record in this path, but the current tools are read-only/pure; this must not be generalized to state-changing or embodied actions. Tests cover the boundary. No runtime change. See INDEX §164.
