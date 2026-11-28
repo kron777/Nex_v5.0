@@ -275,7 +275,7 @@ def _build_coingecko_url(query: str) -> str:
         "sol": "solana", "solana": "solana",
     }
     for key, coin_id in coin_map.items():
-        if key in q:
+        if re.search(r"\\b" + re.escape(key) + r"\\b", q):
             return (f"https://api.coingecko.com/api/v3/simple/price"
                     f"?ids={coin_id}&vs_currencies=usd")
     return ""
