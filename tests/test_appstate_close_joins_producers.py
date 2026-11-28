@@ -108,16 +108,30 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
         w = self.writers["dynamic"]
         wm = _Finisher(w, "world_model")
         sig, div, arc = (_Finisher(w, k) for k in ("signal_loop", "diversity_loop", "arc_loop"))
+        throw_net, counterfactual, predictive, self_mind = (
+            _Finisher(w, k) for k in (
+                "throw_net_monitor", "counterfactual_node",
+                "predictive_substrate", "self_mind_view",
+            )
+        )
         speech = _ConsumerLike(w, "speech_consumer")
 
         _state(self.writers, self.readers,
                world_model=SimpleNamespace(_stop=wm.event, _threads=[wm.thread]),
                signal_loop=_LoopLike(sig), diversity_loop=_LoopLike(div),
-               arc_loop=_LoopLike(arc), speech_consumer=speech).close()
+               arc_loop=_LoopLike(arc), speech_consumer=speech,
+               throw_net_monitor=_LoopLike(throw_net),
+               counterfactual_node=_LoopLike(counterfactual),
+               predictive_substrate=_LoopLike(predictive),
+               self_mind_view=_LoopLike(self_mind)).close()
 
         for name, wrote in (("world_model", wm.wrote), ("signal_loop", sig.wrote),
                             ("diversity_loop", div.wrote), ("arc_loop", arc.wrote),
-                            ("speech_consumer", speech.wrote)):
+                            ("speech_consumer", speech.wrote),
+                            ("throw_net_monitor", throw_net.wrote),
+                            ("counterfactual_node", counterfactual.wrote),
+                            ("predictive_substrate", predictive.wrote),
+                            ("self_mind_view", self_mind.wrote)):
             with self.subTest(producer=name):
                 self.assertIs(wrote, True, f"{name}'s in-flight write was lost: {wrote!r}")
                 self.assertTrue(self._landed(name))
