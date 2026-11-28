@@ -1402,3 +1402,266 @@ The merged change validates adapter IDs before worker creation, prepares all wor
 The merged builder publishes the DynamicState stop event and worker list before starting loops, gates loop-body entry until every thread has started, and on partial failure requests stop, releases the gate for wrappers to exit without running, joins started workers against one bounded rollback budget, logs any survivor, and re-raises the original exception. A deterministic second-start failure test verifies that no loop body is entered and the first worker is joined.
 
 **Integration boundary:** PR #415 is merged. This closes the Dynamic builder's partial-thread-start ownership gap in the tested path. It does not establish process-wide boot ownership before AppState, nor does it prove the analogous World Model, Membrane, Fountain or other builders are transactional. Those remain separate, evidence-led increments.
+
+
+## 58. The NEX Development Method — Cartographer, Scientist, Engineer and Gardener (28 November 2026)
+
+**Purpose:** establish a repeatable method for learning about NEX, improving it without losing architectural coherence, and distinguishing genuine progress from activity. This chapter is a development method, not a governing specification, authority grant, runtime policy or roadmap amendment. It does not supersede frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0, or any approved boundary.
+
+### The central idea: develop understanding, not just code
+
+NEX development is not a race to add faculties, nodes, loops, agents, scores or connections. It is the disciplined reduction of important uncertainty while preserving the system's integrity.
+
+A code change is only one possible result of a successful development cycle. Other valid outcomes include:
+- discovering that a capability already exists and reconnecting or correctly consuming it;
+- proving that an apparent gap is actually an intentional exclusion;
+- discovering that a feature is present but dark, unconsumed, ineffective or misrepresented;
+- identifying a measurement gap and designing a discriminating experiment;
+- finding that a proposed mechanism duplicates an existing one;
+- deciding that the evidence is insufficient and recording the unknown;
+- removing or declining a mechanism because it creates more distortion than value.
+
+The objective is not maximum code volume. It is a better-founded system and a more accurate understanding of what the system actually does.
+
+### 1. Four complementary engineering roles
+
+Every substantial investigation should move deliberately between four perspectives.
+
+**The Cartographer — understand the territory.**
+- Map components, owners, inputs, outputs, persistence, consumers, configuration, lifecycle and dependencies.
+- Trace real paths, not just class names or architecture diagrams.
+- Record both connections and non-connections.
+- Map the boundary between cognitive interpretation, typed operations, capability validation, approval authority, execution and post-execution verification.
+- Treat the mind map as descriptive. Its placement of a Mind Aspect grants no action authority.
+
+**The Scientist — challenge the explanation.**
+- Maintain multiple plausible hypotheses until evidence distinguishes them.
+- State what each hypothesis predicts and what observation would disconfirm it.
+- Use baselines, positive controls, negative controls, counterfactuals and repeatable probes.
+- Separate correlation, contribution, causal influence and beneficial effect.
+- Ask what would change the current conclusion.
+
+**The Engineer — change one meaningful thing.**
+- Prefer the smallest reversible change that closes a demonstrated invariant or tests a valuable hypothesis.
+- Reuse existing mechanisms before creating new ones.
+- Define ownership, contracts, failure behaviour, observability and rollback before widening scope.
+- Integrate one connection at a time and validate its effect on neighbouring paths.
+- Keep the implementation proportional to the evidence and the risk.
+
+**The Gardener — preserve conditions for healthy growth.**
+- Protect deliberate exclusions, dark-by-default mechanisms and lessons from previous failures.
+- Prune duplication, dead paths, misleading claims and unconsumed outputs.
+- Avoid forcing every subsystem to participate in every decision.
+- Recognise that restraint, delay, silence and non-action can be meaningful outcomes rather than defects.
+- Stop experiments when they become uninformative, unsafe, redundant or disproportionately costly.
+
+No single role is sufficient. Cartography without experiments becomes static documentation; experiments without architecture can measure the wrong thing; engineering without causal understanding creates feature accumulation; gardening without evidence can become arbitrary conservatism.
+
+### 2. Build four maps before choosing a fix
+
+For a consequential question, maintain four small, linked maps. They can be notes, tables, tests or diagrams; they do not require a new runtime subsystem.
+
+1. **Structure map:** what exists, where it lives, who constructs it, who owns it, and how it starts and stops.
+2. **Influence map:** where data originates, how it is represented and transformed, which selectors or consumers read it, and what observable effect follows.
+3. **Authority map:** which component may interpret, propose, validate, approve, execute or verify an operation. Never infer authority from cognitive importance, mind-map position, salience or a numerical score.
+4. **Evidence map:** what is specified, source-present, boot-wired, enabled, consumed, measured and validated—and which of those stages remain unknown.
+
+The maps should expose both positive and negative space:
+- a connection that exists;
+- a connection that is absent;
+- a connection that is intentionally excluded;
+- an output nobody consumes;
+- a consumer that bypasses the expected path;
+- a capability that exists but is disabled;
+- a state transition that has no reliable owner;
+- an apparent absence that may actually be deliberate silence or restraint.
+
+Do not treat all missing edges as defects. First discover whether the missing edge is accidental, intentional, obsolete, unsafe or simply unmeasured.
+
+### 3. Classify the gap before designing the solution
+
+Use the following gap classes as a first diagnosis:
+
+1. **Capability absence:** the required mechanism does not exist.
+2. **Disconnected capability:** it exists but is not connected to the intended pathway.
+3. **Unconsumed or ineffective output:** a producer emits data, but no meaningful consumer uses it or its effect is negligible.
+4. **Deliberate exclusion:** the path is intentionally dark, blocked, filtered or omitted, often because of a previous failure or policy.
+5. **Measurement gap:** the mechanism may work, but the available evidence cannot establish whether it does.
+6. **Semantic or authority gap:** data, meaning, responsibility or permission is unclear or conflated.
+7. **Regression or ownership defect:** a previously established contract is broken by lifecycle, persistence, concurrency, integration or compatibility behaviour.
+
+A single symptom can contain several gap classes. For example, a loop may be present and started, but not registered with the shutdown owner; its output may be persisted but never consumed; and the only available test may prove that the thread exists rather than that it produces useful work. Split the problem into independently testable claims instead of applying one broad label.
+
+### 4. Maintain a hypothesis slate, not a premature conclusion
+
+For every non-trivial investigation, write down at least two plausible explanations before selecting an implementation. Include the possibility that the current design is correct and the observed problem is caused elsewhere.
+
+For each hypothesis record:
+- the causal claim;
+- the source paths and symbols that should contain evidence;
+- the expected intermediate states;
+- the predicted downstream effect;
+- a disconfirming observation;
+- the cheapest reliable probe;
+- the risks of acting if the hypothesis is wrong.
+
+Use counterfactual subtraction: if this component, connection, flag or data source were removed, what would observably change? Conversely, if it were introduced, what new consumers, feedback paths or failure modes would appear?
+
+A source comment, class name, diagram or model-generated explanation is a lead, not proof. Trace the implementation and the consumer. If competing explanations remain indistinguishable, preserve the uncertainty and design a better probe.
+
+### 5. Choose the smallest probe that can distinguish the hypotheses
+
+Use an evidence ladder. Move upward only when the lower level cannot answer the question.
+
+- **Static source trace:** establish what the code can do and what paths are wired.
+- **Contract inspection:** identify inputs, outputs, invariants, owners, failure modes and compatibility requirements.
+- **Focused unit or component test:** isolate one behaviour with deterministic fixtures.
+- **Integration test:** verify the actual connection between neighbouring components.
+- **Controlled subsystem experiment:** compare a baseline with one deliberate perturbation and appropriate controls.
+- **Authorised host observation:** establish what a real deployment actually does under its observed configuration.
+- **Operational validation:** repeat under representative workload, restart, failure, concurrency and recovery conditions.
+
+A test result must name the exact revision, command, environment assumptions, test selection and result. A CI pass validates only the revision and test environment that ran. It does not prove that the user's host is running that revision, that a feature flag is enabled there, or that the behaviour is beneficial in production.
+
+Prefer deterministic events, barriers, injected failures and isolated databases over timing sleeps and live-state manipulation. Never use a live substrate database as a convenient test fixture.
+
+### 6. Design changes around invariants and contracts
+
+Before editing code, write the invariant in plain language. Examples:
+
+- every started worker has a reachable owner responsible for stopping and joining it;
+- no worker performs useful work until subsystem startup has committed;
+- accepted writes complete before the canonical Writer closes;
+- a failed startup cannot leave an unowned live worker;
+- an operation cannot cross an approval boundary merely because a cognitive component recommends it;
+- a belief marked inactive cannot re-enter through an unexamined alternate consumer;
+- a deliberate exclusion remains effective after adjacent code changes.
+
+Then define:
+- **preconditions:** what must already be true;
+- **postconditions:** what the operation guarantees;
+- **ownership:** who retains responsibility for resources and state;
+- **admission:** what prevents new work from entering during stop or rollback;
+- **completion:** what proves in-flight work is finished;
+- **failure semantics:** what is returned, raised, recorded or retried;
+- **observability:** what evidence distinguishes success from partial failure;
+- **rollback:** how the change can be reversed without corrupting state.
+
+Do not use the word *thread-safe*, *atomic*, *transactional*, *verified* or *safe* without identifying the exact guarantee and its scope.
+
+### 7. Integrate by connections, not by architectural ambition
+
+Use three integration levels:
+
+**Level A — individual connection.** Connect one producer to one intended consumer, or one owner to one lifecycle. Test the edge in isolation. Confirm that unrelated consumers do not change.
+
+**Level B — subsystem integration.** Test the connected components together under normal, boundary, failure, restart and concurrency conditions. Establish a new baseline.
+
+**Level C — whole-system integration.** Only after subsystem contracts are stable, examine boot ordering, global resource ownership, cross-subsystem effects, operational observability and recovery.
+
+Do not jump from a successful unit test directly to a whole-system claim. Each newly connected edge can create feedback, duplicate work, resource contention, authority confusion or a new failure route. A previously validated component can behave differently when placed in a new network.
+
+For lifecycle work, explicitly distinguish construction, preparation, start, activation, stop request, quiescence, join and resource release. Builder-level rollback and boot-level ownership are separate obligations. Normal shutdown success does not prove that partial startup is safe.
+
+### 8. Measure effects at the destination, not merely activity at the source
+
+For each claimed improvement, identify the final effect that matters. Depending on the question, this may be:
+- a downstream selection or decision;
+- a persisted state transition;
+- a verified operation;
+- a measurable reduction in latency, failure or rework;
+- improved continuity or retrieval;
+- a human-observable interaction outcome.
+
+Count neither emitted events nor connected consumers as proof of impact. Trace the effect through each transform and selector to the destination.
+
+Use a baseline and, where useful, positive and negative controls. Record magnitude, timing, frequency, false positives, false negatives, starvation, unintended consumers and regressions. Separate:
+- **mechanism activity** — it ran;
+- **pathway influence** — its output changed a downstream state;
+- **functional effect** — the change improved the intended outcome;
+- **system value** — the improvement survives realistic conditions and comparison with a simpler alternative.
+
+If the measurement is only a proxy, label it as a proxy. Do not promote a proxy into a claim about understanding, agency, emotion, consciousness or beneficial behaviour.
+
+### 9. Keep an evidence and learning ledger
+
+Every material development increment should leave a compact, durable record:
+
+- question and scope;
+- source revision and relevant paths/symbols;
+- gap classification;
+- competing hypotheses and falsifiers;
+- invariant and intended effect;
+- exact change and why existing mechanisms were insufficient;
+- test command, revision, environment and results;
+- CI workflow/job and exact tested head;
+- adjacent paths rescanned;
+- regressions, counter-evidence and unintended effects;
+- remaining unknowns and next discriminating probe;
+- rollback or recovery route.
+
+Use evidence labels consistently: **specified**, **source-derived**, **test-covered**, **CI-validated at exact head**, **host-observed**, **reproduced**, **measured**, **validated**, or **unknown**. A historical pass remains historical. When a branch is rebased, reconstructed or changed after CI, its new head needs its own validation.
+
+Record failures as information, not embarrassment. A failed hypothesis, rejected implementation or experiment that shows no effect can be a valuable result if its scope and conditions are clear.
+
+### 10. Use a disciplined stopping rule
+
+Research should not become endless browsing, and development should not become endless refactoring. Stop or redirect when one of these conditions is reached:
+
+- a demonstrated defect has a bounded fix and its exact-scope validation is complete;
+- the next action is clear and safely actionable;
+- the remaining uncertainty requires host access, founder approval or unavailable evidence;
+- competing hypotheses cannot yet be distinguished and a better probe is needed;
+- the proposed work duplicates an existing mechanism;
+- the expected information gain is lower than the cost or risk;
+- the change would cross a frozen specification, roadmap gate or authority boundary;
+- the result is stable enough to establish a new baseline and move to the next independent question.
+
+Do not hide unresolved work. Convert it into an explicit obligation with an owner, evidence requirement and stop condition. Do not keep expanding a task merely because more code can be written.
+
+### 11. Use AI systems as instruments, not authorities
+
+Multiple AI systems can provide useful independent readings, adversarial critiques, test ideas and alternative hypotheses. Treat them as different analytical instruments with different blind spots—not as votes, oracles or substitutes for repository evidence.
+
+For important decisions:
+- ask systems to identify disconfirming evidence, not only support a preferred design;
+- compare the assumptions behind their recommendations;
+- verify claims against source, tests and approved documents;
+- retain disagreements when evidence does not resolve them;
+- keep human/founder authority at the correct approval boundary.
+
+RDO, Watcher, extrapolation and prioritisation mechanisms can help identify obligations, compare evidence and organise work. They do not acquire project authority. An extrapolated obligation is a candidate for investigation, not an instruction to implement. Scores such as (V=R\times C\times I\times Q) are prioritisation aids, not calibrated truth or permission.
+
+### 12. The operating loop
+
+Use this sequence as the default for continuing NEX development:
+
+1. **Orient:** verify the active branch, current main, governing documents, exact source revision and current CI state.
+2. **Observe:** inspect the actual implementation and its callers, consumers, owners, flags and tests.
+3. **Map:** update the structure, influence, authority and evidence maps for the question.
+4. **Classify:** distinguish absent, disconnected, ineffective, deliberately excluded, unmeasured, semantic/authority and regression gaps.
+5. **Hypothesise:** retain competing explanations and state what would falsify each.
+6. **Probe:** choose the smallest deterministic experiment that can discriminate between them.
+7. **Decide:** reuse, connect, measure, repair, defer or deliberately leave unchanged.
+8. **Implement:** change one bounded invariant or connection with clear ownership and rollback.
+9. **Validate:** test the exact revision, then inspect the changed code and adjacent paths for side effects.
+10. **Integrate:** move from connection to subsystem to whole-system evidence without skipping levels.
+11. **Learn:** record predictions, outcomes, surprises, regressions and remaining unknowns.
+12. **Reorient:** choose the next task by consequence, information gain, reversibility and evidence—not by novelty or code volume.
+
+The loop is iterative, not ceremonial. Research and implementation may proceed concurrently when a bounded change is justified. CI waiting is an opportunity to investigate adjacent contracts, but never a reason to claim success before the result arrives.
+
+### 13. Current application and status corrections
+
+This method is already being applied to background-worker lifecycle work:
+
+- **SenseScheduler:** PR #414 merged as `c54a82f7add75553ad256c31d0f5e9ca04066d07`; exact-head CI validated 3,001 passed, 7 skipped and 86 subtests.
+- **Dynamic builder:** PR #415 merged as `93bc7a820565e577ddae155004b69dc0bcd50207`; exact-head CI validated 3,000 passed, 7 skipped and 86 subtests.
+- Earlier sections 52 and 53 are point-in-time notes written before those integrations completed. Section 57 records the later Dynamic merge; this section records the SenseScheduler merge status as well.
+- **Producer cooperative shutdown:** PR #416 is open on a reconstructed branch. Its exact-head workflow run 2532 was still running when this chapter was prepared. The PR base is behind current `main` and GitHub reports it not mergeable. Its source changes must be reconciled against current main and revalidated at the resulting exact head before merge. The earlier source PR's successful CI is not a substitute for that new validation.
+
+The next architectural questions remain separate: complete the producer-shutdown integration; investigate the remaining internally-started builders (World Model, Membrane and Fountain) individually; then address boot-level ownership before AppState. Do not turn the repeated pattern into a bulk refactor without subsystem-specific evidence.
+
+**Unchanged boundaries:** this chapter does not modify frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 authority, mind-map semantics, runtime flags, databases, live host state or cognitive/action authority separation.
+
+---
