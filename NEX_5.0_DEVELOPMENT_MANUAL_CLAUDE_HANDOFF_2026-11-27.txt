@@ -1,6 +1,6 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with branch INDEX.md; evidence snapshot: main at 60cc178ba1f3c895651c86ad95345c98fd5a2198.
+Mirror synchronized with branch INDEX.md; evidence snapshot: main at bbca5deb3a0398331503ce61c95a62f8d1b3d33d.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
@@ -963,3 +963,32 @@ A read-only host re-run needs founder authorisation.
 4. **G-61:** does the one-pen rule extend to non-substrate databases such as `strikes_catalogue.db`?
 
 Gate 0 remains pending and Phase 1 is not authorised. G-69/#259 stays on HOLD. G-58 is unchanged.
+
+
+
+
+48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
+
+**Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is on draft-review candidate PR #360; exact-head CI is being rerun after correcting the self-assessment count for the new adapter.
+
+### What this increment adds
+
+The new provider-neutral `rdo_adapters.seed_proposals` boundary preserves the user's raw objective revision and allows multiple competing seed-graph interpretations to be submitted as candidates. Each proposal binds the exact canonical raw-objective snapshot and SHA-256 digest, and carries seed obligations, typed relationships, acceptance-criterion coverage, assumptions, constraints, exclusions, open questions, disconfirming cases and evidence needs.
+
+External-LLM-derived seed confidence must remain explicitly `inferred`; human-authored seed confidence may be `stated`. Approval requires an explicit review decision selecting exactly one existing alternative. A candidate is not an approved objective, and approval does not itself execute anything.
+
+### Integrity and authority boundaries
+
+- Proposal/review events are stored in an append-only, sequence-numbered, SHA-256-linked JSONL ledger with duplicate-key rejection, event/byte bounds, file locking, fsync, and symlink rejection for the ledger path.
+- Raw-objective revisions are linked to the exact previous digest; original wording and intent remain immutable across revisions.
+- Review decisions cannot be overwritten; a revised candidate must explicitly supersede a changes-requested or rejected proposal.
+- The only approval retrieval is an explicit `approved_selection()` call. It returns the selected existing alternative and exact raw-objective lineage.
+- This increment does **not** submit to `objective.v1`, run recursive expansion, create a Stage-7 handoff, execute generated code, load rules, activate policy, or change NEX runtime state.
+
+### Validation and next work
+
+The first exact-head CI exposed one stale self-assessment expectation: RDO correctly discovers a fourth boundary adapter after `seed_proposals.py` was added, while the existing test still expected three. The branch now updates that assertion and explicitly checks for `seed_proposals.py`. The new exact-head full-suite CI is pending; no pass count is claimed.
+
+The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
+
+No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
