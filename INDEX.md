@@ -1965,3 +1965,35 @@ This means a signal can be delayed until the current builder returns. That trade
 
 The implementation and regression tests are assembled on `fix/boot-time-appstate-ownership-2026-11-28`. Exact-head CI is pending. Do not treat the candidate as merged or host-validated until those separate evidence gates are met.
 
+
+
+## 61. G-92 reviewed seed bridge and CLI — implementation status correction (28 November 2026)
+
+**Source snapshot:** `main` at `dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f`. The RDO bridge, CLI, tests and README files listed below are blob-identical to the reconciled PR #416 exact-head source at `e6d19453e0ec63447d0f0b7fca85ffcd3eef1d1a`. Exact-head CI run `46140753232` passed **3,051 tests, 7 skipped, 86 subtests**; baseline check OK. This correction supersedes the older §43/§48 statements that the bridge/CLI did not yet exist. Section 48 remains the historical first proposal-lifecycle increment.
+
+### Implemented surface
+
+The current `rdo/__main__.py` exposes six provider-neutral seed lifecycle commands:
+
+- `seed-propose`: append candidate seed alternatives against an exact raw-objective snapshot.
+- `seed-review`: append an explicit decision selecting an existing alternative.
+- `seed-history`: inspect raw-objective revisions and append-only review events.
+- `seed-selection`: retrieve an alternative only after explicit approval.
+- `seed-prepare`: read-only mapping of the approved selection into a validated `objective.v1` candidate with graph diagnostics and lineage.
+- `seed-intake`: explicitly persist the approved objective and proposal lineage, then run advisory RDO planning.
+
+The source is `rdo_adapters/reviewed_seed_bridge.py`; the CLI is documented in `rdo/README.md` and `rdo/REVIEWED_SEED_BRIDGE.md`. Regression coverage includes `rdo/tests/test_seed_proposal_cli.py` and `rdo/tests/test_reviewed_seed_bridge.py`.
+
+### Integrity and authority boundaries
+
+- Preparation validates the exact approval event, raw-objective digest, selected alternative identity and proposal lineage. It writes neither ledger and starts no planning.
+- Intake appends the validated objective and its lineage together in one objective revision record. A retry reuses the same proposal lineage and CycleStore identity rather than creating another objective revision.
+- Structural diagnostics reuse Tarjan SCC and the existing cycle/tension machinery. If a cyclic component exceeds 7 nodes or 18 internal cycle edges, detailed classification remains UNKNOWN rather than attempting unbounded simple-cycle enumeration.
+- Intake runs the existing advisory `run_cycle` with no authorised gates. It does not create a Stage-7 handoff, execute generated code, activate runtime policy, or write to live NEX runtime state.
+- Candidate seed interpretations still originate from an external human/provider submission. The proposal lifecycle does not itself provide an autonomous raw-idea decomposer or promote novel expansion rules into the active catalogue.
+
+### Updated G-92 disposition
+
+**G-92 is partially closed, not complete.** The provider-neutral candidate-seed proposal/review/history lifecycle, explicit approved-selection retrieval, objective-intake bridge, lineage persistence and advisory planning path now exist. Remaining work is the reviewed candidate expansion-rule lifecycle for novel obligation kinds, with alternatives, applicability, assumptions, exceptions, disconfirmations, evidence needs, provenance and tests preserved. Promotion into a versioned active rule catalogue must remain explicit and reviewed; repeated patterns alone must never promote a rule.
+
+This update corrects the development status only. It does not create a new rule, promote a candidate, create a Stage-7 handoff, authorize execution, or change frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 or Phase 1 authority.
