@@ -4,7 +4,7 @@ import json
 import pytest
 
 from rdo.extrapolator import expand
-from rdo.model import MISSING, Obligation, Pattern
+from rdo.model import MISSING, CycleRecord, Obligation, Pattern
 from rdo.memory import PatternMemory
 from rdo.rule_proposals import RuleProposalStore
 
@@ -12,6 +12,8 @@ from rdo.rule_proposals import RuleProposalStore
 def _proposal(target="specialized_deployment"):
     return {
         "target_kind": target,
+        "source_cycle_id": "cycle-001",
+        "source_frontier_key": "deployment.specialized",
         "source_obligation": {
             "key": "deployment.specialized",
             "title": "specialized deployment mechanism",
@@ -64,6 +66,27 @@ def _proposal(target="specialized_deployment"):
     }
 
 
+def _propose(store, proposal=None, cycle=None):
+    proposal = proposal or _proposal()
+    source = proposal["source_obligation"]
+    cycle = cycle or CycleRecord(
+        id=proposal["source_cycle_id"],
+        objective="source frontier fixture",
+        frontier=[{
+            "key": proposal["source_frontier_key"],
+            "reason": f"no expansion rule for kind '{proposal['target_kind']}'",
+            "frontier_type": "novel_kind_requires_rule_proposal",
+            "rule_proposal_request": {
+                "target_kind": proposal["target_kind"],
+                "source_obligation": {
+                    "key": source["key"], "title": source["title"], "kind": source["kind"],
+                },
+            },
+        }],
+    )
+    return store.propose(proposal, source_cycle=cycle)
+
+
 def _approve(store, proposal_id, decision="approved", alternative="environment_first"):
     return store.review(
         proposal_id, decision, "reviewer attribution", "review:rule-design-001",
@@ -92,7 +115,7 @@ def test_novel_kind_request_is_candidate_only_until_explicit_review(tmp_path):
 
 def test_proposal_preserves_alternatives_and_does_not_activate_by_repetition(tmp_path):
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
-    created = store.propose(_proposal())
+    created = _propose(store, _proposal())
     proposal_id = created["data"]["proposal_id"]
 
     assert created["event_kind"] == "proposal_created"
@@ -213,7 +236,7 @@ def test_approved_rule_kind_cannot_be_approved_twice(tmp_path):
     second_payload = _proposal()
     second_payload["source_obligation"]["key"] = "deployment.specialized.second"
     second_payload["provenance"] = ["frontier:cycle-002:deployment.specialized"]
-    second = store.propose(second_payload)
+    second = _propose(store, second_payload)
 
     with pytest.raises(ValueError, match="already has an approved rule"):
         _approve(store, second["data"]["proposal_id"])
@@ -319,4 +342,4 @@ def test_rule_step_must_make_progress_to_a_different_kind(tmp_path):
     proposal["alternatives"][0]["steps"][0]["child_kind"] = proposal["target_kind"]
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
     with pytest.raises(ValueError, match="differ from the target kind"):
-        store.propose(proposal)
+        _propose(store, proposal)
