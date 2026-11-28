@@ -418,3 +418,13 @@ This is a provider-neutral handoff to a human or external LLM, not an automatica
 generated or activated rule. Candidate rules remain inert until an explicit review
 and approval lifecycle is implemented. Repeated pattern frequency alone does not
 activate a rule.
+
+
+
+## Novel-kind rule proposals
+
+When expansion reaches a kind with no rule, the frontier now emits a
+candidate-only rule-proposal request. See [RULE_PROPOSALS.md](RULE_PROPOSALS.md)
+for the candidate schema, competing decompositions, review/approval workflow,
+versioned catalogue and explicit per-cycle activation. PatternMemory does not
+promote rules; only a reviewed approval event can add one to the catalogue.
