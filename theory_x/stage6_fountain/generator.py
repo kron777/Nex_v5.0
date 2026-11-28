@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import time
+import threading
 from typing import Optional
 
 logger = logging.getLogger("theory_x.stage6_fountain")
@@ -1649,7 +1650,15 @@ class FountainGenerator:
         logger.info("frame_gate: retry unclean/empty, kept original")
         return thought
 
-    def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
+    def generate(
+        self,
+        dynamic_state,
+        beliefs_reader: Reader,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Optional[str]:
+        if stop_event is not None and stop_event.is_set():
+            return None
         trace = None
         if os.environ.get("NEX5_TRACE_OVERLAY", "0").strip().lower() in {
             "1", "true", "on", "yes", "y",
@@ -1661,7 +1670,7 @@ class FountainGenerator:
                 trace = None
         if trace is None:
             # The default-OFF path keeps the original direct call and exception path.
-            return self._generate(dynamic_state, beliefs_reader)
+            return self._generate(dynamic_state, beliefs_reader, stop_event=stop_event)
 
         _tick_record_id = trace.record(
             "input_arrival", "fountain_tick",
@@ -1670,13 +1679,15 @@ class FountainGenerator:
         )
         trace.remember("fountain_tick", _tick_record_id)
         try:
-            result = self._generate(dynamic_state, beliefs_reader, trace=trace)
+            result = self._generate(dynamic_state, beliefs_reader, trace=trace, stop_event=stop_event)
         except Exception as exc:
             if trace is not None:
                 trace.record("output", "generation_error",
                              metadata={"error_type": type(exc).__name__},
                              parent_ids=[trace.reference("input_arrival")])
             raise
+        if stop_event is not None and stop_event.is_set():
+            return None
         if trace is not None:
             trace.output(
                 result, output_kind="fountain_thought",
@@ -1695,10 +1706,24 @@ class FountainGenerator:
             )
         return result
 
-    def _generate(self, dynamic_state, beliefs_reader: Reader, trace=None) -> Optional[str]:
+    def _generate(
+        self,
+        dynamic_state,
+        beliefs_reader: Reader,
+        trace=None,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Optional[str]:
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return None
         readiness = self._evaluator.score(
             dynamic_state, beliefs_reader, last_fire_ts=self._last_fire_ts
         )
+        if _stopping():
+            return None
         _ready = self._evaluator.is_ready(readiness)
         if trace is not None:
             _readiness_record_id = trace.record(
@@ -1726,15 +1751,21 @@ class FountainGenerator:
         # Per-fire competing-drives activation
         self._last_activation_id = None
         if self._competing_drives is not None:
+            if _stopping():
+                return None
             try:
                 self._last_activation_id = self._competing_drives.compute_now()
             except Exception:
                 pass
+            if _stopping():
+                return None
 
         # Intervention C - Substrate-as-Voice
         # When groove severity is high (template-grip is real) and
         # cooldown has elapsed, surface a tier-1/2 anchor belief verbatim.
         # Bypasses LLM, crystallizer, condenser.
+        if _stopping():
+            return None
         try:
             # 2026-07-25: SYNTH_EMIT clause dropped -- that code path was
             # removed (session 49), the flag it checked is gone with it.
@@ -1749,6 +1780,8 @@ class FountainGenerator:
                     _sv_thought = self._maybe_substrate_voice(
                         beliefs_reader, readiness, trace=trace,
                     )
+                if _stopping():
+                    return None
                 if _sv_thought is not None:
                     if trace is not None:
                         _substrate_replay_id = trace.record(
@@ -1843,10 +1876,14 @@ class FountainGenerator:
             )
             return thought
 
+        if _stopping():
+            return None
         try:
             status = dynamic_state.status()
         except Exception:
             status = {}
+        if _stopping():
+            return None
 
         belief_count = 0
         tier_dist: dict = {}
@@ -1874,6 +1911,8 @@ class FountainGenerator:
         if self._total_fires % 8 == 7 and readiness >= 0.8 and belief_count >= 20:
             koan = self._select_koan(beliefs_reader)
 
+        if _stopping():
+            return None
         if trace is None:
             prompt, retrieval_manifest = self._build_prompt(
                 status, belief_count, tier_dist, disturbance=disturbance, koan=koan,
@@ -1883,6 +1922,8 @@ class FountainGenerator:
                 status, belief_count, tier_dist, disturbance=disturbance, koan=koan,
                 trace=trace,
             )
+        if _stopping():
+            return None
 
         try:
             with open('/tmp/nex5_last_prompt.log', 'w') as _f:
@@ -2222,11 +2263,15 @@ class FountainGenerator:
                             ],
                         )
                         trace.remember("fountain_voice_prompt", _reconcile_prompt_id)
+                    if _stopping():
+                        return None
                     _rcresp = self._voice.speak(
                         VoiceRequest(prompt=_rcprompt, register=_rcreg,
                                      self_report_examples=False),
                         beliefs=None,
                     )
+                    if _stopping():
+                        return None
                     thought = (_rcresp.text or "").strip()
                     if trace is not None:
                         _reconcile_candidate_id = trace.record(
@@ -2329,11 +2374,15 @@ class FountainGenerator:
                     ],
                 )
                 trace.remember("fountain_voice_prompt", _normal_prompt_id)
+            if _stopping():
+                return None
             resp = self._voice.speak(
                 VoiceRequest(prompt=prompt, register=PHILOSOPHICAL,
                              self_report_examples=False),
                 beliefs=None,
             )
+            if _stopping():
+                return None
             thought = resp.text.strip()
             if trace is not None:
                 _voice_candidate_id = trace.record(
@@ -2362,6 +2411,8 @@ class FountainGenerator:
                     and _non_ascii_letter_share(thought) > _FIRE_LANG_MAX_NON_ASCII):
                 _first_share = _non_ascii_letter_share(thought)
                 try:
+                    if _stopping():
+                        return None
                     _retry_prompt = prompt + _FIRE_LANG_RETRY_SUFFIX
                     if trace is not None:
                         trace.record(
@@ -2374,6 +2425,8 @@ class FountainGenerator:
                                      self_report_examples=False),
                         beliefs=None,
                     )
+                    if _stopping():
+                        return None
                     _rt = (_retry.text or "").strip()
                     if trace is not None:
                         trace.record(
@@ -2391,10 +2444,14 @@ class FountainGenerator:
             # NEX5_FRAME_GATE (default OFF): register-moha exit guard — detector-gated
             # single regeneration (the FIRE_LANG_GUARD analogue; see _apply_frame_gate).
             _before_frame_gate = thought
+            if _stopping():
+                return None
             if trace is None:
                 thought = self._apply_frame_gate(thought, prompt)
             else:
                 thought = self._apply_frame_gate(thought, prompt, trace=trace)
+            if _stopping():
+                return None
             if trace is not None:
                 _frame_gate_id = trace.record(
                     "output_filter", "frame_gate_applied",
