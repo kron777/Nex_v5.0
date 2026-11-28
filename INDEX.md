@@ -2786,3 +2786,59 @@ The repository has an explicit, tested descriptive-only doctrine and a static AS
 **Source anchors inspected at main 18c8f06171e1de35c3210831a49b63d0e2487af0:** mind_map/MIND_MAP.yaml blob d569d6e50e5541f1845581b052ffdb9db8e2857f; mind_map/mind_map.py blob 6eda2aa414802374e18db242d8ccbc26c9ee06ad; tests/test_mind_map_policy.py blob de6a30f6d4ce92b28b70e9b5ef1d318c3844ed6c; theory_x/stage_capability/tool_caller.py blob 07ef6c7f044b0c26c3e8ba78f51e5cf285890402; theory_x/stage_capability/tools.py blob b00052d6286d23b58599bfc463ebf051b0c08668.
 
 **Unchanged boundaries:** no Mind Aspect policy, mind-map schema, capability registry, approval rule, runtime code, tool behavior, database, flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority is changed. This is a source-and-test study only; no tests were executed in this turn.
+
+## 84. Approval provenance: tamper-evident history is not authenticated identity (28 November 2026)
+
+**Question studied:** what does a Stage-7 scope-review event actually prove, and what trust does the Watcher place in it?
+
+### What the handoff boundary enforces
+
+The immutable handoff manifest is canonicalized and SHA-256 digested. It records execution_authority=none, tests_execution_authorized=false, runtime_operations_authorized=false and the other explicit non-execution boundaries. Its creation binds the planning cycle, objective revision/digest, repository snapshot, work package and exact path scope.
+
+Scope-review events are appended to a manifest-digest-bound JSONL ledger. The append path:
+- validates the decision and restricts approved actions to a fixed allowlist of non-executing preparation actions;
+- refuses unknown and forbidden actions such as run_tests, execute_code, deploy, live database writes and runtime-flag changes;
+- requires an explicit permitted-action list for approval;
+- records sequence, previous-event digest, timestamp and event digest;
+- uses a file lock, append, flush and fsync;
+- verifies the sequence and hash chain when history is read.
+
+The Watcher independently rechecks the manifest digest, decision-event chain, current approved scope review, Git ancestry, changed paths and exact-file/symlink boundaries before recording source/path evidence. This is a meaningful integrity and scope-control design. It is not merely a human-readable approval note.
+
+### The identity boundary is intentionally weaker
+
+The code explicitly labels reviewer identity as caller-attributed, not authenticated. The API accepts reviewer and source_reference strings supplied by its caller. The event hash is an unkeyed SHA-256 digest over canonical event content; the chain detects accidental edits and ordinary tampering when the attacker cannot rewrite the chain, but it does not establish who supplied the event or provide a cryptographic signature from that person.
+
+Consequently:
+- a valid hash chain proves internal consistency of the recorded event sequence, not the real-world identity of the reviewer;
+- a reviewer label is an attribution claim, not an authenticated principal;
+- a source_reference preserves a pointer/claim about an approval source, not proof that the referenced source was checked or controlled by that reviewer;
+- the Watcher can independently validate that the ledger contains a structurally valid, digest-bound, current approval event, but it cannot turn caller-attributed data into authenticated identity merely by validating the hashes.
+
+This is not a defect hidden by the implementation: the limitation is explicitly documented in the adapter and Stage-7 manual. The important engineering requirement is to preserve it in every downstream status and UI. Never label this event “cryptographically signed approval” or “identity verified”.
+
+### What the current approval actually authorizes
+
+A successful scope review authorizes only the explicitly named non-executing preparation actions and only within the exact manifest path scope. It does not launch an agent. It does not authorize tests, arbitrary commands, runtime operations or deployment. The separate human-acceptance event is recorded only after scope approval and remains a distinct judgement; source/test/runtime evidence dimensions remain separate.
+
+This fits the core architecture: planning eligibility is not permission; scope approval is not execution approval; evidence verification is not human acceptance. Mind Aspects remain interpretive and cannot manufacture or substitute for any of these authority records.
+
+### Reuse-first path to stronger provenance, if ever required
+
+Do not retrofit a home-grown identity system into this adapter. First define the actual threat model and operational principal:
+1. Is the concern accidental misattribution, another local process writing the ledger, a compromised user account, or a remote reviewer?
+2. Identify the trusted identity provider and the exact signed assertion format it can issue.
+3. Bind the signed assertion to the handoff ID, manifest digest, decision, permitted actions, reviewer principal, expiry/nonce and policy version so it cannot be replayed against another handoff or scope.
+4. Verify signatures in the trusted Watcher boundary using pinned trust roots; record both the original assertion reference and verification result.
+5. Preserve a compatibility distinction between legacy caller-attributed events and newly authenticated events. Never silently upgrade historical records.
+6. Test expired assertions, wrong-manifest replay, altered actions, wrong principal, key rotation/revocation, duplicate nonce, missing trust roots and clock uncertainty.
+
+If the deployment has only a single trusted local operator and the explicit limitation is acceptable, retaining caller-attributed append-only events may be the simpler and more honest choice. Authentication is a threat-model decision, not a decorative feature.
+
+### Research conclusion
+
+Stage-7 provides strong manifest binding, bounded non-executing scope review, append-only hash-chained decision history and independent Watcher validation of that history. It deliberately does **not** authenticate reviewer identity. The system proves that a consistent attributed decision was recorded, not that a particular human cryptographically made it. Preserve that boundary; any stronger identity assurance requires a separately designed trust root and signed, replay-resistant approval assertion.
+
+**Source anchors inspected at main 18c8f06171e1de35c3210831a49b63d0e2487af0:** rdo_adapters/handoff.py blob c0fe2afc90d3e5fe948c7555bde1cf1675d7c0be; rdo/tests/test_handoff.py blob [test file inspected]; rdo/execution.py blob c4c3bb9b8c0dab5c16091c0ca3146921cf569c15; rdo/tests/test_stage7_execution_watcher.py blob 832b6290a45c793274e0890037618a7fb5eeea36; rdo/STAGE7_HANDOFF.md and rdo/STAGE7_EXECUTION_WATCHER.md.
+
+**Unchanged boundaries:** no identity provider, signing key, authentication mechanism, approval rule, event schema, execution capability, Watcher behavior, database, flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or runtime authority is changed. This is a source-and-test study only; no tests were executed in this turn.
