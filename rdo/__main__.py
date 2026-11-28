@@ -34,6 +34,12 @@ temporary fixture; `handoff-verify` is source/path-only and never runs tests.
 
   python -m rdo seed-selection --proposal-id <id> [--dir rdo/.cycles]
         read an explicitly approved alternative; never starts objective intake.
+
+  python -m rdo seed-prepare --proposal-id <id> [--dir rdo/.cycles]
+        prepare objective.v1 plus verified lineage; read-only, no planning.
+
+  python -m rdo seed-intake --proposal-id <id> [--repo .] [--dir rdo/.cycles]
+        explicitly persist approved objective/lineage and run advisory RDO planning.
 """
 from __future__ import annotations
 
@@ -49,10 +55,11 @@ from .feedback_loop import (
     FeedbackLoopEvidenceStore, MEASURED_DIMENSIONS, OPERATING_ENVELOPES, STABILITY_STATES,
 )
 from .graph import compare_adjacent_relationship_impacts, failure_propagation_candidates
-from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_file,
+from rdo_adapters.objective_intake import (ObjectiveInputError, ObjectiveInputStore, load_objective_file,
                                            objective_history, resume_objective,
                                            submit_objective)
 from rdo_adapters.seed_proposals import SeedProposalError, SeedProposalStore
+from rdo_adapters.reviewed_seed_bridge import (ReviewedSeedBridgeError, prepare_reviewed_selection, submit_reviewed_selection)
 from rdo_adapters.handoff import (HandoffError, create_handoff, handoff_history,
                                   record_human_acceptance, record_scope_review,
                                   record_context_mapping, record_acceptance_verification,
@@ -291,6 +298,37 @@ def _seed_selection(args) -> int:
     try:
         result = _seed_store(args).approved_selection(args.proposal_id)
     except (SeedProposalError, OSError, ValueError, TypeError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _seed_prepare(args) -> int:
+    try:
+        proposal_store = _seed_store(args)
+        objective_store = ObjectiveInputStore(os.path.join(args.dir, "objectives"))
+        result = prepare_reviewed_selection(
+            proposal_store, args.proposal_id, objective_store
+        )
+    except (ReviewedSeedBridgeError, SeedProposalError, ObjectiveInputError,
+            OSError, ValueError, TypeError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _seed_intake(args) -> int:
+    try:
+        proposal_store = _seed_store(args)
+        objective_store = ObjectiveInputStore(os.path.join(args.dir, "objectives"))
+        result = submit_reviewed_selection(
+            proposal_store, args.proposal_id, objective_store,
+            repo_dir=args.repo, workdir=args.dir,
+        )
+    except (ReviewedSeedBridgeError, SeedProposalError, ObjectiveInputError,
+            OSError, ValueError, TypeError) as exc:
         print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2, default=str))
@@ -641,6 +679,17 @@ def main(argv=None) -> int:
     ss.add_argument("--proposal-id", required=True)
     ss.add_argument("--dir", default="rdo/.cycles")
     ss.set_defaults(fn=_seed_selection)
+
+    spre = sub.add_parser("seed-prepare", help="read-only preparation of an approved seed selection")
+    spre.add_argument("--proposal-id", required=True)
+    spre.add_argument("--dir", default="rdo/.cycles")
+    spre.set_defaults(fn=_seed_prepare)
+
+    sint = sub.add_parser("seed-intake", help="persist an approved seed with lineage and run advisory RDO planning")
+    sint.add_argument("--proposal-id", required=True)
+    sint.add_argument("--repo", default=".")
+    sint.add_argument("--dir", default="rdo/.cycles")
+    sint.set_defaults(fn=_seed_intake)
 
     args = p.parse_args(argv)
     return args.fn(args)
