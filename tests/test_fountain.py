@@ -378,3 +378,38 @@ class TestFountainCompliance(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFountainBuilderStartupRollback(unittest.TestCase):
+    def test_start_failure_after_thread_creation_prevents_loop_activation(self):
+        import threading
+        from unittest import mock
+        import theory_x.stage6_fountain as fountain_module
+
+        writers, readers, tmp = _make_env()
+        original_start = threading.Thread.start
+        attempted = []
+
+        def start_then_fail(thread):
+            attempted.append(thread)
+            original_start(thread)
+            raise RuntimeError("injected fountain thread start failure")
+
+        try:
+            with mock.patch.object(
+                threading.Thread, "start", new=start_then_fail
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError, "injected fountain thread start failure"
+                ):
+                    fountain_module.build_fountain(
+                        writers, readers,
+                        _mock_voice_client(),
+                        dynamic_state=_mock_dynamic_state(),
+                    )
+
+            self.assertEqual(len(attempted), 1)
+            attempted[0].join(timeout=1.0)
+            self.assertFalse(attempted[0].is_alive())
+        finally:
+            _cleanup(writers, tmp)
