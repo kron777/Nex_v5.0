@@ -922,12 +922,15 @@ def main() -> None:
             target=decoder_loop, args=(state, _decoder_stop),
             daemon=True, name="decoder_loop",
         )
-        state.decoder_loop = types.SimpleNamespace(
-            stop=_decoder_stop.set, _thread=_decoder_thread)
+        _decoder_owner = types.SimpleNamespace(
+            start=_decoder_thread.start,
+            stop=_decoder_stop.set,
+            _thread=_decoder_thread,
+        )
         atexit.register(lambda: _decoder_stop.set())
-        _decoder_thread.start()
-        _abort_if_boot_shutdown_requested(state)
-        # Registered before start so failed startup remains visible to AppState (G-84).
+        # Reuse the same owner-before-start rollback contract as every other
+        # explicit run.py producer; the decoder's stop Event is its stop method.
+        _own_and_start(state, "decoder_loop", _decoder_owner, "start", "stop")
         log.info("Decoder loop started — tokenizing fountain outputs every 30s")
     except Exception as _dec_exc:
         log.warning("decoder_loop failed to start: %s", _dec_exc)
