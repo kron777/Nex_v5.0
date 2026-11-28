@@ -120,6 +120,8 @@ class GraderEvolver:
         belief = self._reader.read(
             "SELECT tier FROM beliefs WHERE id=?", (belief_id,)
         )
+        if stop_event is not None and stop_event.is_set():
+            return None
         tier = belief[0]["tier"] if belief else 0
         tier_score = min(1.0, tier / 7.0)
 
@@ -134,6 +136,8 @@ class GraderEvolver:
     def _detect_mismatches(self, samples: list, *, stop_event=None) -> None:
         now = time.time()
         for s in samples:
+            if stop_event is not None and stop_event.is_set():
+                return
             diff = abs(s["original_grade"] - s["retrospective_value"])
             if diff <= MISMATCH_THRESHOLD:
                 continue
