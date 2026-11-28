@@ -204,6 +204,8 @@ class WarrantRecorder:
                 return 0
             key = f"surv_t{lo}{hi}"
             cur = self._cursor(key)
+            if stop_event is not None and stop_event.is_set():
+                return 0
             q = ("SELECT id, content, tier FROM beliefs WHERE tier BETWEEN ? AND ? "
                  "AND locked = 0 AND paused = 0 AND id > ? ORDER BY id LIMIT ?")
             rows = [dict(r) for r in self._br.read(q, (lo, hi, int(cur), _PER_BAND))]
@@ -264,6 +266,8 @@ class WarrantRecorder:
             return not _stopping()
 
         c = self._cursor("use_retrieval_id")
+        if _stopping():
+            return 0
         rows = self._dr.read(
             "SELECT id, belief_id, ts FROM fountain_retrieval_log WHERE id > ? "
             "AND slot IS NOT 'identity_block' ORDER BY id LIMIT ?",
@@ -273,6 +277,8 @@ class WarrantRecorder:
             return 0
 
         c = self._cursor("use_anchor_id")
+        if _stopping():
+            return 0
         rows = self._dr.read(
             "SELECT id, anchor_belief_id, ts FROM fountain_events WHERE id > ? "
             "AND anchor_belief_id IS NOT NULL ORDER BY id LIMIT ?",
@@ -282,6 +288,8 @@ class WarrantRecorder:
             return 0
 
         c = self._cursor("use_synergizer_id")
+        if _stopping():
+            return 0
         rows = self._br.read(
             "SELECT id, belief_id_a, belief_id_b, ts FROM synergizer_log WHERE id > ? "
             "ORDER BY id LIMIT ?", (int(c), _USE_BATCH),
@@ -294,6 +302,8 @@ class WarrantRecorder:
         # Use event time and primary-key tie-breakers; hidden rowids are not
         # durable across VACUUM. The idempotent day table permits replay.
         last = self._tuple_cursor("use_lineage_event", (0.0, 0, 0, ""))
+        if _stopping():
+            return 0
         rows = self._br.read(
             "SELECT created_at, child_id, parent_id, relationship "
             "FROM belief_lineage "
@@ -315,6 +325,8 @@ class WarrantRecorder:
             )
 
         last = self._tuple_cursor("use_arc_event", (0.0, 0, 0))
+        if _stopping():
+            return 0
         rows = self._br.read(
             "SELECT joined_at, arc_id, belief_id FROM arc_members "
             "WHERE (joined_at, arc_id, belief_id) > (?, ?, ?) "
