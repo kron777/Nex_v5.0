@@ -1280,3 +1280,12 @@ PR #393 carries the current-main replay of the proposed #392 correction, passing
 
 This manual snapshot is being replayed from the #390 documentation work onto the same current-main base used by #393. The earlier #390 branch was created against an older lifecycle base and is superseded by this clean single-file documentation replay. The voice-timeout research note is carried forward unchanged as a source-bounded historical analysis based on its stated source revision; its timing conclusion remains a code-derived risk, not a host observation. The next manual refresh must record the outcome of #393 and update the verified-main SHA after any merge. Do not merge stale documentation snapshots simply because their historical CI passed.
 
+
+
+### 16.14 run.py worker ownership census — source-mapped, not exhaustive
+
+A source comparison of current-main `run.py` direct worker-start sites with `AppState._quiesce_producers()` found a corresponding shutdown owner for each explicitly started worker in the boot path: resolver, novel association, optional throw-net monitor, substrate harmonic, genius tagger, counterfactual node, drive emergence, optional warrant recorder, competing drives, affect state, predictive substrate, optional persona responder, self-mind view, optional world/self prediction loops, optional self-maintenance shadow, speech consumer, diversity loop, edge generator and the decoder thread attached after AppState construction. Builder-owned scheduler, dynamic, world-model, membrane, fountain, signal-loop and strike-protocol workers also have explicit shutdown paths in the inspected registry.
+
+This narrows the direct `run.py` ownership gap: no obvious direct start site was found without an AppState shutdown owner. It does **not** establish a repository-wide thread census, prove the internals of every `stop()` implementation, or rule out dynamically spawned tasks, thread pools, subprocesses, route-called workers, independent SQLite writers or host-only processes. The registry itself describes its scope as bounded. See `research/RUN_PY_BACKGROUND_WORKER_OWNERSHIP_CENSUS_2026-11-28.md` for the worker-by-worker mapping and residuals.
+
+The next audit unit is not merely another list of threads: trace each enabled worker from its blocking calls to its first subsequent Writer/direct-SQLite side effect, then add stop-aware checkpoints and deterministic tests where a post-stop continuation is demonstrated. Keep the five-second producer join and 12/15-second shutdown budgets unchanged pending evidence.
