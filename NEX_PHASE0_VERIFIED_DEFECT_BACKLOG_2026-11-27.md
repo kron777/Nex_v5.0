@@ -1042,3 +1042,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 §156 GeniusTagger consumer inventory: GENIUS_SCORE_v2.md §7 and producer comments still say downstream consumers do not exist / log-only, but source has readiness modulation (last-hour sample, >=5 rows, 40% target, up to .15 penalty), recent-STRIKING prompt injection (24h), Fountain governor (90m trough -> reanimation 20->5 + belief), Metacognition rut writer, and optional NEX5_CONTINUITY_N prompt layer. Producer remains passive; integrated signal is not system-level log-only. Consumer activation on host remains UNKNOWN. PR #455 adds readiness/prompt tests; PR #454 covers governor; PR #452 covers Metacognition. See INDEX §156.
+
+
+§156 design-note clarification: TRACK_THEORY.md's 2026-05-27 afterword already calls tag-then-favor, tag-then-include and tag-then-readiness the actual consumer builds. The later GENIUS_SCORE_v2.md §7 final paragraph and tagger/run.py log-only comments were not reconciled with that update. This is documentation drift, not evidence that consumers were unauthorized.
