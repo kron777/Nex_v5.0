@@ -493,3 +493,18 @@ preserves provenance through CycleStore and the Stage-7 manifest; it does not
 automatically create a handoff or authorize execution. See
 [REVIEWED_SEED_BRIDGE.md](REVIEWED_SEED_BRIDGE.md) for persistence, replay,
 integrity and authority boundaries.
+
+
+The final bridge steps are explicit:
+
+```bash
+# Read-only: inspect the validated objective.v1 candidate and provenance.
+python -m rdo seed-prepare --proposal-id seedprop_<id>
+
+# Explicit persistence and advisory RDO planning; still no Stage-7 handoff/execution.
+python -m rdo seed-intake --proposal-id seedprop_<id> --repo .
+```
+
+`seed-prepare` never appends or plans. `seed-intake` appends the objective and
+verified proposal lineage together, then runs the existing advisory RDO planner.
+A Stage-7 handoff remains a separate explicit command.
