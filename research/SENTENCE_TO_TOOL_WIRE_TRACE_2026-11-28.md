@@ -145,3 +145,25 @@ The trace does not establish an end-to-end typed Sentence Code → Recursive Ext
 A comparison with Sentience 5.5 at 1767acf1fdb321d046261eb3c3059084c85fc0c8 shows raw-string voice intake in Voice_Interaction_Node.py:152-162, a separate dictionary-based Action_Execution_Node.execute_action() at line 113, and placeholder simulated execution in _perform_action() at line 157. The inspected Integration_Node is a latest-value aggregator and does not itself connect those paths into a verified sentence-to-action pipeline. These are sketches, not a validated substitute.
 
 Next research target: locate the existing Sentence Code owner/schema and trace one ordinary sentence through its existing Mind Aspect interpretation, typed representation, Recursive Extrapolator and the first real capability boundary. Preserve separate validation, approval, execution and verification transitions. Start with a read-only or pure fixture; no new autonomous caller, operation store or authority change is warranted in Phase 0.
+
+
+## 12. Typed thought packets versus machine-operation representations (28 November 2026)
+
+On current main, `ThoughtPacket` is the input contract for belief-substrate ingestion. It carries content, source node, confidence, optional branch and metadata. Fountain, Stage 2, Synergizer, CounterfactualNode, ThrowNet and the reshape resolver construct/re-submit these packets. `CoherenceGate` checks candidate thought content and routes it through ACCEPT / REJECT / HOLD / RESHAPE handling. Its documented exception fallback is ACCEPT, so it must not be described as an execution-approval boundary.
+
+This is distinct from Stage-B:
+- ToolCaller selects a bounded existing capability from the raw chat sentence.
+- ToolRegistry runs that selected capability.
+- ToolResult describes output after execution.
+
+It is also distinct from RDO: `objective.v1` is an advisory engineering objective. The schema description explicitly says input obligations are proposals; the intake validator rejects payload fields for reconciliation outcomes, evidence claims, approval flags and arbitrary execution instructions. The Recursive Extrapolator expands these engineering obligations, not the user's NEX runtime sentence into a machine action.
+
+No general typed Sentence Code object, owner/schema or complete producer-consumer path was established by this selected-path trace. Global absence remains UNKNOWN.
+
+## 13. Existing chat faculty network and duplicate evidence-count experiment (28 November 2026)
+
+The current-day `NEX_CHAT_FACULTY_WIRE_MAP_2026-11-28.md` records thirteen ordered faculty/context blocks and source-level cross-faculty interactions. The relevant source was rechecked against the current main descendant. These are real bounded reads, dependencies, prompt-context contributions and optional salience carry. They are not an unrestricted recursive network and do not possess machine-action authority. Default-off flags are not proof of current host activation; that remains UNKNOWN.
+
+PR #460 studies another reader-to-reader interaction. The membrane's normal OUTSIDE RAG and Stage-B `beliefs_query` use the same retriever with no side filter. Their independent reads can select the same belief ID, then both format it as a `- [Tier` line. The route gap gate counts tier lines, not distinct IDs. The component-level fixture demonstrates shared IDs and duplicate formatting. A full route fixture is intended to show the potential effect against the Technical minimum of two, using one unique seed in an isolated substrate. Exact-head workflow 46187314674 is pending at the time of writing; do not state the route consequence as established until it completes. No runtime change or defect declaration.
+
+The next evidence step is the exact-head result. If it passes, document the narrow fixture behaviour, then decide whether this is an intended evidence-count contract, a test-only artefact, or a candidate defect requiring source-specific provenance and distinct-evidence counting. Do not silently alter counts or combine arbitrary tool output with belief evidence.
