@@ -1024,3 +1024,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 §152 GeniusTagger rut-window signal qualification: _backfill() processes Fountain events up to 14 days old but stamps each tag with current ts_now; both rut readers filter only on tagged_at >= now-5400. Thus old fires can enter the nominal 90-minute sample during backfill. genius_tags permits multiple rows per fire across weights_version, and rut queries do not deduplicate event IDs or filter versions. Draft PR #453 characterizes historical backfill timestamping and same-fire multi-version rows; exact-head CI pending. See INDEX §152.
+
+
+**PR #452 validation update:** exact-head workflow 46181820624 completed successfully at e3e1e037f0769e66e62b84fe982abf37f49e1485. Its test-only characterization confirms the Metacognition direct-helper call bypasses the OFF check inside SelfNarrative.tick(). This does not establish host flag state or runtime execution.
