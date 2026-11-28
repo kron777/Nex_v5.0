@@ -215,24 +215,40 @@ def _source_ref_lines(lines: list[str]) -> set[int]:
     and must never be drift-checked or rewritten by --reanchor.
     """
     selected: set[int] = set()
+    in_nodes = False
+    node_indent: int | None = None
     source_indent: int | None = None
     for lineno, line in enumerate(lines, 1):
         stripped = line.lstrip()
         indent = len(line) - len(stripped)
-        if re.match(r"^source\s*:", stripped):
+        if indent == 0 and stripped == "nodes:":
+            in_nodes = True
+            node_indent = None
+            source_indent = None
+            continue
+        if indent == 0 and re.match(r"^[A-Za-z_][\\w-]*\\s*:", stripped):
+            in_nodes = False
+            node_indent = None
+            source_indent = None
+            continue
+        if not in_nodes:
+            continue
+        if _NODE_ID_RE.match(line):
+            node_indent = indent
+            source_indent = None
+            continue
+        if (node_indent is not None and indent == node_indent + 2
+                and re.match(r"^source\\s*:", stripped)):
             source_indent = indent
             selected.add(lineno)
             continue
         if source_indent is None:
             continue
-        if stripped and indent <= source_indent and (
-            _NODE_ID_RE.match(line) or re.match(r"^[A-Za-z_][\w-]*\s*:", stripped)
-        ):
+        if stripped and indent <= source_indent and re.match(r"^[A-Za-z_][\\w-]*\\s*:", stripped):
             source_indent = None
             continue
         selected.add(lineno)
     return selected
-
 
 def _blame_line_commits(map_path: Path, root: Path) -> dict[int, str]:def _blame_line_commits(map_path: Path, root: Path) -> dict[int, str]:
     """Map each YAML line number to the commit that last wrote it."""
