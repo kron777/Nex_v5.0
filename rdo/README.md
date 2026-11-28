@@ -391,3 +391,16 @@ evidence but does not infer causality, propagation probability, severity, headro
 or an OFT verdict. Records are appended to a CycleRecord's trailing
 `observed_failure_evidence` field and survive CycleStore reload; legacy cycles
 without the field remain loadable. See [OBSERVED_FAILURE_EVIDENCE.md](OBSERVED_FAILURE_EVIDENCE.md).
+
+
+## Persistence failure safety
+
+`CycleStore.save` serializes a complete cycle to a same-directory temporary file,
+flushes and fsyncs it, then atomically replaces the prior cycle file and fsyncs
+the directory. A failure before replacement leaves the previous cycle intact.
+
+`PatternMemory.add` and `PatternMemory.refute` now prepare candidate snapshots,
+append and fsync them before publishing the updated in-memory pattern. A failed
+append therefore does not advance the in-memory learning state. This is a
+single-writer failure-safety guarantee; concurrent multi-process PatternMemory
+transactions are not yet serialized and must not be assumed safe.
