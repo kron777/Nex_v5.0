@@ -5201,3 +5201,8 @@ The only direct Metacognition-to-Fountain influence on the next model request fo
 ### §133 sample-ID provenance refinement
 
 The stored `sample_belief_ids` are not a uniform exact support set across alert types: exact repetition stores all rows with the repeated exact content; template repetition stores the detected templated fire IDs; n-gram repetition stores only `window[:5]` from the active 20-row window rather than the specific rows containing the top trigram; centroid tightening likewise stores `current_window[:5]` as a sample of the measured window. Therefore, for n-gram and centroid alerts these IDs must be treated as window samples, not exact causal parents. No active downstream consumer was found to use them as retrieval priorities.
+
+
+### §133 semantic-specificity refinement
+
+The optional Fountain rail receives only the generic Metacognition string for a groove event: “I notice repeated patterns in my recent thinking.” It does not receive the alert's pattern text, source alert ID, sample belief IDs or the GUI Stage-SelfNarrative narrative. Therefore the current internal Fountain feedback cue is not pattern-specific. The only pattern-specific path into future Fountain state found here is the post-generation `signal_cooldown` rejection at crystallization; that does not tell the model what pattern was detected before it generates. The pattern-specific natural-language narrative remains on the GUI chat path and is topic-filtered. This is a wiring/expressivity gap observation, not a proposal to change prompt policy before Gate 0.
