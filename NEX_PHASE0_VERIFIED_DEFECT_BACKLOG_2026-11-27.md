@@ -886,6 +886,8 @@ The Chat route calls `Metacognition.tick()`; its groove detector reads recent un
 
 **Fountain cache-age boundary:** `Metacognition.format_for_prompt()` reads only `_cached_recent`; it does not check `_cache_ts`/`_CACHE_TTL`, query storage or tick. The optional Fountain reader therefore reuses the last chat-refreshed line without refreshing it. With the flag enabled and no subsequent chat tick, stale reflective text may remain eligible; runtime duration/flag state UNKNOWN. PR #451 tests the no-tick gate but not stale-cache age. See INDEX §131.
 
+**Optional Fountain rail test result:** draft PR #451 exact head `91739d131f21f3dd2c55d35ef2b23a07aa73c424`, workflow `46176528182`, passed 3,078 tests, 7 skipped, 86 subtests; baseline and sandbox checks passed. It verifies flag-off omission, flag-on inclusion, and that Fountain does not call `Metacognition.tick()`. It does not test stale-cache age or host flag state. See INDEX §131.
+
 ### G-84 — Shutdown does not quiesce all producers before Writer close (OPEN; legacy G-34)
 
 `AppState.close()` calls scheduler shutdown and closes Writers but does not call `stop_dynamic()` or coordinate all other workers. `run.py` starts SpeechQueueConsumer, SignalLoop, DiversityLoop and EdgeGeneratorLoop; AppState ignores the first three during close and does not retain the EdgeGeneratorLoop. The decoder is signaled but not joined. Scheduler stop signals are not joined because adapter thread handles are not retained. Writer close enqueues a sentinel and joins; submit has no closed-state guard on the pre-PR-280 snapshot. The keepalive supervisor has a 15-second SIGKILL deadline. This is a conditional data-loss/hang risk, not an observed incident. A central lifecycle coordinator and global deadline are required.
