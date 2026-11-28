@@ -91,6 +91,11 @@ class _AdapterThread:
 
             try:
                 events = self.adapter.poll()
+                # Shutdown may be requested while poll() is blocked in network
+                # I/O. Do not submit late results after producers are quiescing
+                # and AppState may be draining/closing the shared Writers.
+                if self._stop.is_set():
+                    break
                 count = self.adapter.submit(events)
                 self.last_poll_at = int(time.time())
                 self.last_event_count = count
