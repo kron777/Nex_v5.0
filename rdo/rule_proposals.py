@@ -50,7 +50,8 @@ class ApprovedRuleCatalogue:
                         or not isinstance(step[0], str) or not _TOKEN.fullmatch(step[0])
                         or step[0] in seen or step[1] not in CLASSIFICATIONS
                         or not isinstance(step[2], str) or not step[2].strip()
-                        or (step[3] is not None and not isinstance(step[3], str))):
+                        or (step[3] is not None and (not isinstance(step[3], str)
+                                                     or not _ALT_ID.fullmatch(step[3])))):
                     raise ValueError(f"approved rule for {kind!r} has an invalid step")
                 seen.add(step[0])
         snapshot = {
@@ -144,7 +145,7 @@ def _normalise_proposal(raw: dict) -> dict:
             }:
                 raise ValueError(f"alternatives[{index}].steps[{step_index}] has invalid fields")
             child = _text(step["child_kind"], "child_kind", 64)
-            if not _TOKEN.fullmatch(child) or child in seen_children:
+            if not _TOKEN.fullmatch(child) or child == target or child in seen_children:
                 raise ValueError("child kinds must be unique lowercase snake_case tokens per alternative")
             seen_children.add(child)
             classification = step["classification"]
