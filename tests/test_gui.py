@@ -152,6 +152,84 @@ class TestGuiEndpoints(unittest.TestCase):
             self.state.tool_registry = None
             self.state.tool_caller = None
 
+    def test_g83_reflection_reaches_voice_prompt_only_after_chat_gap_gate(self):
+        """Trace the reflective strings through the real chat route to transport."""
+        import time
+        from unittest.mock import patch
+        from theory_x.stage9_metacognition.metacognition import Metacognition
+        from theory_x.stage_self_narrative.self_narrative import SelfNarrative
+
+        old_mc = getattr(self.state, "metacognition", None)
+        old_narrative = getattr(self.state, "self_narrative", None)
+        original_request = self.state.voice._request_fn
+        captured = []
+        self.state.voice._request_fn = (
+            lambda url, payload: (captured.append(payload) or _mock_req(url, payload))
+        )
+        narrative = SelfNarrative(
+            self.writers["conversations"], self.readers["conversations"]
+        )
+        mc = Metacognition(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self.readers["beliefs"],
+            narrative=narrative,
+        )
+        mc._detect_goal_drift = lambda now: None
+        mc._detect_drift = lambda: []
+        mc._detect_digest = lambda now: []
+        mc._detect_self_pattern = lambda now: []
+        self.state.metacognition = mc
+        self.state.self_narrative = narrative
+        source_id = None
+        try:
+            source_id = self.writers["beliefs"].write(
+                "INSERT INTO groove_alerts "
+                "(detected_at, alert_type, severity, pattern, window_size) "
+                "VALUES (?, 'ngram_repetition', 0.7, 'same source pattern', 5)",
+                (time.time() - 5,),
+            )
+
+            # Technical is not in _ALLOW_THIN_REGISTERS. Force the documented
+            # threshold branch deterministically so this first request returns
+            # before VoiceClient.speak(), even though reflection was formatted.
+            with patch("gui.server.CHAT_GAP_MIN_BELIEFS", 999):
+                blocked = self.client.post(
+                    "/api/chat",
+                    json={"prompt": "same source pattern", "register": "Technical"},
+                )
+            self.assertEqual(blocked.status_code, 200, blocked.get_json())
+            self.assertEqual(
+                blocked.get_json()["text"],
+                "That doesn't reach my graph right now.",
+            )
+            self.assertEqual(captured, [], "gap return must precede voice transport")
+
+            # Philosophical is explicitly allowed through the thin-belief gate.
+            allowed = self.client.post(
+                "/api/chat",
+                json={"prompt": "same source pattern", "register": "Philosophical"},
+            )
+            self.assertEqual(allowed.status_code, 200, allowed.get_json())
+            self.assertEqual(len(captured), 1)
+            user_message = captured[0]["messages"][1]["content"]
+            self.assertIn(
+                "Self-observation: I notice repeated patterns in my recent thinking.",
+                user_message,
+            )
+            self.assertIn(
+                "I noticed I am repeatedly returning to same source pattern",
+                user_message,
+            )
+        finally:
+            self.state.voice._request_fn = original_request
+            self.state.metacognition = old_mc
+            self.state.self_narrative = old_narrative
+            if source_id is not None:
+                self.writers["beliefs"].write(
+                    "DELETE FROM groove_alerts WHERE id = ?", (source_id,)
+                )
+
     def test_unknown_path_returns_json_404(self):
         r = self.client.get("/api/definitely-not-a-route")
         self.assertEqual(r.status_code, 404)
