@@ -3924,7 +3924,7 @@ class FountainGenerator:
         # The strange loop — self-reading woven into behaviour. Rides this rail.
         try:
             from theory_x.stage_tom.recursive_self import format_for_prompt as _recur_line_fn
-            _recur_line = _recur_line_fn()
+            _recur_line = _recur_line_fn(dynamic_writer=self._dynamic_writer)
             if _recur_line:
                 focus_block = focus_block.rstrip() + f"\n\n{_recur_line}\n"
                 _wide_fac.append(_recur_line)
