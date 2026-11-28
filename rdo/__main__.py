@@ -23,6 +23,13 @@ temporary fixture; `handoff-verify` is source/path-only and never runs tests.
   python -m rdo handoff-verify --handoff-id <handoff-id> [--repo .] [--out rdo/.cycles]
         invoke independent Watcher source/path verification; no tests or runtime actions.
 
+  python -m rdo rule-propose --input rule-proposal.json [--dir rdo/.cycles]
+        append an inert novel expansion-rule candidate; no catalogue activation.
+  python -m rdo rule-review --proposal-id <id> --decision <decision> ...
+        append one explicit rule-proposal review decision.
+  python -m rdo rule-history [--proposal-id <id>] [--dir rdo/.cycles]
+        inspect rule proposals and their append-only review events.
+
   python -m rdo seed-propose --input proposal.json [--dir rdo/.cycles]
         append a competing candidate seed proposal; no objective intake or execution.
 
@@ -60,6 +67,16 @@ from rdo_adapters.objective_intake import (ObjectiveInputError, ObjectiveInputSt
                                            submit_objective)
 from rdo_adapters.seed_proposals import SeedProposalError, SeedProposalStore
 from rdo_adapters.reviewed_seed_bridge import (ReviewedSeedBridgeError, prepare_reviewed_selection, submit_reviewed_selection)
+from rdo_adapters.rule_proposals import RuleProposalError, RuleProposalStore
+
+
+def _reject_duplicate_json_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise RuleProposalError(f"duplicate JSON property: {key}")
+        result[key] = value
+    return result
 from rdo_adapters.handoff import (HandoffError, create_handoff, handoff_history,
                                   record_human_acceptance, record_scope_review,
                                   record_context_mapping, record_acceptance_verification,
@@ -212,6 +229,84 @@ def _feedback_replay(args) -> int:
     print(json.dumps({"cycle_id": cycle.id,
                       "feedback_loop_evidence_events": cycle.feedback_loop_evidence_events},
                      indent=2, default=str))
+    return 0
+
+
+def _rule_store(args):
+    return RuleProposalStore(os.path.join(args.dir, "rule_proposals.jsonl"))
+
+
+def _rule_propose(args) -> int:
+    try:
+        with open(args.input, "r", encoding="utf-8") as fh:
+            payload = json.load(fh, object_pairs_hook=_reject_duplicate_json_keys)
+        if not isinstance(payload, dict):
+            raise RuleProposalError("rule proposal input must be a JSON object")
+        required = {
+            "request", "candidate", "proposer_kind",
+            "proposer_reference", "source_reference",
+        }
+        optional = {"supersedes_proposal_id"}
+        if not required.issubset(payload) or set(payload) - required - optional:
+            raise RuleProposalError(
+                "rule proposal input must contain exactly the documented fields: "
+                + ", ".join(sorted(required | optional))
+            )
+        result = _rule_store(args).submit(
+            payload["request"], payload["candidate"],
+            proposer_kind=payload["proposer_kind"],
+            proposer_reference=payload["proposer_reference"],
+            source_reference=payload["source_reference"],
+            supersedes_proposal_id=payload.get("supersedes_proposal_id"),
+        )
+    except (RuleProposalError, OSError, ValueError, TypeError, KeyError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _rule_review(args) -> int:
+    try:
+        result = _rule_store(args).review(
+            args.proposal_id, args.decision,
+            reviewer=args.reviewer,
+            source_reference=args.source_reference,
+            rationale=args.rationale,
+            evidence_references=args.evidence_reference,
+        )
+    except (RuleProposalError, OSError, ValueError, TypeError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _rule_history(args) -> int:
+    try:
+        store = _rule_store(args)
+        proposals = store.proposals()
+        if args.proposal_id:
+            proposals = [
+                item for item in proposals
+                if item["proposal"]["proposal_id"] == args.proposal_id
+            ]
+            if not proposals:
+                raise RuleProposalError("unknown rule proposal")
+        proposal_ids = {item["proposal"]["proposal_id"] for item in proposals}
+        events = [
+            event for event in store.events()
+            if event.get("proposal_id") in proposal_ids
+        ]
+        result = {
+            "proposal_count": len(proposals),
+            "proposals": proposals,
+            "events": events,
+        }
+    except (RuleProposalError, OSError, ValueError, TypeError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
     return 0
 
 
@@ -653,6 +748,26 @@ def main(argv=None) -> int:
     ha.add_argument("--note", default="")
     ha.add_argument("--out", default="rdo/.cycles")
     ha.set_defaults(fn=_handoff_acceptance)
+
+    rp = sub.add_parser("rule-propose", help="append an inert novel expansion-rule candidate")
+    rp.add_argument("--input", required=True, help="JSON containing request, candidate and proposer/source references")
+    rp.add_argument("--dir", default="rdo/.cycles", help="RDO evidence directory")
+    rp.set_defaults(fn=_rule_propose)
+
+    rr = sub.add_parser("rule-review", help="append one explicit review decision for a rule proposal")
+    rr.add_argument("--proposal-id", required=True)
+    rr.add_argument("--decision", required=True, choices=("changes_requested", "approved_for_catalogue", "rejected"))
+    rr.add_argument("--reviewer", required=True)
+    rr.add_argument("--source-reference", required=True)
+    rr.add_argument("--rationale", required=True)
+    rr.add_argument("--evidence-reference", action="append", required=True)
+    rr.add_argument("--dir", default="rdo/.cycles")
+    rr.set_defaults(fn=_rule_review)
+
+    rh = sub.add_parser("rule-history", help="inspect rule proposals and append-only review events")
+    rh.add_argument("--proposal-id", help="optional proposal ID filter")
+    rh.add_argument("--dir", default="rdo/.cycles")
+    rh.set_defaults(fn=_rule_history)
 
     sp = sub.add_parser("seed-propose", help="append a candidate-only competing seed proposal")
     sp.add_argument("--input", required=True, help="JSON containing raw_objective, alternatives and proposer/source references")
