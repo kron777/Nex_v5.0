@@ -119,7 +119,10 @@ class BehaviouralSelfModel:
 
         Returns list of divergences.
         """
-        metrics = self.observe(stop_event=stop_event)
+        if stop_event is None:
+            metrics = self.observe()
+        else:
+            metrics = self.observe(stop_event=stop_event)
         if stop_event is not None and stop_event.is_set():
             return []
         divergences = []
@@ -156,7 +159,10 @@ class BehaviouralSelfModel:
         """Write beliefs for significant divergences. Returns count written."""
         if stop_event is not None and stop_event.is_set():
             return 0
-        divergences = self.compare_to_seeds(stop_event=stop_event)
+        if stop_event is None:
+            divergences = self.compare_to_seeds()
+        else:
+            divergences = self.compare_to_seeds(stop_event=stop_event)
         if not divergences or (stop_event is not None and stop_event.is_set()):
             return 0
 
