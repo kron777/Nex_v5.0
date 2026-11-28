@@ -22,13 +22,13 @@ flowchart LR
   classDef c_unknown_11 fill:#ffffff,color:#1b2227,stroke-width:3px,stroke:#c62828,stroke-dasharray:5 3
   subgraph arm_prices["Prices"]
     direction TB
-    n_amoha["[dark] amoha — discernment / non-delusion<br/><i>measured</i>"]
+    n_amoha["amoha — discernment / non-delusion<br/><i>measured</i>"]
     n_karuna["[dark] karuṇā — compassion<br/><i>measured</i>"]
     n_upeksa["upekṣā — equanimity<br/><i>measured</i>"]
     n_apramada["apramāda — conscientiousness<br/><i>measured</i>"]
     n_alobha["[dark] alobha — non-attachment<br/><i>implemented</i>"]
     n_vedana["vedanā — feeling-tone<br/><i>measured</i>"]
-    n_mana["[dark] māna — self-conceit<br/><i>static</i>"]
+    n_mana["māna — self-conceit<br/><i>static</i>"]
     n_vicikitsa["vicikitsā — doubt<br/><i>unknown</i>"]
     n_drsti["dṛṣṭi — fixed view<br/><i>implemented</i>"]
   end
@@ -72,7 +72,7 @@ flowchart LR
     n_p7_valence["7 · Intentional valence<br/><i>inferred</i>"]
     n_p10_thickness["10 · Temporal thickness<br/><i>static</i>"]
     n_p11_agency["11 · Agency / authorship<br/><i>static</i>"]
-    n_p12_selfreport["[blocked] 12 · Self-report that can be unflattering<br/><i>static</i>"]
+    n_p12_selfreport["[blocked] [dark] 12 · Self-report that can be unflattering<br/><i>implemented</i>"]
     n_p13_finitude["[dark] 13 · Finitude<br/><i>implemented</i>"]
   end
   n_p13_finitude -->|caps the budget| arm_prices
@@ -89,13 +89,13 @@ flowchart LR
   n_p9_dissonance -->|held contradiction must persist| arm_writes
   n_p9_dissonance -.->|resurfacing needs retrieval| n_p8_episodic
   n_p12_selfreport <-->|"?"| n_hri_apatrapya
-  class n_amoha c_measured_10
+  class n_amoha c_measured_00
   class n_karuna c_measured_10
   class n_upeksa c_measured_00
   class n_apramada c_measured_00
   class n_alobha c_implemented_10
   class n_vedana c_measured_00
-  class n_mana c_static_10
+  class n_mana c_static_00
   class n_vicikitsa c_unknown_00
   class n_drsti c_implemented_00
   class n_smrti c_implemented_10
@@ -114,7 +114,7 @@ flowchart LR
   class n_p7_valence c_inferred_00
   class n_p10_thickness c_static_00
   class n_p11_agency c_static_00
-  class n_p12_selfreport c_static_01
+  class n_p12_selfreport c_implemented_11
   class n_p13_finitude c_implemented_10
   class n_p9_dissonance c_implemented_10
   class n_hri_apatrapya c_implemented_11
