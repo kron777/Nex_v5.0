@@ -97,7 +97,36 @@ class Writer:
                 daemon=True,
             )
             self._thread = thread
-            thread.start()
+            try:
+                thread.start()
+            except BaseException:
+                # Thread.start can fail after the OS thread has been created.
+                # The constructor will not return an owner to run.py, so this
+                # Writer must quiesce its own partially-started worker.
+                self._accepting = False
+                if thread.ident is not None:
+                    self._queue.put(_SENTINEL)
+                    self._sentinel_enqueued = True
+                    try:
+                        thread.join(timeout=1.0)
+                    except Exception:
+                        logger.exception(
+                            "Writer %s join failed during startup rollback", self.name
+                        )
+                    if not thread.is_alive():
+                        self._thread = None
+                        self._queue = queue.Queue()
+                        self._sentinel_enqueued = False
+                    else:
+                        logger.error(
+                            "Writer %s survived startup rollback; sentinel remains queued",
+                            self.name,
+                        )
+                else:
+                    self._thread = None
+                    self._queue = queue.Queue()
+                    self._sentinel_enqueued = False
+                raise
         self._started.wait()
         if self._open_error is not None:
             raise RuntimeError(
