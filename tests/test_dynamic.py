@@ -169,6 +169,67 @@ class TestPipeline(unittest.TestCase):
         self.assertGreater(node.focus_num, before[0])
         self.assertGreater(node.texture_num, before[1])
 
+    def test_bonsai_focus_propagates_to_fountain_branch_pick_and_workspace_frame(self):
+        import random
+        from theory_x.stage2_dynamic.bonsai import BonsaiTree
+        from theory_x.stage2_dynamic.membrane import Membrane
+        from theory_x.stage2_dynamic.pipeline import run_pipeline
+        from theory_x.stage6_fountain.generator import _weighted_branch_pick
+        from theory_x.stage_tom.global_workspace import _bonsai_candidate, arbitrate_candidates
+
+        tree = BonsaiTree()
+        tree.init_tree()
+        membrane = Membrane()
+        node = tree.get("ai_research")
+
+        # Repeated external events build a real Stage-2 focus value through A-F.
+        for index in range(40):
+            payload = json.dumps({
+                "title": f"Neural network architecture transformer research {index}",
+                "link": f"https://arxiv.org/abs/{index}",
+            })
+            run_pipeline(
+                self._make_row("ai_research.arxiv", payload),
+                tree, membrane, self.writers["dynamic"],
+            )
+
+        self.assertGreater(node.focus_num, 0.1)
+        branches = [
+            {"branch_id": item.branch_id, "focus_num": item.focus_num}
+            for item in tree.all_nodes()
+        ]
+        sorted_branches = sorted(
+            branches, key=lambda item: item["focus_num"], reverse=True
+        )
+        top_pick = sorted_branches[0]["branch_id"]
+        self.assertEqual(top_pick, "ai_research")
+
+        # Fountain's default path preserves the true hottest branch.
+        with mock.patch.dict(os.environ, {"NEX5_BRANCH_TEMP": "0"}):
+            self.assertEqual(
+                _weighted_branch_pick(sorted_branches, top_pick), "ai_research"
+            )
+
+        # The opt-in temperature path can let a lower-focus branch surface;
+        # force the roulette draw to its final bucket for deterministic coverage.
+        with mock.patch.dict(os.environ, {"NEX5_BRANCH_TEMP": "1.0"}):
+            with mock.patch.object(random, "random", return_value=0.999999):
+                self.assertEqual(
+                    _weighted_branch_pick(sorted_branches, top_pick),
+                    sorted_branches[-1]["branch_id"],
+                )
+
+        # The same Bonsai state is independently offered to Global Workspace.
+        status = {"branches": branches}
+        candidate = _bonsai_candidate(status)
+        self.assertIsNotNone(candidate)
+        self.assertIn("ai_research", candidate[1])
+        frame = arbitrate_candidates([
+            (0.01, "momentum is carrying an older thread"),
+            candidate,
+        ])
+        self.assertIn("ai_research", frame)
+
     def test_pipeline_logs_to_dynamic_db(self):
         from theory_x.stage2_dynamic.bonsai import BonsaiTree
         from theory_x.stage2_dynamic.membrane import Membrane
