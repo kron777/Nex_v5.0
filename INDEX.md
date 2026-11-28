@@ -5478,3 +5478,35 @@ This is distinct from the generic Metacognition self-observation line, which is 
 **Next bounded characterization:** use controlled prompt variants (exact phrase, case variant, paraphrase, and a longer prompt whose first 100 characters contain the phrase only after the cutoff) against an isolated narrative fixture. Record which rows are returned without changing the matching policy. Then locate the approved intent for literal matching versus semantic retrieval. Do not replace substring matching with embeddings or alter prompt policy before Gate 0.
 
 **Disposition:** source-observed literal prefix-substring matching; exact-phrase route delivery test-verified in PR #450; paraphrase behaviour is source-derived and not separately tested. G-83 remains OPEN. No retrieval policy, narrative retention, runtime code, schema, flags, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §147 — SelfNarrative v1 intentionally unbounded; Phase 26b retention was deferred (28 November 2026)
+
+The original `theory_x/SELF_NARRATIVE_SPEC.md` materially qualifies §144:
+
+- §2 explicitly says there is **no fade logic in v1**; the `narrative_log` growth rate was unknown before production observation, so the table was intentionally unbounded.
+- It says a 90-day row-age cutoff or size-based cap *may* be added in Phase 26b **after observing actual write frequency**. This is a deferred candidate, not an approved current retention rule.
+- §5 specifies `SelfNarrative.decay()` as a no-op for v1 and says fade logic is deferred to Phase 26b.
+- §3 labels the v1 write triggers as two of five: Goal completion and Groove alert. Problem close, Gate ACCEPT and NovelAssociation crossing are listed as Phase 26b follow-ons.
+
+### Specification-to-runtime drift
+
+The current implementation contains the later trigger paths already:
+- ProblemMemory open/close writes;
+- CoherenceGate accepted insight writes;
+- NovelAssociation crossing writes.
+
+The original spec's trigger table has not been revised to reflect these additions. Git history for `SELF_NARRATIVE_SPEC.md` shows only its foundational 10 May 2026 creation commit; no later Phase 26b specification revision was located in the repository.
+
+### Correct interpretation
+
+1. The absence of `narrative_log` pruning is consistent with the original v1 design.
+2. The proposed 90-day/size-cap idea is not an active policy and must not be implemented as though it were approved.
+3. The expanded writer set in runtime code is beyond the original v1 trigger list, while the spec remains at its original Phase 26-spec state.
+4. Whether Phase 26b's production observation and approval occurred elsewhere remains UNKNOWN. No current production write-rate measurement or active-host narrative-table inspection was performed.
+
+**Disposition:** this narrows the §144 finding from "missing retention mechanism" to "v1 intentionally unbounded, with a deferred Phase 26b retention decision and unupdated trigger specification." The remaining issue is evidence/authority reconciliation: locate the Phase 26b observation or approval, or preserve UNKNOWN. Do not add pruning, deduplication or a 90-day cutoff on the strength of the old proposal alone.
+
+**Source anchors:** `theory_x/SELF_NARRATIVE_SPEC.md` blob `97b84c9198552d874ed5dea8026247cf67cf1edc`; file history contains foundational commit `6a591c936c49e5d0c136731e4a2fc9b22f4c92d2` (10 May 2026); `theory_x/stage_self_narrative/self_narrative.py`; `tests/test_self_narrative.py`.
+
+**Authority boundary:** this spec is historical design intent, not an elevation over frozen S-01–S-25/M1.8 or Founder Sign-Off. No retention horizon, trigger policy, schema, code, flags, roadmap, Gate 0 or Phase 1 authority changed.
