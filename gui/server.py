@@ -916,7 +916,12 @@ class AppState:
         me = threading.current_thread()
         alive = []
         for thread in threads:
-            if thread.ident is None or thread is me:  # never started / close() from inside it
+            if thread.ident is None:  # never started
+                continue
+            if thread is me:
+                # A producer cannot join itself; report it as alive so close()
+                # cannot mistake a re-entrant shutdown for a completed drain.
+                alive.append(thread.name)
                 continue
             try:
                 thread.join(max(0.0, deadline - time.monotonic()))
