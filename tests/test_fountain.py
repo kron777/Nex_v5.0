@@ -21,6 +21,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from tests import _bootstrap  # noqa: F401
@@ -234,6 +235,8 @@ class TestFountainState(unittest.TestCase):
         for key in ("last_thought", "last_fire_ts", "total_fires",
                     "readiness_score", "loop_running"):
             self.assertIn(key, status, f"missing key: {key}")
+        fs.stop()
+        self.assertTrue(fs.join(timeout=1.0))
 
     def test_status_loop_running_true(self):
         from theory_x.stage6_fountain import build_fountain
