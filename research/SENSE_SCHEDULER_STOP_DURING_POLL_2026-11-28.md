@@ -1,6 +1,6 @@
 # SenseScheduler stop-during-poll submission race — 28 November 2026
 
-**Base:** `kron777/Nex_v5.0` main at `81ec438a7be7fe3cc81112cbb39c715b76ffe026`.  
+**Base:** `kron777/Nex_v5.0` main at `d7d204c24807eb3e46c37d70f2c1dcaae63830dc` (after #384).  
 **Scope:** prevent a scheduler adapter from submitting poll results after its stop event is raised while the poll is in progress. No feed policy, cadence, timeout, shutdown budget or database schema changed.
 
 ## 1. Source evidence
