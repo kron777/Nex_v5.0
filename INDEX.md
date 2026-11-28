@@ -1169,7 +1169,7 @@ PR #381 exact-head full-suite workflow run 2350 passed: **2,979 passed, 7 skippe
 
 ### 16.5 Remaining research and development work
 
-1. Recheck #393's exact head SHA, all required CI jobs, baseline verification and merge state before updating this section again.
+1. Recheck #393 and #395 exact head SHAs, all required CI jobs, baseline verification and merge state before updating this section again.
 2. Rescan the complete shutdown path now that #378 is merged: signal receipt, request admission, detached route work, registered producers, direct database writers, Writers, clean-marker persistence, process exit and keepalive restart. Add regressions only for demonstrated gaps.
 3. Continue the host/server evidence work: inspect the actual deployment contract and determine whether the Flask threaded server is the only entry point. Do not infer host behaviour from repository tests.
 4. Continue the faculty producer→consumer audit from #381, distinguishing construction, boot wiring, flag enablement, consumption and measured behavioural effect. Extend the producer lifecycle audit beyond the three targeted loops already corrected.
@@ -1289,3 +1289,12 @@ A source comparison of current-main `run.py` direct worker-start sites with `App
 This narrows the direct `run.py` ownership gap: no obvious direct start site was found without an AppState shutdown owner. It does **not** establish a repository-wide thread census, prove the internals of every `stop()` implementation, or rule out dynamically spawned tasks, thread pools, subprocesses, route-called workers, independent SQLite writers or host-only processes. The registry itself describes its scope as bounded. See `research/RUN_PY_BACKGROUND_WORKER_OWNERSHIP_CENSUS_2026-11-28.md` for the worker-by-worker mapping and residuals.
 
 The next audit unit is not merely another list of threads: trace each enabled worker from its blocking calls to its first subsequent Writer/direct-SQLite side effect, then add stop-aware checkpoints and deterministic tests where a post-stop continuation is demonstrated. Keep the five-second producer join and 12/15-second shutdown budgets unchanged pending evidence.
+
+
+### 16.15 HoldingZoneResolver reshape after stop — open PR #395
+
+The HoldingZoneResolver is registered with AppState, but its stop Event previously interrupted only the 300-second wait. During an active tick, `_process_reshape_pending()` could call the ReshapeTransformer, which calls the shared VoiceClient (default HTTP request timeout 120 seconds), then submit the returned packet through CoherenceGate and mark the holding-zone row complete/failed. The five-second producer join allowance is shorter than the model-call timeout.
+
+PR #395 adds cooperative stop checkpoints: the worker passes its existing Event into `tick()`; the resolver checks before starting reshape work; the transformer checks before and after the VoiceClient call; and the resolver discards a response returned after stop rather than submitting it through the gate or marking the row complete. It also checks after gate submission before starting the subsequent completion write. Existing direct `tick(context)`, standalone transform and reshape calls remain compatible when no stop Event is supplied. Deterministic tests cover stop during the model call, during gate checking, and during the preceding fade stage.
+
+**Boundary:** #395 is open and exact-head CI is pending; this is not current-main behaviour yet. The in-flight VoiceClient request is not cancelled. Gate.check itself is synchronous and may perform Writer-backed work; if stop arrives during it, that work is not interrupted, although the later reshape-completion write is skipped. This is a cooperative checkpoint, not an atomic stop/write handshake or proof of total producer quiescence. See `research/RESOLVER_RESHAPE_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
