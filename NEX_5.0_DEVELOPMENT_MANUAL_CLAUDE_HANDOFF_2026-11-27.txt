@@ -5530,6 +5530,7 @@ The original spec's trigger table has not been revised to reflect these addition
 - In the inspected `gui/server.py` chat path, the SelfNarrative integration calls only `format_for_prompt()` with `current_topic=prompt[:100]`. It does not call `state.self_narrative.tick()`.
 - `Metacognition.tick()` reads GrooveSpotter alerts and writes narrative rows for each returned groove event. It does not call `SelfNarrative.tick()`; the two operations are separate.
 - `SelfNarrative.tick()` conditionally calls `_maybe_notice_rut()` unless `NEX5_RUT_MIRROR_OFF=1`. That helper checks for at least four recent `genius_tags` in a 90-minute window, writes a rut notice when the STRIKING rate is at most 5%, and throttles notices to one per two hours.
+- `run.py` separately constructs `GeniusTagger` and starts its own 60-second loop, which writes `conversations.db.genius_tags`. This is the source-level producer for the rut helper's input data; it does not dispatch `SelfNarrative.tick()`. Successful host startup and fresh live tag production remain UNKNOWN.
 - Existing `test_tick_is_noop` uses an empty fixture and verifies that no row is written in that fixture. It does not establish a production caller or exercise the rut threshold, throttle or flag boundary.
 
 ### Evidence classification and consequence
