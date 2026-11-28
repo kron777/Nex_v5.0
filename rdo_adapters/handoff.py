@@ -21,7 +21,7 @@ from watcher.evidence import utc_now
 
 from rdo.memory import CycleStore
 from rdo.model import NATIVE_PLANNING, ContextRequirement, AcceptanceVerificationRecord
-from .objective_intake import ObjectiveInputStore, _repository_revision
+from .objective_intake import ObjectiveInputError, ObjectiveInputStore, _repository_revision
 
 HANDOFF_SCHEMA = "rdo.handoff.v1"
 EVENT_SCHEMA = "rdo.handoff_event.v1"
@@ -113,6 +113,28 @@ def _validate_manifest(manifest: Any) -> dict:
         raise HandoffError("manifest digest is invalid")
     if _digest(_manifest_body(manifest)) != digest:
         raise HandoffError("manifest digest mismatch; immutable handoff record was changed")
+    objective = manifest.get("objective")
+    if not isinstance(objective, dict):
+        raise HandoffError("manifest objective must be an object")
+    seed_reference = objective.get("seed_proposal")
+    if seed_reference is not None:
+        required_reference = {
+            "proposal_id", "proposal_sha256", "raw_objective_sha256",
+            "raw_revision", "selected_alternative_id", "review_event_sha256",
+        }
+        if not isinstance(seed_reference, dict) or set(seed_reference) != required_reference:
+            raise HandoffError("manifest seed_proposal reference has an invalid shape")
+        for key in ("proposal_sha256", "raw_objective_sha256", "review_event_sha256"):
+            if not isinstance(seed_reference[key], str) or not re.fullmatch(r"[0-9a-f]{64}", seed_reference[key]):
+                raise HandoffError(f"manifest seed_proposal {key} is invalid")
+        if (not isinstance(seed_reference["proposal_id"], str)
+                or not re.fullmatch(r"seedprop_[0-9a-f]{24}", seed_reference["proposal_id"])
+                or not isinstance(seed_reference["selected_alternative_id"], str)
+                or not _TOKEN.fullmatch(seed_reference["selected_alternative_id"])
+                or isinstance(seed_reference["raw_revision"], bool)
+                or not isinstance(seed_reference["raw_revision"], int)
+                or seed_reference["raw_revision"] < 1):
+            raise HandoffError("manifest seed_proposal identity is invalid")
     if not isinstance(manifest["authority"], dict) or not isinstance(manifest["evidence_dimensions"], dict):
         raise HandoffError("manifest authority and evidence_dimensions must be objects")
     if manifest["authority"].get("execution_authority") != "none":
@@ -126,6 +148,24 @@ def _validate_manifest(manifest: Any) -> dict:
     return manifest
 
 
+def _verify_seed_proposal_reference(workdir: str, reference: Optional[dict],
+                                      objective_record: Optional[dict] = None) -> None:
+    if reference is None:
+        return
+    from .seed_proposals import SeedProposalError, SeedProposalStore
+    try:
+        approved = SeedProposalStore(
+            os.path.join(workdir, "seed_proposals.jsonl")
+        ).verify_reference(reference)
+    except (SeedProposalError, ObjectiveInputError, OSError, ValueError) as exc:
+        raise HandoffError(f"seed proposal approval cannot be verified: {exc}") from exc
+    if objective_record is not None:
+        approved_record = approved["objective"]
+        for key in objective_record:
+            if key not in {"revision", "supersedes_sha256"} and objective_record[key] != approved_record[key]:
+                raise HandoffError("handoff objective does not match its approved seed proposal")
+
+
 def load_handoff(workdir: str, handoff_id: str) -> dict:
     path = _manifest_path(workdir, handoff_id, create=False)
     try:
@@ -133,7 +173,15 @@ def load_handoff(workdir: str, handoff_id: str) -> dict:
             manifest = json.load(fh)
     except (OSError, json.JSONDecodeError) as exc:
         raise HandoffError(f"cannot load handoff {handoff_id}: {exc}") from exc
-    return _validate_manifest(manifest)
+    manifest = _validate_manifest(manifest)
+    seed_reference = manifest["objective"].get("seed_proposal")
+    if seed_reference is not None:
+        objective = _read_objective(
+            workdir, manifest["objective"]["objective_id"],
+            manifest["objective"]["revision"], manifest["objective"]["input_sha256"],
+        )
+        _verify_seed_proposal_reference(workdir, seed_reference, objective)
+    return manifest
 
 
 def _write_manifest_exclusive(path: str, manifest: dict) -> bool:
@@ -219,6 +267,8 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
     if not isinstance(input_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", input_digest):
         raise HandoffError("cycle has no valid immutable objective-input digest")
     objective = _read_objective(workdir, objective_id, revision, input_digest)
+    seed_reference = metadata.get("seed_proposal")
+    _verify_seed_proposal_reference(workdir, seed_reference, objective)
 
     repository_revision = _repository_revision(repo_dir)
     if repository_revision != metadata.get("repository_revision"):
@@ -262,6 +312,8 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
         "repository_revision": repository_revision,
         "work_package_key": work_package_key,
     }
+    if seed_reference is not None:
+        identity["seed_proposal_sha256"] = _digest(seed_reference)
     handoff_id = "handoff_" + hashlib.sha256(_canonical(identity).encode("utf-8")).hexdigest()[:24]
 
     evidence_requirements = {}
@@ -286,6 +338,7 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
             "intent": objective["intent"],
             "owner_attribution": objective["owner"],
             "source_attribution": objective["source"],
+            **({"seed_proposal": seed_reference} if seed_reference is not None else {}),
         },
         "cycle": {
             "cycle_id": cycle_id,
