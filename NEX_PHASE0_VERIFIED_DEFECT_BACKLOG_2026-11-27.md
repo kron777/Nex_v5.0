@@ -1072,3 +1072,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **PR #457 validation update:** exact-head workflow 46183886214 passed at 75a042e07aa69ce8f41fd72082de157dfd3f6772: 3,079 passed, 7 skipped, 86 subtests; baseline OK and sandbox probe OK. Mind-map check: 30 nodes, 0 unverified, 12 dark, 2 blocked; existing missing-doctrine-reference and past-due P13 warnings remain. PR #456's first test run failed only on a full-text assertion against the Stage-TOM 80-character truncation; the assertion is corrected on head 7996f5d091ffc0a45f77484bd4b3c7d6e6cb391b and awaiting re-run. See INDEX §160.
+
+
+**§160 launcher cross-flag qualification:** tracked nex_keepalive.sh sets NEX5_SELF_NARRATIVE=1 and NEX5_GOVERNOR_OFF=1 together. The Fountain governor self_rut_notice writer is gated off by the latter, while Stage-TOM narrative composition is enabled by the former. This disables that specific producer in the tracked launch profile but does not prevent old stored rows or other tier-6 beliefs from being read. Host launcher selection and persisted rows remain UNKNOWN. See INDEX §160/§162.
