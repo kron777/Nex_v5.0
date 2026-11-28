@@ -454,3 +454,29 @@ Measured dimensions and independently attributed stability reviews can be
 appended to an existing loop record without changing its topology or
 calculating a stability verdict. See [FEEDBACK_LOOP_EVIDENCE.md](FEEDBACK_LOOP_EVIDENCE.md)
 for the measurement/review commands, hash-chained event ledger and replay path.
+
+
+## Candidate seed proposals (G-92)
+
+Seed proposals are advisory interpretations upstream of objective intake. Supply
+a JSON file containing exactly `raw_objective`, `alternatives`,
+`proposer_kind`, `proposer_reference`, and `source_reference`; an optional
+`supersedes_proposal_id` may identify a prior changes-requested/rejected
+proposal. The raw objective and at least two competing alternatives must satisfy
+the schemas in [SEED_PROPOSAL_LIFECYCLE.md](SEED_PROPOSAL_LIFECYCLE.md).
+
+```bash
+python -m rdo seed-propose --input proposal.json
+python -m rdo seed-history
+python -m rdo seed-review --proposal-id seedprop_<id> \
+  --decision approved --selected-alternative-id alternative-a \
+  --reviewer founder --source-reference review:1 \
+  --rationale "Selected after evidence review" \
+  --evidence-reference evidence:one
+python -m rdo seed-selection --proposal-id seedprop_<id>
+```
+
+The proposal and review ledger is append-only and hash-chained. Approval selects
+one existing alternative but does not create an `objective.v1` record, start an
+RDO cycle, create a Stage-7 handoff, execute code, or activate rules. Reviewer
+and proposer labels remain caller-attributed, not identity-authenticated.
