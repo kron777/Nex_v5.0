@@ -1095,3 +1095,14 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **28 November 2026 — §165 autonomous fire-path boundary:** the chat ToolCaller/Registry is not referenced from the Fountain generator. The existing fire-path scope file explicitly remains a read-only investigation, not a pre-registration or authorization. Autonomous tool triggering would remove per-call human intent and requires a separate decision on trigger, per-tool arming, caps, audit and oversight. PR #369's safe AST interpreter does not authorize autonomous calls. No code or defect ID. See INDEX §165.
+
+
+## Candidate contract observation — not assigned a defect ID (28 November 2026)
+
+### Repeated belief retrieval can satisfy the Technical chat grounding count
+
+**Evidence:** Current main source and draft PR #460 exact-head workflow `46187314674` (head `6b016802831350ff1cf1cf1c19c99fb49e3964b2`) passed **3,079 tests, 7 skipped, 86 subtests**; disposable sandbox probe and baseline check passed. The route fixture creates one distinct belief in an isolated substrate, sends an OUTSIDE Technical query that also selects `beliefs_query`, and verifies the same belief content is formatted twice. The two `- [Tier` lines satisfy the configured minimum of two and the request reaches a mocked voice call.
+
+**Source distinction:** the normal OUTSIDE route retrieves up to eight beliefs without a side filter; the auxiliary `beliefs_query` retrieves up to five without a side filter. The normal INSIDE route is separate: it uses a five-result INSIDE side filter. The Technical gate counts rendered tier markers, not distinct belief IDs.
+
+**Disposition:** verified fixture-level behavior, but not yet a verified defect. The intended meaning of the two-entry threshold—two rendered evidence entries or two distinct underlying beliefs—must be determined from governing specification/sign-off, which is not established by this test. Do not silently deduplicate, change the threshold, or assign a defect ID. Live-host frequency, user-visible false grounding and production impact remain UNKNOWN. Test-only PR #460; no runtime or policy change.
