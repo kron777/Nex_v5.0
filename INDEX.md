@@ -4924,3 +4924,45 @@ This closes the static source chain from `belief_text` → `voice_prompt` → `V
 ### Route-level G-83 characterization candidate
 
 A separate draft test PR #450 now exercises the real `/api/chat` route with isolated SQLite and a mocked VoiceClient transport. It seeds one groove alert and installs the real Metacognition and Stage-SelfNarrative instances. The test uses Technical with a deterministically raised threshold to assert the gap-refusal early return occurs before voice transport, then Philosophical to assert both the generic self-observation and topic-matched pattern narrative appear in the exact transport user-message content. Exact head: `b33022cfaf47cc34dc8eec316cd583c15e6d880e`; workflow `46175227754` is pending/in progress. This would test route-to-transport string delivery, not real model-provider acceptance or semantic use. PR #450 is test-only and remains draft; no runtime or policy change.
+
+
+## §128 — G-83 upstream provenance: Fountain output → GrooveSpotter → two distinct feedback controls (28 November 2026)
+
+**Question studied:** what information creates the source alert that Metacognition later re-reads, and does the producer itself suppress unchanged alerts?
+
+**Evidence snapshot:** source files on main at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static trace through Fountain generator, crystallizer, DiversityLoop, GrooveSpotter and crystallizer cooldown reader. No live host, DB or runtime observation.
+
+### Upstream source provenance
+
+- `FountainGenerator` calls `FountainCrystallizer.crystallize(thought=..., ...)` for a generated thought when the crystallizer is present and the fire is not burst-suppressed.
+- `FountainCrystallizer` writes surviving thoughts into `beliefs` as Tier 6 rows. The source/category is the active mode's `crystallization_category`, defaulting to `fountain_insight`.
+- `DiversityLoop` constructs `GrooveSpotter` over the beliefs Writer/Reader, invokes `detect_all()`, then runs dormancy and clock work, and waits 60 seconds before the next pass.
+- `GrooveSpotter.detect_all()` reads only the latest `WINDOW_SIZE * 2` beliefs whose source is `fountain_insight` or `synergized`; it takes the newest `WINDOW_SIZE=20` as the active detection window. It does not query the chat `messages` table or direct user prompt.
+- N-gram repetition uses `NGRAM_REPEAT_THRESHOLD=3`: the top trigram must occur at least three times across the window. An unchanged top pattern matching the in-memory `_last_ngram_pattern` is not emitted again. If the condition drops below threshold or the window has no trigrams, that fingerprint is cleared. The in-memory fingerprint resets on process restart, so one re-emission after restart is possible by design.
+- The emitted alert stores its pattern and sampled belief IDs in `groove_alerts`. This is an alert derived from NEX's own Fountain/Synergized substrate records, not a direct re-read of the user's last sentence.
+
+### Two different downstream feedback controls
+
+**Producer-side targeted cooldown:** for an n-gram alert with severity at least 0.5, GrooveSpotter calls `_push_cooldown()`. With the current n-gram severity floor of 0.5, this normally writes a meaningful pattern fragment into `signal_cooldown` with a two-hour expiry. The FountainCrystallizer later reads unexpired cooldown rows and rejects a candidate thought if a normalized stored fragment occurs within that thought. This is a content-specific future-crystallization filter.
+
+**Consumer-side Row 9 stillness:** separately, Metacognition reads the unacknowledged `groove_alerts` row on chat ticks and re-emits derived `groove` events. Those derived events can accumulate into Row 9's 60-second stillness hold, which is global to crystallization while active. The consumer replay does not require GrooveSpotter to emit a new alert each time.
+
+These controls must not be collapsed. One is a producer-side, pattern-specific two-hour cooldown; the other is a consumer-side, event-count-driven global crystallization hold. Both may originate from the same GrooveSpotter alert, but their data, timing, scope and triggering paths differ.
+
+### Architectural interpretation
+
+This is a real recurrent substrate feedback path at source level:
+
+`Fountain thought → crystallized belief → GrooveSpotter pattern detection → groove alert → targeted cooldown + Metacognition observation → (when the chat route passes its gate) reflective prompt context → next language-model generation`.
+
+It is not an established autonomous exponential loop. GrooveSpotter's producer scan is 60-second periodic; Metacognition's consumer read is chat-turn-triggered. The alert producer has an in-memory unchanged-pattern fingerprint, while the consumer does not acknowledge the source row in the inspected path. Runtime rates and the actual effect of prompt text on subsequent model output remain UNKNOWN.
+
+### Next bounded investigation
+
+Trace the other GrooveSpotter alert types (exact repetition, template repetition and centroid tightening) through their fingerprints, cooldown writes and consumer formatting; verify which have a pattern string that can actually be topic-matched into Stage-SelfNarrative. Then compare the alert's `sample_belief_ids` with the beliefs actually selected by the subsequent Fountain fire. Do not alter alert acknowledgement, thresholds, fingerprints, cooldown duration, stillness semantics or prompt policy before the controlling authority and full consumer effects are established.
+
+**Disposition:** source-observed producer/consumer loop; upstream source set and producer-side fingerprint are source-verified; targeted cooldown and global Row 9 hold are separate source-verified effects. Exact-head tests for consumer replay and prompt boundary are pending CI in PRs #449 and #450. No live runtime observation. G-83 remains OPEN; no runtime source, schema, flags, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed.
+
+**Source anchors:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage6_fountain/crystallizer.py` blob `c0a5cf1388825e7fc9438cf1188aedd8e2ed8959`; `theory_x/diversity/loop.py` blob `186a1979283394a53154b609855b80f1fcfe0247`; `theory_x/diversity/groove.py` blob `1174b9001c7ffc876cec78ae677cb664481ad04e`; Metacognition source in §126; GUI/voice boundary in §127.
+
+**Evidence level:** source-observed generator/crystallizer/producer/consumer paths; exact-head CI pending for the consumer and route tests; no production runtime observation or semantic model-effect evidence.
