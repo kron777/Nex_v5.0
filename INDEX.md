@@ -5510,3 +5510,35 @@ The original spec's trigger table has not been revised to reflect these addition
 **Source anchors:** `theory_x/SELF_NARRATIVE_SPEC.md` blob `97b84c9198552d874ed5dea8026247cf67cf1edc`; file history contains foundational commit `6a591c936c49e5d0c136731e4a2fc9b22f4c92d2` (10 May 2026); `theory_x/stage_self_narrative/self_narrative.py`; `tests/test_self_narrative.py`.
 
 **Authority boundary:** this spec is historical design intent, not an elevation over frozen S-01–S-25/M1.8 or Founder Sign-Off. No retention horizon, trigger policy, schema, code, flags, roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §148 — SelfNarrative rut-mirror tick has no demonstrated normal-path dispatcher (28 November 2026)
+
+**Question studied:** does the self-rut observation hook inside `SelfNarrative.tick()` actually run in the normal NEX lifecycle, or is it only a callable implementation surface?
+
+### Source trace
+
+- `run.py` constructs one `SelfNarrative` instance, registers it with Theory X, and passes it to CoherenceGate, ProblemMemory, GoalManager, Metacognition and NovelAssociation. The normal boot path does not attach a dedicated worker/loop to SelfNarrative.
+- `theory_x/__init__.py` documents the registry as process-level monitoring. `register()` appends a node and `all_nodes()` returns the list; neither function dispatches `tick()` or `decay()`. The protocol's general description says tick is called once per chat turn, but that interface statement is not itself a caller.
+- In the inspected `gui/server.py` chat path, the SelfNarrative integration calls only `format_for_prompt()` with `current_topic=prompt[:100]`. It does not call `state.self_narrative.tick()`.
+- `Metacognition.tick()` reads GrooveSpotter alerts and writes narrative rows for each returned groove event. It does not call `SelfNarrative.tick()`; the two operations are separate.
+- `SelfNarrative.tick()` conditionally calls `_maybe_notice_rut()` unless `NEX5_RUT_MIRROR_OFF=1`. That helper checks for at least four recent `genius_tags` in a 90-minute window, writes a rut notice when the STRIKING rate is at most 5%, and throttles notices to one per two hours.
+- Existing `test_tick_is_noop` uses an empty fixture and verifies that no row is written in that fixture. It does not establish a production caller or exercise the rut threshold, throttle or flag boundary.
+
+### Evidence classification and consequence
+
+- Rut-mirror implementation: source-present.
+- SelfNarrative construction and registry membership on normal `run.py` boot: source-observed.
+- Registry tick dispatch: not implemented by the inspected registry functions.
+- Chat-path SelfNarrative tick call: not present in the inspected route; formatter-only consumption is source-observed.
+- Rut-mirror execution in a live process, flag value, and actual narrative writes from this hook: UNKNOWN.
+
+The hook therefore exists, but its normal-path execution is not established. This is not evidence that the feature is intentionally disabled, nor proof that no external/manual caller exists. It is a lifecycle ownership gap in the evidence: a protocol method and registry entry must not be mistaken for scheduled execution. Do not add a tick call, worker, schedule or flag change on this finding alone.
+
+**Next bounded investigation:** check the complete repository call-site census for `SelfNarrative.tick()` and any external dispatcher; then, only if an existing approved runtime observation route is available, establish the deployed flag and live call cadence without starting or changing services. If no owner exists, preserve the finding as unowned lifecycle behaviour for Gate 0 review.
+
+**Disposition:** source-observed implementation and normal boot wiring; absence of a caller is bounded to the inspected normal boot/chat/registry paths. Runtime execution remains UNKNOWN. No new defect ID is created pending complete call-site census and operational impact. G-83 remains OPEN for its separate GrooveSpotter/narrative replay and provenance findings.
+
+**Source anchors:** `run.py`; `theory_x/__init__.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/stage9_metacognition/metacognition.py`; `gui/server.py`; `tests/test_self_narrative.py`.
+
+**Authority boundary:** no runtime code, test, schema, flag, retention policy, lifecycle schedule, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
