@@ -3939,3 +3939,42 @@ The decisive artifact would be a retained, time-indexed `dynamic.db` snapshot or
 **Source anchors:** `ac6e4032e2b115f34ca86fbff8778a5cc51d14ca` (initial duplicate-retrieval detector); `251cd797579aa08b8b848a5e95cd58c4c3e22b72` (own-only Jaccard); `60732402f92c10819591072cd7c13d1688a21351` (May anti-echo producer disable); `f18e859f11820326cb7698fa30003410d728835f` (July aggregate counts); `c4b005f32e931047711ef6cdbe03e84a00183885` (separate conversations.db Row 9 stillness); `a20968e6c7517b0fd491e8676ed9d2aa549a7761` (23 May journal observation).
 
 **Evidence level:** commit-dated source/history evidence for code changes; July aggregate operational counts as reported by commit message; event-level chronology and current runtime state UNKNOWN.
+
+
+## 106. Metacognition groove alerts — repeat-on-turn and false sustained-groove candidate (28 November 2026)
+
+**Question studied:** does Stage 9 convert one persistent unacknowledged GrooveSpotter alert into multiple metacognition events across chat turns, and can those repeated rows satisfy Row 9's “sustained groove” threshold without three distinct groove episodes?
+
+### Source path and cadence
+
+- `theory_x/__init__.py` defines the SentienceNode contract as `tick()` called once per chat turn.
+- `gui/server.py` calls `state.metacognition.tick()` inside the INSIDE chat request path, before calling `format_for_prompt()`. This is a per-chat-turn call, not a dedicated periodic daemon.
+- `Metacognition._detect_groove(now)` reads up to three rows from `beliefs.db.groove_alerts` where `detected_at > now - 600s` and `acknowledged_at IS NULL`. It does not record a last-seen alert ID or update `acknowledged_at` in the inspected method.
+- `tick()` writes every returned alert through `_write_event()`. The inspected `_write_event()` inserts a new `meta_cognition_events` row each time; it does not persist the source `groove_id` or acknowledge the source alert. The instance field `_last_groove_at` is initialized but has no read/write use in the inspected module snapshot.
+- When any groove rows are returned, `tick()` calls `_maybe_engage_stillness(now)`. That method counts `event_type='groove'` rows in the preceding 1,800 seconds and writes a 60-second Row 9 stillness window when the count reaches three.
+
+### Why this may matter
+
+If the same source alert remains unacknowledged and within the 600-second lookback across multiple INSIDE chat turns, the same alert can be converted repeatedly into separate `meta_cognition_events` rows. Three chat turns could therefore create three “groove” rows from one source alert and satisfy the Row 9 threshold, even though the intended phrase is “three groove events in a 30-minute window”. The code currently does not prove those are three distinct episodes.
+
+This is a **source-level repeat-on-turn candidate**, not yet a confirmed runtime defect. A separate actor may acknowledge alerts outside the inspected producer/consumer files; a complete repository-wide writer census for `groove_alerts.acknowledged_at` is still required. The July 22 GrooveSpotter fingerprint fix (commit `543e4ce957f2e3ad8e3ebf9fb25cd1bf977fed1a`) prevents the same detector fingerprint from being re-inserted every 60-second GrooveSpotter tick, but it does not, by itself, show that an already persisted alert is consumed only once by Metacognition on successive chat turns.
+
+### Existing tests and gap
+
+- `tests/test_metacognition.py` covers one unacknowledged alert becoming an event, prompt formatting, acknowledged alerts being ignored, and alerts outside the 600-second lookback being ignored.
+- `tests/test_stillness.py` tests Row 9 threshold/window behaviour using a mocked groove-event count, and tests the crystallizer's read of the conversations.db stillness window.
+- The inspected tests do not call `Metacognition.tick()` repeatedly against the same still-unacknowledged source alert and assert that only one durable event is created. They also do not prove that three distinct source episodes, rather than repeated reads of one alert, are required to engage Row 9 stillness.
+- The July 22 GrooveSpotter fix was verified in an isolated controlled test for repeated detector ticks, but that is a different boundary: GrooveSpotter insertion deduplication does not test Metacognition's source-alert consumption semantics.
+
+### Bounded next evidence
+
+1. Complete the repository-wide census for writers/updates to `groove_alerts.acknowledged_at`, and determine whether any separate acknowledgement path exists.
+2. Inspect `DiversityLoop` construction/lifetime and GrooveSpotter scheduling to confirm the fingerprint state lifetime relative to the per-chat Metacognition instance lifetime.
+3. Add a test proposal only: seed one unacknowledged alert, call `tick()` repeatedly at distinct times within the lookback, and assert the chosen once-only or repeat semantics explicitly. Add a separate test with three genuinely distinct alert IDs/episodes to establish the Row 9 threshold contract.
+4. Before any fix, decide whether the event should be once per source alert, once per distinct fingerprint/episode, or intentionally repeated per chat turn. Do not silently redefine Row 9's meaning or mutate source acknowledgement state without an authority review.
+
+**Disposition:** Phase 0 source/test-contract finding only. No code, tests, schema, flags, or runtime behaviour changed. No tests run. No Gate 0 claim. Confidence: plausible source-level repeat path; live frequency and any external acknowledgement path UNKNOWN.
+
+**Source anchors:** `theory_x/stage9_metacognition/metacognition.py` (current main blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`); `theory_x/diversity/groove.py` (current main blob from this pass); `gui/server.py` and `theory_x/__init__.py` (per-chat tick contract); `tests/test_metacognition.py` blob `e2604f7baf113999b89e8c66c8bdf4fae22f5a8d`; `tests/test_stillness.py` blob `9a855ee570dcc2e1f0b7b1da6c61cfd072de8ea7`; `543e4ce957f2e3ad8e3ebf9fb25cd1bf977fed1a` (GrooveSpotter fingerprint dedup).
+
+**Evidence level:** source-observed caller cadence and read/write path; test-coverage inspection; no runtime measurement and no test execution in this pass. Repository-wide acknowledgement writer census incomplete.
