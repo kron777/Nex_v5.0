@@ -2109,3 +2109,16 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 ---
 
+---
+
+## 70. GUI build-state partial-construction rollback — candidate PR (28 November 2026)
+
+**Source-derived gap:** `gui.server.build_state()` created Writers in a dict comprehension and then started the scheduler, resolver, dynamic/world-model/membrane/fountain builders and optional background producers before returning the `AppState`. If a later step raised, the caller had no returned owner to close the earlier resources. The Writer comprehension also hid earlier successful constructions if a later Writer constructor failed.
+
+**Bounded correction on branch `claude/build-state-transactional-rollback`:** Writer construction is now incremental so each successful Writer is immediately reachable. The build body is protected by a failure boundary that invokes a rollback helper. The helper signals published producers first, joins scheduler adapters and other owned threads against a shared monotonic deadline, then closes each underlying Writer once (including the TaggingBeliefWriter wrapper case). Cleanup failures are logged and do not replace the original construction exception. Successful construction order and the returned `AppState` shape are unchanged.
+
+**Regression coverage added:** `tests/test_gui_build_state_rollback.py` covers scheduler-owned adapter mappings, producer-before-Writer ordering, decorator unwrapping/deduplication, and cleanup exceptions. This is source-level regression coverage only at this stage; exact-head CI has not yet run. No test-pass claim is made.
+
+**Known limitation / next verification:** producers that fail before their builder returns must be rolled back by that builder itself; the SenseScheduler and Stage 2/3 builders already have internal startup rollback paths. Verify the complete candidate head with the repository workflow, inspect any uncovered partial-construction seam, and extend tests before merge. No live host, database, robot, or runtime state was accessed.
+
+**Boundaries:** no cognitive logic, Writer transaction semantics, schemas, feature flags, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or runtime state is changed. The Tibetan mind map remains descriptive and cannot gate, score, block or veto actions.
