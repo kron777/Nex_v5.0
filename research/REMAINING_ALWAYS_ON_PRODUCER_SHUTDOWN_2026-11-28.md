@@ -71,3 +71,12 @@ No cognitive interpretation is given execution authority. Mind Aspects remain in
 ### SignalLoop
 
 The builder starts SignalLoop as a background thread. Its 60-second tick previously ran a retention reaper, three detectors, per-signal writes, pattern matching and pattern writes without checking its stop flag between stages. The loop now passes its stop Event through CoOccurrenceDetector, SilenceDetector, BurstDetector and PatternTemplateLibrary; each checks between bounded row/entity/template work. SignalLoop checks before/after the reaper, between detectors, before each signal write and between pattern writes. A detector Reader call already in progress still must return before the next stage can be skipped.
+
+
+### Decoder daemon
+
+The decoder daemon is started directly by `run.py` and is registered with AppState. Its tick reads up to 200 Fountain events and performs word-context inserts plus a progress-cursor update inside one Writer transaction. The stop Event is now passed into `decoder_tick`; the tick refuses to begin if already stopped and checks between complete Fountain-event units. If shutdown arrives while one event is being tokenized/enriched/written, that event's word rows and cursor are completed in the same transaction; the next event is not admitted. This preserves cursor/idempotency semantics rather than committing half an event.
+
+### Conditional worker classification
+
+`ThrowNetMonitor` is constructed but its loop is explicitly retired unless `NEX5_THROWNET=1`; the tracked launcher does not set that flag. It is therefore not an active worker in the tracked launch configuration. The conditional path remains a separate future enablement audit, not evidence of a currently running loop.
