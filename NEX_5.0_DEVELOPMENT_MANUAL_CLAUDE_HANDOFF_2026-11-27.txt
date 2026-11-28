@@ -4407,3 +4407,36 @@ The finding stays under G-83. Do not create a new defect ID and do not “restor
 **Source anchors:** `theory_x/SYNTHESIS_PLAN_V2.md` §3; `theory_x/DOCTRINE.md` Row 9 table; design commit `36e7ed40661db58d83214b40aebde7a33fdb2519`; implementation commit `c4b005f32e931047711ef6cdbe03e84a00183885`; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage6_fountain/crystallizer.py`; `tests/test_stillness.py`.
 
 **Evidence level:** commit-dated design and implementation patches; current-source match to implementation; no documented rationale found in the inspected commit message/patch. Founder authorization and frozen Row 9 semantic definition remain UNKNOWN.
+
+ 
+## §116 — Metacognition tick is chat-driven, not part of the 60-second diversity loop (2026-11-28)
+
+### Caller and registry trace
+
+The current boot/caller path separates background alert production from metacognitive consumption:
+
+- run.py constructs the production Metacognition instance, injects SelfNarrative, assigns it to state.metacognition, and separately constructs/starts the DiversityLoop.
+- DiversityLoop._run() calls GrooveSpotter, DormancyScanner, and ClockRunner every 60 seconds. It does not call Metacognition.tick().
+- The production chat handler in gui/server.py calls state.metacognition.tick() while assembling chat context, then calls format_for_prompt().
+- theory_x/__init__.py defines the SentienceNode protocol and a process-lifetime registry. Its protocol docstring explicitly describes tick() as being called once per chat turn. register() only appends a node; all_nodes() only returns the registered nodes. No periodic tick dispatcher is implemented in this registry.
+- The alternate gui.server.build_state() path can construct a Metacognition instance when with_tools=True; that instance likewise uses the same chat handler tick path. It is not evidence of a background metacognition scheduler.
+
+### Cadence consequence
+
+GrooveSpotter may create alerts on its 60-second background cycle while Metacognition does not consume them until the next chat turn. At that turn it reads at most the three newest unacknowledged rows from the preceding 600 seconds. This produces a burst/recency consumer, not a paired detector-observation loop:
+
+- if more than three alerts accumulate, the query returns only the newest three;
+- if chat turns recur while the same rows remain unacknowledged, the same source rows can be re-read and re-written as derived events;
+- if there is no chat turn, the current source path does not call _maybe_engage_stillness(), even if the background detector has produced alerts.
+
+The Row 9 stillness mechanism therefore depends on chat-triggered observation frequency. The 60-second diversity cadence, 600-second detector lookback, 1,800-second event count window, and 60-second stillness duration are four separate controls, not one continuous observation cadence.
+
+### What this does not establish
+
+This does not prove that chat-driven ticking is wrong. The interface contract itself says tick is per chat turn. It does establish that the DiversityLoop is not a second periodic metacognition caller, and that a background GrooveSpotter alert does not automatically cause a Row 9 evaluation while the user is absent. Any expectation of background stillness response would need a distinct, authorized scheduler/caller contract; do not introduce one based on inference.
+
+**Disposition:** Phase 0 caller/cadence refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** run.py (construction, injection, DiversityLoop startup); gui/server.py (chat handler tick and alternate build_state construction); theory_x/__init__.py (SentienceNode tick contract and passive registry); theory_x/diversity/loop.py; theory_x/stage9_metacognition/metacognition.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** source-observed boot construction, chat caller, background loop calls, and passive registry implementation. Exact user chat cadence and live alert accumulation remain UNKNOWN.
