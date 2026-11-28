@@ -741,6 +741,7 @@ class AppState:
     predictive_substrate: Optional[object] = None  # Phase 35 PredictiveSubstrate
     self_mind_view: Optional[object] = None        # Phase 37 SelfMindView
     social_presence: Optional[object] = None      # Phase 38 SocialPresence
+    _boot_shutdown_requested: threading.Event = field(default_factory=threading.Event, repr=False)
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
