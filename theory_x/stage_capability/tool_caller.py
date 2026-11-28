@@ -70,7 +70,8 @@ class ToolCaller:
 
         web_fetch is an HTTP fetcher, not a general search provider. Do not
         select it for generic current/factual questions that contain no URL or
-        supported CoinGecko symbol paired with explicit price wording; the registry cannot satisfy those queries.
+        supported CoinGecko symbol paired with explicit price wording; the
+        registry cannot satisfy those queries.
         """
         q = query.lower()
 
