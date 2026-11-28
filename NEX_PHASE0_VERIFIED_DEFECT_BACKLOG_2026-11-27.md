@@ -1018,3 +1018,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **28 November 2026 — §148 correction and §150 dual-path rut mirror:** source trace now establishes that the GUI chat route invokes Metacognition.tick(), which directly calls SelfNarrative._maybe_notice_rut(); the public SelfNarrative.tick() wrapper is not the actual caller. That direct call bypasses the NEX5_RUT_MIRROR_OFF check located only in SelfNarrative.tick(). Separately, FountainGenerator writes the same rut text to beliefs under source self_rut_notice when its NEX5_GOVERNOR_OFF-gated trough logic fires; its throttle is instance-local, while the narrative path uses persisted narrative_log history. Two stores, independent throttles, intended flag scope and live co-occurrence remain unresolved. Draft PR #452 now characterizes the chat caller bypass. See INDEX §§148–150.
+
+
+**§151 Fountain consumption qualification:** the governor writes `self_rut_notice` after the current Fountain call has fetched its own/seed candidates; the explicit `_OWN_CONTENT_SOURCES`, `_SEED_SOURCES` and HOT-observer slot omit this source. The generic GUI BeliefRetriever does include all eligible tier<=6/confidence>=0.15 beliefs, so the row is a candidate there, but delivery remains query/top-k/route-dependent. Reanimation is a possible but unproven path. See INDEX §151.
