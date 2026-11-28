@@ -744,6 +744,7 @@ class AppState:
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
     _boot_shutdown_requested: threading.Event = field(default_factory=threading.Event, repr=False)
+    _boot_shutdown_deadline: Optional[float] = field(default=None, repr=False)
 
     def close(self, deadline: Optional[float] = None) -> dict:
         """Quiesce producers and drain Writers against one absolute deadline.
@@ -753,6 +754,8 @@ class AppState:
         supplied by the SIGTERM handler so its pre-close delay is included.
         """
         started = time.monotonic()
+        if deadline is None:
+            deadline = self._boot_shutdown_deadline
         if deadline is None:
             deadline = started + _SHUTDOWN_TOTAL_BUDGET_S
 
