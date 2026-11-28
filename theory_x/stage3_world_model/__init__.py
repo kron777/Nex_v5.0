@@ -131,13 +131,19 @@ def _harmonizer_loop(state: WorldModelState, stop: threading.Event) -> None:
         if stop.is_set():
             break
         try:
-            resolved = state.harmonizer.run_scan_and_resolve(world_model_state=state)
+            resolved = state.harmonizer.run_scan_and_resolve(
+                world_model_state=state, stop_event=stop
+            )
+            if stop.is_set():
+                break
             state._harmonizer_runs += 1
             if resolved:
                 errors.record(
                     f"harmonizer_loop resolved {resolved} conflicts",
                     source=_LOG_SOURCE, level="INFO",
                 )
+            if stop.is_set():
+                break
             try:
                 _dist = state._disturbance
                 _harm_st = state.harmonizer.tick()
@@ -166,7 +172,7 @@ def _erosion_loop(state: WorldModelState, stop: threading.Event) -> None:
         if stop.is_set():
             break
         try:
-            advanced = state.erosion.erosion_pass()
+            advanced = state.erosion.erosion_pass(stop_event=stop)
             state._erosion_runs += 1
             if advanced:
                 errors.record(
@@ -183,7 +189,7 @@ def _cross_domain_loop(state: WorldModelState, stop: threading.Event) -> None:
         if stop.is_set():
             break
         try:
-            written = state.harmonizer.detect_cross_domain()
+            written = state.harmonizer.detect_cross_domain(stop_event=stop)
             state._cross_domain_runs += 1
             if written:
                 errors.record(
@@ -229,7 +235,11 @@ def _synergizer_loop(state: WorldModelState, stop: threading.Event) -> None:
 
         last_fire = now
         try:
-            result = state.synergizer.synthesize()
+            if stop.is_set():
+                break
+            result = state.synergizer.synthesize(stop_event=stop)
+            if stop.is_set():
+                break
             state._synergizer_runs += 1
             if result:
                 errors.record(
