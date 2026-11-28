@@ -305,3 +305,21 @@ def test_invalid_raw_revision_is_rejected_before_it_can_poison_the_ledger(tmp_pa
             source_reference="source:invalid-revision",
         )
     assert store.events() == before
+
+
+def test_raw_objective_original_text_and_intent_cannot_be_rewritten(tmp_path):
+    from rdo_adapters.seed_proposals import _digest, validate_raw_objective
+
+    store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
+    first = validate_raw_objective(_raw())
+    _submit(store, first)
+    changed = _raw(revision=2, supersedes=_digest(first))
+    changed["original_text"] = "A different raw objective."
+    with pytest.raises(SeedProposalError, match="original_text and intent are immutable"):
+        store.submit(
+            changed, [_alternative("alternative-c", "gamma"),
+                      _alternative("alternative-d", "delta")],
+            proposer_kind="external_llm", proposer_reference="model",
+            source_reference="source:changed-raw-objective",
+        )
+    assert len(store.events()) == 1
