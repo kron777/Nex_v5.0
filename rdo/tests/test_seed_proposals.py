@@ -110,6 +110,7 @@ def test_proposal_binds_multiple_seed_graphs_to_exact_raw_objective(tmp_path):
     assert proposal["alternatives"][0]["acceptance_criterion_coverage"]
     assert proposal["alternatives"][0]["disconfirming_cases"]
     assert len(store.events()) == 1
+    assert store.proposals() == [item]
     assert SeedProposalStore(str(tmp_path / "seed_proposals.jsonl")).get(
         proposal["proposal_id"]
     ) == item
