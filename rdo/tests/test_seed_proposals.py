@@ -9,7 +9,9 @@ from rdo_adapters.objective_intake import (
     ObjectiveInputError, ObjectiveInputStore, RAW_OBJECTIVE_SCHEMA_VERSION,
     submit_approved_seed_proposal, submit_objective, validate_raw_objective,
 )
-from rdo_adapters.seed_proposals import SeedProposalError, SeedProposalStore
+from rdo_adapters.seed_proposals import (
+    SeedProposalError, SeedProposalStore, load_seed_proposal_file,
+)
 
 
 def _raw(revision=1, supersedes=None):
@@ -315,3 +317,16 @@ def test_external_llm_objective_cannot_bypass_seed_proposal_review(tmp_path):
     }
     with pytest.raises(ObjectiveInputError, match="explicitly approved seed proposal"):
         submit_objective(objective, repo_dir=str(tmp_path), workdir=str(tmp_path / "work"))
+
+
+
+def test_published_seed_proposal_example_matches_provider_neutral_contract(tmp_path):
+    example = Path(__file__).resolve().parents[1] / "examples" / "seed_proposal.v1.example.json"
+    payload = load_seed_proposal_file(str(example))
+    store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
+    created = store.submit(
+        payload["raw_objective"], payload["alternatives"], payload["proposer_kind"],
+        payload["proposer_reference"], payload["source_reference"],
+        supersedes_proposal_id=payload.get("supersedes_proposal_id"),
+    )
+    assert len(created["proposal"]["alternatives"]) == 2
