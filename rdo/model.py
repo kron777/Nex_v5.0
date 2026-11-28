@@ -515,6 +515,8 @@ class CycleRecord:
     observed_failure_evidence: List[dict] = dataclasses.field(default_factory=list)
     # Exact approved expansion catalogue used for this cycle; empty for legacy/default runs.
     rule_catalogue: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    # Append-only feedback-loop measurement/review events applied to tension records.
+    feedback_loop_evidence_events: List[dict] = dataclasses.field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.kind not in CYCLE_KINDS:
