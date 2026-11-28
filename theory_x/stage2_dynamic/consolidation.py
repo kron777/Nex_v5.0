@@ -20,7 +20,7 @@ _QUIET_THRESHOLD_SECONDS = 300
 _LOG_SOURCE = "consolidation"
 
 
-def _external_quiet(sense_reader: Reader) -> bool:
+def _external_quiet(sense_reader: Reader, *, stop_event=None) -> bool:
     """Check if external activity has been quiet for > 300s."""
     try:
         row = sense_reader.read_one(
@@ -28,7 +28,7 @@ def _external_quiet(sense_reader: Reader) -> bool:
             "WHERE stream = 'internal.temporal' "
             "ORDER BY id DESC LIMIT 1",
         )
-        if row is None:
+        if row is None or (stop_event is not None and stop_event.is_set()):
             return False
         payload = json.loads(row["payload"])
         seconds_since = payload.get("seconds_since_last_user_message")
@@ -40,15 +40,19 @@ def _external_quiet(sense_reader: Reader) -> bool:
         return False
 
 
-def consolidation_pass(tree: BonsaiTree, sense_reader: Reader) -> bool:
+def consolidation_pass(tree: BonsaiTree, sense_reader: Reader, *, stop_event=None) -> bool:
     """Run a consolidation pass if quiet. Returns True if consolidation ran."""
-    quiet = _external_quiet(sense_reader)
-    if not quiet:
+    if stop_event is not None and stop_event.is_set():
+        return False
+    quiet = _external_quiet(sense_reader, stop_event=stop_event)
+    if not quiet or (stop_event is not None and stop_event.is_set()):
         return False
 
     # During consolidation: decay tree more aggressively
     try:
         tree.decay_pass()
+        if stop_event is not None and stop_event.is_set():
+            return False
         pruned = tree.prune_pass()
         if pruned:
             errors.record(
