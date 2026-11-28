@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 
 log = logging.getLogger("theory_x.diversity.boost")
@@ -44,20 +45,35 @@ def apply_boost(writer, belief_id: int, grade: float) -> None:
     log.info("Boost applied: belief_id=%d boost=%.2f (grade=%.3f)", belief_id, boost_value, grade)
 
 
-def apply_decay(writer, reader) -> int:
-    """Reduce all active boosts by their daily decay rate. Remove neutral ones."""
+def apply_decay(
+    writer, reader, *, stop_event: threading.Event | None = None
+) -> int:
+    """Reduce active boosts, stopping between each persisted boost row."""
+    def _stopping() -> bool:
+        return stop_event is not None and stop_event.is_set()
+
+    if _stopping():
+        return 0
     rows = reader.read(
         "SELECT belief_id, boost_value, boosted_at, decay_rate FROM belief_boost"
     )
+    if _stopping():
+        return 0
     now = time.time()
     removed = 0
     for row in rows:
+        if _stopping():
+            break
         days_elapsed = (now - row["boosted_at"]) / 86400.0
         new_boost = row["boost_value"] - row["decay_rate"] * days_elapsed
         if new_boost <= NEUTRAL_THRESHOLD:
+            if _stopping():
+                break
             writer.write("DELETE FROM belief_boost WHERE belief_id=?", (row["belief_id"],))
             removed += 1
         elif abs(new_boost - row["boost_value"]) > 0.001:
+            if _stopping():
+                break
             writer.write(
                 "UPDATE belief_boost SET boost_value=?, boosted_at=? WHERE belief_id=?",
                 (new_boost, now, row["belief_id"]),
