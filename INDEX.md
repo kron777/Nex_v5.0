@@ -2319,3 +2319,19 @@ The source study in §79 was followed through into the regression suite. Dedicat
 
 **Boundaries:** no cognitive semantics, action authority, registry API, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
+---
+
+## 81. Close the HoldingZoneResolver parent-rollback test gap (28 November 2026)
+
+**Change:** added `tests/test_gui_build_state_rollback.py::TestBuildStateRollback::test_resolver_start_then_raise_is_recovered_by_parent_rollback`.
+
+The test runs the real `build_state()` factory with isolated temporary SQLite paths and disables unrelated optional builders. It keeps the real `HoldingZoneResolver`, while replacing the gate/zone/trigger dependencies with inert test doubles. The patched `threading.Thread.start` calls the real start for the `holding_zone_resolver` thread and then raises an injected `RuntimeError`. This exercises the difficult partial-start case: the OS thread exists even though the factory's call to `start_loop()` fails.
+
+**Assertions:** the original injected construction error propagates; the captured resolver's stop event is set; its worker thread is no longer alive; all four successfully constructed Writers have been closed and their worker references cleared. This directly verifies the parent factory can recover a worker from a builder-like component that publishes its thread handle but does not locally catch the start exception.
+
+**Study result:** the narrow gap identified in §80 is now covered. Together with the five stage-builder tests, the rollback test suite covers partial thread startup at both nested-builder and parent-factory ownership boundaries.
+
+**Validation:** newly added test is awaiting the exact-head CI run. No claim of pass until that run completes successfully.
+
+**Boundaries:** test-only addition; no resolver or cognitive behaviour changed. No registry API, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
