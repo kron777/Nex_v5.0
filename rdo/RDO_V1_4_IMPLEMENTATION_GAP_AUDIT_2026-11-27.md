@@ -21,7 +21,7 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 - q/tau performance-margin evidence now validates arithmetic, identity and comparable envelope constraints, but capacity/headroom assessment, operating-envelope classification, feedback-loop stability, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
 - the twelve adversarial cases are only partly represented in tests.
 
-**The next vertical-slice increment is to make the new structural analyses usable over persisted RDO cycles, then close the evidence link between structural failure paths and observed failure outcomes.** The interface profile, operating-envelope evidence, q/tau margin records, failure-path candidate tracer and before/after neighbour comparator now exist. The persisted-cycle CLI integration from PR #331 is merged. After that, any failure-propagation assessment must distinguish structural possibility from observed propagation and retain UNKNOWN where event evidence or calibrated criteria are absent. Extend the existing model; do not replace the orchestrator or create a parallel RDO.
+**Current vertical-slice status:** persisted-cycle CLI exposure from #331, typed observed-failure evidence from #339, and context-mapping/criterion-review events from #343 are now merged. The remaining work is to connect these records into one traceable cycle-level assessment path without collapsing structural candidates, measured observations and reviewed interpretations into one claim. No causal attribution, propagation probability, stability calculation or calibrated threshold is supplied by these increments. Extend the existing RDO; do not replace the orchestrator or create a parallel system.
 
 ## 2. Current implementation inventory
 
@@ -123,7 +123,7 @@ The case labels below are concise summaries recovered from the v1.4 review conte
 | G | Speculative obligation | Hypothesis classification and `test_genius_feedback_is_hypothesis` | **Partial** — demonstrated for one domain hypothesis, not a general adversarial obligation-quality test |
 | H | Protected experiment | Watcher registry and fail-closed eligibility; active/unknown registry tests | **Covered** |
 | I | Local improvement causes global regression | No multi-objective local/global net-value comparison | **Missing** |
-| J | Neighbouring capability changes | `run_cycle()` recomputes assessments; PR #330 adds `compare_adjacent_relationship_impacts()` for persisted before/after snapshots, incident relationships and their relationship assessments | **Partial** — the comparison is available as a library function but not yet surfaced through the RDO CLI; it reports correlation, not causality or system-level benefit/harm |
+| J | Neighbouring capability changes | `run_cycle()` recomputes assessments; PR #330 adds `compare_adjacent_relationship_impacts()` and PR #331 exposes persisted before/after comparison through the RDO CLI | **Partial** — CLI exposure is complete; the comparison reports structural association/correlation, not causal attribution or an automatic system-level net-benefit/harm verdict |
 | K | Excessive recursion | max-depth, terminal kinds and frontier reasons; `test_max_depth_bounds_expansion` | **Covered** |
 | L | Negative development outcome | Predicted/actual comparison, disconfirmation and confidence reduction; PR #314 merged an objective-scoped regression-risk candidate into current main | **Partial** — a scoped candidate can be surfaced, but it does not yet mechanically reverse or restrict a recommendation |
 
@@ -158,7 +158,7 @@ Next bounded sequence:
 3. Add an evidence-linking failure-propagation assessment only after defining how observed failure events, relationship identity, observation window, operating envelope and provenance are represented. Do not infer observed propagation from `depends_on` topology alone.
 4. Extend adversarial coverage for insufficient headroom, unstable feedback and neighbouring-capability changes. Assert evidence completeness and UNKNOWN-first behaviour where thresholds or measurements are absent.
 5. Investigate local-improvement/global-regression with actual objective/evidence data before proposing net-value weights or Pareto rules.
-6. Run the Stage-2 belief-development slice and fresh-process persistence/resume against current main.
+6. **Completed baseline:** Stage-2 belief-development and fresh-process CycleStore persistence/resume are already implemented and covered by `rdo/tests/test_stage2_extrapolator_mvp.py`; exact-head full-suite CI passed them. Preserve this regression rather than rebuilding Stage 2.
 7. Consider Pareto/net-value and marginal-value stopping only after the exact specification criteria and grounded calibration are available.
 
 This increment remains external/advisory RDO code. It does not change NEX runtime, the frozen S-register, Master Roadmap, feature flags, live beliefs or protected experiments. It does not authorise the final v1.4 expansion stage to bypass existing safety and approval gates.
@@ -176,3 +176,55 @@ This increment remains external/advisory RDO code. It does not change NEX runtim
 - `rdo/tests/test_stage2_extrapolator_mvp.py`, `rdo/tests/test_rdo.py`, `rdo/tests/test_stage3_graph_intelligence.py`.
 
 **Conclusion:** RDO has a credible working Extrapolator vertical slice and meaningful parts of v1.4. It does not yet implement the full OFT model. The next justified development step is to define and test a traceable observed-failure evidence record linked to canonical relationship identity, observation window, operating envelope and provenance. Keep it distinct from structural failure-path candidates. Do not implement calibrated propagation, severity or probability verdicts until the exact v1.4 criteria and source measurements are available.
+
+
+## Update 2026-11-28 — post-merge implementation evidence
+
+### Merged slices
+
+- **#341:** directed-cycle identity now preserves distinct directed paths and deterministic ordering.
+- **#342:** Watcher ledger evidence-reference validation and disk-before-memory append ordering are merged.
+- **#339:** typed observed-failure evidence is persisted separately from structural failure-path candidates. It requires an exact dependency edge and canonical source/destination obligation endpoints, retains measured evidence and operating-envelope context, and does not infer causality or propagation probability.
+- **#343:** context mapping and criterion verification now use the existing digest-bound, append-only Stage-7 decision ledger. The independent Watcher validates both event kinds, their manifest identity, canonical obligation links, evidence-reference containers, status, timestamps and ordering.
+
+### CI evidence
+
+- #339 exact-head full suite: **2,819 passed, 7 skipped, 45 subtests passed**.
+- #343 exact-head full suite: **2,812 passed, 7 skipped, 45 subtests passed**.
+- Both exact-head runs completed the mind-map verification: 30 nodes, 0 unverified. Existing warnings remain for missing `VIRTUE_SLATE.md`, missing `mental_factors_inventory_alobha_spec.txt`, and overdue P13 finitude unblock.
+- Combined post-merge mainline CI is tracked on the main commit separately; exact-head PR success is not substituted for that result.
+
+### Corrections to earlier gap statements
+
+**Adversarial case J:** PR #331 already exposes adjacent-relationship impact comparison through the RDO CLI. The remaining limitation is interpretive: the comparison is correlation/structural impact, not causal attribution, and it does not automatically produce a system-level net-value or harm verdict.
+
+**G-91 — context mapping:** partially closed by #343. Human reviewers can now map each context item to canonical obligations and record criterion-level pending/passed/failed/not-applicable outcomes with provenance. Remaining: no automatic mapping, no independent dereferencing/authentication of caller-supplied evidence references, and no automatic application of reviewed mappings to a subsequent cycle. Context-review events do not rewrite the original cycle or handoff manifest.
+
+### G-92 — first-level decomposition and novel expansion-rule lifecycle (open)
+
+The current objective intake requires externally supplied seed obligations; the recursive cycle starts from those seeds. The Extrapolator has a finite static rule catalogue. When a novel kind has no rule, the system records a frontier rather than inventing one. PatternMemory stores lessons, confirmations and disconfirmations, but it does not create or promote executable rules.
+
+This means the current repository can recursively expand a supplied seed graph, but it does not independently convert arbitrary raw objective text into a complete first-level seed graph or derive executable rules for every novel kind. The external LLM/human seed-proposal boundary is usable, but no provider is integrated.
+
+Recommended next research/development: a provider-neutral proposal contract for seed obligations and candidate expansion rules, preserving competing interpretations, assumptions, applicability, exceptions, disconfirmations, provenance and tests. Candidate rules must remain inactive until reviewed and approved; frequency alone must never promote a rule.
+
+### G-93 — feedback-loop assessment persistence (open)
+
+`assess_system` already creates a `FeedbackLoopAssessment` for each detected influence cycle, serializes it into `TensionAssessment.dimensions.feedback_loop_assessments`, and persists it inside `CycleRecord.tension`. The topology and UNKNOWN-first placeholders are therefore present. The missing capability is a traceable update path for measured dimensions and independently reviewed stability evidence; no CLI/API path currently accepts those updates. The model does not calculate stability, gain, damping or thresholds. A future evidence-bound update path should preserve original topology, validate measurement evidence, observation windows and provenance, preserve legacy-cycle loading, and leave stability UNKNOWN unless a separately reviewed assessment is supported.
+
+### Next sequence
+
+1. Verify combined mainline CI after #339 and #343.
+2. Extend the existing seeded-objective end-to-end test to cover a completed criterion outcome through the independent Watcher, while preserving the pending-state regression. Keep raw-idea-to-seed generation explicitly external until a provider-neutral proposal contract is designed.
+3. Design the candidate-rule proposal and approval lifecycle for novel kinds.
+4. Persist FeedbackLoopAssessment with UNKNOWN-first semantics and measured evidence only.
+5. Preserve the already implemented Stage-2 belief-development and fresh-process CycleStore-resume tests as a regression baseline; focus next on novel-kind rule proposals and the raw-idea-to-handoff boundary.
+
+No frozen S-01–S-25/M1.8 specification content or NEX runtime/deployment path was changed by these slices.
+
+
+### Stage-2 status correction — completed baseline
+
+The earlier next-step wording to run the Stage-2 belief-development slice and fresh-process persistence/resume is stale. The repository already contains `rdo/STAGE2_EXTRAPOLATOR_MVP.md` and `rdo/tests/test_stage2_extrapolator_mvp.py`. The test exercises the belief-decay objective through the existing Extrapolator/reconciler/CycleStore and launches a fresh Python subprocess to reload the persisted cycle, checking discovered counts, deferred frontier and native-planning kind. It also guards against writing reusable patterns from deterministic fixture reviews without authorised review provenance.
+
+The #339 and #343 exact-head full-suite runs passed this test. This is isolated repository/test-store verification only; it is not live belief-database or host-runtime evidence. Keep it as a regression baseline and do not rebuild Stage 2.

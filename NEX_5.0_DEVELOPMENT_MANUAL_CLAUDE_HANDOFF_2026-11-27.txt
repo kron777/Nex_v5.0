@@ -1,12 +1,13 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
+Last mirrored against main at 0d83b36776b0e51b87c3b152d23f4dd74915da35.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`  
-**Evidence date:** 27 November 2026  
+**Last verified against:** `main` at `0d83b36776b0e51b87c3b152d23f4dd74915da35`  
+**Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
 This is a living orientation document, not a governing specification, roadmap, runtime-state report or proof of cognitive capability. Source code and approved project documents take precedence. When this index conflicts with source, correct this index rather than bending source to fit it.
@@ -864,3 +865,62 @@ The intake preserves intent, scope, constraints, exclusions and acceptance crite
 ### RDO v1.4 implementation audit
 
 The current RDO has a working Extrapolator vertical slice, graph intelligence and partial OFT, but not the full v1.4 Interface Tension Profile, performance margins, capacity/headroom, operating envelopes, Pareto/net-value assessment or all twelve adversarial cases. See [RDO v1.4 implementation gap audit](rdo/RDO_V1_4_IMPLEMENTATION_GAP_AUDIT_2026-11-27.md). v1.4 is the working basis; v1.3 is historical.
+
+
+## 43. RDO and Watcher mainline development update — 28 November 2026
+
+### Merged implementation
+
+The following bounded changes are now on `main`:
+
+- **PR #341 — directed-cycle identity:** Watcher now preserves distinct directed feedback-cycle paths and produces deterministic cycle ordering rather than collapsing cycles by node membership alone.
+- **PR #342 — ledger consistency:** Watcher validates evidence-reference containers and does not advance in-memory ledger state until the append has succeeded.
+- **PR #339 — observed failure evidence:** RDO can preserve a typed, measured failure observation against an exact dependency relationship, including both canonical graph endpoints, observation window, operating-envelope context and evidence provenance. This remains distinct from structural failure-path candidates.
+- **PR #343 — context review workflow:** Stage 7 now records digest-bound, append-only context-mapping and acceptance-criterion review events in its existing decision ledger. The independent Watcher verifier validates these event types against the immutable handoff manifest and event history.
+
+The earlier #338 evidence-reference guard and #340 typed UNKNOWN-first objective-context records remain part of the same foundation. These changes are advisory/planning/evidence work; they do not enable NEX runtime execution, modify runtime flags, deploy code or promote cloud evidence into host observations.
+
+### Verification evidence
+
+Exact-head full-suite CI passed for the two larger new slices:
+
+- **PR #339:** 2,819 passed, 7 skipped, 45 subtests passed. The mind-map verification completed with 30 nodes and 0 unverified nodes.
+- **PR #343:** 2,812 passed, 7 skipped, 45 subtests passed. The mind-map verification completed with 30 nodes and 0 unverified nodes.
+
+The mind-map check still reports existing warnings for missing doctrine source files `VIRTUE_SLATE.md` and `mental_factors_inventory_alobha_spec.txt`, plus the overdue P13 finitude unblock. These warnings were not introduced by these PRs and were not treated as successful completion of those doctrine tasks. Post-merge mainline CI for the combined tree is tracked separately.
+
+### Integrity and authority boundaries
+
+- Original planning fields and the handoff manifest are not rewritten. Observed failure evidence is appended to the CycleRecord's trailing `observed_failure_evidence` field; context mappings and criterion reviews are appended to the separate handoff event ledger.
+- Handoff review events are bound to the exact manifest digest and hash chain.
+- Reviewer/verifier attribution is caller-supplied and explicitly not identity-authenticated.
+- Context mapping requires canonical obligation keys from the exact handoff. Criterion verification requires a prior reviewed mapping; the append re-checks that mapping under the ledger lock.
+- A pending criterion has no verifier, confidence or verification timestamp. Passed, failed and not-applicable outcomes require evidence references, verifier attribution, confidence and a timezone-aware timestamp.
+- Criterion verification is not overall human acceptance. The Watcher continues to report test verification as not authorized and runtime observation as host-only UNKNOWN unless independent host evidence exists.
+- No frozen S-01–S-25/M1.8 specification content was changed.
+
+### Stage-2 clarification — already implemented and regression-tested
+
+The earlier suggestion to rerun the Stage-2 belief-development slice as an open task is superseded by the current repository evidence. `rdo/STAGE2_EXTRAPOLATOR_MVP.md` documents the belief-decay objective and its reuse of the existing Extrapolator, reconciler and CycleStore. `rdo/tests/test_stage2_extrapolator_mvp.py` includes a fresh Python subprocess that reloads the persisted cycle and checks its counts, frontier and native-planning kind. It also checks that fixture reviews do not write reusable patterns without an authorised review. The #339 and #343 exact-head full-suite runs passed this test suite.
+
+This is isolated repository/test-store verification, not a live belief-database or host-runtime claim. Preserve the Stage-2 regression as a baseline; do not duplicate its implementation.
+
+### Updated gap assessment
+
+**G-91 — objective-context evidence resolution (partially closed).** Typed context requirements existed in #340. PR #343 adds a structured, caller-attributed mapping and criterion-review workflow, and the independent Watcher now validates it. Remaining gaps: mappings are still human-supplied; evidence references are not dereferenced or independently authenticated; mappings do not automatically generate new obligations or feed a subsequent planning cycle; and no execution authority is implied.
+
+**G-92 — first-level decomposition and novel-kind rule development (open).** The repository's objective intake requires externally supplied seed obligations, and `run_cycle` begins from those seeds. The Extrapolator uses a finite static rule catalogue; a novel obligation kind is surfaced at the frontier when no rule exists. PatternMemory records applicable lessons and disconfirmations, but it does not create or promote executable expansion rules. Consequently, the repository provides recursive expansion of a supplied seed graph, not a self-contained raw-idea-to-complete-build decomposer. The external LLM/human seed-proposal boundary is explicit and can be used by ChatGPT, but it is not an integrated provider.
+
+The next safe capability is a provider-neutral candidate-seed and candidate-rule proposal lifecycle: preserve alternative interpretations, assumptions, evidence needs, applicability, exceptions, disconfirmations, provenance and tests; require review/approval before a candidate rule enters the active versioned catalogue; never promote a rule solely because a pattern appeared repeatedly.
+
+**G-93 — feedback-loop measurement/review update path (open).** `assess_system` already creates a `FeedbackLoopAssessment` for each detected influence cycle, serializes it into `TensionAssessment.dimensions.feedback_loop_assessments`, and persists it within `CycleRecord.tension`. Topology and UNKNOWN-first stability placeholders are therefore already preserved. Missing: a traceable way to append measured dimensions and independently reviewed stability evidence to that existing record; no CLI/API path currently accepts those updates. It does not calculate stability, gain, damping or thresholds. Next: add an evidence-bound update path that preserves original topology, validates measurement evidence/provenance, and leaves stability UNKNOWN unless a separately reviewed assessment is supported. Do not invent thresholds or stability verdicts.
+
+### Next bounded development sequence
+
+1. Confirm the post-merge mainline CI run for the combined #339/#343 tree.
+2. Build a traceable end-to-end single-objective case: original idea and externally supplied seed proposal → objective intake → recursive expansion → context mapping → criterion verification → Stage-7 handoff → independent Watcher verification. Keep planning review distinct from execution and acceptance.
+3. Design the candidate expansion-rule proposal/approval lifecycle for novel kinds, preserving disconfirming evidence and preventing automatic promotion.
+4. Integrate FeedbackLoopAssessment into CycleRecord with legacy-load compatibility, UNKNOWN-first defaults and measured-evidence validation; do not calculate ungrounded stability scores.
+5. Preserve the already implemented Stage-2 belief-development and fresh-process CycleStore-resume tests as regression baseline; focus next on novel-kind rule proposals and the raw-idea-to-handoff boundary rather than rebuilding Stage 2.
+
+This update records implementation evidence and remaining capability boundaries; it does not amend the frozen specification/register.
