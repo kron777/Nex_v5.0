@@ -152,6 +152,8 @@ def make_self_prediction(
 ) -> dict:
     """NEX predicts whether it will fire in the next `horizon` seconds, from its
     own readiness. A coin flip predicts the same. Both recorded."""
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
     db_path = db_path or _db_path()
     ensure_schema(db_path, conversations_writer)
 
