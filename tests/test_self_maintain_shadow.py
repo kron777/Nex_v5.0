@@ -157,6 +157,8 @@ class TestSelfMaintainShutdown(unittest.TestCase):
         self.shadow = SelfMaintainShadow(
             self.w["dynamic"], self.r["beliefs"], self.r["dynamic"], self.r["sense"]
         )
+        from theory_x.stage_self_maintain.shadow import _TABLE
+        self.w["dynamic"].write(_TABLE, ())
         self.shadow._table_ready = True
 
     def tearDown(self):
