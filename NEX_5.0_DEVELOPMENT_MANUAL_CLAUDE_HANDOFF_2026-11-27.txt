@@ -5229,3 +5229,24 @@ The boot/chat trace is now explicit:
 ### §134 downstream consequence refinement
 
 Because GrooveSpotter's source query reads only persisted `fountain_insight`/`synergized` belief rows, a thought rejected by crystallization does not enter the future GrooveSpotter scan window. The cooldown and stillness controls therefore limit the accumulation of new substrate beliefs and the future evidence available to the detector, while leaving the current model generation intact. They regulate what becomes durable input to the next cycle, not whether the current cycle generates text.
+
+
+## §136 — Lifecycle ownership split: cognitive registry versus worker shutdown registry (28 November 2026)
+
+**Question studied:** is the Metacognition decay gap explained by a general lifecycle owner elsewhere in AppState or the boot sequence?
+
+**Observed ownership model:**
+
+- `theory_x.register()/all_nodes()` is a process-lifetime node registry. It checks the SentienceNode protocol and returns registered nodes. No tick/decay scheduler is implemented there.
+- `gui.server.py` owns a separate, explicit AppState producer shutdown list. `_quiesce_producers()` signals named worker services and joins their threads against a deadline. Its own docstring calls it a bounded registry, not a complete process-thread registry.
+- Metacognition is not in that shutdown worker list because it has no autonomous thread in the inspected implementation. Its `tick()` is invoked directly by the chat route.
+- `AppState.close()` shuts down the sense scheduler, quiesces named producers, and drains Writers. It does not iterate Theory X nodes or call `decay(now)`.
+- `run.py` separately starts selected loops with explicit `_own_and_start()` ownership and stop methods. Metacognition is constructed/registered but is not started as a worker.
+
+**Consequence:** there are two distinct lifecycle mechanisms: (1) direct event-driven cognitive updates on chat turns; (2) explicitly owned background workers with shutdown signalling/joining. The SentienceNode registry is not the bridge between them. The 14-day Metacognition decay method currently has no located owner in either mechanism.
+
+**Evidence boundary:** source-level finding from `run.py`, `gui/server.py`, `theory_x/__init__.py` and the targeted 24-file lifecycle sweep. No live host process or runtime flag state was inspected. This does not prove no external supervisor or uninspected call site exists.
+
+**Next bounded step:** determine whether stale-event resolution is expected to be event-triggered, chat-turn-triggered or scheduled independently; identify the authority for that policy and inspect the full set of registered nodes for any similar implemented-but-unowned `decay()` methods. Do not introduce a generic dispatcher or alter node semantics before that comparison.
+
+**Authority boundary:** no code, schema, schedule, event retention, cognitive behaviour, frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
