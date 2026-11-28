@@ -231,6 +231,13 @@ def test_seed_proposal_rejects_symlink_ledger(tmp_path):
         SeedProposalStore(str(path)).events()
 
 
+def test_seed_proposal_rejects_dangling_symlink_ledger(tmp_path):
+    path = tmp_path / "seed_proposals.jsonl"
+    path.symlink_to(tmp_path / "missing-target.jsonl")
+    with pytest.raises(SeedProposalError, match="must not be a symlink"):
+        SeedProposalStore(str(path)).events()
+
+
 def test_every_acceptance_criterion_has_an_explicit_coverage_record(tmp_path):
     alternatives = [_alternative("alternative-a", "alpha"),
                     _alternative("alternative-b", "beta")]
