@@ -307,3 +307,8 @@ The existing test suite's source assertions cover the mocked threshold and cryst
 ### 28 November 2026 — G-83 implementation-history refinement
 
 The initial Row 9 history is now checked against both design and implementation commits. `SYNTHESIS_PLAN_V2.md` §3 was added at `36e7ed40661db58d83214b40aebde7a33fdb2519` (11:29:57 UTC, 11 May 2026) and describes a same-topic threshold/suppression. The Row 9 implementation landed at `c4b005f32e931047711ef6cdbe03e84a00183885` (13:21:14 UTC) with a global count of derived groove events and global crystallizer hold; its tests mock aggregate counts and do not carry topic/source identity. The current `DOCTRINE.md` summary is more general. No rationale for the difference was located in the inspected commit message or patch. This confirms a historical design-artifact divergence, not its authority or founder approval. G-83 stays OPEN; do not restore same-topic behaviour without locating controlling sign-off. See INDEX §§114–115. Gate 0 remains pending; Phase 1 remains unauthorized.
+
+ 
+### 28 November 2026 — G-83 caller/cadence refinement
+
+The 60-second DiversityLoop invokes GrooveSpotter, DormancyScanner and ClockRunner, not Metacognition. Production Metacognition is constructed in run.py and ticked by the chat handler in gui/server.py; the SentienceNode protocol describes tick as once per chat turn, while its registry only registers/lists nodes and does not dispatch periodic ticks. Thus alerts can accumulate between chat turns; the next tick selects at most three newest eligible rows. This is source/caller evidence, not evidence of actual chat cadence. See INDEX §116. No code/tests/runtime changes; Gate 0 pending and Phase 1 unauthorized.
