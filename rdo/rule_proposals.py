@@ -279,15 +279,23 @@ class RuleProposalStore:
             raise ValueError("a persisted source cycle is required for frontier traceability")
         if getattr(source_cycle, "id", None) != proposal["source_cycle_id"]:
             raise ValueError("source cycle ID does not match the proposal")
+        frontier_items = getattr(source_cycle, "frontier", None)
+        if not isinstance(frontier_items, list):
+            raise ValueError("source cycle has no valid frontier list")
         source_frontier = next((
-            item for item in getattr(source_cycle, "frontier", [])
-            if item.get("key") == proposal["source_frontier_key"]
+            item for item in frontier_items
+            if isinstance(item, dict)
+            and item.get("key") == proposal["source_frontier_key"]
             and item.get("frontier_type") == "novel_kind_requires_rule_proposal"
         ), None)
         if source_frontier is None:
             raise ValueError("source cycle has no matching novel-kind frontier item")
-        request = source_frontier.get("rule_proposal_request", {})
-        source = request.get("source_obligation", {})
+        request = source_frontier.get("rule_proposal_request")
+        if not isinstance(request, dict):
+            raise ValueError("source frontier has no valid rule proposal request")
+        source = request.get("source_obligation")
+        if not isinstance(source, dict):
+            raise ValueError("source frontier has no valid source obligation")
         if (request.get("target_kind") != proposal["target_kind"]
                 or any(source.get(field) != proposal["source_obligation"].get(field)
                        for field in ("key", "title", "kind"))):
