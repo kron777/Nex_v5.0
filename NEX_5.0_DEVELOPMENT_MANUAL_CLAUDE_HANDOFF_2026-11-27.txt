@@ -1,6 +1,6 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with branch INDEX.md; evidence snapshot: main at d580248ecf9436784a8772c50e733008baaf1b41.
+Mirror synchronized with branch INDEX.md; evidence snapshot: main at b5e78842f43ac93c2624697f686da0b600306177.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
@@ -1067,3 +1067,24 @@ These are candidates for further source tracing and controlled experiments. No e
 **G-94 is corrected in the PR branch, pending exact-head full-suite CI and review.** No pass count is claimed until that run completes. The changes do not alter self-binding content, faculty semantics, prompt text, selection weights, feature flags, database schema or history shape. No live service or database was accessed.
 
 This is a persistence-ownership correction that preserves the existing cognitive connections. It does not add a new faculty or claim that the recursive self-reading nudge produces a beneficial attention change. Gate 0 and Phase 1 authority remain unchanged.
+
+
+
+
+51. SelfMindView → Metacognition attention-history wire correction (28 November 2026)
+
+**Evidence snapshot:** NEX `main` at `b5e78842f43ac93c2624697f686da0b600306177`. One-column read-path correction and real integration test are proposed on branch `fix/selfmindview-metacog-attention-wire-2026-11-28`; exact-head CI pending.
+
+### Broken connection found
+
+`SelfMindView._snapshot()` already persists `current_themes_json` in `self_mind_snapshots`. Metacognition's attention-groove detector reads `SelfMindView.aspect_history("attention")` and expects that field to calculate theme overlap across snapshots. The attention projection omitted it, returning only timestamp/count/drive-theme columns. The detector therefore received empty theme sets and could not fire from real snapshots. Existing tests used mocked rows that already contained `current_themes_json`, hiding the adapter mismatch.
+
+### Correction and evidence
+
+`SelfMindView.aspect_history("attention")` now includes the persisted `current_themes_json` column. A real integration test in `tests/test_metacognition_drift.py` seeds controlled tagged beliefs, takes five real snapshots, passes the real SelfMindView instance to Metacognition, verifies `attention_groove`, runs the actual tick/event persistence path, and checks that the existing self-observation reaches `format_for_prompt()`.
+
+This closes the source-to-sink path: beliefs/tags → snapshot → attention history → drift detector → metacognitive event ledger → prompt context.
+
+### Scope
+
+No schema, theme calculation, detector threshold, feature flag or prompt wording changed. The previously disconnected existing detector may now emit an `attention_groove` event when the evidence warrants it. The integration test uses isolated temporary databases. Exact-head CI is pending; no pass count is claimed.
