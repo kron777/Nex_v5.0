@@ -166,13 +166,12 @@ def test_approval_requires_explicit_selection_and_traceable_review_evidence(tmp_
         )
 
 
-def test_superseding_a_seed_proposal_invalidates_its_prior_approval(tmp_path):
+def test_superseding_a_candidate_invalidates_it_and_allows_a_revised_approval(tmp_path):
     store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
     first = _submit(store)
     store.review(
-        first["proposal_id"], "approved", "reviewer", "review:first",
-        "Approve the first decomposition.", ["review:first-evidence"],
-        selected_alternative_id="systems_first",
+        first["proposal_id"], "changes_requested", "reviewer", "review:first",
+        "Clarify the rollback evidence.", ["review:first-evidence"],
     )
     revised_alt = _alternative("recovery_first", "Recovery-first decomposition")
     revised_alt["interpretation"] = "Prioritise rollback proof before deployment automation."
@@ -191,12 +190,34 @@ def test_superseding_a_seed_proposal_invalidates_its_prior_approval(tmp_path):
     assert store.list_proposals()[0]["status"] == "superseded"
 
 
+def test_approved_seed_proposal_cannot_be_superseded_in_place(tmp_path):
+    store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
+    first = _submit(store)
+    store.review(
+        first["proposal_id"], "approved", "reviewer", "review:first",
+        "Approve the first decomposition.", ["review:first-evidence"],
+        selected_alternative_id="systems_first",
+    )
+    with pytest.raises(SeedProposalError, match="new raw revision"):
+        _submit(store, alternatives=[_alternative("revised", "Revised")],
+                supersedes=first["proposal_id"])
+
+
 def test_raw_objective_revision_requires_exact_predecessor_digest(tmp_path):
     store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
     first = _submit(store)
     raw2 = _raw(revision=2, supersedes="0" * 64)
     with pytest.raises(SeedProposalError, match="preceding raw objective digest"):
         _submit(store, raw=raw2)
+
+
+def test_valid_raw_objective_revision_cites_previous_raw_digest(tmp_path):
+    store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
+    first = _submit(store)
+    raw2 = _raw(revision=2, supersedes=first["proposal"]["raw_objective_sha256"])
+    raw2["assumptions"].append("a staging approval is required")
+    second = _submit(store, raw=raw2)
+    assert second["proposal"]["raw_objective"]["raw_revision"] == 2
 
 
 def test_seed_proposal_ledger_detects_tampering(tmp_path):
