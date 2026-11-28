@@ -3572,3 +3572,57 @@ The next safe step is a repository-wide static consumer census using the complet
 **Host/runtime unknowns:** effective `NEX5_SUBSTRATE_EMIT`; whether the periodic parallel-fire path is active in the deployed process; actual activation distribution and decay; whether `substrate_fires` is consumed elsewhere; whether any consumer inserts sidecar output into a later prompt; and the behavioural effect of optional direct emission. No tests were run in this documentation pass.
 
 No runtime code, tests, schema, indexes, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
+
+
+
+## 98. World-model spreading activation: it reranks the candidate pool; it does not independently widen recall (28 November 2026)
+
+**Question studied:** does the graph activation engine actually bring connected beliefs into retrieval, or does it only change the order of beliefs that already passed the retriever's candidate-building stage?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and fixture-test review only. No runtime or production database was accessed.
+
+### The candidate boundary comes before graph activation
+
+`BeliefRetriever.retrieve()` first builds `row_map` and `keyword_scores` from eligible rows. A row enters this candidate map when it has literal token overlap with the query, or—when `NEX5_SEMANTIC_RETRIEVAL=1`—when the separate semantic fallback gives a zero-overlap candidate a qualifying score. Only after this candidate map exists does the retriever take the top five keyword-score IDs as graph activation seeds.
+
+The graph engine can return connected belief IDs that were not in that candidate map. But when the retriever merges the activation scores, it looks each ID up in `row_map` and skips it if no candidate row exists. Therefore, **graph connectivity alone cannot introduce a previously ineligible or zero-overlap belief into the returned retrieval set**. It can affect the ranking of a connected belief only when that belief has independently entered the candidate map through keyword overlap or semantic fallback.
+
+This is a meaningful constraint on the architecture: the graph is currently a relevance re-ranker over an independently constructed candidate pool, not a graph-based recall expansion mechanism.
+
+### How graph influence is calculated
+
+`ActivationEngine.activate()` starts each seed at 1.0 and traverses outgoing `belief_edges` for up to three hops by default, with hop decay 0.55. Edge multipliers are:
+
+- `supports` and `refines`: 1.0;
+- `cross_domain`: 0.8;
+- `synthesises`: 1.2;
+- `opposes`: a negative delta equal to half the source score × edge weight × hop decay.
+
+Only positive next-frontier values continue to the following hop. A negative opposing target remains in the returned score map but is not propagated as a new frontier. When an edges Writer is supplied, actually traversed edges receive a best-effort `last_traversed_at` stamp; that stamp is observational metadata, not the score itself.
+
+The retriever normalizes activation values by the maximum absolute activation and blends them with normalized keyword relevance at 60% activation / 40% keyword whenever graph activation is available. It attaches typed-role metadata and a shared epistemic-temperature value to returned candidate records. The final result is sorted and limited; the inspected code does not convert a `TENSION` role into a veto or action-control decision.
+
+### What tests prove—and what remains unproved
+
+`tests/test_edges.py` characterizes direct support propagation, hop decay, a negative score from an `opposes` edge, typed-role categorization (including `tension`), keyword-only fallback when no edges exist, and presence of activation metadata when edges do exist.
+
+Those tests do not establish that a connected but zero-overlap belief can enter `BeliefRetriever.retrieve()` through graph activation. The retriever's `row_map` guard shows the opposite for the inspected implementation. The existing integration test verifies metadata presence, not graph-only recall expansion or ranking changes under a controlled competing-candidate fixture. The direct opposing-edge test is one hop; no inspected test characterizes whether an inhibitory target should or should not propagate onward (the source currently stops negative values at the next-frontier boundary).
+
+### Architectural interpretation and bounded next step
+
+The current mechanism is a bounded influence channel, not an unconstrained spreading network:
+
+- graph edges influence scores only after the query has produced seeds;
+- candidate admission remains controlled by the retriever's independent eligibility and keyword/semantic candidate construction;
+- activation affects relative ranking, but does not itself authorize, veto or execute anything;
+- negative/tension semantics are represented as scores and role metadata, not as a separate approval authority.
+
+This is compatible with keeping cognitive interpretation distinct from typed operation representation, capability validation, approval, execution and verification. A Tibetan mind-map or Mind Aspect label must not be substituted for any of those authorities.
+
+Before broadening graph recall, decide whether connected zero-overlap nodes are intended to become candidates at all. If yes, design a bounded expansion policy with explicit hop, candidate-count, confidence/paused/tier eligibility, deduplication and provenance rules, then test it against a no-graph control and query-relevant/irrelevant connected nodes. If not, document that the graph is intentionally a re-ranker. Do not silently widen recall or change edge semantics during Phase 0.
+
+**Source anchors inspected:** `theory_x/stage3_world_model/activation.py` blob `509a021671c7f698fb740086dfffa170d2543b84` (edge propagation, inhibitory frontier and role classification); `theory_x/stage3_world_model/retrieval.py` blob `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3` (candidate construction, row_map guard, 0.4/0.6 score blend and result limit); `tests/test_edges.py` blob `24dd0f065d649faf80ebbeb26626a64393892f53` (direct edge and retriever fixture tests); `tests/test_semantic_retrieval.py` blob `b746afa3a3cb7d16b4529175bd1db5eaa54d1eda` (separate opt-in semantic candidate path).
+
+**Host/runtime unknowns:** effective `NEX5_SEMANTIC_RETRIEVAL`; actual edge-type distribution and weights; how often graph-activated IDs are absent from the lexical/semantic candidate map; live ranking changes; and whether graph-only recall expansion is a desired product behaviour. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, indexes, feature flags, retrieval policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
