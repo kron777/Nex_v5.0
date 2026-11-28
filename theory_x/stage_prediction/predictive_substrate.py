@@ -108,16 +108,18 @@ class PredictiveSubstrate:
         except Exception as exc:
             errors.record(f"predictive_substrate verify error: {exc}",
                           source=_LOG_SOURCE, exc=exc)
-        try:
-            internal_made = self._predict_internal(stop_event=stop_event)
-        except Exception as exc:
-            errors.record(f"predictive_substrate predict_internal error: {exc}",
-                          source=_LOG_SOURCE, exc=exc)
-        try:
-            external_made = self._predict_external(stop_event=stop_event)
-        except Exception as exc:
-            errors.record(f"predictive_substrate predict_external error: {exc}",
-                          source=_LOG_SOURCE, exc=exc)
+        if stop_event is None or not stop_event.is_set():
+            try:
+                internal_made = self._predict_internal(stop_event=stop_event)
+            except Exception as exc:
+                errors.record(f"predictive_substrate predict_internal error: {exc}",
+                              source=_LOG_SOURCE, exc=exc)
+        if stop_event is None or not stop_event.is_set():
+            try:
+                external_made = self._predict_external(stop_event=stop_event)
+            except Exception as exc:
+                errors.record(f"predictive_substrate predict_external error: {exc}",
+                              source=_LOG_SOURCE, exc=exc)
 
         self._tick_count += 1
         self._total_predictions_made += internal_made + external_made
