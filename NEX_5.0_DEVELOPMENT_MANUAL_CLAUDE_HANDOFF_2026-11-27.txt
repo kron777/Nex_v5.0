@@ -1,7 +1,7 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with main after documentation commit 3ef723f971dfb9734eb1c8491aaa191c01b4b2e6.
-Evidence snapshot: main at 3ef723f971dfb9734eb1c8491aaa191c01b4b2e6.
+Mirror synchronized with main after documentation commit 81e6017a33b7e6f64617d19ed977847debf502e5.
+Evidence snapshot: main at 81e6017a33b7e6f64617d19ed977847debf502e5.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
@@ -1670,5 +1670,167 @@ This method is already being applied to background-worker lifecycle work:
 The next architectural questions remain separate: complete the producer-shutdown integration; investigate the remaining internally-started builders (World Model, Membrane and Fountain) individually; then address boot-level ownership before AppState. Do not turn the repeated pattern into a bulk refactor without subsystem-specific evidence.
 
 **Unchanged boundaries:** this chapter does not modify frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 authority, mind-map semantics, runtime flags, databases, live host state or cognitive/action authority separation.
+
+---
+
+
+## 59. Adaptive Study — Knowing When to Stop Building and Re-examine the System (28 November 2026)
+
+**Purpose:** make the transition between study, development and observation an explicit adaptive capability of the NEX development process. This is a method for human-led repository work; it is not a runtime agent, autonomous authority, new NEX mechanism or roadmap amendment.
+
+### The principle: study is triggered by evidence, not by the calendar
+
+A development process that only follows a task queue will keep implementing even after its understanding has become stale. A process that studies continuously without a decision rule can become paralysed by analysis. NEX development needs a responsive transition between modes.
+
+The question at every meaningful checkpoint is:
+
+**"Is our current understanding still strong enough to justify the next change, or has something happened that makes renewed study more valuable?"**
+
+Do not wait for a user to say "study again" when the repository evidence already shows that the next implementation would rest on a weak or outdated model. Equally, do not interrupt a well-understood, bounded change merely to repeat research that cannot change the decision.
+
+### 1. Three operating modes, one continuous process
+
+**STUDY — reduce consequential uncertainty.**
+Enter Study when the system, evidence or causal explanation is not understood well enough to justify the next action. Trace source, ownership, data flow, authority, lifecycle, consumers, tests and deployment assumptions. Compare competing explanations and seek disconfirming evidence. Study can end in a code change, a test, a design correction, a deliberate non-change or a recorded unknown.
+
+**DEVELOP — change a demonstrated invariant or test a valuable hypothesis.**
+Enter Develop when the relevant contract is sufficiently understood, the change is bounded, the authority boundary is clear, and validation can discriminate success from failure. Implement one coherent increment with explicit ownership and rollback.
+
+**OBSERVE — let evidence accumulate and check the consequences.**
+Enter Observe after a change, integration, configuration change or surprising test result. Inspect exact-head CI, test behaviour, adjacent paths, downstream effects, regressions and operational evidence. Observation is not passive waiting: it checks whether reality matches the prediction.
+
+These are not sequential project phases. They are operating modes that can recur within one task. A change may move STUDY → DEVELOP → OBSERVE → STUDY → DEVELOP more than once.
+
+### 2. Study-trigger signals
+
+At every completed increment, CI result, integration boundary and material surprise, evaluate these signals. A strong signal can trigger Study immediately; several weaker signals together can also justify it.
+
+**A. Prediction failure**
+- The implementation behaves differently from the stated hypothesis.
+- A test passes, but the reason it passes is unclear.
+- A failure occurs outside the changed path.
+- The observed downstream effect differs from the predicted effect.
+- A regression appears after an apparently unrelated integration.
+
+**B. Model staleness**
+- New source paths, consumers, owners, flags or lifecycle stages are discovered.
+- The architecture map no longer describes the real call graph or boot order.
+- A builder's contract differs from the pattern assumed from another builder.
+- A previously documented fact is contradicted by current source or CI.
+- The active branch, main revision, manual or governing evidence has moved.
+
+**C. Uncertainty outruns consequence**
+- A proposed change has broad, irreversible or cross-subsystem effects but weak evidence.
+- Authority, ownership, persistence or failure recovery is unclear.
+- The same data has multiple possible meanings or competing consumers.
+- A cognitive interpretation is being mistaken for an operation, permission or execution decision.
+- Host configuration, feature activation or runtime behaviour is unknown and materially affects the decision.
+
+**D. Repeated friction**
+- Similar defects recur in different subsystems.
+- Fixes repeatedly require exceptions to the same assumed pattern.
+- Tests are increasingly brittle, timing-dependent or disconnected from real contracts.
+- Workarounds accumulate around an unexplained root cause.
+- A task keeps expanding because each local fix exposes another unexamined dependency.
+
+**E. Weak learning yield**
+- Several changes add activity without demonstrating downstream value.
+- A mechanism is present but its output is unconsumed or unmeasured.
+- The same investigation is being repeated without new evidence.
+- More implementation would add complexity before resolving the question that determines whether it is needed.
+- A simpler existing mechanism may already solve the problem.
+
+**F. Boundary and governance signals**
+- A proposed action may affect frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 or another approval boundary.
+- A change could alter the distinction between cognition, typed operation, capability, approval, execution and verification.
+- A Mind Aspect is being treated as an action gate because of its descriptive map position.
+- An extrapolated obligation, score, AI recommendation or test result is being treated as authority.
+
+A governance or authority ambiguity is a hard Study trigger: do not implement across it until the boundary is resolved by the appropriate authority.
+
+### 3. A practical decision rule: the Study Gate
+
+Before the next non-trivial implementation, ask five questions:
+
+1. **Do we know what is actually happening?** Have we traced the real source path, caller, consumer, owner and lifecycle?
+2. **Can we explain why it is happening?** Are plausible alternatives and at least one disconfirming observation identified?
+3. **Do we know what must remain true?** Is the invariant and authority boundary explicit?
+4. **Can we recognise success and failure?** Is there a baseline, a discriminating test or a clearly stated evidence limitation?
+5. **Would another hour of study plausibly change the implementation decision?** If yes, study first; if no, proceed with the smallest justified change or record the remaining uncertainty.
+
+Decision:
+- If questions 1–4 cannot be answered for a consequential change, enter STUDY.
+- If a governance boundary is uncertain, pause implementation and seek the correct authority.
+- If the first four are sufficiently answered and the fifth is no, enter DEVELOP.
+- If a change has just landed or evidence is arriving, enter OBSERVE before selecting the next task.
+- If the next step depends on unavailable host evidence, stop speculative implementation and define the exact observation required.
+
+This is a judgement protocol, not a numeric score. Do not invent a confidence percentage or use an arbitrary timer to disguise uncertainty.
+
+### 4. Study intensity should scale with risk and surprise
+
+Use the smallest study intervention that resolves the uncertainty:
+
+- **Light refresh:** reread the changed function, its callers and direct tests. Appropriate when the change is isolated and predictions held.
+- **Neighbourhood study:** trace adjacent producers, consumers, ownership and lifecycle. Appropriate when a connection or subsystem boundary changed.
+- **Subsystem study:** reconstruct the relevant call graph, state transitions, failure and recovery paths, and test coverage. Appropriate after repeated friction or unexpected integration behaviour.
+- **System study:** revisit boot order, cross-subsystem ownership, authority boundaries, persistence, global configuration and operational assumptions. Appropriate when the local explanation repeatedly fails or the proposed change has system-wide consequences.
+
+Do not automatically expand a local surprise into a full-system audit. Escalate the scope only when evidence points beyond the current boundary.
+
+### 5. Prevent mode oscillation and analysis paralysis
+
+A study trigger should change the next action, not restart the entire project.
+
+- Name the exact uncertainty that triggered Study.
+- Define what evidence would resolve it.
+- Bound the study to the smallest relevant neighbourhood first.
+- Keep implementation tasks that remain independently justified separate.
+- Return to Develop when the decision-relevant uncertainty is resolved, not when every unknown in NEX has disappeared.
+- If evidence is unavailable, record the unknown and its consequence; do not endlessly investigate around the missing evidence.
+- If study produces no new evidence and cannot change the decision, stop and proceed cautiously or defer.
+
+One surprise can justify a pause; it does not automatically justify a redesign. Conversely, repeated surprises in supposedly independent components are evidence that the shared mental model may be wrong.
+
+### 6. The learning pulse after every increment
+
+After each material code change, test result or integration, write a short pulse:
+
+- **Expected:** what we predicted would happen.
+- **Observed:** what source, tests, CI or host evidence actually showed.
+- **Delta:** what differed, including the absence of an expected effect.
+- **Confidence:** what is now better established and what remains uncertain, using words rather than false precision.
+- **Scope:** which architecture maps or assumptions became stale.
+- **Next mode:** STUDY, DEVELOP or OBSERVE, with one sentence explaining why.
+
+This makes the development process responsive to its own evidence. It also prevents a successful test from silently becoming proof of a broader claim than it supports.
+
+### 7. The adaptive loop
+
+`ORIENT → STUDY (when triggered) → FORM HYPOTHESES → PROBE → DEVELOP (when justified) → OBSERVE → LEARNING PULSE → REASSESS MODE`
+
+The loop may move directly from Study to Observe when the correct result is no code change. It may return from Observe to Study when a prediction fails. It may remain in Develop for a small sequence of tightly coupled edits only while the invariant and causal model remain stable.
+
+**Do not use the number of commits, elapsed time, code volume or an empty task queue as the primary reason to change modes.** Use prediction accuracy, evidence quality, model staleness, consequence, reversibility and information gain.
+
+### 8. What this means for the NEX development assistant
+
+The assistant must not merely execute the next item in a backlog. It must continually assess whether its understanding remains adequate for the proposed next action.
+
+At each checkpoint it should:
+- compare current source and CI against the previous evidence snapshot;
+- notice when a new discovery invalidates an earlier architectural assumption;
+- distinguish a local implementation gap from a deeper model gap;
+- proactively recommend Study when a trigger is present, even if the user asked to continue development;
+- continue independent, well-understood work where safe rather than freezing everything;
+- state what it knows, what it inferred, what it does not know and what evidence would resolve the uncertainty;
+- never claim host observation from repository or CI evidence alone;
+- ask the founder only when a genuine authority, priority or unavailable-context decision requires it.
+
+The assistant should be willing to say: "The next code change is not yet justified. We have discovered that our model of this subsystem is incomplete; here is the smallest study that will resolve it." It should also be willing to say: "The study gate is satisfied. Further research is unlikely to change this bounded fix; I am proceeding."
+
+This is adaptive judgement, not autonomous project authority. The founder's governance and approval boundaries remain intact.
+
+**Unchanged boundaries:** this chapter adds no runtime mechanism, scheduler, score, database, feature flag, cognitive authority or permission. It does not modify frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 or the action-authority separation.
 
 ---
