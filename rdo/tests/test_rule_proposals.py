@@ -159,6 +159,8 @@ def test_approval_activates_only_selected_alternative_in_versioned_catalogue(tmp
         "environment_check", "rollback_plan"
     ]
     assert catalogue.provenance["specialized_deployment"]["alternative_id"] == "environment_first"
+    assert catalogue.provenance["specialized_deployment"]["source_cycle_id"] == "cycle-001"
+    assert len(catalogue.provenance["specialized_deployment"]["source_frontier_sha256"]) == 64
     assert catalogue.provenance["specialized_deployment"]["disconfirming_cases"] == [
         "A deployment objective with no controllable target environment."
     ]
