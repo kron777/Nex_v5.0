@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f` plus boot-ownership candidate branch (exact-head CI pending)
+**Last source validation:** `main` at `dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f`; GUI rollback source head `f12a668869b6f06bf15efabf2d0e568a5ac8d877` passed exact-head CI run `46154796098`. This documentation refresh is a later branch head and awaits its own workflow result.
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -2108,4 +2108,230 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 **Boundaries:** no seed schema, proposal/review semantics, provenance, approval, intake, planning, Stage-7, execution authority or runtime behavior changed.
 
 ---
+
+---
+
+## 70. GUI build-state partial-construction rollback — candidate PR (28 November 2026)
+
+**Source-derived gap:** `gui.server.build_state()` created Writers in a dict comprehension and then started the scheduler, resolver, dynamic/world-model/membrane/fountain builders and optional background producers before returning the `AppState`. If a later step raised, the caller had no returned owner to close the earlier resources. The Writer comprehension also hid earlier successful constructions if a later Writer constructor failed.
+
+**Bounded correction on branch `claude/build-state-transactional-rollback`:** Writer construction is now incremental so each successful Writer is immediately reachable. The build body is protected by a failure boundary that invokes a rollback helper. The helper signals published producers first, joins scheduler adapters and other owned threads against a shared monotonic deadline, then closes each underlying Writer once (including the TaggingBeliefWriter wrapper case). Cleanup failures are logged and do not replace the original construction exception. Successful construction order and the returned `AppState` shape are unchanged.
+
+**Regression coverage added:** `tests/test_gui_build_state_rollback.py` covers partial Writer-construction failure with original-exception preservation, scheduler-owned adapter mappings, producer-before-Writer ordering, decorator unwrapping/deduplication, and cleanup exceptions.
+
+**Exact-head validation:** source commit `f12a668869b6f06bf15efabf2d0e568a5ac8d877`, workflow run [`46154796098`](https://github.com/kron777/Nex_v5.0/actions/runs/46154796098), job `141009003902`: **3,081 passed, 7 skipped, 86 subtests passed** in 234.45 seconds. The isolated test sandbox probe passed; the baseline check was OK. Mind-map verification reported 30 nodes, 0 unverified, 12 dark and 2 blocked. Existing warnings remain: missing `VIRTUE_SLATE.md`, missing `mental_factors_inventory_alobha_spec.txt`, and overdue `p13_finitude` unblock dated 2026-11-21. These were not changed by this candidate.
+
+**Study follow-up discovered during post-CI review:** `build_state()` registers `ProblemMemory`, `GoalManager` and `Metacognition` in the process-lifetime `theory_x` registry before all later construction and producer-start steps have succeeded. The registry module documents process-lifetime registration and exposes no unregister operation. The new rollback closes Writers and stops published producers, but does not reverse those registry side effects. This is a source-derived partial-construction concern; whether it creates an observable stale-node effect has not yet been established. Next study: trace every `all_nodes()` consumer and registration lifecycle, then decide whether registration should be deferred until the AppState construction commit point. Add a failure-injection regression before changing that behaviour. Do not infer impact or silently introduce an unregister policy.
+
+**Known limitation:** producers that fail before their builder returns must be rolled back by that builder itself; the SenseScheduler and Stage 2/3 builders have their own startup rollback paths. The source commit above passed exact-head CI; this subsequent documentation refresh creates a new branch head and must receive its own exact-head workflow result before merge. No live host, database, robot, or runtime state was accessed.
+
+**Boundaries:** no cognitive logic, Writer transaction semantics, schemas, feature flags, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or runtime state is changed. The Tibetan mind map remains descriptive and cannot gate, score, block or veto actions.
+
+---
+
+## 71. Adaptive study pulse after GUI rollback validation (28 November 2026)
+
+**Expected:** failed `build_state()` construction should stop every already-published producer, join its owned workers within the shared deadline, close each underlying Writer once, and preserve the original construction exception.
+
+**Observed:** the exact source head passed the full repository workflow (3,081 passed, 7 skipped, 86 subtests); sandbox isolation and baseline checks passed. The CI mind-map check retained three existing warning classes (two missing doctrine references and overdue `p13_finitude`).
+
+**Delta:** the candidate's local rollback contract is supported by repository tests, but this does not prove host shutdown timing or complete process-level cleanup. Post-CI source review exposed a separate earlier side effect: three objects enter the process-lifetime Theory X registry before construction has committed.
+
+**Confidence and limits:** CI-validated at exact source head for the tested rollback paths. Registry residue is a source-derived concern; consumer impact and intended retry semantics remain unknown. No host observation, operational rehearsal or cognitive-effect claim is made.
+
+**Next mode:** STUDY. Trace registry consumers and the full registration lifecycle before deciding whether to defer registration. Continue other independent, well-understood work only if it does not depend on this unresolved lifecycle contract.
+
+**Adaptive-method reminder:** a green test suite closes only the claims it actually tests. It does not cancel a study trigger discovered by source review after the run.
+
+
+## 72. Theory X registry lifecycle study — GUI AppState ownership boundary (28 November 2026)
+
+**Question:** does a failed or closed GUI AppState leave registry references behind, and what is the demonstrated impact?
+
+**Source facts:** `theory_x/__init__.py` describes the registry as process-lifetime storage. `register(node)` validates the runtime-checkable `SentienceNode` protocol and appends directly to the module-level `_registered_nodes` list. It does not deduplicate. `all_nodes()` returns a new list containing the same registered object references. The module exposes no unregister, replacement, or scope API. The three GUI node classes do satisfy the declared protocol (`name`, `tick`, `decay`, `state`), so the `register()` calls are not merely attempted registrations that are rejected by protocol validation.
+
+**Lifecycle-method consequence:** these protocol methods are not all passive inspection. `ProblemMemory.decay()` writes stale-problem closures; `GoalManager.decay()` writes stale-goal cancellations; and `Metacognition.decay()` writes anomaly resolutions. Their `tick()` methods also query/refresh database-backed caches. Thus, if a registry consumer invokes lifecycle methods on a retained node after its AppState has closed, those methods can reach the closed Writer/Reader wrappers. This is a conditional hazard, not a demonstrated runtime failure: the complete consumer inventory is still open.
+
+**GUI lifecycle facts:** `gui.server.build_state()` registers `ProblemMemory`, `GoalManager` and `Metacognition` while constructing the AppState, before the function reaches its successful return. The GUI `AppState.close()` quiesces its owned producers and closes its Writers, but does not remove these nodes from the process registry. Therefore a failed build after registration, or a closed AppState, can leave those object references retained in the process-lifetime registry. These nodes were built with the AppState's Readers/Writers, so the retained objects can also retain references to those closed resource wrappers. This is a concrete lifetime mismatch in source; it is not yet evidence of a user-visible malfunction.
+
+**Other registration paths observed:** `gui.server` registers module-level FocalSet and ExecutiveControl nodes at import/setup time, and registers membrane self-model/behavioural nodes after AppState construction. `run.py` independently registers SelfNarrative, HoldingZoneResolver, GoalManager, Metacognition, NovelAssociation and several other runtime nodes. This reinforces that the registry currently mixes process-scoped and AppState/runtime-scoped objects; it is not safe to assume every entry has the same owner or shutdown boundary.
+
+**Consumer-scan limit:** direct inspection of `theory_x/__init__.py`, `gui/server.py` and `run.py` found no call to `all_nodes()`. Repository code-search requests for `all_nodes` and `_registered_nodes` returned no matches, but GitHub reported the code-search result as incomplete; this is not proof that no consumer exists. Consumer inventory remains open. Do not state that the registry is unused.
+
+**Impact assessment:** duplicate accumulation is possible if `build_state()` is called more than once in one process, because `register()` always appends. A closed or failed AppState can leave stale references until process exit. Whether any consumer iterates those stale nodes, invokes their methods, or whether repeated GUI construction is an intended supported operation remains unverified. The normal GUI entrypoint inspected calls `build_state()` once, then registers `state.close` with `atexit`; the inspected GUI tests construct `AppState` directly rather than repeatedly calling `build_state()`. This makes the ordinary one-AppState-per-process path consistent with process-lifetime registry semantics, assuming the process exits after close. No explicit retry/rebuild or multi-AppState contract was found in the inspected entrypoint/tests. The partial-build residue matters if construction failure is caught and retried, or if the GUI is embedded/rebuilt within a surviving process; those scenarios are not yet demonstrated as supported use cases. No live process or runtime registry was inspected.
+
+**Design options to evaluate, not yet selected:** (A) stage per-AppState nodes locally and publish them only at the successful construction commit point, while defining how normal AppState.close() removes or retires them; (B) introduce explicit registry scopes/handles with deterministic close semantics; or (C) keep the registry strictly process-lifetime and prohibit AppState-owned objects from entering it. A bare `unregister(node)` is not automatically safe: it must define identity, duplicate registrations, ownership, concurrency, and what happens if a consumer already holds a snapshot from `all_nodes()`. Do not implement any option until consumer and ownership contracts are traced.
+
+**Next study tasks:** (1) enumerate every registry writer and any consumer through a complete repository source scan; (2) establish whether GUI AppState may be rebuilt or multiple instances coexist in one process; (3) inspect node `tick/decay/state` behaviour after their backing Writers are closed; (4) write lifecycle invariants and failure-injection tests for failure before/after registration and normal close; (5) only then choose the smallest registry lifecycle correction. Keep process-global FocalSet/ExecutiveControl distinct from per-AppState nodes.
+
+**Mode:** STUDY remains active for this boundary. The earlier exact-head CI result validates only the rollback tests on source commit `f12a668869b6f06bf15efabf2d0e568a5ac8d877`; the documentation-refresh head requires its own workflow result. No code behaviour is changed by this study entry.
+
+**Boundaries:** no cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed. The mind map remains descriptive only.
+
+---
+
+## 73. Registry study correction — distinguish the executable boot path from the GUI state factory (28 November 2026)
+
+**Reason for correction:** the previous §72 wording said the normal GUI entrypoint calls `build_state()` once. Direct inspection of the current branch's `run.py` disproves that statement. Do not carry the earlier entrypoint assumption forward.
+
+**Verified executable path:** `run.py` constructs its own `AppState` directly from Writers, Readers and VoiceClient, then wires the runtime services into that state and calls `create_app(state)`. It does not call `gui.server.build_state()`. In this path, `run.py` constructs and registers its own `GoalManager` and `Metacognition`; it constructs `ProblemMemory` but does not register that instance in the inspected code. The shutdown path calls `state.close()` and then terminates the process with `os._exit(0)` after successful clean-shutdown marking. Thus the registry references surviving `state.close()` are process-resident only until this executable path exits, which is compatible with a process-lifetime registry. This is source inspection, not a live boot/shutdown rehearsal.
+
+**Separate factory path:** `gui.server.build_state()` is a distinct AppState factory. Its `with_tools=True` path constructs and registers `ProblemMemory`, `GoalManager` and `Metacognition` before the function returns. Its failure rollback closes Writers and stops published workers, but does not undo those registry appends. The inspected rollback regression invokes `build_state(..., with_tools=False)`; therefore that test does not exercise the three tool-node registration side effects. The ordinary GUI endpoint test constructs `AppState` directly and does not call the factory. The inspected `run.py` executable path also does not call it. No claim is made that these are the only callsites in the full repository; callsite inventory remains incomplete.
+
+**Corrected risk statement:** the source-level partial-build residue concern remains for `build_state(with_tools=True)` if construction fails after one or more registrations and the process catches the failure and remains alive. A later successful build in the same interpreter could add another set of instances because `register()` appends without deduplication. However, the inspected primary executable path does not use this factory, and no supported retry/rebuild contract or live registry consumer has been demonstrated. Do not describe the issue as an established production-runtime leak or user-visible defect.
+
+**Study delta:** separate three contexts in all future analysis: (1) the executable `run.py` boot path; (2) the standalone `gui.server.build_state()` factory and its tests; (3) module-level process registrations such as FocalSet and ExecutiveControl. Similar node classes do not imply shared instances or shared ownership. The next source task is to enumerate every `build_state()` callsite and every registry consumer with a complete scan, then decide whether the factory needs deferred registration or whether its contract should explicitly be single-shot/process-terminal.
+
+**Exact-head validation:** the current branch head before this documentation correction, `96cf3d5af20b505563232e2a874e42318ab60092`, passed workflow run [`46156012237`](https://github.com/kron777/Nex_v5.0/actions/runs/46156012237), job `141012773436`: **3,081 passed, 7 skipped, 86 subtests passed**; sandbox probe and baseline check passed. This validates that exact head only. The present documentation commit will require its own exact-head workflow result.
+
+**Boundaries:** no code behaviour changed by this correction. No registry API, cognitive logic, execution authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed. The mind map remains descriptive only.
+
+---
+
+## 74. Reader/Writer lifetime distinction — narrow the stale-registry consequence (28 November 2026)
+
+**Study question:** do registry-retained nodes hold closed Reader resources as well as closed Writers, and what can still happen after AppState shutdown?
+
+**Source facts:** `substrate/reader.py` defines `Reader` as a path/configuration wrapper. Each `read()` / `read_one()` opens a fresh read-only SQLite connection through a context manager and closes that connection before returning. The `Reader` object itself has no persistent connection and no `close()` lifecycle. Therefore a retained Reader reference is not a closed connection and is not, by itself, a leaked open database handle. If the database remains present and accessible, a stale node's read calls can still succeed after AppState closes its Writers.
+
+**Writer contrast:** `substrate/writer.py` owns a worker thread and write queue. `Writer.close()` stops accepting submissions, enqueues the shutdown sentinel, joins the worker, and clears the thread reference after successful termination. Subsequent `submit()/write()` calls fail with `RuntimeError` while the Writer is not running. The documented lifecycle permits an explicit later `start()` to reopen a fully stopped Writer, but no registry-node restart contract is established here.
+
+**Revised consequence:** registry-retained `ProblemMemory`, `GoalManager` and `Metacognition` objects retain both Reader and Writer references, but only the Writer is a closed lifecycle-managed resource. Their read-only `tick()/state()` paths may continue to query the database; their write-producing `decay()` paths can fail when they submit to the closed Writer. This is a more precise conditional stale-node hazard than the earlier shorthand that implied both Reader and Writer wrappers were closed. No live post-close invocation was performed, so the exact exception path and any consumer reaction remain unobserved.
+
+**Design implication:** do not add Reader shutdown/retirement solely to solve this registry question. The unresolved ownership decision concerns whether a process-level registry should retain AppState-owned nodes whose Writer dependency has been shut down, and whether any consumer invokes them after that point. Keep Reader's per-call connection model separate from Writer's worker lifecycle.
+
+**Mode:** STUDY. Next: trace registry consumers and factory callsites; then add a focused test that closes the AppState Writer and exercises a retained node's read-only versus write-producing lifecycle method using isolated temporary databases. Such a test must assert the expected failure is contained or surfaced according to the eventual registry-consumer contract; do not silently swallow it or invent a restart policy.
+
+**Boundaries:** source inspection only; no code behaviour changed. No live database, host process or robot runtime accessed. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
+---
+
+## 75. Theory X package-wide registry symbol scan (28 November 2026)
+
+**Scope and method:** fetched and inspected all **273 Python source files under `theory_x/`** from the active development branch. Scanned source lines for module-registry symbols and protocol references: `all_nodes()`, `_registered_nodes`, direct `register(...)` calls and `SentienceNode`. This is a source-tree scan of the Theory X package, not a complete repository-wide scan.
+
+**Observed:** no Theory X module calls the process registry's `all_nodes()` function or accesses `_registered_nodes`. No direct call to the process registry's `register()` function was found in the package. Several modules implement or document the `SentienceNode` protocol, but protocol conformance alone does not register an object. Two textual lookalikes are unrelated APIs: `BonsaiTree.all_nodes()` in `stage2_dynamic/bonsai.py` enumerates tree nodes, and `pipeline_hooks.register(dynamic_state)` registers a dynamic-state hook, not a Theory X process node.
+
+**What this narrows:** the previously suspected registry consumer is not located inside the 273-file `theory_x/` package. The process registry appears to be a passive append-only catalogue from the perspective of that package. This materially lowers the likelihood that stale entries are actively ticked/decayed by a Theory X internal loop. It does not prove the registry has no consumer elsewhere: `run.py`, `gui/server.py`, external tools, tests, plugins or future imports may observe it, and GitHub code-search responses remain marked incomplete. No runtime introspection was performed.
+
+**Registry writer picture so far:** explicit process-registry writes found in the inspected boot/factory code are in `gui/server.py` and `run.py`. The package scan found no internal writer or reader. Keep this as a scoped result, not a claim of complete repository inventory. The object protocol is therefore currently broader than the demonstrated registry integration: many classes implement the protocol, while the registry has no demonstrated package-internal consumer.
+
+**Next study:** scan non-`theory_x/` application, test and tooling sources for exact imports/aliases of `theory_x.register`, `theory_x.all_nodes`, and indirect snapshots. Then decide whether this registry is (a) intended for an external observer not present in the inspected package, (b) a dormant/legacy integration, or (c) a contract awaiting its first consumer. Do not remove or redesign it based only on this scoped absence. Preserve the process-lifetime registration semantics until its intended consumer and owner are known.
+
+**Boundaries:** read-only source scan; no code behaviour changed. The scan does not validate runtime imports, dynamic reflection, monkey-patching, or consumers outside the scanned package. No live host, database or robot runtime accessed. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
+---
+
+## 76. Full repository Python registry read/write inventory (28 November 2026)
+
+**Scope:** scanned all **719 Python files** in the active branch tree: 273 under `theory_x/`, 261 under `tests/`, and 185 in the remaining application, GUI, runtime, RDO, scripts, tools and watcher paths. The scan searched for the process registry's `all_nodes()`, `_registered_nodes`, imports/references to `theory_x`, and registration aliases. This is a complete inventory of tracked Python files at this branch head, not of non-Python files, dynamic runtime behaviour or external consumers.
+
+**Only actual registry reader found:** `tests/test_genius_tagger.py`. Its `TestSentienceNodeProtocol` test registers its own GeniusTagger instance, iterates `theory_x.all_nodes()`, selects only that exact object by identity, and invokes `tick()`, `decay(now)` and `state(now)` to verify the generic protocol round-trip. Its `tearDown()` removes that test's own object from the private module list by identity because no public unregister API exists. The test comment describes the sweep as hypothetical cross-node integration; it is not evidence of a production sweep.
+
+**Production-reader result:** no production Python call to the process registry's `all_nodes()` was found. No production Python access to `_registered_nodes` was found. This is stronger than the earlier package-only result: within the tracked Python source, the registry currently has writers but no production reader.
+
+**Production writers:** explicit calls found in `run.py` and `gui/server.py`. They register a mixture of module-level/process-scoped and runtime/AppState-associated nodes. The exact ownership distinctions and factory-specific partial-build side effects remain as recorded in §§72–73. Many other classes implement `SentienceNode`, but implementation of the protocol does not itself register them.
+
+**Risk reassessment:** the stale-reference scenario remains real at the object-graph level for `build_state(with_tools=True)` failure/retry, but no production Python consumer was found that would currently tick or decay those retained nodes. Therefore the previously described post-close Writer failure is a latent conditional hazard, not a demonstrated active production path. The registry may be intended for an external observer, future integration, manual diagnostics, or may be a legacy/dormant mechanism; source alone does not establish which. Do not remove registrations or introduce scopes/unregister solely because the current repository lacks a production reader.
+
+**Test-isolation note:** the GeniusTagger test's direct mutation of `_registered_nodes` is intentionally identity-scoped and performed in `tearDown()`, but it couples the test to a private global implementation detail. A future public test fixture or scoped registry API could improve isolation if a production registry contract is established. No change is made now.
+
+**Decision:** keep the current registry API and registration semantics unchanged for this PR. Treat the build-state rollback fix as independently valid. Defer registry redesign until an owner or consumer is identified, or a concrete supported multi-AppState/retry use case is established. If the registry is meant to support process monitoring, the missing production reader should become an explicit architecture/documentation question rather than an assumed feature.
+
+**Limits:** tracked Python source was scanned; non-Python launchers, dynamically loaded external modules, plugins and runtime monkey-patching were not exhaustively examined. No live registry, host process, database or robot runtime was inspected. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
+---
+
+## 77. Tracked-Python `build_state()` callsite census — standalone GUI path (28 November 2026)
+
+**Scope:** scanned all 719 tracked Python files for direct `build_state()` calls and declarations, following the registry writer inventory.
+
+**Observed callsites:** the only production declaration/call pair found is in `gui/server.py`: `build_state()` is defined there, and the module's standalone `main()` calls it with defaults, then registers `state.close` with `atexit`, creates the Flask app and runs it. Because `with_tools` defaults to `True`, this standalone entrypoint exercises the ProblemMemory/GoalManager/Metacognition registration path on successful construction. `run.py` is a separate executable path; it constructs AppState directly and does not call the factory. The only test callsite found is `tests/test_gui_build_state_rollback.py`, which explicitly sets `with_tools=False`; it does not execute the tool-node registry writes. No other tracked Python callsite was found.
+
+**Failure-path interpretation:** the standalone `gui.server.main()` call is not wrapped in a retry loop or a catch-and-rebuild path in the inspected source. If `build_state()` raises, the exception propagates out of `main()`; in ordinary script execution the process terminates, so registry residue is released with the process. After successful construction, `atexit` closes the AppState and normal interpreter exit then releases the process registry. Thus the current tracked standalone path does not demonstrate a surviving-interpreter stale-node scenario.
+
+**Revised risk boundary:** the rollback candidate still needs to ensure resources are cleaned when the factory raises. Registry appends are not rolled back, but in the only tracked production callsite the failure is process-terminal rather than caught and retried. The remaining risk requires an embedding caller, external wrapper, or future code that catches the exception and keeps the interpreter alive, or explicitly invokes the factory repeatedly. No such tracked Python callsite was found. This is not proof about external consumers or runtime embedding.
+
+**Decision refinement:** retain the current registry API and avoid adding speculative unregister/scope semantics. The rollback PR's tested resource-ownership correction remains useful independently. A follow-up registry lifecycle change should require a demonstrated non-terminal factory caller or a real production consumer.
+
+**Limits:** this census covers tracked Python files in the current branch only. Non-Python launchers and external callers are outside the repository scan. No live boot, failure injection, host process or robot runtime was exercised. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
+---
+
+## 78. Preserve the primary construction failure across BaseException cleanup failures (28 November 2026)
+
+**Study trigger:** review of the rollback helper against the enclosing `build_state()` exception boundary found an inconsistency. The factory catches `BaseException` to guarantee rollback before re-raising the construction failure, but the helper caught only `Exception` from producer signalling, scheduler join, worker join and Writer close. A cleanup callback raising `KeyboardInterrupt` or `SystemExit` could therefore escape the helper and replace the original construction failure.
+
+**Change:** `_rollback_partial_app_state()` now catches `BaseException` around each of those four best-effort cleanup operations and logs the cleanup failure. The helper then returns, allowing the outer bare `raise` to preserve the original construction exception. The cleanup remains bounded by the existing shared monotonic deadline; no shutdown budget or ordering changed.
+
+**Regression:** `tests/test_gui_build_state_rollback.py::test_cleanup_errors_do_not_escape_rollback_helper` now injects `KeyboardInterrupt` from producer stop and `SystemExit` from Writer close. This verifies that process-control exceptions raised by cleanup do not escape the rollback helper. Existing ordinary-error coverage and ordering tests remain.
+
+**Rationale and limit:** swallowing a new process-control exception is appropriate only inside this rollback path because another exception is already being unwound and the construction failure is the primary diagnostic. This does not change normal `AppState.close()` semantics or globally suppress interrupts. Attribute access/introspection outside the guarded cleanup calls is not claimed to be exception-proof.
+
+**Validation:** code and regression test updated on PR #446. Exact-head CI for the resulting branch commit must be checked before claiming validation. Prior successful exact-head suite remains the previous docs-only head `b8c2cee06769ec3b74601885b1b6b87dddda9b82`; it does not validate this code change.
+
+**Boundaries:** narrow rollback hardening only. No cognitive semantics, registry API, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
+---
+
+## 79. Nested startup ownership — stage builders examined (28 November 2026)
+
+**Study question:** can the parent rollback recover workers from a stage builder that raises before returning its state object?
+
+**Observed pattern:** the parent can only see a builder's return value after successful return. The inspected worker-owning builders therefore need local rollback around their own thread startup, and the parent must own the builder result after return.
+
+- `theory_x/stage1_sense/scheduler.py`: scheduler construction publishes its adapter registry before starting workers; its startup loop catches `BaseException`, signals all workers and joins started workers before re-raising. The returned scheduler exposes `_threads`, `shutdown()` and `join()`, which the parent rollback understands.
+- `theory_x/stage2_dynamic/__init__.py`: constructs the full DynamicState and publishes `_stop` / `_threads` before starting loops. Workers wait behind a shared start gate. A partial `Thread.start()` failure sets stop, releases the gate so started wrappers exit without entering loop bodies, joins against one deadline and re-raises.
+- `theory_x/stage3_world_model/__init__.py`: publishes its complete thread registry and stop event before start; workers wait behind a shared gate; partial startup failure stops, releases, joins and re-raises.
+- `theory_x/stage4_membrane/__init__.py`: publishes the thread reference before start; catches `BaseException`, signals stop, joins a started thread and re-raises.
+- `theory_x/stage6_fountain/__init__.py`: publishes its thread reference and gates the worker until start succeeds; on failure it signals stop, releases the gate, joins and re-raises.
+- `theory_x/stage_gate/resolver.py`: `HoldingZoneResolver.start_loop()` publishes `self._thread` before calling `start()`. It does not contain its own startup exception, but the parent factory already owns `_resolver` before this call, and parent rollback discovers `_thread`, signals `_stop` and joins it.
+
+**Architecture conclusion:** startup cleanup is layered, not one flat parent transaction. A builder must clean workers that exist before it can return an owner object; after return, the parent owns the returned state and can quiesce it. The inspected stage builders mostly implement this nested ownership pattern. The resolver is an intentional exception where the parent has already published the owning local before starting its worker, so parent rollback can still see it.
+
+**Remaining verification:** source inspection establishes the intended ordering, but it does not prove every rare OS-level `Thread.start()` failure path behaves identically across Python/platform implementations. Focused failure-injection tests exist or should be checked per builder; do not infer coverage of every builder from the GUI rollback tests. In particular, this PR's tests directly exercise the parent rollback helper and Writer-construction failure, not every nested builder's own partial-start path.
+
+**Decision:** no additional parent-level abstraction is needed from this inspection. Preserve local builder ownership and the parent rollback boundary. Future builders that start workers must publish stop/thread handles before `Thread.start()`, gate work until startup commit where appropriate, and locally rollback any partially started workers before raising.
+
+**Boundaries:** read-only source study; no stage builder behaviour changed. No cognitive semantics, action authority, registry API, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
+---
+
+## 80. Nested builder failure-injection test inventory (28 November 2026)
+
+The source study in §79 was followed through into the regression suite. Dedicated partial-start tests were found for all five worker-owning builder families inspected:
+
+| Builder | Regression test | Failure mode asserted |
+|---|---|---|
+| Stage 1 Sense | `tests/test_sense.py::test_partial_thread_start_failure_rolls_back_without_polling` | Second adapter start raises; both worker threads exit; no adapter polls before startup commit |
+| Stage 2 Dynamic | `tests/test_dynamic.py::TestBuildDynamicStartupRollback::test_partial_thread_start_failure_does_not_release_any_loop` | Second start raises; first worker exits, second never starts, no loop body runs |
+| Stage 3 World Model | `tests/test_world_model.py::TestWorldModelBuilderStartupRollback::test_partial_thread_start_failure_rolls_back_without_running_loops` | Second start raises; started worker exits, failed worker remains unstarted, no loop body runs |
+| Stage 4 Membrane | `tests/test_membrane.py::TestMembraneBuilderStartupRollback::test_start_failure_after_thread_creation_stops_and_joins_worker` | Real thread starts and then patched `start()` raises; worker receives stop and is joined |
+| Stage 6 Fountain | `tests/test_fountain.py::TestFountainBuilderStartupRollback::test_start_failure_after_thread_creation_prevents_loop_activation` | Real thread starts and then patched `start()` raises; gated loop does not activate and worker exits |
+
+**Assessment:** the nested-startup design is not merely documented; each of these five builder families has a targeted failure-injection regression. Tests distinguish a start call that fails before a thread is created from the harder "thread created, then wrapper raises" case where relevant. These tests complement, but do not replace, the GUI parent rollback tests.
+
+**Remaining gap:** no dedicated failure-injection test was found for `HoldingZoneResolver.start_loop()` when `Thread.start()` raises after creating the thread. Its parent ownership ordering is correct by source inspection: `build_state()` assigns `_resolver` before invoking `start_loop()`, and the resolver assigns `self._thread` before `start()`; parent rollback can therefore find and stop/join it. A focused parent-factory regression would be useful if a practical isolated test fixture can be built without broadening the PR excessively.
+
+**Decision:** do not duplicate the five existing builder tests in this PR. Keep the resolver test gap visible as a narrow follow-up candidate. No stage builder code changed.
+
+**Validation note:** this is source/test inspection only. The current full-suite CI run is the authority for the latest rollback code and documentation head; the per-test assertions above are not represented as independently executed during this inspection.
+
+**Boundaries:** no cognitive semantics, action authority, registry API, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
+---
+
+## 81. Close the HoldingZoneResolver parent-rollback test gap (28 November 2026)
+
+**Change:** added `tests/test_gui_build_state_rollback.py::TestBuildStateRollback::test_resolver_start_then_raise_is_recovered_by_parent_rollback`.
+
+The test runs the real `build_state()` factory with isolated temporary SQLite paths and disables unrelated optional builders. It keeps the real `HoldingZoneResolver`, while replacing the gate/zone/trigger dependencies with inert test doubles. The patched `threading.Thread.start` calls the real start for the `holding_zone_resolver` thread and then raises an injected `RuntimeError`. This exercises the difficult partial-start case: the OS thread exists even though the factory's call to `start_loop()` fails.
+
+**Assertions:** the original injected construction error propagates; the captured resolver's stop event is set; its worker thread is no longer alive; all four successfully constructed Writers have been closed and their worker references cleared. This directly verifies the parent factory can recover a worker from a builder-like component that publishes its thread handle but does not locally catch the start exception.
+
+**Study result:** the narrow gap identified in §80 is now covered. Together with the five stage-builder tests, the rollback test suite covers partial thread startup at both nested-builder and parent-factory ownership boundaries.
+
+**Validation:** newly added test is awaiting the exact-head CI run. No claim of pass until that run completes successfully.
+
+**Boundaries:** test-only addition; no resolver or cognitive behaviour changed. No registry API, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
