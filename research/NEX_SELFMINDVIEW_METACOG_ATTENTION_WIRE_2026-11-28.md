@@ -40,7 +40,13 @@ The snapshot schema, snapshot writer, theme calculation, Metacognition detector 
 
 This closes the real source-to-sink path: beliefs/tags → SelfMindView snapshot → attention history → Metacognition drift detector → event ledger → prompt context.
 
-## 4. Scope and validation
+## 4. Semantic boundary: two different meanings of attention
+
+The SelfMindView attention aspect is derived from recent belief tags and recent gate counts. Its `current_themes_json` represents recurring semantic themes; it is not the Stage-2 Bonsai branch-focus vector. Metacognition's `attention_groove` is therefore a detector of thematic repetition across snapshots, not a detector of fixation in the Stage-2 attention network.
+
+NEX also has the separate Stage-2 path from external sense events → A–F → Bonsai focus/texture → Fountain branch selection and Global Workspace framing. The inspected SelfMindView attention reader does not consume that Bonsai status. These two uses of “attention” should remain semantically distinct until an explicit mapping is justified and measured. This PR repairs only the theme-history → Metacognition wire; it does not merge the two attention representations.
+
+## 5. Scope and validation
 
 This is a one-column read projection plus an isolated integration test. No database schema, prompt text, detector threshold, feature flag, cognitive policy or governance register changed. The runtime may now emit an existing `attention_groove` observation when repeated themes genuinely appear across snapshots; that is the intended previously disconnected detector behavior.
 
