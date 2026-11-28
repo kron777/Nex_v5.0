@@ -60,6 +60,9 @@ class StrikeProtocol:
         self._membrane = membrane_state
         self._dynamic_reader = dynamic_reader
         self._sense_reader = sense_reader
+        self._stop_event = threading.Event()
+        self._thread_lock = threading.RLock()
+        self._threads: list[threading.Thread] = []
 
     def _capture_snapshot(self) -> Optional[str]:
         """Call snapshot_context() and return JSON string, or error sentinel, or None."""
@@ -78,6 +81,9 @@ class StrikeProtocol:
             return f"[ERROR: {e}]"
 
     def fire(self, strike_type: StrikeType, custom_input: str = "") -> StrikeRecord:
+        with self._thread_lock:
+            if self._stop_event.is_set():
+                raise RuntimeError("StrikeProtocol is stopping")
         fired_at = time.time()
         type_str = strike_type.value
 
@@ -108,12 +114,8 @@ class StrikeProtocol:
         record_id = self._catalogue.save(record)
         record.id = record_id
 
-        # Background: check beliefs_after 60s post-strike
-        threading.Thread(
-            target=self._delayed_belief_check,
-            args=(record_id,),
-            daemon=True,
-        ).start()
+        # Background: delayed catalogue write; AppState owns stop/join.
+        self._schedule_delayed_belief_check(record_id)
 
         error_channel.record(
             f"Strike {type_str} fired (id={record_id}): {record.response_text[:80]}",
@@ -267,12 +269,36 @@ class StrikeProtocol:
             pass
         return hottest_branch, readiness_score
 
-    def _delayed_belief_check(self, record_id: int) -> None:
-        time.sleep(60)
-        count = self._belief_count()
-        try:
-            self._catalogue.update_beliefs_after(record_id, count)
-        except Exception as e:
-            error_channel.record(
-                f"Strike beliefs_after update failed: {e}", source="strikes", exc=e
+    def stop(self) -> None:
+        """Cancel pending delayed belief checks and reject new strikes."""
+        with self._thread_lock:
+            self._stop_event.set()
+
+    def _schedule_delayed_belief_check(self, record_id: int) -> None:
+        with self._thread_lock:
+            if self._stop_event.is_set():
+                return
+            thread = threading.Thread(
+                target=self._delayed_belief_check,
+                args=(record_id,),
+                name=f"strike-belief-check-{record_id}",
+                daemon=True,
             )
+            self._threads.append(thread)
+            thread.start()
+
+    def _delayed_belief_check(self, record_id: int) -> None:
+        current = threading.current_thread()
+        try:
+            if self._stop_event.wait(60):
+                return
+            count = self._belief_count()
+            try:
+                self._catalogue.update_beliefs_after(record_id, count)
+            except Exception as e:
+                error_channel.record(
+                    f"Strike beliefs_after update failed: {e}", source="strikes", exc=e
+                )
+        finally:
+            with self._thread_lock:
+                self._threads = [thread for thread in self._threads if thread is not current]
