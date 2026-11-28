@@ -209,6 +209,8 @@ def main() -> None:
     else:
         log.info("Speech disabled — skipping Kokoro pre-load")
 
+    _abort_if_boot_shutdown_requested(state)
+
     # 5. Mode state (must be before scheduler + fountain)
     log.info("Initialising mode state...")
     mode_state = build_mode_state(writers, readers)
