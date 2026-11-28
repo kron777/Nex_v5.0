@@ -82,18 +82,13 @@ this one to match the original wording.
 Per the same falsifier style this project always uses: *severity-weighted
 self-observation surfaces at least one event, in a measurable fraction of
 checks, that pure recency would never have surfaced within its 14-day
-unresolved lifetime.* Concretely and checkably against 2a's live data as it
-stands today: with the fix on, the very first check would surface `id=2` or
-`id=4` (severity 1.0) instead of `id=6` (severity 0.37) — a falsifiable,
-already-true prediction given the current table, not a hoped-for future one.
+unresolved lifetime.* Concretely and checkably against 2a's historical live-data snapshot: with the implemented quadratic-decay ranking, the 9-day-old severity-1.0 event scores about 0.587 (1 − (9/14)^2), still above the same-day severity-0.37 event. The first check should therefore surface id=2 or id=4 instead of id=6. This is a falsifiable prediction against the 7 November snapshot, not a claim about today's live table.
 
 ## 4. Conditions and window (for 2a; 2b deferred until Phase D is armed)
 
 - **OFF** = today's live behaviour: `ORDER BY created_at DESC LIMIT 3`,
   `recent[0]` always wins.
-- **ON** = `NEX5_SALIENT_SELF_OBS=1`: `ORDER BY severity DESC, created_at DESC
-  LIMIT 10`, same `recent[0]` consumption downstream — only the ranking and
-  candidate-pool size change.
+- **ON** = `NEX5_SALIENT_SELF_OBS=1`: fetch 10 unresolved candidates, then rank by `severity × max(0, 1 - (age_days / _STALE_DAYS)^2)`, with recency as the tie-breaker. The same `recent[0]` is consumed downstream. This is the implemented quadratic-decay ranking, not the original simple severity-descending proposal.
 - **Window** = 14 days (one full `_STALE_DAYS` cycle, so at least one full
   turnover of the unresolved pool is observed) or 20 metacognition `tick()`
   cycles, whichever first — short by this project's standards because the

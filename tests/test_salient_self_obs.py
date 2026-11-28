@@ -128,8 +128,8 @@ class TestFlagOnSalienceRanking(unittest.TestCase):
 
     def test_very_severe_event_clearly_outranks_fresh_mild_one(self):
         """Less borderline than the live numbers, so the win isn't an
-        artifact of a close score -- severity 1.0 @ 5 days old (decay
-        ~0.643, score ~0.643) vs severity 0.1 @ same-day (score 0.1)."""
+        artifact of a close score -- severity 1.0 @ 5 days old (quadratic decay
+        ~0.872, score ~0.872) vs severity 0.1 @ same-day (score 0.1)."""
         _seed_event(self.writers, "groove", severity=1.0, days_ago=5.0)
         _seed_event(self.writers, "uncertainty_stagnation", severity=0.1, days_ago=0.0)
         mc = _build_mc(self.writers, self.readers)
