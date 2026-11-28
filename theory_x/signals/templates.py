@@ -62,23 +62,31 @@ class PatternTemplateLibrary:
         self._writer = writer
         self._reader = reader
 
-    def match(self, signal_rows: list) -> list[dict]:
+    def match(self, signal_rows: list, *, stop_event=None) -> list[dict]:
         """
         Given recent signals (dicts with id, detector_name, payload keys),
         return template matches as pattern record dicts.
         """
         by_detector: dict[str, list] = {}
         for s in signal_rows:
+            if stop_event is not None and stop_event.is_set():
+                return []
             by_detector.setdefault(s["detector_name"], []).append(s)
 
         matches = []
         for tname, template in TEMPLATES.items():
+            if stop_event is not None and stop_event.is_set():
+                return []
             if not all(d in by_detector for d in template.required_detectors):
                 continue
 
             matched_ids = []
             for d in template.required_detectors:
+                if stop_event is not None and stop_event.is_set():
+                    return []
                 for sig in by_detector[d]:
+                    if stop_event is not None and stop_event.is_set():
+                        return []
                     matched_ids.append(sig["id"])
 
             if len(matched_ids) < template.min_signals:
@@ -111,6 +119,8 @@ class PatternTemplateLibrary:
             except Exception:
                 prediction = template.description
 
+            if stop_event is not None and stop_event.is_set():
+                return []
             matches.append({
                 "template_name": tname,
                 "signal_ids": matched_ids,
