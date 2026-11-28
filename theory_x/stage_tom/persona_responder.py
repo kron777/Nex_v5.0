@@ -619,16 +619,22 @@ class PersonaResponderLoop:
     def start_loop(self):
         import threading
         self._alive = True
+        self._stop_event = stop_event = threading.Event()
         def _run():
-            while self._alive:
+            while self._alive and not stop_event.is_set():
                 self.tick()
-                time.sleep(self.interval)
-        threading.Thread(target=_run, daemon=True).start()
+                if stop_event.wait(self.interval):
+                    break
+        self._thread = threading.Thread(target=_run, daemon=True, name="PersonaResponderLoop")
+        self._thread.start()
         logger.info("PersonaResponderLoop ready — a separate mind answering NEX "
                     "every %ds (writes external.other_mind)", self.interval)
 
     def stop(self):
         self._alive = False
+        stop_event = getattr(self, "_stop_event", None)
+        if stop_event is not None:   # G-84: interrupt the interval wait
+            stop_event.set()
 
 
 if __name__ == "__main__":

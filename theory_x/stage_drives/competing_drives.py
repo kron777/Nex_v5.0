@@ -497,13 +497,22 @@ class CompetingDrives:
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     def start_loop(self) -> None:
-        t = threading.Thread(
-            target=self._loop, daemon=True, name="competing_drives_tick"
+        self._stop_event = threading.Event()
+        self._thread = threading.Thread(
+            target=self._loop, args=(self._stop_event,),
+            daemon=True, name="competing_drives_tick",
         )
-        t.start()
+        self._thread.start()
 
-    def _loop(self) -> None:
-        while True:
+    def stop(self) -> None:
+        """Ask the tick loop to exit (G-84). A tick already running completes."""
+        stop_event = getattr(self, "_stop_event", None)
+        if stop_event is not None:
+            stop_event.set()
+
+    def _loop(self, stop_event: Optional[threading.Event] = None) -> None:
+        stop_event = stop_event or threading.Event()
+        while not stop_event.is_set():
             try:
                 self._tick_once()
             except Exception as exc:
@@ -511,7 +520,8 @@ class CompetingDrives:
                     f"competing_drives tick error: {exc}",
                     source=_LOG_SOURCE, exc=exc,
                 )
-            time.sleep(self._interval)
+            if stop_event.wait(self._interval):
+                break
 
     def _tick_once(self) -> None:
         now = time.time()

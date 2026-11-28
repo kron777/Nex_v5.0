@@ -119,5 +119,6 @@ def build_membrane(writers: dict, readers: dict,
             name="membrane.behavioural", daemon=True,
         )
         t.start()
+        state._threads = [t]  # type: ignore[attr-defined]  # G-84: joinable on close
 
     return state

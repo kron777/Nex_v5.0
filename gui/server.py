@@ -724,6 +724,12 @@ class AppState:
     self_pred_loop: Optional[object] = None        # SelfPredictionLoop (NEX5_SELF_PRED)
     edge_generator_loop: Optional[object] = None   # EdgeGeneratorLoop
     decoder_loop: Optional[object] = None          # coincidence decoder: stop() + _thread
+    substrate_harmonic: Optional[object] = None    # SubstrateHarmonic: stop_loop() + _thread
+    genius_tagger: Optional[object] = None         # GeniusTagger: stop_loop() + _thread
+    warrant_recorder: Optional[object] = None      # WarrantRecorder (NEX5_WARRANT_RECORD)
+    competing_drives: Optional[object] = None      # CompetingDrives
+    persona_responder: Optional[object] = None     # PersonaResponderLoop (NEX5_PERSONA_RESPONDER)
+    self_maintain_shadow: Optional[object] = None  # SelfMaintainShadow (NEX5_SELF_MAINTAIN_SHADOW)
     trigger_detector: Optional[object] = None      # Phase 25a TN-1
     throw_net_monitor: Optional[object] = None     # Phase 25a TN-5
     counterfactual_node: Optional[object] = None   # Phase 25b CN
@@ -847,8 +853,9 @@ class AppState:
                 seen_threads.add(id(thread))
                 threads.append(thread)
 
-        # Stage 2 dynamic and the World Model expose _stop/_threads.
-        for label, state in (("dynamic", self.dynamic), ("world_model", self.world_model)):
+        # Stage 2 dynamic, the World Model and the membrane expose _stop/_threads.
+        for label, state in (("dynamic", self.dynamic), ("world_model", self.world_model),
+                             ("membrane", self.membrane)):
             if state is None:
                 continue
             stop = getattr(state, "_stop", None)
@@ -874,6 +881,16 @@ class AppState:
             ("self_pred_loop", self.self_pred_loop, "stop"),
             ("edge_generator_loop", self.edge_generator_loop, "stop"),
             ("decoder_loop", self.decoder_loop, "stop"),
+            ("novel_association", self.novel_association, "stop"),
+            ("affect_state", self.affect_state, "stop"),
+            ("drive_emergence", self.drive_emergence, "stop"),
+            ("social_presence", self.social_presence, "stop"),
+            ("substrate_harmonic", self.substrate_harmonic, "stop_loop"),
+            ("genius_tagger", self.genius_tagger, "stop_loop"),
+            ("warrant_recorder", self.warrant_recorder, "stop"),
+            ("competing_drives", self.competing_drives, "stop"),
+            ("persona_responder", self.persona_responder, "stop"),
+            ("self_maintain_shadow", self.self_maintain_shadow, "stop"),
         )
         for label, worker, stop_name in managed:
             if worker is None:

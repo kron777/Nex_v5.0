@@ -307,11 +307,13 @@ class WarrantRecorder:
         return len(pairs)
 
     # ── loop ────────────────────────────────────────────────────────────────
-    def _loop(self) -> None:
+    def _loop(self, stop_event: Optional[threading.Event] = None) -> None:
         import errors
-        time.sleep(self._delay)
+        stop_event = stop_event or threading.Event()
+        if stop_event.wait(self._delay):
+            return
         next_surv = 0.0
-        while True:
+        while not stop_event.is_set():
             t = time.time()
             try:
                 n = self.use_cycle(t)
@@ -332,12 +334,22 @@ class WarrantRecorder:
                     errors.record(f"warrant recorder survival cycle failed (non-fatal): {exc}",
                                   source=_LOG_SOURCE, exc=exc)
                 next_surv = t + self._si
-            time.sleep(self._ui)
+            if stop_event.wait(self._ui):
+                break
 
     def start_loop(self) -> None:
         if os.environ.get("NEX5_WARRANT_RECORD") != "1":
             return
-        threading.Thread(target=self._loop, daemon=True, name="warrant_recorder").start()
+        self._stop_event = threading.Event()
+        self._thread = threading.Thread(target=self._loop, args=(self._stop_event,),
+                                        daemon=True, name="warrant_recorder")
+        self._thread.start()
+
+    def stop(self) -> None:
+        """Ask the loop to exit (G-84). A cycle already running completes."""
+        stop_event = getattr(self, "_stop_event", None)
+        if stop_event is not None:
+            stop_event.set()
 
     def state(self, now: Optional[float] = None) -> dict:
         return {"name": self.name, **self._stats}

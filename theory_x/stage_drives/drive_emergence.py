@@ -248,15 +248,24 @@ class DriveEmergence:
 
     def start_loop(self) -> None:
         """Start the 600s daemon tick thread."""
-        t = threading.Thread(
-            target=self._loop, daemon=True, name="drive_emergence_tick"
+        self._stop_event = threading.Event()
+        self._thread = threading.Thread(
+            target=self._loop, args=(self._stop_event,),
+            daemon=True, name="drive_emergence_tick",
         )
-        t.start()
+        self._thread.start()
+
+    def stop(self) -> None:
+        """Ask the tick loop to exit (G-84). A tick already running completes."""
+        stop_event = getattr(self, "_stop_event", None)
+        if stop_event is not None:
+            stop_event.set()
 
     # ── Background loop ───────────────────────────────────────────────────────
 
-    def _loop(self) -> None:
-        while True:
+    def _loop(self, stop_event: Optional[threading.Event] = None) -> None:
+        stop_event = stop_event or threading.Event()
+        while not stop_event.is_set():
             try:
                 self._background_tick()
             except Exception as exc:
@@ -264,7 +273,8 @@ class DriveEmergence:
                     f"drive_emergence tick error: {exc}",
                     source=_LOG_SOURCE, exc=exc,
                 )
-            time.sleep(self._interval)
+            if stop_event.wait(self._interval):
+                break
 
     def _own_voice_df(self):
         """DF over her own generated voice (fountain_insight + synergized) for the

@@ -65,6 +65,8 @@ class NovelAssociation:
         self._lock = threading.Lock()
         self._last_scan_at: float = 0.0
         self._edges_written_total: int = 0
+        self._thread: Optional[threading.Thread] = None
+        self._stop_event: Optional[threading.Event] = None
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
@@ -144,16 +146,23 @@ class NovelAssociation:
 
     def start_loop(self) -> None:
         """Start background scan thread. Call once from run.py at boot."""
-        t = threading.Thread(
-            target=self._loop, daemon=True, name="novel_association_loop"
+        self._stop_event = threading.Event()
+        self._thread = threading.Thread(
+            target=self._loop, args=(self._stop_event,),
+            daemon=True, name="novel_association_loop",
         )
-        t.start()
+        self._thread.start()
+
+    def stop(self) -> None:
+        """Ask the scan loop to exit (G-84). A scan already running completes."""
+        if self._stop_event is not None:
+            self._stop_event.set()
 
     # ── internal ─────────────────────────────────────────────────────────────
 
-    def _loop(self) -> None:
-        while True:
-            time.sleep(_LOOP_INTERVAL_S)
+    def _loop(self, stop_event: Optional[threading.Event] = None) -> None:
+        stop_event = stop_event or threading.Event()
+        while not stop_event.wait(_LOOP_INTERVAL_S):
             try:
                 # Force scan regardless of interval (loop already sleeps the interval)
                 with self._lock:
