@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `b5e78842f43ac93c2624697f686da0b600306177`  
+**Last verified against:** `main` at `3377197c4d216aedc7708a9d1ee758144bd0b09b`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 28 November 2026 — records Sentience 5.5/NEX cognitive wire trace (§46), self-binding shared-Writer correction and open semantic edges (§47), and current RDO/Watcher progress; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — records Sentience 5.5/NEX cognitive wire trace (§46), self-binding shared-Writer correction and open semantic edges (§47), current RDO/Watcher progress, and current-main lifecycle/integration reconciliation (§16); Gate 0 boundaries remain.*
 
 
 
@@ -1119,3 +1119,59 @@ The first exact-head CI exposed one stale self-assessment expectation: RDO corre
 The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.tension._find_cycles`, `_classify_cycle`, `assess_system` and `rdo.graph` SCC machinery to distinguish prerequisite cycles, influence feedback loops and unknown cases. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
+
+
+---
+
+## 16. Current-main reconciliation — lifecycle hardening and cognitive wire characterization (28 November 2026)
+
+**Verified base:** `main` at `3377197c4d216aedc7708a9d1ee758144bd0b09b`. This section supersedes the 27 November mainline/PR inventory in §11 for changes merged after that snapshot. It does not retroactively refresh older evidence artefacts or convert PR-only work into mainline capability.
+
+### 16.1 Graceful shutdown: merged lifecycle increments
+
+The following changes are present on the verified mainline:
+
+- **#370 — bounded graceful shutdown and truthful close reporting** (merge `88df7413b31e3ab9898c9ee99eef7fb552e70745`). One 12-second monotonic deadline begins at signal receipt and is shared by producer stop/join and all Writer drains. `AppState.close(deadline=...)` returns a structured report; Writer wrappers receive only the remaining budget; a clean-shutdown marker is written only after successful close and successful marker persistence. An incomplete drain exits non-zero and does not claim a clean shutdown. Exact-head full-suite evidence recorded in the PR: 2,923 passed, 7 skipped, 62 subtests; baseline verification passed. This is a bounded application-level protocol, not proof that every process thread is registered.
+- **#375 — remaining known Writer producers** (merge `ee88ae41b979ba802aef42a0350c2a410d16d519`). Adds interruptible stop Events and retained thread handles for the identified AppState-held and `run.py`-started producers; registers them with AppState so in-flight Writer work is joined before Writer closure. The membrane thread is retained. Cadences, first delays, tick order and processing policy are intended to remain unchanged. This closes the identified producer set in that increment, not the repository-wide thread census.
+- **#377 — StrikeProtocol catalogue workers** (merge `3377197c4d216aedc7708a9d1ee758144bd0b09b`, the current verified main head). StrikeProtocol's delayed direct-SQLite belief-count workers and in-flight `fire()` callers now have stop/ownership tracking. Long waits are interruptible; new fire calls are rejected after stop begins; a worker cannot schedule a delayed write after shutdown starts. Interrupted SILENCE observation is marked incomplete rather than represented as completed. Exact-head GitHub Actions `tests` workflow reports success. This is a direct-catalogue lifecycle correction, not a migration of that catalogue to the shared Writer and not a change to strike policy.
+
+### 16.2 Flask request lifecycle — open PR #378, not yet mainline
+
+PR #378 (`fix/shutdown: drain in-flight Flask requests before AppState close`) is open against the verified base. Its proposed `ShutdownGate` atomically closes HTTP request admission, counts active Flask requests, rejects new requests with HTTP 503 after shutdown begins, and waits for admitted requests to finish before decoder stop and `AppState.close()`. The same 12-second monotonic deadline covers request drain, producer shutdown and Writer drain. The previous fixed 1.5-second wait is removed. SIGTERM and SIGINT share the guarded handler.
+
+The proposed failure path reports active request labels, thread names and elapsed durations; if request drain times out, it does not close Writers under active requests, does not write a clean marker and exits non-zero.
+
+**Boundary:** this gate covers requests entering through this Flask application. Detached work spawned by a route must still be registered with AppState. Alternate WSGI servers, reverse-proxy workers, direct non-HTTP callers and host/service-manager behaviour remain outside the demonstrated boundary.
+
+At this audit, PR #378's exact-head `tests` workflow was still **in progress**. Do not describe this request gate as merged or as current-main runtime behaviour until the PR is independently rechecked and merged.
+
+### 16.3 Cognitive integration characterization — open PR #379, not yet mainline
+
+PR #379 is test/research-only. It adds source maps and deterministic characterization for chat-time affect faculty dependencies and the Stage-2 Bonsai attention state flowing into Fountain branch selection and Global Workspace framing. It also extends a scoped Sentience 5.5 comparison across Integration, Self-Model, Meta-Awareness, Cognitive-Control, Orchestrator, System-Integration and Control sources.
+
+The proposed tests exercise actual Stage-2 A–F events, the Bonsai focus admission threshold, Fountain's hottest-branch selection, the opt-in positive-temperature alternative, and Global Workspace candidate competition. Its negative control checks that internal telemetry alone does not create Bonsai focus, an F-step event or a workspace candidate.
+
+**Interpretation boundary:** this characterizes specific source pathways and deterministic test behaviour; it is not a broad demonstration of cognitive efficacy or consciousness. The Sentience comparison is explicitly limited to inspected files because repository-wide search indexing was incomplete.
+
+Mind Aspects remain interpretive faculties. They must not become action-control gates, approval authorities or vetoes by virtue of their position in a descriptive mind map. Keep interpretive cognition separate from typed operation representation, capability validation, approval authority, execution and post-execution verification.
+
+At this audit, PR #379's exact-head `tests` workflow was still **in progress**. Its tests and source map are not yet mainline evidence.
+
+### 16.4 Superseded branches and status discipline
+
+- **#373** is closed without merge; it was a stacked G-84 step-4 branch superseded by the clean current-main replay #375.
+- **#376** is closed without merge; its StrikeProtocol work was superseded by the current-main replay #377.
+- **#378 and #379** remain open at this snapshot. Their head branches are not part of `main`.
+- Historical test results from superseded heads must not be represented as current-main validation.
+- PR metadata, mergeability and an in-progress CI run are not equivalent to successful exact-head validation or merge.
+
+### 16.5 Remaining research and development work
+
+1. Recheck #378 and #379 exact head SHAs, all required CI jobs, baseline verification and merge state before updating this section again.
+2. After #378 is merged, rescan the complete shutdown path from signal receipt through request admission, detached route work, registered producers, direct database writers, Writers, clean-marker persistence, process exit and keepalive restart. Add regressions only for demonstrated gaps.
+3. Continue the host/server evidence work: inspect the actual deployment contract and determine whether the Flask threaded server is the only entry point. Do not infer host behaviour from repository tests.
+4. Continue the faculty producer→consumer audit from #379, distinguishing construction, boot wiring, flag enablement, consumption and measured behavioural effect.
+5. Reconcile the G-84/G-92 status text and Phase 0 evidence pack only against a fresh current-main snapshot. The original #363 documentation reconciliation was deliberately not carried forward because its status text was stale.
+6. Keep S-01–S-25/M1.8, the Master Roadmap, Gate 0 and Phase 1 authority unchanged. No open PR, passing test suite or technical mergeability authorizes a phase transition.
+
+This section is a dated source/PR snapshot. Refresh it after subsequent merges rather than silently treating it as live status.
