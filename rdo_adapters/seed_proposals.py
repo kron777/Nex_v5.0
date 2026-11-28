@@ -285,6 +285,8 @@ class SeedProposalStore:
                 } or record.get("proposal_id") != proposal_id:
                     raise SeedProposalError("seed proposal record shape or identity is invalid")
                 raw = validate_raw_objective(record["raw_objective"])
+                if record["raw_objective"] != raw:
+                    raise SeedProposalError("raw objective record is not in canonical validated form")
                 raw_hash = _digest(raw)
                 if record.get("raw_objective_sha256") != raw_hash:
                     raise SeedProposalError("raw objective digest mismatch in proposal ledger")
