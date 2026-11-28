@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `d580248ecf9436784a8772c50e733008baaf1b41`  
+**Last verified against:** `main` at `b5e78842f43ac93c2624697f686da0b600306177`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -1093,3 +1093,35 @@ These are candidates for further source tracing and controlled experiments. No e
 **G-94 is corrected in the PR branch, pending exact-head full-suite CI and review.** No pass count is claimed until that run completes. The changes do not alter self-binding content, faculty semantics, prompt text, selection weights, feature flags, database schema or history shape. No live service or database was accessed.
 
 This is a persistence-ownership correction that preserves the existing cognitive connections. It does not add a new faculty or claim that the recursive self-reading nudge produces a beneficial attention change. Gate 0 and Phase 1 authority remain unchanged.
+
+## 49. Bonsai → Fountain branch pick → Global Workspace trace (28 November 2026)
+
+**Evidence snapshot:** NEX `main` at `d580248ecf9436784a8772c50e733008baaf1b41`. Test-only characterization is proposed on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; exact-head CI pending.
+
+### Network path
+
+The Stage-2 A–F pipeline already propagates external sense events into Bonsai branch focus and texture. This increment follows that state into two separate downstream consumers:
+
+1. Fountain's `_weighted_branch_pick(sorted_branches, top_pick)` reads the branch `focus_num` values. With `NEX5_BRANCH_TEMP` unset/zero it returns the hottest branch unchanged; with a positive temperature it performs softmax-weighted selection, allowing a lower-focus branch to surface.
+2. The Global Workspace's `_bonsai_candidate(status)` reads the same branch state, converts the hottest branch's focus into salience using `_W_BONSAI`, and offers it to `arbitrate_candidates()` alongside other candidate frames. The winner becomes the leading frame; other faculty contributions remain below it.
+
+These are separate consumers of a shared state, not one single arbiter. Fountain branch choice is stochastic when its temperature flag is enabled; Global Workspace frame selection is deterministic argmax over candidate salience.
+
+### Test added
+
+`tests/test_dynamic.py` now sends repeated `ai_research.arxiv` events through the real Stage-2 pipeline, verifies the branch focus exceeds the Global Workspace admission threshold, then asserts:
+- the default Fountain path picks the highest-focus branch;
+- a deterministic high-temperature draw can select a lower-focus branch;
+- the same Bonsai snapshot produces an `ai_research` Global Workspace candidate and wins against a deliberately lower-salience momentum candidate.
+
+The existing internal-telemetry negative control remains separate: `internal.proprioception` maps to `systems` at the match layer but produces zero magnitude and no Bonsai focus change/F-step event. This protects the known anti-starvation boundary.
+
+### Interpretation and limits
+
+This establishes a source-level, fixture-tested path from external perception through attention state into branch selection and workspace framing. It does not prove that either selection strategy improves cognition or that the resulting language output is more accurate. It does not exercise live Fountain fires, real databases, or production feature flags.
+
+The next research step is to measure interaction effects under controlled perturbations: vary one branch's focus, one workspace candidate and one competing drive separately; record winner-kind shifts and downstream output changes. Keep the default-off branch temperature and all other production settings unchanged.
+
+A parallel Sentience 5.5 source audit is recorded in `research/SENTIENCE_5_5_INTEGRATION_AND_SELF_MODEL_TRACE_2026-11-28.md`. It finds that Sentience's Integration_Node is currently a latest-value aggregator (later inputs overwrite prior values; frames can mix fresh and stale components), while Self_Model_Node, Meta_Awareness_Node and Cognitive_Control_Node are distinct mechanisms whose cross-wiring is not demonstrated in the inspected files. The audit also found a conditional deadlock in `Self_Model_Node.heartbeat()` when it tries to register an unknown node while holding the same non-reentrant lock. This reinforces the need to trace actual producer/consumer edges rather than infer integration from node names or shared repository membership.
+
+No runtime behavior, prompt policy, salience weight, feature flag, database schema, frozen specification or gate authority was changed.
