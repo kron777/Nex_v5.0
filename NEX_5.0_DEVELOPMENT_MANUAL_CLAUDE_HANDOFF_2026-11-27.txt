@@ -1964,7 +1964,7 @@ This means a signal can be delayed until the current builder returns. That trade
 
 - This is repository source/test work, not a live host or robot shutdown rehearsal. Real SIGTERM delivery, service-manager timeouts, SQLite contention and hardware startup timing remain unknown.
 - A synchronous builder can delay the response to a boot-shutdown request until its next checkpoint.
-- Partial Writer cleanup covers constructors that returned and were published in the local registry. A failure inside a Writer constructor after an OS thread exists but before the constructor returns is handled by the separate rebased candidate PR #421 (§62). Its original exact-head suite passed; the rebased head is undergoing a fresh exact-head run.
+- Partial Writer cleanup covers constructors that returned and were published in the local registry. A failure inside a Writer constructor after an OS thread exists but before the constructor returns is handled by merged PR #424 (§62), with exact-head full-suite validation.
 - SIGKILL, power loss and process abort cannot be handled by Python cleanup.
 - No process-wide thread census, new runtime flag, database, cognitive mechanism, Mind Aspect action authority or frozen-spec change is introduced.
 
@@ -2022,9 +2022,9 @@ This is a narrow integrity/durability correction to the existing append-only rul
 
 ---
 
-## 62. Writer constructor rollback after partial thread creation — candidate PR #421 (28 November 2026)
+## 62. Writer constructor rollback after partial thread creation — merged PR #424 (28 November 2026)
 
-**Source snapshot:** current main after merged PR #420 (`bf5dbbed66fc0d4884471420998823f658aedc7b`), #422 (`870d16359084db56de6e117aa90a8212abcb6350`) and #423 (`c374185338070aeb2653227c04c487ef11fd5e6c`), plus documentation sync commit `7d4b528b61d9567e9801bb67e61338084dfbd277`. Candidate branch: `fix/writer-start-rollback-final-rebase-2026-11-28`. The original candidate head `fe1be45ac5fb1efedf6e9daf362c9dfbef1c7d3d` passed 3,055 tests, 7 skipped and 86 subtests; that result is not validation of this rebased head.
+**Source snapshot:** current main after merged PR #420 (`bf5dbbed66fc0d4884471420998823f658aedc7b`), #422 (`870d16359084db56de6e117aa90a8212abcb6350`), #423 (`c374185338070aeb2653227c04c487ef11fd5e6c`) and #424 (`b604ddfe4949b504196e005399c602677af157bd`). The final Writer rollback change was squash-merged from the rebased PR #424 branch.
 
 ### Source-derived gap and correction
 
@@ -2036,21 +2036,21 @@ Four deterministic cases cover: post-OS-start exception and worker rollback; pre
 
 ### Integration boundary
 
-This is complementary to merged PR #420: #421 owns the individual partially started Writer, while #420 owns already-created producers during boot before AppState takes over. **Merged:** PR #424, merge commit `b604ddfe4949b504196e005399c602677af157bd`. Exact-head workflow run `46145202367` passed **3,064 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map check reports `p1_continuity` source drift because `substrate/writer.py` changed after its 2026-11-27 verification; this is an evidence-refresh item, not a failed test. No live dual-writer or host/robot runtime rehearsal is claimed.
+This is complementary to merged PR #420: #424 owns the individual partially started Writer, while #420 owns already-created producers during boot before AppState takes over. **Merged:** PR #424, merge commit `b604ddfe4949b504196e005399c602677af157bd`. Exact-head workflow run `46145202367` passed **3,064 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map check reports `p1_continuity` source drift because `substrate/writer.py` changed after its 2026-11-27 verification; this is an evidence-refresh item, not a failed test. No live dual-writer or host/robot runtime rehearsal is claimed.
 
 **Unchanged boundaries:** no Writer transaction semantics, schema, runtime configuration, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, descriptive Mind Aspect role, or cognitive/action authority separation is changed.
 
 ---
 
-## 64. Provider-neutral CLI for inert expansion-rule proposals — candidate PR #432 (28 November 2026)
+## 64. Provider-neutral CLI for inert expansion-rule proposals — merged PR #432 (28 November 2026)
 
-**Candidate:** [PR #432](https://github.com/kron777/Nex_v5.0/pull/432), branch `feat/rule-proposal-cli-release-final-2026-11-28`. This exposes the already-implemented `RuleProposalStore` lifecycle through three commands: `rule-propose` submits an exact-schema request/candidate envelope; `rule-review` appends an explicit review decision; and `rule-history` inspects proposals/events with an optional proposal filter. The default ledger remains `rdo/.cycles/rule_proposals.jsonl`.
+**Merged:** [PR #432](https://github.com/kron777/Nex_v5.0/pull/432), merge commit `e29c6d8e2a8a486a54272445baab58ff5b1c5610`. This exposes the already-implemented `RuleProposalStore` lifecycle through three commands: `rule-propose` submits an exact-schema request/candidate envelope; `rule-review` appends an explicit review decision; and `rule-history` inspects proposals/events with an optional proposal filter. The default ledger remains `rdo/.cycles/rule_proposals.jsonl`.
 
 The commands reuse the existing store and its catalogue fingerprint, schema validation, append-only hash chain, exclusive locking, prospective-event replay validation and fsync behavior. No second ledger or rule engine is introduced. The JSON envelope rejects unknown fields and duplicate JSON properties before store access. Proposer/reviewer labels remain caller-attributed, not identity-authenticated.
 
 **Authority boundary:** `approved_for_catalogue` remains inert. No activation, dynamic loading, generated-code execution, catalogue mutation, runtime action or authority grant is exposed. The only route into `EXPANSION_RULES` remains a separate reviewed source change with tests and CI.
 
-**Validation:** new `rdo/tests/test_rule_proposal_cli.py` covers command routing, review fields, filtered history, exact input-field and duplicate-key rejection before store access, and a real-ledger end-to-end check that approval leaves `EXPANSION_RULES` unchanged. Exact-head CI is pending; no pass is claimed for the candidate.
+**Validation:** new `rdo/tests/test_rule_proposal_cli.py` covers command routing, review fields, filtered history, exact input-field and duplicate-key rejection before store access, and a real-ledger end-to-end check that approval leaves `EXPANSION_RULES` unchanged. Exact-head workflow run `46146066321` passed **3,068 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map warning for stale `p1_continuity` anchors is addressed separately in PR #434.
 
 **Unchanged boundaries:** no frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, or cognitive/action authority is changed.
 
