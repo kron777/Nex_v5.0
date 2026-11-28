@@ -5455,3 +5455,26 @@ The earlier host diagnostic record adds an important qualification to §138:
 **Next bounded observation:** inspect the current loaded unit and timer with `systemctl --user cat/status/list-timers nex5-db-reaper.timer nex5-db-reaper.service`, then inspect the last service journal entry and reaper log. Do not start/restart the service as part of an evidence-only check.
 
 **Authority boundary:** no unit, path, timer, service, database or runtime state changed. This records historical host evidence and the remaining unknowns only.
+
+
+## §146 — G-83 narrative retrieval is literal prompt-prefix matching, not semantic topic retrieval (28 November 2026)
+
+**Question studied:** how does the GUI choose which persistent Stage-SelfNarrative rows to surface, and what does “current topic” mean at the actual call site?
+
+### Source path
+
+- gui/server.py passes SimpleNamespace(current_topic=prompt[:100]) to SelfNarrative.format_for_prompt().
+- The formatter uses the entire supplied string as a case-insensitive SQL LIKE '%topic%' substring against narrative_log.content.
+- It does not extract keywords, normalize a semantic topic, embed the prompt, rank by similarity or consult the GrooveSpotter alert type.
+- The match is therefore literal substring containment. A short prompt phrase that appears inside the narrative can match; a paraphrase or a longer first-100-character prefix that does not occur verbatim in the stored narrative will not.
+- The formatter selects at most five matching rows, ordered newest first, with no age cutoff and no source/trigger deduplication. It returns narrative content and a relative age label, not the stored trigger/source ID.
+
+### Consequence
+
+The pattern-specific Stage-SelfNarrative path is not a general semantic retrieval mechanism. It is a narrow, user-prompt-conditioned string lookup. PR #450's fixture deliberately sends the exact phrase "same source pattern", which is contained in the stored narrative text; that proves the matching branch works for an exact phrase, not that ordinary paraphrased conversation will retrieve the narrative.
+
+This is distinct from the generic Metacognition self-observation line, which is produced from the cached top event without requiring the user to repeat the pattern phrase. The two prompt contributions have different retrieval rules and should not be conflated.
+
+**Next bounded characterization:** use controlled prompt variants (exact phrase, case variant, paraphrase, and a longer prompt whose first 100 characters contain the phrase only after the cutoff) against an isolated narrative fixture. Record which rows are returned without changing the matching policy. Then locate the approved intent for literal matching versus semantic retrieval. Do not replace substring matching with embeddings or alter prompt policy before Gate 0.
+
+**Disposition:** source-observed literal prefix-substring matching; exact-phrase route delivery test-verified in PR #450; paraphrase behaviour is source-derived and not separately tested. G-83 remains OPEN. No retrieval policy, narrative retention, runtime code, schema, flags, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
