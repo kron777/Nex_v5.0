@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import time
+import threading
 from typing import Optional
 
 logger = logging.getLogger("theory_x.stage6_fountain")
@@ -1396,7 +1397,12 @@ class FountainGenerator:
     _SUBSTRATE_VOICE_COOLDOWN_FIRES = 5
 
     def _maybe_substrate_voice(
-        self, beliefs_reader, readiness: float, trace=None,
+        self,
+        beliefs_reader,
+        readiness: float,
+        trace=None,
+        *,
+        stop_event: Optional[threading.Event] = None,
     ) -> Optional[str]:
         """Substrate-as-voice path. Returns the emitted thought if we fired
         this way, or None to fall through to normal generation.
@@ -1408,6 +1414,8 @@ class FountainGenerator:
 
         Selection: least-recently-voiced anchor (ORDER BY last_voiced_at ASC).
         """
+        if stop_event is not None and stop_event.is_set():
+            return None
         last_sv = getattr(self, "_last_substrate_voice_fire", -999)
         # Groove-aware cooldown: a fixed 5-fire gap lets a HARD groove (sev~1.0)
         # re-establish in the gap, so the breaker becomes a periodic tap instead
@@ -1424,6 +1432,8 @@ class FountainGenerator:
             _gr_sev = float(_gr_row["s"] or 0.0) if _gr_row else 0.0
         except Exception:
             _gr_sev = 0.0
+        if stop_event is not None and stop_event.is_set():
+            return None
         if _gr_sev >= 0.9:
             _cooldown = 1
         elif _gr_sev >= 0.8:
@@ -1442,6 +1452,8 @@ class FountainGenerator:
             groove = float(row["s"] or 0.0) if row else 0.0
         except Exception:
             groove = 0.0
+        if stop_event is not None and stop_event.is_set():
+            return None
         if groove < self._SUBSTRATE_VOICE_GROOVE_THRESHOLD:
             return None
 
@@ -1454,6 +1466,8 @@ class FountainGenerator:
             )
             rows = list(rows or [])
         except Exception:
+            return None
+        if stop_event is not None and stop_event.is_set():
             return None
         if not rows:
             return None
@@ -1483,6 +1497,10 @@ class FountainGenerator:
 
         ts_now = time.time()
 
+        if stop_event is not None and stop_event.is_set():
+            return None
+        # Once the anchor-touch write begins, finish its paired fountain event
+        # so the stored last_voiced_at timestamp has a corresponding fire.
         if self._beliefs_writer is not None:
             try:
                 self._beliefs_writer.write(
@@ -1522,9 +1540,11 @@ class FountainGenerator:
                 )
                 trace.remember("substrate_voice_event", _substrate_event_trace_id)
             self._link_activation_to_event()
-            # Snapshot the substrate_voice fire (Mode A walks). Fire-and-forget.
+            # Snapshot is optional; skip it once shutdown is observed.
             try:
-                if _sv_fid:
+                if _sv_fid and not (
+                    stop_event is not None and stop_event.is_set()
+                ):
                     self._capture_fire_snapshot(_sv_fid, "substrate_voice", anchor_id)
             except Exception:
                 pass
@@ -1649,7 +1669,15 @@ class FountainGenerator:
         logger.info("frame_gate: retry unclean/empty, kept original")
         return thought
 
-    def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
+    def generate(
+        self,
+        dynamic_state,
+        beliefs_reader: Reader,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Optional[str]:
+        if stop_event is not None and stop_event.is_set():
+            return None
         trace = None
         if os.environ.get("NEX5_TRACE_OVERLAY", "0").strip().lower() in {
             "1", "true", "on", "yes", "y",
@@ -1660,8 +1688,10 @@ class FountainGenerator:
             except Exception:
                 trace = None
         if trace is None:
-            # The default-OFF path keeps the original direct call and exception path.
-            return self._generate(dynamic_state, beliefs_reader)
+            # Preserve the historical call shape when no stop Event is supplied.
+            if stop_event is None:
+                return self._generate(dynamic_state, beliefs_reader)
+            return self._generate(dynamic_state, beliefs_reader, stop_event=stop_event)
 
         _tick_record_id = trace.record(
             "input_arrival", "fountain_tick",
@@ -1670,13 +1700,22 @@ class FountainGenerator:
         )
         trace.remember("fountain_tick", _tick_record_id)
         try:
-            result = self._generate(dynamic_state, beliefs_reader, trace=trace)
+            if stop_event is None:
+                result = self._generate(dynamic_state, beliefs_reader, trace=trace)
+            else:
+                result = self._generate(
+                    dynamic_state, beliefs_reader, trace=trace, stop_event=stop_event
+                )
         except Exception as exc:
             if trace is not None:
                 trace.record("output", "generation_error",
                              metadata={"error_type": type(exc).__name__},
                              parent_ids=[trace.reference("input_arrival")])
             raise
+        if stop_event is not None and stop_event.is_set():
+            # Preserve a fire already committed by _generate(); only suppress
+            # the optional trace-output write after shutdown is observed.
+            return result
         if trace is not None:
             trace.output(
                 result, output_kind="fountain_thought",
@@ -1695,10 +1734,24 @@ class FountainGenerator:
             )
         return result
 
-    def _generate(self, dynamic_state, beliefs_reader: Reader, trace=None) -> Optional[str]:
+    def _generate(
+        self,
+        dynamic_state,
+        beliefs_reader: Reader,
+        trace=None,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Optional[str]:
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return None
         readiness = self._evaluator.score(
             dynamic_state, beliefs_reader, last_fire_ts=self._last_fire_ts
         )
+        if _stopping():
+            return None
         _ready = self._evaluator.is_ready(readiness)
         if trace is not None:
             _readiness_record_id = trace.record(
@@ -1726,15 +1779,23 @@ class FountainGenerator:
         # Per-fire competing-drives activation
         self._last_activation_id = None
         if self._competing_drives is not None:
+            if _stopping():
+                return None
             try:
-                self._last_activation_id = self._competing_drives.compute_now()
+                self._last_activation_id = self._competing_drives.compute_now(
+                    stop_event=stop_event,
+                )
             except Exception:
                 pass
+            if _stopping():
+                return None
 
         # Intervention C - Substrate-as-Voice
         # When groove severity is high (template-grip is real) and
         # cooldown has elapsed, surface a tier-1/2 anchor belief verbatim.
         # Bypasses LLM, crystallizer, condenser.
+        if _stopping():
+            return None
         try:
             # 2026-07-25: SYNTH_EMIT clause dropped -- that code path was
             # removed (session 49), the flag it checked is gone with it.
@@ -1744,11 +1805,16 @@ class FountainGenerator:
             # the SYNTH_EMIT half changes nothing observable either way.
             if os.environ.get("NEX5_RECONCILE") != "1":
                 if trace is None:
-                    _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
+                    _sv_thought = self._maybe_substrate_voice(
+                        beliefs_reader, readiness, stop_event=stop_event,
+                    )
                 else:
                     _sv_thought = self._maybe_substrate_voice(
                         beliefs_reader, readiness, trace=trace,
+                        stop_event=stop_event,
                     )
+                if _stopping():
+                    return None
                 if _sv_thought is not None:
                     if trace is not None:
                         _substrate_replay_id = trace.record(
@@ -1818,6 +1884,8 @@ class FountainGenerator:
                     ),
                 )
 
+            if _stopping():
+                return None
             ts_now = time.time()
             _quiescent_event_id = self._dynamic_writer.write(
                 "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
@@ -1843,10 +1911,14 @@ class FountainGenerator:
             )
             return thought
 
+        if _stopping():
+            return None
         try:
             status = dynamic_state.status()
         except Exception:
             status = {}
+        if _stopping():
+            return None
 
         belief_count = 0
         tier_dist: dict = {}
@@ -1874,6 +1946,8 @@ class FountainGenerator:
         if self._total_fires % 8 == 7 and readiness >= 0.8 and belief_count >= 20:
             koan = self._select_koan(beliefs_reader)
 
+        if _stopping():
+            return None
         if trace is None:
             prompt, retrieval_manifest = self._build_prompt(
                 status, belief_count, tier_dist, disturbance=disturbance, koan=koan,
@@ -1883,6 +1957,8 @@ class FountainGenerator:
                 status, belief_count, tier_dist, disturbance=disturbance, koan=koan,
                 trace=trace,
             )
+        if _stopping():
+            return None
 
         try:
             with open('/tmp/nex5_last_prompt.log', 'w') as _f:
@@ -1906,10 +1982,14 @@ class FountainGenerator:
         if _own_belief_ids and readiness < _STILLNESS_READINESS_CAP:
             _jaccard = self._check_retrieval_duplicate(_own_belief_ids)
             if _jaccard >= _STILLNESS_JACCARD_THRESHOLD:
+                if _stopping():
+                    return None
                 _sig = ",".join(str(x) for x in sorted(_own_belief_ids))
                 if self._consecutive_stillness >= 3:
                     # Force-fire: three consecutive stillness events — break silence.
                     _fountain_stillness_reason = "force_fire"
+                    if _stopping():
+                        return None
                     prompt = (
                         f"You have been quiet for the last "
                         f"{self._consecutive_stillness} cycles.\n\n{prompt}"
@@ -1933,6 +2013,8 @@ class FountainGenerator:
                         pass
                     self._consecutive_stillness = 0
                 else:
+                    if _stopping():
+                        return None
                     _went_still = True
                     self._consecutive_stillness += 1
                     _ts_still = time.time()
@@ -1976,6 +2058,8 @@ class FountainGenerator:
                         f"consecutive={self._consecutive_stillness}",
                         source="stage6_fountain", level="INFO",
                     )
+        if _stopping():
+            return None
         if _went_still:
             if trace is not None:
                 _stillness_gate_id = trace.gate(
@@ -2222,11 +2306,15 @@ class FountainGenerator:
                             ],
                         )
                         trace.remember("fountain_voice_prompt", _reconcile_prompt_id)
+                    if _stopping():
+                        return None
                     _rcresp = self._voice.speak(
                         VoiceRequest(prompt=_rcprompt, register=_rcreg,
                                      self_report_examples=False),
                         beliefs=None,
                     )
+                    if _stopping():
+                        return None
                     thought = (_rcresp.text or "").strip()
                     if trace is not None:
                         _reconcile_candidate_id = trace.record(
@@ -2237,10 +2325,14 @@ class FountainGenerator:
                         trace.remember("fountain_output_candidate", _reconcile_candidate_id)
                         trace.remember("fountain_output_parent", _reconcile_candidate_id)
                     if thought:
+                        if _stopping():
+                            return None
                         _emitted = True
                         if os.environ.get("NEX5_RECONCILE_WB") == "1" and self._problem_memory is not None:
                             import json as _wbjson
                             for _wbp in _probs[:2]:
+                                if _stopping():
+                                    return None
                                 try:
                                     _prev = _wbp["observations"] if "observations" in _wbp.keys() else None
                                     _lasttxt = ""
@@ -2281,12 +2373,16 @@ class FountainGenerator:
                                     ))
                                     _is_artifact = ((not _abstain) and (not _planning)
                                                     and 0 < len(_tnorm) <= 700)
+                                    if _stopping():
+                                        return None
                                     if (os.environ.get("NEX5_ABSTAIN_CLOSE") == "1"
                                             and _abstain and _ocount >= 10 and _is_target):
                                         self._problem_memory.close(int(_wbp["id"]))
                                     elif (os.environ.get("NEX5_COMMIT_CLOSE") == "1"
                                             and _is_artifact and _ocount >= 10 and _is_target):
                                         self._problem_memory.observe(int(_wbp["id"]), thought)
+                                        if _stopping():
+                                            return None
                                         self._problem_memory.close(int(_wbp["id"]))
                                     elif (len(_tnorm) >= 300
                                             and _tnorm != _lasttxt.strip()):
@@ -2329,11 +2425,15 @@ class FountainGenerator:
                     ],
                 )
                 trace.remember("fountain_voice_prompt", _normal_prompt_id)
+            if _stopping():
+                return None
             resp = self._voice.speak(
                 VoiceRequest(prompt=prompt, register=PHILOSOPHICAL,
                              self_report_examples=False),
                 beliefs=None,
             )
+            if _stopping():
+                return None
             thought = resp.text.strip()
             if trace is not None:
                 _voice_candidate_id = trace.record(
@@ -2362,6 +2462,8 @@ class FountainGenerator:
                     and _non_ascii_letter_share(thought) > _FIRE_LANG_MAX_NON_ASCII):
                 _first_share = _non_ascii_letter_share(thought)
                 try:
+                    if _stopping():
+                        return None
                     _retry_prompt = prompt + _FIRE_LANG_RETRY_SUFFIX
                     if trace is not None:
                         trace.record(
@@ -2374,6 +2476,8 @@ class FountainGenerator:
                                      self_report_examples=False),
                         beliefs=None,
                     )
+                    if _stopping():
+                        return None
                     _rt = (_retry.text or "").strip()
                     if trace is not None:
                         trace.record(
@@ -2391,10 +2495,14 @@ class FountainGenerator:
             # NEX5_FRAME_GATE (default OFF): register-moha exit guard — detector-gated
             # single regeneration (the FIRE_LANG_GUARD analogue; see _apply_frame_gate).
             _before_frame_gate = thought
+            if _stopping():
+                return None
             if trace is None:
                 thought = self._apply_frame_gate(thought, prompt)
             else:
                 thought = self._apply_frame_gate(thought, prompt, trace=trace)
+            if _stopping():
+                return None
             if trace is not None:
                 _frame_gate_id = trace.record(
                     "output_filter", "frame_gate_applied",
@@ -2410,6 +2518,8 @@ class FountainGenerator:
                 trace.remember("fountain_output_candidate", _frame_gate_id)
                 trace.remember("fountain_output_parent", _frame_gate_id)
           except Exception as e:
+            if _stopping():
+                return None
             voice_ok = False
             logger.warning("Fountain: voice unreachable, using sense fallback: %s", e)
             error_channel.record(
@@ -2452,11 +2562,13 @@ class FountainGenerator:
                 trace.remember("fountain_output_candidate", _fallback_tick_candidate_id)
                 trace.remember("fountain_output_parent", _fallback_tick_candidate_id)
 
-        if not thought:
+        if _stopping() or not thought:
             return None
 
         # Voice was down — write a bare tick, skip condenser and crystallizer
         if not voice_ok:
+            if _stopping():
+                return None
             ts_now = time.time()
             _fallback_event_id = self._dynamic_writer.write(
                 "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
@@ -2486,6 +2598,33 @@ class FountainGenerator:
                         self._total_fires, thought[:80])
             return thought
 
+        # Prepare all potentially blocking, read-only/LLM post-processing before
+        # the core fire persistence pair. If shutdown arrives during condensing
+        # or emphasis scoring, abort before recording the sense/fountain events.
+        if _stopping():
+            return None
+        droplet = None
+        if self._condenser is not None:
+            try:
+                droplet = self._condenser.condense(thought)
+            except Exception as _e:
+                error_channel.record(f"Condenser error: {_e}", source="stage6_fountain")
+        if _stopping():
+            return None
+
+        word_count = len(thought.split())
+        _er = None
+        if self._emphasis_engine is not None:
+            try:
+                _er = self._emphasis_engine.score(thought)
+            except Exception as _ee_err:
+                error_channel.record(
+                    f"EmphasisEngine scoring failed (non-fatal): {_ee_err}",
+                    source="stage6_fountain", exc=_ee_err,
+                )
+        if _stopping():
+            return None
+
         # Session 40: problem-feedback loop write-back. Only credit a
         # problem if `thought` actually came from the `prompt` that carried
         # the injection -- `_emitted` ends up True here iff an earlier
@@ -2494,7 +2633,11 @@ class FountainGenerator:
         # code) produced `thought` from its OWN unrelated prompt
         # instead. Crediting that would falsely count reconcile boilerplate
         # as a self-sustained reference to the injected problem.
+        if _stopping():
+            return None
         if (not _emitted) and self._pending_problem_injection is not None and self._problem_memory is not None:
+            if _stopping():
+                return None
             try:
                 _pi_id = int(self._pending_problem_injection["id"])
                 self._problem_memory.observe(_pi_id, thought, source="problem_injection")
@@ -2544,6 +2687,8 @@ class FountainGenerator:
         # teeth-test v2: ONE sample per REAL fire (fail-safe — never stalls a fire).
         # All dynamic.db writes use the shared one-pen Writer; the Reader supplies
         # the previous branch without opening a second write-capable connection.
+        if _stopping():
+            return None
         try:
             import time as _tt2
             self._dynamic_writer.write("""CREATE TABLE IF NOT EXISTS recursion_attrib
@@ -2556,6 +2701,8 @@ class FountainGenerator:
             _moved = 1 if (hot_branch and _branch_prev and hot_branch != _branch_prev) else 0
             _nudge = 1 if getattr(self, "_pending_nudge_active", False) else 0
             _recursion_ts = _tt2.time()
+            if _stopping():
+                return None
             _recursion_row_id = self._dynamic_writer.write(
                 "INSERT OR REPLACE INTO recursion_attrib VALUES (?,?,?,?,?)",
                 (_recursion_ts, _nudge, hot_branch or "", _branch_prev, _moved),
@@ -2580,6 +2727,8 @@ class FountainGenerator:
         except Exception:
             pass  # never stall a fire
         # L4_stakes: check world-contact ratio every 5 fires (fail-safe).
+        if _stopping():
+            return None
         if (int(getattr(self, "_total_fires", 0)) % 5 == 4
                 and os.environ.get("NEX5_L4_STAKES") == "1"):
             try:
@@ -2602,6 +2751,8 @@ class FountainGenerator:
         # cadence and NEX5_L4_STAKES gate as the world-contact check above.
         # Routes corpus_convergence.max_df_star() -> a signal row -> an
         # open_problem via signal_to_problem (WIRE_MAP.md row 1).
+        if _stopping():
+            return None
         if (int(getattr(self, "_total_fires", 0)) % 5 == 4
                 and os.environ.get("NEX5_L4_STAKES") == "1"):
             try:
@@ -2610,6 +2761,8 @@ class FountainGenerator:
                 _cv = max_df_star()  # read-only, 50 rows from beliefs.db
                 _breached = bool(_cv.get("breach"))
                 if _breached and not bool(getattr(self, "_advancements_breached", False)):
+                    if _stopping():
+                        return None
                     _sid = emit_advancements_drift(
                         self._beliefs_writer,
                         token=_cv.get("token"),
@@ -2639,6 +2792,10 @@ class FountainGenerator:
                     hot_branch)
             except Exception:
                 _carry_branch = hot_branch  # never distort the carry
+        if _stopping():
+            return None
+        if _stopping():
+            return None
         if os.environ.get("NEX5_HOT_OBSERVER") == "1":
             try:
                 from theory_x.stage_tom.hot_observer import observe as _hot_obs
@@ -2650,6 +2807,8 @@ class FountainGenerator:
             except Exception:
                 pass  # never stall a fire
         # Binding/Momentum: capture the carried thread for the next fire.
+        if _stopping():
+            return None
         if os.environ.get("NEX5_MOMENTUM", "1") == "1":
             try:
                 from theory_x.stage_tom.momentum import capture_momentum
@@ -2663,10 +2822,14 @@ class FountainGenerator:
             except Exception:
                 pass  # never stall a fire
 
+        if _stopping():
+            return None
         ts_now = time.time()
         payload = json.dumps(
             {"thought": thought, "readiness": readiness, "hot_branch": hot_branch}
         )
+        # Core event pair: once the sense-event insert begins, complete the
+        # corresponding fountain-event insert even if stop arrives mid-write.
         _sense_event_id = self._sense_writer.write(
             "INSERT INTO sense_events (stream, payload, provenance, timestamp) "
             "VALUES (?, ?, ?, ?)",
@@ -2684,33 +2847,6 @@ class FountainGenerator:
             )
             trace.remember("fountain_sense_event_delta", _sense_event_trace_id)
 
-        droplet = None
-        if self._condenser is not None:
-            try:
-                droplet = self._condenser.condense(thought)
-            except Exception as _e:
-                error_channel.record(f"Condenser error: {_e}", source="stage6_fountain")
-
-        word_count = len(thought.split())
-
-        # Session 45/46: EmphasisEngine, observation-only. Scored BEFORE the
-        # fountain_events insert below, deliberately -- PredictionTracker's
-        # surprise window reads recent fountain_events, and scoring after the
-        # insert put this fire's own row inside its own comparison window,
-        # guaranteeing near-zero surprise on every fire (session 46 fix, see
-        # journal/CARRY_OVER.md). Scoring needs only `thought`, not
-        # fountain_event_id, so this reorder is safe. Never touches `thought`,
-        # `hot_branch`, or anything upstream -- pure post-hoc logging,
-        # fail-safe wrapped so a scoring error can never stall a fire.
-        _er = None
-        if self._emphasis_engine is not None:
-            try:
-                _er = self._emphasis_engine.score(thought)
-            except Exception as _ee_err:
-                error_channel.record(
-                    f"EmphasisEngine scoring failed (non-fatal): {_ee_err}",
-                    source="stage6_fountain", exc=_ee_err,
-                )
 
         # Round 23 — mode/focal_item read defensively: getattr with a None
         # default so a missing attribute can never raise on the fire path.
@@ -2744,6 +2880,17 @@ class FountainGenerator:
             )
             trace.remember("fountain_event_delta", _fountain_event_trace_id)
         self._link_activation_to_event()
+        # The core event pair is persisted; advance the in-memory fire counters
+        # before optional attachments so a stop during the pair cannot leave the
+        # process-local counters behind the durable event rows.
+        self._last_fountain_output = _strip_metadata(thought)
+        self._last_fire_ts = ts_now
+        self._total_fires += 1
+
+        # The core sense/fountain event pair is complete. Optional attachments
+        # and crystallization are not started after shutdown is observed.
+        if _stopping():
+            return thought
 
         if _er is not None:
             try:
@@ -2771,14 +2918,15 @@ class FountainGenerator:
                 )
 
         # Snapshot the main fire (SUBSTRATE_SNAPSHOTS.md). Fire-and-forget.
+        if _stopping():
+            return thought
         try:
             self._capture_fire_snapshot(fountain_event_id, hot_branch, None)
         except Exception:
             pass
 
-        self._last_fountain_output = _strip_metadata(thought)
-        self._last_fire_ts = ts_now
-        self._total_fires += 1
+        if _stopping():
+            return thought
         try:
             from theory_x.diversity.loop import notify_fire
             notify_fire()
@@ -2786,6 +2934,8 @@ class FountainGenerator:
             pass
 
         # Write retrieval manifest for this fire (never blocks cognition)
+        if _stopping():
+            return thought
         try:
             if retrieval_manifest and fountain_event_id:
                 _retrieval_row_ids = self._dynamic_writer.write_many(
@@ -2821,6 +2971,8 @@ class FountainGenerator:
         # Round 37: persist the prompt block manifest stashed by _build_prompt.
         # Same fail-safe contract as the retrieval log above -- this runs after
         # the fire is already written, so nothing here can affect what she said.
+        if _stopping():
+            return thought
         try:
             _blocks = getattr(self, "_last_prompt_blocks", None)
             if _blocks and fountain_event_id:
@@ -2863,7 +3015,8 @@ class FountainGenerator:
         # its own early-return increment (line 229).  Main-path line-362 increments land
         # on 1,2,3,4, 6,7,8,9, 11,... so % 5 == 1 gives fires 1,6,11,16,... — first fire
         # after each quiescent cycle.  Never collides with quiescent, fires ~20% of the time.
-        if self._total_fires % 5 == 1 and self._beliefs_writer is not None:
+        if (not _stopping()
+                and self._total_fires % 5 == 1 and self._beliefs_writer is not None):
             try:
                 from theory_x.substrate.renderer import render_substrate_fire
                 from theory_x.substrate.activation import get_top_activated
@@ -2900,7 +3053,7 @@ class FountainGenerator:
             except Exception as e:
                 logger.error("substrate_fire_failed: %s", e)
 
-        if koan is not None and self._beliefs_writer is not None:
+        if not _stopping() and koan is not None and self._beliefs_writer is not None:
             try:
                 self._beliefs_writer.write(
                     "INSERT INTO koan_reads (gate_id, read_at) VALUES (?, ?)",
@@ -2916,6 +3069,8 @@ class FountainGenerator:
         # Paraphrase-burst dampener (NEX5_FOUNTAIN_DEDUP): suppress this fire from
         # crystallizing if it near-duplicates a recent sibling fire (keep best-of).
         _burst_suppress = False
+        if _stopping():
+            return thought
         if (os.environ.get("NEX5_FOUNTAIN_DEDUP") == "1"
                 and thought and fountain_event_id):
             try:
@@ -2943,6 +3098,8 @@ class FountainGenerator:
                     f"Fountain dedup check failed (non-fatal): {e}",
                     source="stage6_fountain", exc=e,
                 )
+        if (_stopping()):
+            return thought
         if (self._crystallizer is not None and thought and fountain_event_id
                 and not _burst_suppress):
             # smrti dev round (2026-11-15): retrieval_manifest already records every
@@ -2990,7 +3147,7 @@ class FountainGenerator:
         # resolved (crystallized a belief) or stalled. Extends the existing
         # momentum continuity note — no parallel table. Fail-safe: no-op if the
         # thread is missing/exhausted; never stalls a fire.
-        if os.environ.get("NEX5_CARRYOVER") == "1":
+        if not _stopping() and os.environ.get("NEX5_CARRYOVER") == "1":
             try:
                 from theory_x.stage_tom.momentum import stamp_resolution
                 stamp_resolution(

@@ -16,20 +16,26 @@ class GraderEvolver:
         self._writer = beliefs_writer
         self._reader = beliefs_reader
 
-    def evolve(self) -> Optional[dict]:
+    def evolve(self, *, stop_event=None) -> Optional[dict]:
+        if stop_event is not None and stop_event.is_set():
+            return None
         grades = self._reader.read(
             "SELECT g.belief_id, g.input_distance, g.output_distance, g.rarity, "
             "       g.grade, g.grader_version "
             "FROM collision_grades g "
             "ORDER BY g.graded_at ASC"
         )
-        if len(grades) < 10:
+        if (stop_event is not None and stop_event.is_set()) or len(grades) < 10:
             log.info("Evolver: not enough data (%d grades), skipping", len(grades))
             return None
 
         samples = []
         for g in grades:
-            rv = self._retrospective_value(g["belief_id"])
+            if stop_event is not None and stop_event.is_set():
+                return None
+            rv = self._retrospective_value(g["belief_id"], stop_event=stop_event)
+            if stop_event is not None and stop_event.is_set():
+                return None
             if rv is None:
                 continue
             samples.append({
@@ -45,19 +51,29 @@ class GraderEvolver:
         if len(samples) < 5:
             return None
 
-        self._detect_mismatches(samples)
+        if stop_event is not None and stop_event.is_set():
+            return None
+        self._detect_mismatches(samples, stop_event=stop_event)
+        if stop_event is not None and stop_event.is_set():
+            return None
 
         new_weights = self._fit_weights(samples)
+        if stop_event is not None and stop_event.is_set():
+            return None
         if new_weights is None:
             return None
 
-        current = self._current_weights()
+        current = self._current_weights(stop_event=stop_event)
+        if stop_event is not None and stop_event.is_set():
+            return None
         blended = {
             k: (1 - CONSERVATIVE_BLEND) * current.get(k, v) + CONSERVATIVE_BLEND * v
             for k, v in new_weights.items()
         }
 
         version_rows = self._reader.read("SELECT MAX(version) AS v FROM grader_versions")
+        if stop_event is not None and stop_event.is_set():
+            return None
         next_version = (version_rows[0]["v"] or 1) + 1
 
         rationale = (
@@ -65,6 +81,8 @@ class GraderEvolver:
             f"output_distance {current.get('w_output_distance', 0):.2f}→{blended['w_output_distance']:.2f}, "
             f"rarity {current.get('w_rarity', 0):.2f}→{blended['w_rarity']:.2f}"
         )
+        if stop_event is not None and stop_event.is_set():
+            return None
         self._writer.write(
             "INSERT INTO grader_versions "
             "(version, w_input_distance, w_output_distance, w_rarity, rationale, created_at) "
@@ -76,26 +94,34 @@ class GraderEvolver:
         log.info("Grader updated v%d: %s", next_version, rationale)
         return {"new_version": next_version, "weights": blended, "rationale": rationale}
 
-    def _retrospective_value(self, belief_id: int) -> Optional[float]:
+    def _retrospective_value(self, belief_id: int, *, stop_event=None) -> Optional[float]:
         desc = self._reader.read(
             "SELECT COUNT(*) AS n FROM belief_lineage WHERE parent_id=?", (belief_id,)
         )
+        if stop_event is not None and stop_event.is_set():
+            return None
         num_descendants = desc[0]["n"] if desc else 0
 
         boost = self._reader.read(
             "SELECT boost_value FROM belief_boost WHERE belief_id=?", (belief_id,)
         )
+        if stop_event is not None and stop_event.is_set():
+            return None
         boost_survival = min(1.0, (boost[0]["boost_value"] - 1.0) if boost else 0.0)
 
         refs = self._reader.read(
             "SELECT COUNT(*) AS n FROM belief_lineage WHERE parent_id=? AND relationship='reference'",
             (belief_id,),
         )
+        if stop_event is not None and stop_event.is_set():
+            return None
         ref_count = min(10, refs[0]["n"] if refs else 0)
 
         belief = self._reader.read(
             "SELECT tier FROM beliefs WHERE id=?", (belief_id,)
         )
+        if stop_event is not None and stop_event.is_set():
+            return None
         tier = belief[0]["tier"] if belief else 0
         tier_score = min(1.0, tier / 7.0)
 
@@ -107,9 +133,11 @@ class GraderEvolver:
         )
         return round(rv, 4)
 
-    def _detect_mismatches(self, samples: list) -> None:
+    def _detect_mismatches(self, samples: list, *, stop_event=None) -> None:
         now = time.time()
         for s in samples:
+            if stop_event is not None and stop_event.is_set():
+                return
             diff = abs(s["original_grade"] - s["retrospective_value"])
             if diff <= MISMATCH_THRESHOLD:
                 continue
@@ -152,7 +180,9 @@ class GraderEvolver:
             log.warning("Weight fitting failed: %s", e)
             return None
 
-    def _current_weights(self) -> dict:
+    def _current_weights(self, *, stop_event=None) -> dict:
+        if stop_event is not None and stop_event.is_set():
+            return {}
         rows = self._reader.read(
             "SELECT w_input_distance, w_output_distance, w_rarity FROM grader_versions "
             "ORDER BY version DESC LIMIT 1"

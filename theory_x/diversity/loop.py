@@ -50,9 +50,13 @@ class DiversityLoop:
         log.info("DiversityLoop started")
         while not self._stop.is_set():
             try:
-                self.groove.detect_all()
-                self.dormancy.scan_incremental()
-                self.clock.tick(current_fire_count())
+                self.groove.detect_all(stop_event=self._stop)
+                if self._stop.is_set():
+                    break
+                self.dormancy.scan_incremental(stop_event=self._stop)
+                if self._stop.is_set():
+                    break
+                self.clock.tick(current_fire_count(), stop_event=self._stop)
             except Exception as e:
                 log.error("diversity_loop_tick_failed: %s", e)
                 error_channel.record(

@@ -92,14 +92,21 @@ class SubstrateHarmonic:
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
-    def tick(self, context: Optional[dict[str, Any]] = None) -> dict[str, Any]:
-        """Read streams, score pairs, write one substrate_coherence row.
-
-        Never raises. All errors recorded to central error channel.
-        """
+    def tick(
+        self,
+        context: Optional[dict[str, Any]] = None,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> dict[str, Any]:
+        """Read streams and write one row, stopping between synchronous reads."""
+        stop_event = stop_event or self._stop
+        if stop_event is not None and stop_event.is_set():
+            return self.state()
         ts_now = time.time()
         try:
-            streams = self._read_all_streams(ts_now)
+            streams = self._read_all_streams(ts_now, stop_event=stop_event)
+            if streams is None or (stop_event is not None and stop_event.is_set()):
+                return self.state()
             pair_scores = self._score_all_pairs(streams, ts_now)
             total = self._aggregate(pair_scores)
             walk_state, walk_anchor = self._derive_walk_state(streams)
@@ -150,7 +157,7 @@ class SubstrateHarmonic:
             while not self._stop.is_set():
                 self._stop.wait(interval_seconds)
                 if not self._stop.is_set():
-                    self.tick()
+                    self.tick(stop_event=self._stop)
 
         self._thread = threading.Thread(
             target=_run,
@@ -169,19 +176,40 @@ class SubstrateHarmonic:
 
     # ── Stream extractors ─────────────────────────────────────────────────────
 
-    def _read_all_streams(self, ts_now: float) -> dict[str, Any]:
-        """Read all nine streams. Each extractor is independently
-        try/except'd so one failure does not break the others."""
+    def _read_all_streams(
+        self,
+        ts_now: float,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Optional[dict[str, Any]]:
+        """Read streams in order, abandoning the tick between synchronous reads."""
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
         streams: dict[str, Any] = {}
         streams["drives"] = self._read_drives_current(ts_now)
+        if _stopping():
+            return None
         streams["drive_conflict_json"] = self._read_drive_conflict(ts_now)
+        if _stopping():
+            return None
         streams["groove_severity"] = self._read_groove_severity(ts_now)
+        if _stopping():
+            return None
         streams["sv_last_ts"], streams["sv_last_anchor"] = self._read_sv_last(ts_now)
+        if _stopping():
+            return None
         streams["fountain_share_sv"] = self._read_fountain_sv_share(ts_now)
+        if _stopping():
+            return None
         streams["gate_reject_rate"] = self._read_gate_reject_rate(ts_now)
+        if _stopping():
+            return None
         streams["throw_net_rate"] = self._read_throw_net_rate(ts_now)
+        if _stopping():
+            return None
         streams["stillness_active"] = self._read_stillness_active(ts_now)
-        return streams
+        return None if _stopping() else streams
 
     def _read_drives_current(self, ts_now: float) -> dict[str, float]:
         try:

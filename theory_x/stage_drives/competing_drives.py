@@ -395,25 +395,57 @@ class CompetingDrives:
 
     # ── Weight computation ────────────────────────────────────────────────────
 
-    def _compute_weights(self) -> tuple[dict[str, float], dict[str, Any]]:
+    def _compute_weights(
+        self, *, stop_event: Optional[threading.Event] = None
+    ) -> Optional[tuple[dict[str, float], dict[str, Any], dict[str, float]]]:
+        """Read and combine drive inputs, stopping between synchronous reads."""
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return None
         srcs = self._source_ratios()
+        if _stopping():
+            return None
         groove = self._groove_severity()
+        if _stopping():
+            return None
         sig = self._signal_breakdown()
+        if _stopping():
+            return None
         contradiction = self._contradiction_pressure()
+        if _stopping():
+            return None
         comp_arcs = self._competing_arcs()
+        if _stopping():
+            return None
         branch_inst = self._branch_instability()
+        if _stopping():
+            return None
         problems = self._open_problems_pressure()
+        if _stopping():
+            return None
         probes = self._probe_rate()
+        if _stopping():
+            return None
 
         # Real metrics
-        sense_freshness    = self._sense_freshness()
-        novelty_magnitude  = self._branch_entropy_novelty()
+        sense_freshness = self._sense_freshness()
+        if _stopping():
+            return None
+        novelty_magnitude = self._branch_entropy_novelty()
+        if _stopping():
+            return None
         content_complexity = self._content_complexity()
+        if _stopping():
+            return None
         # Deferred measures (substrate-level reasons documented):
         # - affect_variance: measured from affect_history (added 2026-05-20).
         #   stage_affect now logs every 300s tick. Std-dev of valence+arousal
         #   over last 24h, normalized at 0.20 std = "meaningful variance".
         affect_variance = self._affect_variance()
+        if _stopping():
+            return None
         # - seed_contradiction_strength: measured 0 in audit (2026-05-20).
         #   Seed sources (koan, spectrum, practice, tao, keystone_seed) are
         #   harmonizer-protected (Tier 1-2 keystones excluded from conflict
@@ -514,7 +546,7 @@ class CompetingDrives:
         stop_event = stop_event or threading.Event()
         while not stop_event.is_set():
             try:
-                self._tick_once()
+                self._tick_once(stop_event=stop_event)
             except Exception as exc:
                 errors.record(
                     f"competing_drives tick error: {exc}",
@@ -523,10 +555,22 @@ class CompetingDrives:
             if stop_event.wait(self._interval):
                 break
 
-    def _tick_once(self) -> None:
+    def _tick_once(
+        self, *, stop_event: Optional[threading.Event] = None
+    ) -> None:
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return
         now = time.time()
-        weights, inputs, raw_weights = self._compute_weights()
+        computed = self._compute_weights(stop_event=stop_event)
+        if computed is None or _stopping():
+            return
+        weights, inputs, raw_weights = computed
         tensions = self._detect_tensions(raw_weights)
+        if _stopping():
+            return
 
         try:
             self._cw.write(
@@ -544,6 +588,14 @@ class CompetingDrives:
             errors.record(f"competing_drives write error: {exc}",
                           source=_LOG_SOURCE, exc=exc)
 
+        # The current-state write has completed; keep the in-memory view aligned.
+        with self._lock:
+            self._weights = weights
+            self._tension_pairs = tensions
+            self._computed_at = now
+
+        if _stopping():
+            return
         try:
             self._cw.write(
                 "INSERT INTO drives_competing_log "
@@ -557,11 +609,8 @@ class CompetingDrives:
         except Exception:
             pass
 
-        with self._lock:
-            self._weights = weights
-            self._tension_pairs = tensions
-            self._computed_at = now
-
+        if _stopping():
+            return
         try:
             with open(_DRIVE_LOG, "a") as f:
                 f.write(json.dumps({
@@ -572,22 +621,37 @@ class CompetingDrives:
         except Exception:
             pass
 
-    def compute_now(self, fountain_event_id: int | None = None) -> int | None:
-        """Compute fresh activation vector synchronously. Persist to
-        drive_activations table. Returns the activation row id (or None on
-        failure). Called from fountain just before _build_prompt fires.
-        """
-        now = time.time()
-        weights, inputs, raw_weights = self._compute_weights()
-        tensions = self._detect_tensions(raw_weights)
+    def compute_now(
+        self,
+        fountain_event_id: int | None = None,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> int | None:
+        """Compute fresh activation synchronously, with cooperative stop checks."""
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
 
-        # Update in-memory state
+        if _stopping():
+            return None
+        now = time.time()
+        computed = self._compute_weights(stop_event=stop_event)
+        if computed is None or _stopping():
+            return None
+        weights, inputs, raw_weights = computed
+        tensions = self._detect_tensions(raw_weights)
+        if _stopping():
+            return None
+
+        # Update in-memory state only after the complete input read pass.
         with self._lock:
+            if _stopping():
+                return None
             self._weights = weights
             self._tension_pairs = tensions
             self._computed_at = now
 
-        # Also keep drives_competing single-row up to date
+        # Keep the current-state row fresh; if stop arrives during this write,
+        # skip the optional per-fire activation insert below.
         try:
             self._cw.write(
                 "INSERT OR REPLACE INTO drives_competing "
@@ -601,7 +665,10 @@ class CompetingDrives:
         except Exception:
             pass
 
-        # Write to drive_activations (per-fire, with fountain_event_id FK)
+        if _stopping():
+            return None
+        # Once the per-fire activation insert begins, complete its follow-up ID
+        # read so callers receive a consistent activation reference.
         try:
             self._cw.write(
                 "INSERT INTO drive_activations "
@@ -616,7 +683,6 @@ class CompetingDrives:
                  weights["curiosity"],
                  json.dumps(tensions)),
             )
-            # Get inserted id via last insert rowid lookup
             row = self._cr.read_one(
                 "SELECT id FROM drive_activations ORDER BY id DESC LIMIT 1"
             )

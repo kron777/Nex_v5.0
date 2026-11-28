@@ -84,7 +84,17 @@ class PredictiveSubstrate:
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
-    def tick(self, context: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def tick(
+        self,
+        context: Optional[dict[str, Any]] = None,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> dict[str, Any]:
+        if stop_event is None:
+            stop_event = self._stop
+        if stop_event is not None and stop_event.is_set():
+            return self.state()
+
         now = time.time()
         if now - self._last_tick_at < self._TICK_INTERVAL_S:
             return {"name": self.name, "skipped": True, "tick_count": self._tick_count}
@@ -94,20 +104,22 @@ class PredictiveSubstrate:
         internal_made = 0
         external_made = 0
         try:
-            verified = self._verify()
+            verified = self._verify(stop_event=stop_event)
         except Exception as exc:
             errors.record(f"predictive_substrate verify error: {exc}",
                           source=_LOG_SOURCE, exc=exc)
-        try:
-            internal_made = self._predict_internal()
-        except Exception as exc:
-            errors.record(f"predictive_substrate predict_internal error: {exc}",
-                          source=_LOG_SOURCE, exc=exc)
-        try:
-            external_made = self._predict_external()
-        except Exception as exc:
-            errors.record(f"predictive_substrate predict_external error: {exc}",
-                          source=_LOG_SOURCE, exc=exc)
+        if stop_event is None or not stop_event.is_set():
+            try:
+                internal_made = self._predict_internal(stop_event=stop_event)
+            except Exception as exc:
+                errors.record(f"predictive_substrate predict_internal error: {exc}",
+                              source=_LOG_SOURCE, exc=exc)
+        if stop_event is None or not stop_event.is_set():
+            try:
+                external_made = self._predict_external(stop_event=stop_event)
+            except Exception as exc:
+                errors.record(f"predictive_substrate predict_external error: {exc}",
+                              source=_LOG_SOURCE, exc=exc)
 
         self._tick_count += 1
         self._total_predictions_made += internal_made + external_made
@@ -142,7 +154,7 @@ class PredictiveSubstrate:
             while not self._stop.is_set():
                 self._stop.wait(interval)
                 if not self._stop.is_set():
-                    self.tick()
+                    self.tick(stop_event=self._stop)
 
         self._thread = threading.Thread(
             target=_run,
@@ -183,61 +195,99 @@ class PredictiveSubstrate:
 
     # ── Prediction generation ─────────────────────────────────────────────────
 
-    def _predict_internal(self) -> int:
+    def _predict_internal(
+        self, *, stop_event: Optional[threading.Event] = None
+    ) -> int:
         """§4.1 — internal_belief prediction from beliefs + problems + drive."""
+        if stop_event is not None and stop_event.is_set():
+            return 0
         beliefs = self._br.read(
             "SELECT id, content, source_kind, confidence FROM beliefs "
             "ORDER BY created_at DESC LIMIT ?",
             (self._RECENT_BELIEF_COUNT,),
         )
+        if stop_event is not None and stop_event.is_set():
+            return 0
         if len(beliefs) < self._MIN_CONTEXT_SIZE:
             return 0
 
-        belief_embs = np.array([
-            self._embed_belief(int(b["id"]), b["content"] or "")
-            for b in beliefs
-        ], dtype=np.float32)
+        belief_embeddings = []
+        for belief in beliefs:
+            if stop_event is not None and stop_event.is_set():
+                return 0
+            embedding = self._embed_belief(int(belief["id"]), belief["content"] or "")
+            if stop_event is not None and stop_event.is_set():
+                return 0
+            belief_embeddings.append(embedding)
+        belief_embs = np.array(belief_embeddings, dtype=np.float32)
         centroid = self._BELIEF_WEIGHT * np.mean(belief_embs, axis=0)
 
+        if stop_event is not None and stop_event.is_set():
+            return 0
         problems = self._cr.read(
             "SELECT title FROM open_problems WHERE state = 'open' ORDER BY created_at DESC"
         )
+        if stop_event is not None and stop_event.is_set():
+            return 0
         if problems:
-            prob_embs = np.array([
-                self._embed(p["title"] or "") for p in problems
-            ], dtype=np.float32)
+            problem_embeddings = []
+            for problem in problems:
+                if stop_event is not None and stop_event.is_set():
+                    return 0
+                embedding = self._embed(problem["title"] or "")
+                if stop_event is not None and stop_event.is_set():
+                    return 0
+                problem_embeddings.append(embedding)
+            prob_embs = np.array(problem_embeddings, dtype=np.float32)
             centroid += self._PROBLEM_WEIGHT * np.mean(prob_embs, axis=0)
 
         drive_emb: Optional[np.ndarray] = None
         if self._drive_emergence is not None:
+            if stop_event is not None and stop_event.is_set():
+                return 0
             try:
                 drive_emb = self._drive_emergence.drive_topic_embedding()
             except Exception:
                 pass
+            if stop_event is not None and stop_event.is_set():
+                return 0
         if drive_emb is not None:
             centroid += self._DRIVE_WEIGHT * np.array(drive_emb, dtype=np.float32)
 
         centroid = self._normalize(centroid)
-        rep = self._nearest_content(centroid, beliefs)
+        rep = self._nearest_content(centroid, beliefs, stop_event=stop_event)
+        if stop_event is not None and stop_event.is_set():
+            return 0
         from theory_x.stage_world.frozen_at_made import basis_entry
         basis = [basis_entry(b["id"], b["source_kind"], b["confidence"]) for b in beliefs]
         # Its basis beliefs get revised when it misses -> band 1.
-        self._write_prediction("internal_belief", centroid, rep, basis=basis, cost_band=1)
-        return 1
+        written = self._write_prediction(
+            "internal_belief", centroid, rep, basis=basis, cost_band=1,
+            stop_event=stop_event,
+        )
+        return 1 if written else 0
 
-    def _predict_external(self) -> int:
+    def _predict_external(
+        self, *, stop_event: Optional[threading.Event] = None
+    ) -> int:
         """§4.2 — external_input prediction from sense events + chat messages."""
+        if stop_event is not None and stop_event.is_set():
+            return 0
         sense_rows = self._sr.read(
             "SELECT payload AS content FROM sense_events "
             "WHERE stream NOT LIKE 'internal.%' "
             "ORDER BY timestamp DESC LIMIT ?",
             (self._RECENT_INPUT_COUNT,),
         )
+        if stop_event is not None and stop_event.is_set():
+            return 0
         msg_rows = self._cr.read(
             "SELECT content FROM messages WHERE role = 'user' "
             "ORDER BY timestamp DESC LIMIT ?",
             (self._RECENT_INPUT_COUNT,),
         )
+        if stop_event is not None and stop_event.is_set():
+            return 0
         inputs = [r["content"] for r in list(sense_rows) + list(msg_rows)
                   if r["content"] and r["content"].strip()]
         inputs = inputs[: self._RECENT_INPUT_COUNT]
@@ -245,26 +295,45 @@ class PredictiveSubstrate:
         if len(inputs) < self._MIN_CONTEXT_SIZE:
             return 0
 
-        input_embs = np.array([
-            self._embed(c[:500]) for c in inputs
-        ], dtype=np.float32)
+        input_embeddings = []
+        for content in inputs:
+            if stop_event is not None and stop_event.is_set():
+                return 0
+            embedding = self._embed(content[:500])
+            if stop_event is not None and stop_event.is_set():
+                return 0
+            input_embeddings.append(embedding)
+        input_embs = np.array(input_embeddings, dtype=np.float32)
         centroid = self._normalize(np.mean(input_embs, axis=0))
 
         # Representative: nearest sense/msg content to centroid, beliefs as fallback
-        rep = self._nearest_content(centroid, [{"content": c} for c in inputs])
+        rep = self._nearest_content(
+            centroid, [{"content": c} for c in inputs], stop_event=stop_event
+        )
+        if stop_event is not None and stop_event.is_set():
+            return 0
         if rep is None:
             belief_rows = self._br.read(
                 "SELECT id, content FROM beliefs ORDER BY created_at DESC LIMIT 20"
             )
-            rep = self._nearest_content(centroid, belief_rows)
+            if stop_event is not None and stop_event.is_set():
+                return 0
+            rep = self._nearest_content(centroid, belief_rows, stop_event=stop_event)
+        if stop_event is not None and stop_event.is_set():
+            return 0
         # Sense events and chat, not beliefs: no belief basis, nothing revised -> band 0.
-        self._write_prediction("external_input", centroid, rep, basis=[], cost_band=0)
-        return 1
+        written = self._write_prediction(
+            "external_input", centroid, rep, basis=[], cost_band=0,
+            stop_event=stop_event,
+        )
+        return 1 if written else 0
 
     def _nearest_content(
         self,
         centroid: np.ndarray,
         items: list,
+        *,
+        stop_event: Optional[threading.Event] = None,
     ) -> Optional[str]:
         """Return content of the item in `items` closest to centroid.
 
@@ -273,6 +342,8 @@ class PredictiveSubstrate:
         best_dist = 2.0
         best_content: Optional[str] = None
         for item in items:
+            if stop_event is not None and stop_event.is_set():
+                return None
             try:
                 content = item["content"] or ""
             except (KeyError, TypeError):
@@ -289,6 +360,8 @@ class PredictiveSubstrate:
                     if belief_id is not None
                     else self._embed(content[:500])
                 )
+                if stop_event is not None and stop_event.is_set():
+                    return None
                 d = self._dist(centroid, emb)
                 if d < best_dist:
                     best_dist = d
@@ -304,9 +377,13 @@ class PredictiveSubstrate:
         rep_content: Optional[str],
         basis: list = (),
         cost_band: int = 0,
-    ) -> None:
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> bool:
         # Build B: frozen at made_at. The verdict threshold is the tolerance (the
         # same 0.5 surprise_flag uses); the substrate states no probability.
+        if stop_event is not None and stop_event.is_set():
+            return False
         from theory_x.stage_world.frozen_at_made import (
             FROZEN_INSERT_COLS, FROZEN_PLACEHOLDERS, frozen_values,
         )
@@ -314,6 +391,8 @@ class PredictiveSubstrate:
                                basis=basis, cost_band=cost_band)
         now = time.time()
         tags = json.dumps(_generate_tags(rep_content or ""))
+        if stop_event is not None and stop_event.is_set():
+            return False
         self._dw.write(
             "INSERT INTO predictions "
             "(made_at, target_window_end, prediction_type, centroid_embedding, "
@@ -324,11 +403,16 @@ class PredictiveSubstrate:
              centroid.astype(np.float32).tobytes(),
              rep_content, tags, *frozen),
         )
+        return True
 
     # ── Verification ──────────────────────────────────────────────────────────
 
-    def _verify(self) -> int:
+    def _verify(
+        self, *, stop_event: Optional[threading.Event] = None
+    ) -> int:
         """§5 — resolve prior-window predictions, write surprise_events."""
+        if stop_event is not None and stop_event.is_set():
+            return 0
         now = time.time()
         pending = self._dr.read(
             "SELECT id, prediction_type, centroid_embedding, "
@@ -337,11 +421,18 @@ class PredictiveSubstrate:
             "WHERE target_window_end <= ? AND verified_at IS NULL",
             (now,),
         )
+        if stop_event is not None and stop_event.is_set():
+            return 0
         count = 0
         for pred in pending:
+            if stop_event is not None and stop_event.is_set():
+                return count
             try:
-                self._verify_one(pred, now)
-                count += 1
+                completed = self._verify_one(pred, now, stop_event=stop_event)
+                if completed:
+                    count += 1
+                if stop_event is not None and stop_event.is_set():
+                    return count
             except Exception as exc:
                 errors.record(
                     f"predictive_substrate verify_one id={pred['id']} error: {exc}",
@@ -349,7 +440,15 @@ class PredictiveSubstrate:
                 )
         return count
 
-    def _verify_one(self, pred: Any, now: float) -> None:
+    def _verify_one(
+        self,
+        pred: Any,
+        now: float,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> bool:
+        if stop_event is not None and stop_event.is_set():
+            return False
         centroid = np.frombuffer(bytes(pred["centroid_embedding"]), dtype=np.float32)
         window_start = float(pred["made_at"])
         window_end = float(pred["target_window_end"])
@@ -366,12 +465,16 @@ class PredictiveSubstrate:
                 "WHERE timestamp >= ? AND timestamp <= ?",
                 (window_start, window_end),
             )
+            if stop_event is not None and stop_event.is_set():
+                return False
             msg_items = self._cr.read(
                 "SELECT content FROM messages "
                 "WHERE timestamp >= ? AND timestamp <= ? AND role = 'user'",
                 (window_start, window_end),
             )
             items = list(sense_items) + list(msg_items)
+        if stop_event is not None and stop_event.is_set():
+            return False
 
         surprise_score: float
         actual_content: Optional[str]
@@ -383,6 +486,8 @@ class PredictiveSubstrate:
             min_dist = 1.0
             nearest: Optional[str] = None
             for item in items:
+                if stop_event is not None and stop_event.is_set():
+                    return False
                 try:
                     content = item["content"] or ""
                 except (KeyError, TypeError):
@@ -399,6 +504,8 @@ class PredictiveSubstrate:
                         if belief_id is not None
                         else self._embed(content[:500])
                     )
+                    if stop_event is not None and stop_event.is_set():
+                        return False
                     d = self._dist(centroid, emb)
                     if d < min_dist:
                         min_dist = d
@@ -411,10 +518,16 @@ class PredictiveSubstrate:
         surprise_flag = 1 if surprise_score > self._SURPRISE_THRESHOLD else 0
         big_surprise = 1 if surprise_score > self._BIG_SURPRISE_THRESHOLD else 0
 
+        if stop_event is not None and stop_event.is_set():
+            return False
         tags = json.dumps(_generate_tags(
             (pred["representative_content"] or "") + " " + (actual_content or "")
         ))
+        if stop_event is not None and stop_event.is_set():
+            return False
         triggered_at = now
+        # The surprise event and prediction update form one already-started
+        # verification commit unit; finish both once the first Writer call starts.
         self._dw.write(
             "INSERT INTO surprise_events "
             "(triggered_at, prediction_id, prediction_type, surprise_score, "
@@ -429,6 +542,7 @@ class PredictiveSubstrate:
             "WHERE id=?",
             (triggered_at, surprise_score, surprise_flag, pred["id"]),
         )
+        return True
 
     # ── Public read API ───────────────────────────────────────────────────────
 

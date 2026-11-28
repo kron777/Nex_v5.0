@@ -90,6 +90,7 @@ class TestDecoderLoopOnePen(unittest.TestCase):
         tick.assert_called_once_with(
             dynamic_writer=self.writers["dynamic"],
             sense_reader=self.readers["sense"],
+            stop_event=stop,
         )
 
 
