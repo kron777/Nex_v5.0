@@ -738,7 +738,7 @@ class AppState:
                 error_channel.record(
                     f"Scheduler shutdown failed: {e}", source="gui.server", exc=e
                 )
-        # Quiesce every producer this state holds BEFORE the Writers close, so
+        # Quiesce every registered producer BEFORE the Writers close, so
         # a tick in progress can finish its writes instead of submitting them
         # to a draining or closed Writer (backlog G-84). All are signalled
         # first, then joined against one shared deadline that fits
