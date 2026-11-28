@@ -548,3 +548,8 @@ Genius HUD/panel stats and provenance reports aggregate tag rows across weights 
 
 
 PR #454 exact-head workflow 46182737858 passed at 7b9ae6c3f0debbc87882b8d8e8c8932f79cb5c5e. Isolated tests verify the Fountain governor write, retrieval boundary, and membrane side classification; live host behaviour remains UNKNOWN.
+
+
+### 28 November 2026 — Dual SelfNarrative class identity
+
+There are two different SelfNarrative classes: the persistent StageSelfNarrative in run.py used by CoherenceGate/Metacognition/GUI chat, and a Stage-TOM SelfNarrative constructed separately by FountainGenerator under NEX5_SELF_NARRATIVE=1 for Fountain prompt composition. The Stage-TOM write_narrative method appends to a private log that get_narrative does not read; the inspected gate receives the other class. Host flag and any external callers remain UNKNOWN. See INDEX §159.
