@@ -2499,3 +2499,65 @@ This separation is consistent with the governing architecture principle: interpr
 **Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `rdo/execution.py` blob `c4c3bb9b8c0dab5c16091c0ca3146921cf569c15`; `rdo/tests/test_stage7_execution_watcher.py` blob `832b6290a45c793274e0890037618a7fb5eeea36`; `watcher/handoff_verify.py` blob `fae4a9c6475f9d52d16a786e71d42b907d094407`; `watcher/ledger.py` blob `698ae962fe1dfad2d252b39a41066cd8cc0e4310`; `watcher/evidence.py` blob `0d235f79a562ae6fad14325915b0be8c34d4f382`; `rdo/STAGE7_HANDOFF.md` blob `1585d1f4ffe28608614ade6679429584126a0987`.
 
 **Unchanged boundaries:** no test execution, agent launch, RDO execution, handoff creation/review, approval action, sandbox, host operation, runtime flag, database, evidence policy, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed. This was a source-and-test review only.
+## 79. Stage-B capability wire and autonomous-fire boundary — current-main reconciliation (28 November 2026)
+
+**Question studied:** where can the existing tools actually be invoked, what operation representation crosses that boundary, and has the capability layer been connected to NEX's autonomous Fountain/fire loop?
+
+### Current chat-path wire
+
+At main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`, `gui/server.py` constructs `ToolRegistry` and `ToolCaller` only when `with_tools` is enabled and the required conversation storage is available. The chat handler then performs this sequence:
+
+```text
+chat prompt
+  → ToolCaller.should_use_tool(prompt)
+  → ToolCaller.build_tool_kwargs(prompt, tool_name)
+  → ToolRegistry.execute(tool_name, **kwargs)
+  → ToolResult
+  → successful result wrapped by build_tool_prompt()
+  → appended to belief_text / response context
+```
+
+The route records tool-execution and tool-prompt-injection trace events when tracing is available. Exceptions are reported to the error channel. The current source calls `should_use_tool(prompt)` with one argument; an older research note describing `should_use_tool(prompt, [])` is not an accurate description of this snapshot.
+
+### What the current Stage-B operation actually is
+
+The caller selects from three registered tools:
+- `web_fetch`: fetch an explicit URL or supported cryptocurrency-price target; the registry restricts HTTP(S) destinations to its fixed hostname allowlist, rejects URL credentials and disables automatic redirects.
+- `python_exec`: the caller extracts a narrowly bounded numeric expression from a recognised sentence prefix, then passes explicit `code=print(expression)`. The registry parses and interprets a small numeric AST allowlist in-process; it does not use Python `exec`, `eval`, `compile` or a subprocess. It bounds expression length, AST size, integer magnitude, float magnitude and exponent size.
+- `beliefs_query`: read-only retrieval through the configured beliefs reader.
+
+This is a meaningful hardening of the old sentence-to-code boundary. Natural-language sentences are not silently substituted as Python source. Unsupported or ambiguous calculation wording produces no tool selection. The tool result is a `ToolResult` data object, then formatted as prompt context.
+
+However, this is **not yet the general typed operation representation** envisioned by the broader NEX architecture. The caller still selects by keyword patterns and passes tool-specific keyword arguments; the registry directly dispatches by tool name. There is no general operation envelope here that carries a canonical operation ID, typed arguments, provenance, preconditions, requested side-effect class, expiry, approval requirement, or postcondition contract. Do not describe this narrow Stage-B route as the completed Sentence Code → Recursive Extrapolator → executable-interface pathway.
+
+### Important authority observation
+
+On the inspected chat path, once a supported tool is selected, `gui/server.py` directly calls `ToolRegistry.execute()`; no separate human approval step is visible between this heuristic selection and the bounded tool invocation. That observation must be interpreted in proportion to the actual capability surface: the current tools are limited to allowlisted HTTP GET, bounded arithmetic interpretation and read-only belief retrieval. It does not establish that arbitrary shell, filesystem, robot, deployment or other consequential operations are available.
+
+The architectural lesson is not to put a Mind Aspect in front of this call as a veto. Preserve the user's rule: Mind Aspects provide interpretation, not action authority. If NEX expands the capability surface, the next design should add an explicit typed operation/authority boundary independent of the mind-map position of any cognitive faculty. Capability validation, any required human approval, execution and post-execution verification must remain separate stages.
+
+### Autonomous-fire reachability: not present in the inspected Fountain source
+
+A direct scan of `theory_x/stage6_fountain/generator.py` at this snapshot found no references to `ToolCaller`, `ToolRegistry`, `tool_caller`, `tool_registry`, `python_exec`, `web_fetch` or `beliefs_query`. The reviewed `gui/server.py` chat handler is therefore evidence of chat-triggered capability use, not autonomous-fire tool use. No fire-loop tool call, trigger rate, or autonomous execution frequency should be inferred from the chat path.
+
+This matters to the wider neural-network/exponential-propagation idea: adding a new caller from internal thought state would change *who or what can trigger a capability*, even if the tool implementation itself remained unchanged. That would be a separate architecture and authority decision, not a harmless reuse of the chat helper.
+
+### Reconciliation of older research notes
+
+Two repository notes require snapshot-aware reading:
+- `research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md` describes an earlier main snapshot `5ba30077` and a bounded correction as still candidate PR #369. The inspected current-main source at `18c8f061...` already contains the bounded AST interpreter and explicit expression extraction described there. Treat the note's implementation-status paragraph and old chat-call signature as historical, not current status.
+- `observation_reports/fire_path_tools_SCOPE.md` describes `python_exec` as subprocess-based and refers to import blocklisting/sandboxing. That does not match the current `tools.py` implementation inspected here. Its broader governance warning remains useful: a new autonomous caller changes trigger source, volume and observability, even when the capability itself is bounded. Its old implementation description must not be repeated as current fact.
+
+The current source snapshot, not a stale note, is the implementation authority for this study. The source trace itself remains a snapshot observation; it does not establish live host configuration or whether `with_tools` is enabled in a running deployment.
+
+### Next bounded development sequence
+
+1. Keep the current three-tool chat route bounded; do not connect it to Fountain as an incidental refactor.
+2. Specify a minimal typed operation envelope for future capability growth, but first inventory existing execution interfaces and governance contracts. It should carry operation identity, typed inputs, provenance, requested capability, preconditions and expected postconditions; it must not itself grant authority.
+3. Separate deterministic capability validation from approval policy. A cognition result or Mind Aspect may supply context and rationale, but must not silently approve or veto the operation.
+4. Add explicit post-execution verification and preserve a provenance trail from originating request/intent through operation, result and verification.
+5. Before any autonomous-fire caller is considered, measure candidate trigger base rates read-only, define per-capability limits and observability, and obtain a separate explicit design decision. Do not arm or prototype autonomous tool calls as part of this documentation study.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `theory_x/stage_capability/tool_caller.py` blob `07ef6c7f044b0c26c3e8ba78f51e5cf285890402`; `theory_x/stage_capability/tools.py` blob `b00052d6286d23b58599bfc463ebf051b0c08668`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `tests/test_tools.py` blob `6afdbf3bd88c5b5463443947e02d4a5ef3fdf6ee`; `research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md` blob `a4481c09219e3c85c41df886f79449599c5929bc`; `observation_reports/fire_path_tools_SCOPE.md` blob `9b83406fbb00fc9e62908fec2a1e840a70473ccc`.
+
+**Unchanged boundaries:** no tool call was made against a live NEX instance; no tool was invoked, no Fountain integration, autonomous caller, typed-operation implementation, approval gate, feature flag, runtime setting, database, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority was changed.
