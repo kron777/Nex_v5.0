@@ -23,7 +23,7 @@ The raw proposal digest covers only the immutable raw-objective snapshot. The ob
 
 The raw objective's supersedes_sha256 remains in the raw lineage. The objective.v1 record's revision and supersedes_sha256 are calculated from ObjectiveInputStore.history(), using the previous complete objective-input digest. Raw revision numbers and intake revision numbers are not assumed to be equal.
 
-The returned lineage envelope also binds the proposal ID, selected alternative, proposer attribution, approval event sequence/hash, acceptance-criterion coverage, and both revision/digest pairs. It is a returned preparation artefact in this increment, not yet a durable bridge ledger.
+The lineage envelope binds the proposal ID, selected alternative, proposer attribution, approval event sequence/hash, acceptance-criterion coverage, and both revision/digest pairs. The read-only preparation API returns it without writing. The explicit intake API stores the envelope beside the objective record in the same objective-ledger append; it does not introduce a second transaction ledger or pretend that two files can be atomically committed.
 
 ## Graph diagnostics and bounded uncertainty
 
@@ -33,11 +33,21 @@ Simple-cycle enumeration can grow exponentially in a dense strongly connected co
 
 A depends_on cycle is reported as a prerequisite/build-order cycle. A cycle containing influences is a feedback loop, not automatically a defect. Unknown remains unknown. No edge is removed or rewritten.
 
+## Durable intake and downstream lineage
+
+The follow-on `submit_reviewed_selection()` API is the explicit persistence/planning operation. It re-reads the approved selection, prepares the validated objective.v1 record and lineage, then calls the existing objective intake pipeline.
+
+- `ObjectiveInputStore` keeps objective.v1 unchanged. Its append-only JSONL wrapper accepts an optional, separately validated `lineage` member alongside `record` and `sha256`; legacy two-field wrappers remain readable.
+- The objective record and its complete proposal lineage are written in one fsynced objective-ledger append. The proposal ledger is read-only during this operation, so no cross-ledger atomic-write claim is made.
+- A retry finds the same proposal ID/alternative in objective history, reuses the same immutable objective revision, and reuses the deterministic CycleStore identity. A conflicting lineage for an existing revision is rejected.
+- `CycleRecord.objective_lineage` preserves the exact envelope. `resume_objective()` and objective history expose it.
+- Stage-7 `create_handoff()` requires the cycle lineage to match the objective ledger and includes the envelope in the immutable manifest digest. The handoff ID also includes the lineage digest when present.
+- This explicit API runs only the advisory RDO planning cycle. It does not automatically create a Stage-7 handoff, authorize code execution, activate rules, or alter NEX runtime state.
+
+The read-only `prepare_reviewed_selection()` remains available for inspection and does not append or plan. Persistence/planning occurs only when the separate `submit_reviewed_selection()` operation is invoked.
+
 ## Explicitly not done
 
-- No objective-input ledger append.
-- No call to submit_objective() and no RDO expansion/reconciliation/planning cycle.
-- No work-package generation, Stage-7 handoff, policy activation or execution.
-- No schema-v1 change and no change to the frozen S-01–S-25/M1.8 register or Master Roadmap.
-
-A later increment may add a separately authorized durable bridge ledger and explicit append/recovery protocol. That work must handle the fact that two append-only ledgers cannot be updated atomically by a single filesystem append; it must not silently assume cross-ledger atomicity.
+- No automatic Stage-7 handoff or scope approval.
+- No policy activation, code execution, deployment, runtime action or live NEX write.
+- No change to objective.v1 schema, frozen S-01–S-25/M1.8 register or Master Roadmap.
