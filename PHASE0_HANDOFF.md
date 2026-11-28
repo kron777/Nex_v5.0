@@ -489,3 +489,5 @@ The `SelfNarrative.tick()` method contains a conditional rut-notice writer, but 
 ### 28 November 2026 — Rut-mirror prompt retrieval boundary
 
 The fixed rut notice is not injected as a generic reflective cue by the inspected GUI path. The GUI passes `prompt[:100]` as `current_topic`; SelfNarrative uses the entire string in a case-insensitive SQL substring match against narrative content. An unrelated prompt prefix returns no rut notice even if the row exists. Draft PR #452 adds isolated exact-versus-unrelated topic tests; exact-head CI remains pending. No prompt/retrieval policy change. See INDEX §149.
+
+GeniusTagger is separately wired to its own 60-second loop and writes the `genius_tags` input table; that does not own or dispatch `SelfNarrative.tick()`. Host worker execution and live tag freshness remain UNKNOWN. See INDEX §148.
