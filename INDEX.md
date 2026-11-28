@@ -1125,7 +1125,7 @@ No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 
 
 ## 16. Current-main reconciliation — lifecycle hardening and cognitive wire characterization (28 November 2026)
 
-**Verified base:** `main` at `d7d204c24807eb3e46c37d70f2c1dcaae63830dc`. This section supersedes the 27 November mainline/PR inventory in §11 for changes merged after that snapshot. It does not retroactively refresh older evidence artefacts or convert PR-only work into mainline capability.
+**Verified base:** `main` at `a3fd532e12cbc84fa9505819ce475eef6101a06c`. This section supersedes the 27 November mainline/PR inventory in §11 for changes merged after that snapshot. It does not retroactively refresh older evidence artefacts or convert PR-only work into mainline capability.
 
 ### 16.1 Graceful shutdown: merged lifecycle increments
 
@@ -1145,7 +1145,7 @@ Exact-head full-suite workflow run 2339 completed successfully: **2,971 passed, 
 
 A source scan of the current 4,763-line `gui/server.py` found no direct `threading.Thread` construction, thread `.start()` call, executor submission, `create_task()` or subprocess spawn in the route module. The matches were thread lifecycle inspection/ownership code. This narrows the direct route-spawn concern but does not rule out detached work inside services called by routes, tasks created elsewhere, or alternate WSGI/server entry points. The gate is installed before the authentication and route-specific request hooks.
 
-The request gate is now current-main code. Do not overstate it as proof of complete process/thread quiescence or verified host shutdown behaviour. A stale comment beside the 12-second budget still referred to the removed 1.5-second in-flight-fire wait; PR #389 proposes a comment-only correction and remains unmerged at this snapshot.
+The request gate is now current-main code. Do not overstate it as proof of complete process/thread quiescence or verified host shutdown behaviour. A stale comment beside the 12-second budget referred to the removed 1.5-second in-flight-fire wait. PR #389 merged as `a3fd532e12cbc84fa9505819ce475eef6101a06c` and corrected the comment; runtime behaviour was unchanged.
 
 ### 16.3 Cognitive integration characterization — merged PR #381
 
@@ -1169,7 +1169,7 @@ PR #381 exact-head full-suite workflow run 2350 passed: **2,979 passed, 7 skippe
 
 ### 16.5 Remaining research and development work
 
-1. Recheck #388 and #389 exact head SHAs, all required CI jobs, baseline verification and merge state before updating this section again.
+1. Recheck #391's exact head SHA, all required CI jobs, baseline verification and merge state before updating this section again.
 2. Rescan the complete shutdown path now that #378 is merged: signal receipt, request admission, detached route work, registered producers, direct database writers, Writers, clean-marker persistence, process exit and keepalive restart. Add regressions only for demonstrated gaps.
 3. Continue the host/server evidence work: inspect the actual deployment contract and determine whether the Flask threaded server is the only entry point. Do not infer host behaviour from repository tests.
 4. Continue the faculty producer→consumer audit from #381, distinguishing construction, boot wiring, flag enablement, consumption and measured behavioural effect.
@@ -1243,13 +1243,15 @@ This is fail-closed for the clean marker, but not a completed graceful shutdown.
 A detailed source-bounded timing report is in `research/SHUTDOWN_REQUEST_VOICE_TIMEOUT_GAP_2026-11-28.md`. The next step is a controlled host experiment measuring ordinary/worst-case chat latency (including retries), then SIGTERM during an active voice request while observing request labels, Writer queue depth, exit code and clean-marker persistence. Do not reduce the 120-second VoiceClient timeout or change the 12/15-second shutdown budgets until that evidence exists.
 
 
-### 16.10 SenseScheduler stop-during-poll race — open PR #388
+### 16.10 SenseScheduler stop-during-poll race — merged PR #388
 
-Current-main `SenseScheduler._AdapterThread._run()` previously performed `adapter.poll()` and then `adapter.submit(events)` without rechecking the worker stop event. `SenseScheduler.shutdown()` signals stop but cannot interrupt a poll already blocked in network I/O. The default adapter fetch has a 10-second connect and 20-second read timeout, while `AppState.close()` gives producer quiescence at most five seconds (subject to the remaining 12-second total deadline) before attempting Writer closure. The adapter source also records measured 5–6-second TLS handshakes for some slow-but-working hosts, already longer than the five-second join allowance.
+Before #388, `SenseScheduler._AdapterThread._run()` performed `adapter.poll()` and then `adapter.submit(events)` without rechecking the worker stop event. `SenseScheduler.shutdown()` signals stop but cannot interrupt a poll already blocked in network I/O. The default adapter fetch has a 10-second connect and 20-second read timeout, while `AppState.close()` gives producer quiescence at most five seconds (subject to the remaining 12-second total deadline) before attempting Writer closure. The adapter source also records measured 5–6-second TLS handshakes for some slow-but-working hosts, already longer than the five-second join allowance.
 
-If shutdown begins during a poll, that poll can return after stop was signalled and the old worker loop would still begin a Writer submission. PR #388 proposes checking the stop event immediately after poll and discarding those results when shutdown has begun. It adds a deterministic blocked-poll regression test and a source note.
+PR #388 merged as `1180a8922584802dcadfb1edaad1f28adbc0ef2f`. The worker now checks the stop event immediately after poll and discards results when shutdown began during the poll. It adds a deterministic blocked-poll regression test and a source note.
 
-**Boundary:** #388 is open and its exact-head CI is pending; the correction is not current-main behaviour yet. It does not interrupt the in-flight poll, change adapter timeouts/cadence, or cancel a submission that already started before stop. It narrows the late-submit window but does not establish complete producer or host-level shutdown safety; slow polls can still cause a non-clean exit.
+Exact-head full-suite workflow run 2404 passed: **2,987 passed, 7 skipped, 86 subtests**; baseline verification reported **OK**. The mind-map verifier reported **30 nodes, 0 unverified, 12 dark, 2 blocked**.
+
+**Boundary:** this does not interrupt an in-flight poll, change adapter timeouts/cadence, or cancel a submission that already started before stop. It narrows the late-submit window but does not establish complete producer or host-level shutdown safety; slow polls can still cause a non-clean exit.
 
 
 ### 16.11 Active prediction loops versus producer-stop budget — open PR #391
