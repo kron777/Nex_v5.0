@@ -340,6 +340,9 @@ def test_start_rollback_timeout_retains_worker_then_retries_without_stale_sentin
     writer.start()
     replacement = writer._thread
     assert replacement is not worker
+    assert writer._startup_rollback_incomplete is False
+    assert writer._sentinel_enqueued is False
+    assert writer._queue.empty()
     try:
         writer.write("CREATE TABLE retry_after_rollback_timeout (id INTEGER PRIMARY KEY)")
     finally:
