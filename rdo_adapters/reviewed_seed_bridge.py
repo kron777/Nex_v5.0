@@ -18,7 +18,7 @@ from rdo.tension import _classify_cycle, _find_cycles, assess_system
 from rdo_adapters.objective_intake import ObjectiveInputStore, submit_objective, validate_objective
 from rdo_adapters.seed_proposals import SeedProposalStore
 
-SCHEMA_VERSION = "rdo.reviewed_seed_bridge.v1"
+SCHEMA_VERSION = "rdo.reviewed_seed_bridge.v2"
 CYCLE_KINDS = ("depends_on", "influences")
 MAX_CYCLE_SCC_NODES = 7
 MAX_CYCLE_SCC_EDGES = 18
@@ -297,6 +297,7 @@ def prepare_reviewed_selection(
             "sequence": approval_event["sequence"],
             "event_sha256": approval_event["event_sha256"],
             "record": approval,
+            "event": approval_event,
         },
         "objective_id": objective["objective_id"],
         "objective_revision": objective["revision"],
