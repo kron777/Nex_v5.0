@@ -401,9 +401,6 @@ class TestNovelAssociationCrossingTrigger(unittest.TestCase):
         sn.write_narrative.assert_not_called()
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 class TestRutMirrorTick(unittest.TestCase):
     """Characterize the existing rut-mirror hook without changing runtime code."""
 
@@ -484,3 +481,6 @@ class TestRutMirrorTick(unittest.TestCase):
         time.sleep(0.05)
         self.assertEqual(self._rut_count(), 1)
 
+
+if __name__ == "__main__":
+    unittest.main()
