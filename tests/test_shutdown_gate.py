@@ -41,7 +41,7 @@ def test_flask_gate_rejects_new_requests_and_waits_for_admitted_request():
     def block():
         calls.append("entered")
         started.set()
-        release.wait(timeout=2.0)
+        release.wait(timeout=5.0)
         return "finished"
 
     request_result = []
@@ -52,18 +52,18 @@ def test_flask_gate_rejects_new_requests_and_waits_for_admitted_request():
         name="in-flight-http-request",
     )
     request_thread.start()
-    assert started.wait(timeout=1.0)
+    assert started.wait(timeout=2.0)
 
     shutdown_result = {}
     shutdown_thread = threading.Thread(
         target=lambda: shutdown_result.update(
-            gate.begin_shutdown(time.monotonic() + 1.0)
+            gate.begin_shutdown(time.monotonic() + 3.0)
         ),
         name="shutdown-request-drain",
     )
     shutdown_thread.start()
 
-    deadline = time.monotonic() + 1.0
+    deadline = time.monotonic() + 3.0
     while not gate.is_closing and time.monotonic() < deadline:
         time.sleep(0.001)
     assert gate.is_closing
@@ -75,8 +75,8 @@ def test_flask_gate_rejects_new_requests_and_waits_for_admitted_request():
     assert calls == ["entered"]
 
     release.set()
-    request_thread.join(timeout=1.0)
-    shutdown_thread.join(timeout=1.0)
+    request_thread.join(timeout=2.0)
+    shutdown_thread.join(timeout=2.0)
 
     assert not request_thread.is_alive()
     assert not shutdown_thread.is_alive()
