@@ -236,6 +236,27 @@ class TestRunPyEarlyBootOwnership(unittest.TestCase):
         report = state.close()
         self.assertTrue(report["success"], report)
 
+    def test_appstate_close_uses_deadline_latched_at_boot_signal(self):
+        from gui.server import AppState
+
+        class FakeWriter:
+            def __init__(self):
+                self.timeout = None
+
+            def close(self, timeout):
+                self.timeout = timeout
+
+        writer = FakeWriter()
+        state = AppState(writers={"fake": writer}, readers={}, voice=object())
+        deadline = time.monotonic() - 0.01
+        state._boot_shutdown_deadline = deadline
+
+        report = state.close()
+
+        self.assertEqual(report["deadline_monotonic"], deadline)
+        self.assertEqual(writer.timeout, 0.0)
+        self.assertTrue(report["deadline_exceeded"])
+
 
 if __name__ == "__main__":
     unittest.main()
