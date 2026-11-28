@@ -101,7 +101,10 @@ python -m rdo rule-review \
 
 The other decisions are `rejected` and `changes_requested`. A rejected
 proposal is terminal. A changes-requested proposal can receive another review.
-An approved proposal is terminal; changing it requires a new proposal and review.
+An approved proposal is terminal. This first catalogue version does not yet
+support replacing an already-approved rule for the same kind; do not create a
+second competing approval. Rule replacement requires a separate, reviewed
+catalogue-migration increment.
 
 Inspect the approved catalogue:
 
