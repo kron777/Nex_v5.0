@@ -4,20 +4,18 @@ from unittest.mock import patch
 
 from theory_x.stage_world import prediction_generator as pg
 from theory_x.stage_world import self_prediction as sp
-from theory_x.stage_world.world_loop import WorldPredictionLoop
+from theory_x.stage_world import world_loop
 
 
 def test_world_prediction_does_not_start_voice_work_after_stop_during_resolve():
     stop = threading.Event()
-    loop = WorldPredictionLoop(conversations_writer=object())
+    loop = world_loop.WorldPredictionLoop(conversations_writer=object())
 
     def resolve_then_stop(**_kwargs):
         stop.set()
         return {}
 
-    with patch.object(loop.__class__.__module__ and __import__(
-        "theory_x.stage_world.world_loop", fromlist=["wp"]
-    ).wp, "resolve_due", side_effect=resolve_then_stop), patch.object(
+    with patch.object(world_loop.wp, "resolve_due", side_effect=resolve_then_stop), patch.object(
         pg, "make_voice_prediction"
     ) as make_voice:
         loop.tick(stop_event=stop)
