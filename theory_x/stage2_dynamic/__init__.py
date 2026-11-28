@@ -286,6 +286,8 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
                                     pass  # UNIQUE constraint → skip
                         except Exception:
                             pass
+                if stop.is_set():
+                    break
                 # Advance only after this row's extraction/dedup/write unit has
                 # completed. A stop at the top of the next iteration leaves
                 # later rows for the next boot.
