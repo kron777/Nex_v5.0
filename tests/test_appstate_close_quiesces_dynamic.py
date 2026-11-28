@@ -6,11 +6,14 @@ stop_dynamic() exists for exactly that. A loop mid-tick could then submit its
 writes to a Writer that was already draining or closed, and lose them.
 
 Pinned here, on isolated temporary databases:
-- close() stops and joins the dynamic loops BEFORE any Writer closes, so a
-  tick in progress completes its write;
+- close() stops and joins the dynamic loops and Fountain BEFORE any Writer
+  closes, so in-flight writes can complete;
+- Fountain's long idle interval is interruptible and its join shares the
+  dynamic-loop shutdown deadline;
 - the wait is bounded: a loop that will not stop does not hold close() past
   the budget, and the Writers still close;
-- AppState without a dynamic layer closes exactly as before.
+- AppState without a dynamic layer or Fountain closes exactly as before.
+Other producer families remain outside this bounded increment.
 """
 from __future__ import annotations
 
