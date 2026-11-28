@@ -4718,3 +4718,54 @@ If the workflow passes, record only that the characterization tests pass on this
 **Evidence anchors:** PR #448; commit f4447ad5b243b97c91c28fc00abbef88fe7c51f9; tests/test_groove_spotter_fingerprints.py; theory_x/diversity/groove.py; tests/test_diversity.py; workflow run 46173749707; main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
 
 **Evidence level:** test source committed; exact-head CI queued, not yet test-verified; no runtime observation.
+
+
+## §123 — Historical runtime anchor: November 14 groove alert population and episodes (2026-11-28)
+
+### What the contemporaneous investigation recorded
+
+The tracked journal journal/INVESTIGATION_2026-11-14_groove_facts.txt contains a direct, read-only observation of the then-live beliefs.db:
+
+- COUNT(*) was 1,198 on the first check and 1,199 about 20 minutes later; the underlying NEX process was not stopped or touched during the investigation.
+- Earliest recorded alert: 2026-10-26 22:29:46.
+- Type distribution in the 1,198-row sample: template_repetition 1,136 (94.8%); ngram_repetition 62 (5.2%); exact_repetition 0; centroid_tightening 0.
+- acknowledged_at IS NOT NULL was 0 of 1,198 at that historical observation time.
+
+This is historical runtime-observed evidence preserved in the repository journal. It is not a measurement of the current host or current database. The journal also notes that its “never written” conclusion was based on what that investigation found; the current tracked-source census likewise has not located a direct writer, but neither source proves that no external, untracked, or dynamically constructed writer has ever existed.
+
+### The historical 30-minute episode calculation
+
+The journal grouped all 1,199 alert rows by a 30-minute gap between consecutive rows (chosen because other code uses a 1,800-second freshness window). That analysis produced:
+- 55 gap-clustered groups;
+- alerts per group: minimum 1, median 14, p90 54, maximum 102;
+- group span: median approximately 106.7 minutes, p90 approximately 376.7 minutes, maximum approximately 837.3 minutes.
+
+For the November 10 “Aligned Model” incident, the two specifically matched source alerts were IDs 751 and 752, both template_repetition at severity 1.0. The same historical gap analysis put that incident's alert group at 8 rows over 56.4 minutes. The journal also records that GrooveSpotter pushed a signal_cooldown entry and a later crystallization reject matched “aligned model”. These are source-journaled database observations, not a current replay.
+
+### How this relates to today's identity analysis
+
+Keep four identities distinct:
+
+1. **Persisted alert row:** one row in groove_alerts, with its database ID and common alert columns.
+2. **GrooveSpotter in-memory detector fingerprint:** one of four type-specific per-instance fingerprints (§121); not durable across restart.
+3. **Historical 30-minute gap cluster:** an offline grouping of consecutive rows by time gap, across alert types. It is an analytical estimate, not the producer's fingerprint.
+4. **Row 9 derived event:** a meta_cognition_events row created each time Metacognition reads an eligible source alert; repeats of the same source row can create multiple derived events.
+
+The November 14 report's phrase “one alert” refers to a fresh detector emission after stale-rescan suppression, not to a universally defined episode. Its gap-clustering distribution is useful operational history, but cannot supply the missing canonical identity needed by G-83 or Row 9. In particular, the 55 historical gap groups must not be compared directly with current derived event counts or detector fingerprints.
+
+### What this historical anchor supports — and what it cannot
+
+It supports that:
+- the historical source table was growing during the investigation;
+- none of the sampled historical rows had acknowledged_at set;
+- template_repetition overwhelmingly dominated that sample;
+- long-lived repetition patterns were observed in the historical gap-cluster analysis;
+- at least one specific live incident generated maximum-severity template alerts and a real cooldown effect.
+
+It does not establish current alert frequency, present acknowledgement state, restart replay frequency, current host status, or whether all historical alert rows were distinct semantic episodes. The original journal itself flags that raw-fire topic dwell beyond crystallized beliefs was not computed; no estimate of raw-fire repetition duration should be inferred from this table.
+
+**Disposition:** Phase 0 historical runtime evidence reconciliation under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No live host/database/process/service accessed in this pass. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchor:** journal/INVESTIGATION_2026-11-14_groove_facts.txt, especially its Q2 alert count/type/acknowledgement breakdown, 30-minute gap-clustering distribution, Q3 incident rows/cooldown evidence, and final evidence limitations. Current implementation comparison: theory_x/diversity/groove.py, theory_x/diversity/loop.py, theory_x/stage9_metacognition/metacognition.py; manual §§112–123.
+
+**Evidence level:** historical runtime-observed counts and event rows as reported by the contemporaneous read-only journal; source-observed current identity model; retrospective 30-minute grouping method. Current live database state and cross-restart episode identity remain UNKNOWN.
