@@ -3,7 +3,7 @@
 **Date:** 28 November 2026  
 **Evidence base:** `kron777/Nex_v5.0` main at `f5cf19c32b0151043ca90b139b25c24e01e384fb`  
 **Branch:** `fix/selfmindview-metacog-attention-wire-2026-11-28`  
-**Status:** one-column read-path correction and real integration test added; exact-head CI pending.
+**Status:** one-column read-path correction and expanded three-tick/recency-pool integration characterization added; exact-head CI pending.
 
 ## 1. Broken edge
 
