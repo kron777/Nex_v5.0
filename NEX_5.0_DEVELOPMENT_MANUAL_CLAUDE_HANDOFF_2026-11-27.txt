@@ -6007,3 +6007,30 @@ The source path is now traced through belief retrieval, narrative composition an
 **Source anchors:** theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; run.py; theory_x/stage_gate/coherence_gate.py; theory_x/stage7_sustained/problem_memory.py; theory_x/stage8_goal_manager/goal_manager.py; theory_x/stage9_metacognition/metacognition.py; theory_x/stage10_imagination/novel_association.py; PRs #456 and #457.
 
 **Authority boundary:** no runtime code, feature flag, database, schema, prompt policy, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §161 — Stage-TOM recent-T6 reader does not filter the paused column (28 November 2026)
+
+**Question studied:** does the optional Fountain narrative reader distinguish paused tier-6 beliefs from active tier-6 beliefs?
+
+### Source observation
+
+- substrate/schema/beliefs.sql defines beliefs.paused as an explicit INTEGER column with NOT NULL DEFAULT 0.
+- theory_x/stage_tom/self_narrative.py::_recent_t6() filters tier=6 and content NOT LIKE '[%', then orders by created_at and limits the candidate set. It does not include paused=0 or otherwise inspect the paused column.
+- Therefore, a paused tier-6 belief whose content survives the prefix/text filters is eligible for this narrative context. build_narrative() still requires at least one substantive Fountain fire and the belief must survive the bounded candidate set.
+- This is a read-path fact, not yet a policy violation. Paused-belief semantics must be checked against the governing specification and the intended role of autobiographical/reflective context; do not infer that every paused row must be absent from every descriptive or reflective view.
+
+### Characterization
+
+- **PR #458** adds a test-only fixture with one substantive Fountain fire and one tier-6 self_rut_notice belief inserted with paused=1. It asserts whether the current Stage-TOM narrative includes that row. Exact-head CI was in progress at this snapshot.
+- The test does not change pause state, retrieval, prompt policy or runtime behavior and does not establish host incidence.
+
+### Disposition and next step
+
+Record as a source-level eligibility question adjacent to the wider paused-belief consumer census. Compare the intended paused-state contract with the specific purpose of Stage-TOM narrative composition before assigning a defect ID or proposing a filter. Keep descriptive/reflective context separate from operational eligibility and action authority. Do not modify the reader in Phase 0 without the necessary authority.
+
+**Evidence classification:** schema column and SQL predicate are source-observed; PR #458 is a pending characterization test; host rows, paused prevalence, live prompt delivery and intended policy are UNKNOWN. G-83 remains OPEN; no new defect ID assigned.
+
+**Source anchors:** substrate/schema/beliefs.sql; theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; PR #458.
+
+**Authority boundary:** no runtime code, pause state, schema, retrieval policy, feature flag, prompt policy, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
