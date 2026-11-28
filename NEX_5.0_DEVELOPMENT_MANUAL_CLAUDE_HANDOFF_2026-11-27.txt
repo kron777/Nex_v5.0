@@ -5105,3 +5105,8 @@ This is not yet proof that the column is globally unused or that auto-acknowledg
 **Disposition:** no acknowledgement writer found in the inspected active producer/consumer/GUI paths; source-row replay within the 600-second window is test-verified; global absence of all writers and intended semantics remain UNKNOWN. G-83 stays OPEN. No source, schema, flags, thresholds, frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
 
 **Source anchors:** `substrate/schema/beliefs.sql` blob `44a3f95dbf4c522d84dd030c9c825afffe760b6b`; `theory_x/diversity/groove.py` blob `1174b9001c7ffc876cec78ae677cb664481ad04e`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/auto_probe/groove_breaker.py` blob `2eb856f9d9afa827d38fbcb86a503237082c10b9`; PR #449 exact head `8132db2a338727e580e3269ad148277db727b0d4`.
+
+
+### §132 history refinement
+
+The nullable `acknowledged_at` column is present when `groove_alerts` first appears in `substrate/schema/beliefs.sql` at commit `a396dda08e8861e22029ceef813c69211671a37e` (26 April 2026). That commit's message describes adding diversity/rut-detection mechanisms; its schema patch creates the table with the nullable field but does not document who acknowledges alerts, what acknowledgement means, or when it should occur. No separate acknowledgement decision was located in that commit message/patch. This confirms early schema provenance, not intended semantics or approval.
