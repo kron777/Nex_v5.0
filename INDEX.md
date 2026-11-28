@@ -6284,7 +6284,7 @@ The Tibetan Mind Map and the Chat Faculty Wire Map must not be conflated. The fo
 
 ## §170 — One belief can be retrieved twice across OUTSIDE chat RAG and beliefs_query (28 November 2026)
 
-**Characterization PR:** #460, draft, branch `tests/chat-belief-query-overlap-2026-11-28`, latest fixture head `6b016802831350ff1cf1cf1c19c99fb49e3964b2`. Exact-head workflow `46187314674` was still running when this entry was written. **No pass count is claimed here.**
+**Characterization PR:** #460, draft, branch `tests/chat-belief-query-overlap-2026-11-28`, latest fixture head `6b016802831350ff1cf1cf1c19c99fb49e3964b2`. Exact-head workflow `46187314674` completed successfully on `6b016802831350ff1cf1cf1c19c99fb49e3964b2`: **3,079 passed, 7 skipped, 86 subtests** in 254.60 seconds. The disposable sandbox probe passed (unprivileged, no capabilities/credentials, read-only source, disposable data/tmpfs, no default route and no outbound network); baseline check OK; Mind Map checker completed.
 
 ### Source path
 
@@ -6295,8 +6295,8 @@ The Tibetan Mind Map and the Chat Faculty Wire Map must not be conflated. The fo
 
 PR #460 first adds a component-level fixture proving that the same seeded database ID can be returned from both paths and that combined formatted tier markers can outnumber the unique IDs. It then adds a full `/api/chat` fixture that clears only its disposable test database, inserts one matching belief, sends a query that is OUTSIDE to the membrane but recognized by `ToolCaller` as `beliefs_query`, and asserts that the same content appears twice and the route reaches a mocked voice request.
 
-If the exact-head route test passes, that establishes a reproducible fixture in which one distinct belief can contribute two tier-labelled entries and clear a two-entry response-grounding threshold. It still does not establish a live-host occurrence, frequency, a user-visible false grounding event, or production impact. The intended evidence-count semantics require a separate decision; no automatic deduplication or runtime change is made here.
+The full-route fixture passed: one distinct belief contributed two tier-labelled entries and cleared the two-entry response-grounding threshold, reaching the mocked voice request. This establishes a reproducible fixture-level source interaction. It does not establish a live-host occurrence, frequency, a user-visible false grounding event, or production impact. The intended evidence-count semantics require a separate decision; no automatic deduplication or runtime change is made here.
 
-**Disposition at writing:** component and route characterization submitted; exact-head CI pending; no defect ID assigned pending review of intended semantics and CI. Host occurrence remains UNKNOWN. No runtime retrieval, prompt, threshold, selector, schema or authority changed.
+**Disposition:** component and route characterization passed. No defect ID assigned pending review of the intended meaning of the two-entry threshold and whether distinct evidence identity is required. Host occurrence remains UNKNOWN. No runtime retrieval, prompt, threshold, selector, schema or authority changed.
 
 **Source anchors:** `theory_x/stage4_membrane/router.py:23-78`; `theory_x/stage3_world_model/retrieval.py`; `theory_x/stage_capability/tools.py` (`_beliefs_query`); `gui/server.py` (normal retrieval, Stage-B call and gap gate); `tests/test_membrane.py`; PR #460; workflow `46187314674`.
