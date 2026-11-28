@@ -44,7 +44,7 @@ def apply_boost(writer, belief_id: int, grade: float) -> None:
     log.info("Boost applied: belief_id=%d boost=%.2f (grade=%.3f)", belief_id, boost_value, grade)
 
 
-def apply_decay(writer, reader) -> int:
+def apply_decay(writer, reader, *, stop_event=None) -> int:
     """Reduce all active boosts by their daily decay rate. Remove neutral ones."""
     rows = reader.read(
         "SELECT belief_id, boost_value, boosted_at, decay_rate FROM belief_boost"
@@ -52,6 +52,8 @@ def apply_decay(writer, reader) -> int:
     now = time.time()
     removed = 0
     for row in rows:
+        if stop_event is not None and stop_event.is_set():
+            break
         days_elapsed = (now - row["boosted_at"]) / 86400.0
         new_boost = row["boost_value"] - row["decay_rate"] * days_elapsed
         if new_boost <= NEUTRAL_THRESHOLD:
