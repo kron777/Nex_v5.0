@@ -902,7 +902,15 @@ class AppState:
             thread = worker if isinstance(worker, threading.Thread) else getattr(worker, "_thread", None)
             _add_thread(thread)
             # Some services own multiple delayed workers rather than one _thread.
-            for owned_thread in list(getattr(worker, "_threads", ()) or ()):
+            # Snapshot under the service lock when available; workers may remove
+            # themselves from the registry as they finish.
+            owned_lock = getattr(worker, "_thread_lock", None)
+            if owned_lock is not None:
+                with owned_lock:
+                    owned_threads = list(getattr(worker, "_threads", ()) or ())
+            else:
+                owned_threads = list(getattr(worker, "_threads", ()) or ())
+            for owned_thread in owned_threads:
                 _add_thread(owned_thread)
 
         me = threading.current_thread()
