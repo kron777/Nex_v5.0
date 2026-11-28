@@ -5720,3 +5720,35 @@ This is a provenance limitation, not proof that the decision was incorrect. It b
 **Source anchors:** theory_x/stage_self_narrative/self_narrative.py; theory_x/stage6_fountain/generator.py; theory_x/genius/tagger.py; substrate/schema/conversations.sql; substrate/init_db.py.
 
 **Authority boundary:** no runtime code, schema, event store, trace overlay, feature flag, detector threshold, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §154 — Rut readers have no backfill-completion gate and can observe a partial startup sample (28 November 2026)
+
+**Question studied:** do the chat and Fountain rut readers wait until GeniusTagger's initial backfill has completed before evaluating the 90-minute sample?
+
+### Source trace
+
+- run.py constructs GeniusTagger and passes it to _own_and_start() at the Phase 9g startup site.
+- _own_and_start() publishes the worker, calls its start method, then returns after the start call; it does not wait for the worker thread to finish its first tick or backfill.
+- GeniusTagger.start_loop() starts a daemon thread and immediately calls tick(), which enters _backfill() while _backfill_done is false. The worker sets _backfill_done only after _backfill() returns complete.
+- run.py later constructs Fountain through build_fountain(); the Fountain loop is independently started. No inspected boot path waits on GeniusTagger._backfill_done before Fountain construction or chat availability.
+- The Metacognition chat caller and Fountain governor query genius_tags directly. Neither reads _backfill_done, waits for tagger readiness, nor distinguishes a complete sample from rows already written by an in-progress backfill.
+- Combined with §152, the first rows written by a 14-day backfill are stamped with the current processing timestamp. A rut reader can therefore evaluate a partial, historical, still-growing sample as if it were a complete recent window.
+
+### Consequence
+
+The nominal sample may be both temporally mis-scoped and incomplete while it is being built. For example, if the first four rows are ordinary, the <=5% test can pass before later backfill rows change the aggregate rate. The persisted two-hour throttle can then suppress a later re-evaluation after the sample is complete. This is a possible startup race; it is not evidence that the host actually encountered one.
+
+### Evidence classification
+
+- Worker start returns without waiting for first tick/backfill completion: source-observed.
+- _backfill_done is set after successful completion: source-observed.
+- Rut readers do not check backfill readiness: source-observed.
+- Whether startup backfill overlaps a live chat/Fountain decision on the host, how long backfill takes, and whether a premature rut notice was written: UNKNOWN.
+
+**Next bounded investigation:** inspect host startup logs and tag timestamps through an approved read-only snapshot, if available, to determine backfill duration and whether any rut decisions occurred before completion. Do not add a readiness barrier or change startup order under Phase 0 without authority.
+
+**Disposition:** unguarded partial-backfill consumption is a source-level race possibility that compounds §§152–153. Live occurrence and behavioural impact remain UNKNOWN. No new defect ID yet. G-83 remains OPEN.
+
+**Source anchors:** run.py; _own_and_start() in run.py; theory_x/genius/tagger.py; theory_x/stage9_metacognition/metacognition.py; theory_x/stage_self_narrative/self_narrative.py; theory_x/stage6_fountain/__init__.py; theory_x/stage6_fountain/generator.py.
+
+**Authority boundary:** no runtime code, worker lifecycle, startup ordering, database schema, feature flag, detector threshold, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
