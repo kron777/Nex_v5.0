@@ -22,6 +22,7 @@ import json
 import math
 import os
 import re
+import tempfile
 from typing import Dict, List, Optional
 
 from watcher.evidence import utc_now
@@ -183,15 +184,22 @@ class PatternMemory:
         if existing is None:
             if incoming_base == 0.3 and incoming_confidence != 0.3:
                 incoming_base = incoming_confidence
-            pattern.base_confidence = incoming_base
-            if not pattern.confirmations:
-                pattern.confirmations = ["; ".join(incoming)]
-            self._recompute(pattern)
-            self._current[pattern.key] = pattern
-            self._append(pattern)
-            return pattern
+            candidate = dataclasses.replace(
+                pattern,
+                exceptions=list(pattern.exceptions or []),
+                confirmations=list(pattern.confirmations or []),
+                disconfirmations=list(pattern.disconfirmations or []),
+            )
+            candidate.base_confidence = incoming_base
+            if not candidate.confirmations:
+                candidate.confirmations = ["; ".join(incoming)]
+            self._recompute(candidate)
+            # Persist before publishing the candidate into in-memory state.
+            self._append(candidate)
+            self._current[candidate.key] = candidate
+            return candidate
 
-        # Validate all caller-visible mutable state before changing it.
+        # Validate all caller-visible mutable state before preparing a replacement.
         original_confidence = existing.confidence
         normalized_confidence = _bounded_confidence(original_confidence)
         normalized_base = _bounded_confidence(existing.base_confidence)
@@ -218,16 +226,32 @@ class PatternMemory:
         # the clamped value as the new base so it remains durable on idempotent replay.
         if confidence_normalized:
             normalized_base = normalized_confidence
-        existing.base_confidence = normalized_base
-        existing.confirmations = next_confirmations
-        existing.disconfirmations = old_disconfirmations
+        candidate = dataclasses.replace(
+            existing,
+            exceptions=next_exceptions,
+            confirmations=next_confirmations,
+            disconfirmations=old_disconfirmations,
+        )
+        candidate.base_confidence = normalized_base
         if new_origins:
-            existing.provenance = "; ".join(old_origins + new_origins)
-        existing.exceptions = next_exceptions
-        self._recompute(existing)
+            candidate.provenance = "; ".join(old_origins + new_origins)
+        self._recompute(candidate)
         if new_origins or exceptions_changed or confidence_normalized:
-            self._append(existing)
+            # A failed append must not advance the object already exposed to callers.
+            self._append(candidate)
+            self._publish(existing, candidate)
         return existing
+
+    @staticmethod
+    def _publish(existing: Pattern, candidate: Pattern) -> None:
+        """Publish a durable candidate while preserving the existing object identity."""
+        for field in dataclasses.fields(Pattern):
+            value = getattr(candidate, field.name)
+            current = getattr(existing, field.name)
+            if isinstance(value, list) and isinstance(current, list):
+                current[:] = value
+            else:
+                setattr(existing, field.name, value)
 
     def _append(self, pattern: Pattern) -> None:
         pattern.confidence = _bounded_confidence(pattern.confidence)
@@ -237,6 +261,8 @@ class PatternMemory:
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         with open(self.path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(pattern.to_dict(), default=str) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
 
     def refute(self, key: str, evidence: str) -> Optional[Pattern]:
         """Record new disconfirming evidence; duplicate evidence cannot penalize twice."""
@@ -256,12 +282,17 @@ class PatternMemory:
         note = f"disconfirmed: {evidence}"
         if note not in exceptions:
             exceptions.append(note)
-        pattern.base_confidence = base
-        pattern.confirmations = confirmations
-        pattern.disconfirmations = disconfirmations + [evidence]
-        pattern.exceptions = exceptions
-        self._recompute(pattern)
-        self._append(pattern)
+        candidate = dataclasses.replace(
+            pattern,
+            exceptions=exceptions,
+            confirmations=confirmations,
+            disconfirmations=disconfirmations + [evidence],
+            base_confidence=base,
+        )
+        self._recompute(candidate)
+        # Keep the in-memory pattern unchanged if durable append fails.
+        self._append(candidate)
+        self._publish(pattern, candidate)
         return pattern
 
     def patterns(self) -> List[Pattern]:
@@ -297,9 +328,33 @@ class CycleStore:
         return os.path.join(self.dir, f"cycle_{cycle_id}.json")
 
     def save(self, cycle: CycleRecord) -> str:
+        """Atomically replace a cycle file only after its complete payload is durable."""
         p = self._cycle_path(cycle.id)
-        with open(p, "w", encoding="utf-8") as fh:
-            json.dump(cycle.to_dict(), fh, indent=2, default=str)
+        payload = json.dumps(cycle.to_dict(), indent=2, default=str)
+        fd, temp_path = tempfile.mkstemp(
+            prefix=f".cycle_{cycle.id}.", suffix=".tmp", dir=self.dir
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fd = None
+                fh.write(payload + "\n")
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(temp_path, p)
+            temp_path = None
+            dir_fd = os.open(self.dir, os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        finally:
+            if fd is not None:
+                os.close(fd)
+            if temp_path is not None:
+                try:
+                    os.unlink(temp_path)
+                except FileNotFoundError:
+                    pass
         return p
 
     def load(self, cycle_id: str) -> CycleRecord:

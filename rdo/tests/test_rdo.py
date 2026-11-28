@@ -1193,3 +1193,78 @@ def test_cycle_store_preserves_evidence_refs_without_promoting_kind(tmp_path):
     assert metrics["efficiency_eligible_cycles"] == 0
     assert metrics["comparability"]["efficiency_comparison_pool"] == []
 
+
+
+def test_pattern_memory_new_add_does_not_publish_when_append_fails(tmp_path, monkeypatch):
+    path = tmp_path / "patterns.jsonl"
+    memory = PatternMemory(str(path))
+
+    def fail_append(_pattern):
+        raise OSError("simulated disk failure")
+
+    monkeypatch.setattr(memory, "_append", fail_append)
+    with pytest.raises(OSError, match="simulated disk failure"):
+        memory.add(Pattern("new", "statement", "cycle:new"))
+
+    assert memory.patterns() == []
+    assert not path.exists()
+
+
+def test_pattern_memory_corroboration_does_not_mutate_existing_alias_when_append_fails(tmp_path, monkeypatch):
+    path = tmp_path / "patterns.jsonl"
+    memory = PatternMemory(str(path))
+    stored = memory.add(Pattern("existing", "statement", "cycle:one"))
+    before = stored.to_dict()
+    persisted_before = path.read_text(encoding="utf-8")
+
+    def fail_append(_pattern):
+        raise OSError("simulated disk failure")
+
+    monkeypatch.setattr(memory, "_append", fail_append)
+    with pytest.raises(OSError, match="simulated disk failure"):
+        memory.add(Pattern("existing", "statement", "cycle:two"))
+
+    assert stored.to_dict() == before
+    assert memory.patterns()[0] is stored
+    assert path.read_text(encoding="utf-8") == persisted_before
+
+
+def test_pattern_memory_refutation_does_not_mutate_existing_alias_when_append_fails(tmp_path, monkeypatch):
+    path = tmp_path / "patterns.jsonl"
+    memory = PatternMemory(str(path))
+    stored = memory.add(Pattern("existing", "statement", "cycle:one"))
+    before = stored.to_dict()
+    persisted_before = path.read_text(encoding="utf-8")
+
+    def fail_append(_pattern):
+        raise OSError("simulated disk failure")
+
+    monkeypatch.setattr(memory, "_append", fail_append)
+    with pytest.raises(OSError, match="simulated disk failure"):
+        memory.refute("existing", "counterexample:1")
+
+    assert stored.to_dict() == before
+    assert memory.patterns()[0] is stored
+    assert path.read_text(encoding="utf-8") == persisted_before
+
+
+def test_cycle_store_atomic_replace_preserves_previous_cycle_on_failure(tmp_path, monkeypatch):
+    store_dir = tmp_path / "cycles"
+    store = CycleStore(str(store_dir))
+    original = CycleRecord(id="atomic-cycle", objective="original objective")
+    path = store.save(original)
+    with open(path, "rb") as fh:
+        original_bytes = fh.read()
+
+    def fail_replace(_source, _destination):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(os, "replace", fail_replace)
+    replacement = CycleRecord(id="atomic-cycle", objective="replacement objective")
+    with pytest.raises(OSError, match="simulated replace failure"):
+        store.save(replacement)
+
+    with open(path, "rb") as fh:
+        assert fh.read() == original_bytes
+    assert store.load("atomic-cycle").objective == "original objective"
+    assert list(store_dir.glob(".cycle_atomic-cycle.*.tmp")) == []
