@@ -333,8 +333,13 @@ class FeedbackLoopEvidenceStore:
                     "data": data,
                 }
                 event["event_sha256"] = _event_digest(event)
+                encoded = json.dumps(
+                    event, sort_keys=True, ensure_ascii=False, allow_nan=False
+                ) + "\n"
                 fh.seek(0, os.SEEK_END)
-                fh.write(json.dumps(event, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n")
+                if fh.tell() + len(encoded.encode("utf-8")) > _MAX_LEDGER_BYTES:
+                    raise ValueError("feedback-loop evidence ledger exceeds size limit")
+                fh.write(encoded)
                 fh.flush()
                 os.fsync(fh.fileno())
                 if created:
@@ -349,10 +354,10 @@ class FeedbackLoopEvidenceStore:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
     def events(self, cycle_id: Optional[str] = None) -> List[dict]:
-        if not os.path.exists(self.path):
-            return []
         if os.path.islink(self.path):
             raise ValueError("feedback-loop evidence ledger must not be a symlink")
+        if not os.path.exists(self.path):
+            return []
         with open(self.path, "r", encoding="utf-8") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_SH)
             try:
