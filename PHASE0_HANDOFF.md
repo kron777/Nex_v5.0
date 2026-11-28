@@ -509,3 +509,8 @@ GeniusTagger backfill can process 14-day-old Fountain events but writes tagged_a
 
 
 PR #452 exact-head workflow 46181820624 passed at e3e1e037f0769e66e62b84fe982abf37f49e1485. The isolated test confirms the direct Metacognition caller bypasses the wrapper OFF check; live host state remains UNKNOWN.
+
+
+### 28 November 2026 — Rut decision provenance
+
+Both rut observers query only genius_tags.class and do not carry contributing event IDs or weights_version into the output. The narrative row uses source_id=None; the belief row carries only the self_rut_notice source label and ordinary belief fields. Source rows remain independently queryable, but neither output has a frozen input manifest. This compounds §152's time/version ambiguity. See INDEX §153.
