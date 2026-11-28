@@ -80,7 +80,10 @@ class Crystallizer:
             if now - last < CRYSTALLIZATION_WINDOW_SECONDS:
                 continue
 
-            did_crystallize = self._crystallize(node, now, stop_event=stop_event)
+            if stop_event is None:
+                did_crystallize = self._crystallize(node, now)
+            else:
+                did_crystallize = self._crystallize(node, now, stop_event=stop_event)
             if did_crystallize:
                 crystallized.append(bid)
                 self._last_crystallized[bid] = now
@@ -94,14 +97,18 @@ class Crystallizer:
         branch_id = node.branch_id
         if stop_event is not None and stop_event.is_set():
             return False
-        content, stream = self._extract_content_and_stream(branch_id, stop_event=stop_event)
+        if stop_event is None:
+            content, stream = self._extract_content_and_stream(branch_id)
+        else:
+            content, stream = self._extract_content_and_stream(branch_id, stop_event=stop_event)
         if content is None or (stop_event is not None and stop_event.is_set()):
             return False
 
         belief_content = f"[{branch_id}] {content}"
 
         # Blacklist guard
-        if self._is_blacklisted(belief_content, stop_event=stop_event):
+        if (self._is_blacklisted(belief_content) if stop_event is None else
+                self._is_blacklisted(belief_content, stop_event=stop_event)):
             errors.record(
                 f"crystallization blocked by blacklist: {belief_content[:80]}",
                 source=_LOG_SOURCE, level="INFO",
@@ -111,15 +118,19 @@ class Crystallizer:
             return False
 
         # Dedup guard
-        if self._is_duplicate(belief_content, stop_event=stop_event):
+        if (self._is_duplicate(belief_content) if stop_event is None else
+                self._is_duplicate(belief_content, stop_event=stop_event)):
             return False
         if stop_event is not None and stop_event.is_set():
             return False
 
         # Write belief to beliefs.db
-        belief_id = self._write_belief(
-            belief_content, branch_id, ts, stream=stream, stop_event=stop_event
-        )
+        if stop_event is None:
+            belief_id = self._write_belief(belief_content, branch_id, ts, stream=stream)
+        else:
+            belief_id = self._write_belief(
+                belief_content, branch_id, ts, stream=stream, stop_event=stop_event
+            )
         if stop_event is not None and stop_event.is_set() and belief_id is None:
             return False
 
