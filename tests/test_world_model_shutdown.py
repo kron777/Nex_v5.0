@@ -68,3 +68,28 @@ def test_synergizer_discards_voice_result_if_stop_arrives_during_call():
     assert result is None
     voice.speak.assert_called_once()
     writer.write.assert_not_called()
+
+
+def test_world_consolidator_stops_between_embedding_calls():
+    import os
+    from theory_x.stage3_world_model.world_consolidation import WorldConsolidator
+
+    stop = threading.Event()
+    reader = MagicMock()
+    reader.read.return_value = [
+        {"id": i, "content": f"Global market activity continues across several independent sectors, report number {i}."}
+        for i in range(1, 7)
+    ]
+    promoter = MagicMock()
+    consolidator = WorldConsolidator(reader, promoter)
+
+    def embed_and_stop(_content):
+        stop.set()
+        return [1.0, 0.0]
+
+    with patch.dict(os.environ, {"NEX5_WORLD_CONSOLIDATE": "1"}):
+        with patch("theory_x.diversity.embeddings.embed", side_effect=embed_and_stop):
+            result = consolidator.tick(stop_event=stop)
+
+    assert result["state"] == "stopped"
+    promoter.corroborate.assert_not_called()
