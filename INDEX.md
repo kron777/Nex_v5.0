@@ -928,7 +928,7 @@ This update records implementation evidence and remaining capability boundaries;
 
 `tools/one_pen_census.py` is a read-only static scan, run with `python tools/one_pen_census.py`. It lists every write-capable `connect()` call site outside `substrate/` and the tests, and classifies each by write SQL in the enclosing function, by whether the connection is handed off, and by whether it is runtime code or a script. It found 112 sites:
 
-- **Boot-reachable direct writers to the six substrate databases:** only `signal_to_problem_tick()`. This is G-85; PR #347 proposes the fix.
+- **Pre-merge baseline at `a6d08405`:** `signal_to_problem_tick()` was the only boot-reachable direct writer to the six substrate databases; PR #347 has since corrected that path. The census must be rerun on current main before making a current-count or reachability claim.
 - **Documented exception:** `strikes/catalogue.py` writes its separate `strikes_catalogue.db` directly, by design. The open governance question is whether SPECIFICATION.md §8 should also cover non-substrate databases.
 - **Present but not reachable at boot:** `groove_breaker`, `value_drift_monitor`, the `genius_provenance_tag`/`source_identity` backfills, `prose_stats.build_direct`, a `hot_observer` demo, and 10 script or tool sites.
 - **Read through a non-read-only connection:** 68 runtime sites. Another 7 hand their connection off, and all of those were traced to readers except the strikes catalogue. This is hygiene, not a one-pen write.
