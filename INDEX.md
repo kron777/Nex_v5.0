@@ -4540,3 +4540,74 @@ A bounded isolated characterization should seed a pending speech row, activate a
 **Source anchors:** run.py (SpeechQueueConsumer construction and beliefs-only dependencies); speech/queue_consumer.py (pending poll, pause/quiet-hours checks, synthesis/playback); theory_x/stage6_fountain/crystallizer.py (belief and speech enqueue ordering); theory_x/stage6_fountain/generator.py (post-crystallizer return); tests/test_speech.py; tests/test_stillness.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
 
 **Evidence level:** source-observed independent consumer, its dependencies, poll/write path and absence of Row 9 query in inspected consumer code; targeted test inventory. Runtime queue state/audio chronology remains UNKNOWN.
+
+
+## §120 — Groove reader census: active prompt wires, conditional readers, and observation-only paths (2026-11-28)
+
+### Direct alert-table producer and acknowledgement-writer result
+
+The direct producer remains GrooveSpotter in theory_x/diversity/groove.py. Its four detector branches INSERT rows into beliefs.db.groove_alerts. The schema defines acknowledged_at as a nullable REAL field. In the tracked-source inspection, no direct UPDATE/assignment to acknowledged_at, trigger, or acknowledgement-owning service was located. All direct references located to that column are SELECT filters (Metacognition, ClockRunner, panel, Probe ContextSnapshot). The search service still reports this repository as not code-indexed, so empty code-search results are not evidence; this classification is from file-by-file source reads.
+
+**Census disposition:** no tracked direct acknowledgement writer was found in the inspected Python, SQL, UI and launch/config source paths. This narrows the open question from “where is the writer?” to “is the column intentionally read-only, or is an external/untracked/dynamically assembled writer expected?” No live DB, host, or running process was inspected. Do not mark the field unwritten in all deployments as a runtime fact; no such runtime fact has been measured.
+
+### Active prompt and drive influence
+
+Two additional consumers are real runtime wires, rather than just references in files:
+
+1. **CompetingDrives — active, indirect drive/prompt influence.**
+   - run.py constructs and starts CompetingDrives on its 600-second loop.
+   - FountainGenerator also calls compute_now() on the per-fire path.
+   - _compute_weights() reads MAX(groove_alerts.severity) across the trailing 24 hours, without an acknowledged_at filter.
+   - That value contributes 0.30 × groove to the raw coherence-drive weight. The active opposing pairs include coherence↔exploration and curiosity↔coherence.
+   - format_for_prompt() emits a tension block when the opposing-pair set changes and qualifying weights exceed the threshold; FountainGenerator appends that block to the prompt.
+   - This is an indirect, conditional influence on prompt framing through a drive measurement. It is not an action-authority gate, and it does not consume or acknowledge the source alert.
+
+2. **Recent STRIKING feedback — default-on conditional prompt filter.**
+   - FountainGenerator._build_recent_striking_block() retrieves recent STRIKING-tagged fire candidates, removes near-duplicates, then reads the newest groove_alerts.pattern with severity ≥0.5 from the preceding hour.
+   - It splits that pattern into terms and removes sampled candidate fires containing those terms before building the “Recent voice of yours that landed as itself” prompt block.
+   - The prompt builder invokes this block when conversations/dynamic readers exist and NEX5_GENIUS_PROMPT_OFF != 1. The tracked keepalive launch line does not set that disable flag; the default source path is therefore enabled, subject to inherited environment and the presence of eligible STRIKING rows.
+   - This is an active/conditional prompt-selection influence, not an acknowledgement or action veto. It does not change previously stored alerts or beliefs.
+
+### Conditional and dormant readers
+
+| Path | Source condition / reachability | Effect and classification |
+|---|---|---|
+| Substrate-as-Voice in FountainGenerator | Reads max severity over 24h; caller only invokes it when NEX5_RECONCILE != 1. The tracked keepalive launch line sets NEX5_RECONCILE=1. | Dormant under the documented launch profile; if re-enabled, severe groove can shorten cooldown and select a stored anchor instead of normal generation. Do not include it in the current active path. |
+| Stakes readiness appraisal | NEX5_STAKES=1 is required; module documents default OFF and shelving pending a dominance-out gate. The tracked keepalive line does not set NEX5_STAKES; inherited environment is not host-verified. | Conditional readiness penalty based on the rate of template_repetition alert rows in the trailing hour. Not part of the stated default launch profile; runtime environment remains UNKNOWN. |
+| Topic Gate Shadow | NEX5_TOPIC_GATE_SHADOW=1 required; source documents default OFF and telemetry-only. | Dormant telemetry path; reads groove severity for topic_gate_shadow_log and does not block or replace prompt content. |
+| GrooveBreaker | ENABLED=False; run.py construction, stage-6 tick call and prompt-injection wiring removed. | Dormant; its recent-alert reader is not a current runtime wire (see §111). |
+| Raga detector | Standalone diagnostic CLI; its detect() can read one recent groove alert. FountainGenerator imports only its recent-thought/repetition helpers for another path; no booted Raga detector or current runtime call to its groove reader was located. | Manual diagnostic/measurement only in the inspected boot graph. |
+| ContextSnapshot / ProbeRunner | ProbeRunner is constructed at boot; /api/probes/run calls it on request. ContextSnapshot reads the newest 10 unacknowledged rows before the requested probe and stores them in probe_context. | User/request-triggered research capture; no source acknowledgement and no autonomous action path. |
+| SubstrateHarmonic | Active 300-second worker reads max groove severity over 24h and writes substrate_coherence. Module explicitly defines this phase as LOG-ONLY and says future consumers do not yet exist. | Active measurement only; no current behavioral consumer identified. |
+| StateSnapshotWriter | ENABLED=True; run.py constructs/passes it to Fountain; the stage-6 loop calls write_snapshot(). The JSON snapshot includes the newest five groove alert rows. Its module states Phase A has no read-back. | Active forensic snapshot only; no current NEX read-back path. |
+| Diversity overview / UI | GUI endpoint calls panel.overview(), which reads the latest five unacknowledged rows; app.js displays at most two. | Request/UI presentation only; no mutation. |
+| trajectory.py | Standalone read-only monitor; collapses consecutive matching (alert_type, sample_belief_ids) rows into offline episodes. | Offline analysis only; not the live Row 9 identity contract. |
+
+A small placeholder in coincidence/context_capture.py stores a groove_alerts field as None with a comment that it is not yet captured from the DB; it is not a direct alert-table read or acknowledgement writer.
+
+### Revised causal inventory
+
+The current alert table therefore has several distinct downstream semantics:
+
+- **Detection:** GrooveSpotter emits alert rows.
+- **Chat reflection:** Metacognition turns eligible source rows into derived groove events and can repeat them (G-83).
+- **Timed crystallization hold:** Row 9 counts derived events globally and blocks new belief crystallization, with the generation/speech boundaries described in §§114–119.
+- **Drive/prompt shaping:** CompetingDrives consumes severity as a coherence input; recent STRIKING feedback uses the alert pattern to filter prompt candidates.
+- **Observation:** harmonic score, state snapshot, GUI, probe snapshot, trajectory analysis.
+- **Dormant/conditional:** GrooveBreaker, substrate voice in the current launcher, topic shadow, and stakes penalty unless their relevant gates are active.
+
+These routes do not share one acknowledgement cursor or one episode identity. They must not be added together as though they are one causal consumer. In particular, a prompt filter or drive weighting may read the same alert while Metacognition later re-reads it; neither reader's read is a global consume.
+
+### Development-method refinement: trace the signal to all effect classes
+
+Extend the “one wire is never local” scan from producer→reader to:
+
+**producer → direct readers → transformed measures → runtime reachability → prompt/drive effects → observation-only sinks → independent consumers → authority boundary.**
+
+For every read, record whether it (a) gates, (b) selects/reorders, (c) alters a prompt, (d) changes a drive/score, (e) records telemetry, or (f) only displays. Then trace the exact owner/caller and relevant flag. The same SQL SELECT can be observational in one module and behavior-shaping in another; the effect classification depends on the sink and reachability, not the query alone.
+
+**Disposition:** Phase 0 reader-census and influence-classification refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, API request, audio device, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** theory_x/diversity/groove.py; theory_x/stage9_metacognition/metacognition.py; theory_x/diversity/consolidation.py; theory_x/diversity/panel.py; theory_x/stage_drives/competing_drives.py; run.py; theory_x/stage6_fountain/generator.py; theory_x/stage6_fountain/readiness.py; theory_x/harmonic/substrate_harmonic.py; theory_x/memory/snapshot_writer.py; theory_x/probes/context_snapshot.py; theory_x/probes/probe_runner.py; gui/server.py; gui/static/app.js; theory_x/stage_tom/raga_detector.py; theory_x/stage_tom/stakes_appraisal.py; scripts/trajectory.py; nex_keepalive.sh; substrate/schema/beliefs.sql; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** source-observed boot construction, loop/caller paths, feature-flag conditions, SQL reads/writes and sink behaviour; exact host environment, live event chronology, external DB clients, and dynamically assembled/untracked SQL remain UNKNOWN.
