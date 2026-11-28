@@ -413,3 +413,39 @@ class TestFountainBuilderStartupRollback(unittest.TestCase):
             self.assertFalse(attempted[0].is_alive())
         finally:
             _cleanup(writers, tmp)
+
+
+class TestStageTomSelfNarrativePausedBeliefReader(unittest.TestCase):
+    """Characterize whether the Stage-TOM recent-T6 reader includes paused rows."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_paused_t6_belief_remains_eligible_for_stage_tom_narrative(self):
+        from substrate.paths import db_paths
+        from theory_x.stage_tom.self_narrative import build_narrative
+
+        paths = db_paths()
+        now = time.time()
+        note = (
+            "A paused reflection remains in the quiet archive of recent thought "
+            "without asking to direct any action or alter any decision."
+        )
+        self.writers["dynamic"].write(
+            "INSERT INTO fountain_events (ts, thought, readiness, hot_branch) "
+            "VALUES (?, ?, 0.8, ?)",
+            (now - 60, "A small copper bridge crossed the silent marsh at dawn with no traffic.", "systems"),
+        )
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs (content, source, tier, confidence, branch_id, created_at, paused) "
+            "VALUES (?, ?, ?, ?, ?, ?, 1)",
+            (note, "self_rut_notice", 6, 0.6, "self", now - 30),
+        )
+        time.sleep(0.05)
+
+        narrative = build_narrative(paths["dynamic"], paths["beliefs"])
+        self.assertIsNotNone(narrative)
+        self.assertIn(note, narrative)
