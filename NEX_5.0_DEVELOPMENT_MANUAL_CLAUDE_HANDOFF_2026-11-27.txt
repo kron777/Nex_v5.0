@@ -1934,7 +1934,6 @@ This is a deliberate return to study, not scope drift. The evidence changed from
 - Internally-started builders still need their own transactional rollback because the caller cannot publish an object it has not yet received.
 - SignalLoop was the remaining internal-start boundary after the Scheduler, Dynamic, World Model, Membrane and Fountain rollback increments.
 - The decoder thread was the only direct `Thread.start()` call left in `run.py`; it is now represented as an AppState-owned worker and started through `_own_and_start`.
-- The decoder thread was the only direct `Thread.start()` call left in `run.py`; it is now represented as an AppState-owned worker and started through `_own_and_start`.
 
 ### Candidate ownership sequence
 
