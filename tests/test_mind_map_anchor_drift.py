@@ -174,17 +174,17 @@ def test_reanchor_moves_only_pure_shifts_and_reports_edits(repo):
 
 def test_quoted_code_pointers_in_notes_are_not_treated_as_source_anchors(repo):
     (repo / "MAP.yaml").write_text(
-        "nodes:\\n"
-        "  - id: probe\\n"
-        "    source:\\n"
-        "      kind: composite\\n"
-        "      refs:\\n"
-        '        - "pkg/mod.py:3-4"\\n'
-        "    notes: >\\n"
-        '      This prose mentions "pkg/mod.py:3-4" but is not an anchor.\\n'
+        "nodes:\n"
+        "  - id: probe\n"
+        "    source:\n"
+        "      kind: composite\n"
+        "      refs:\n"
+        '        - "pkg/mod.py:3-4"\n'
+        "    notes: >\n"
+        '      This prose mentions "pkg/mod.py:3-4" but is not an anchor.\n'
     )
     _git(repo, "commit", "-qam", "add prose pointer")
-    (repo / "pkg" / "mod.py").write_text("new\\n" + _SRC)
+    (repo / "pkg" / "mod.py").write_text("new\n" + _SRC)
     _git(repo, "commit", "-qam", "shift the real source anchor")
 
     warnings = _drift(repo)
