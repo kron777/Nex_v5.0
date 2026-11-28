@@ -290,18 +290,17 @@ Interpretation: affect has a Chat representation path, and it has a separate opt
 
 **Chat workspace:** `NEX5_CHAT_WORKSPACE` is a separate, opt-in path. It ranks already-assembled faculty blocks against a character budget, preserves exempt blocks and returns selected blocks in original assembly order. It is not the same operation as the Fountain's single-winner framing.
 
-### 9.5 Testable interaction hypothesis
+### 9.5 Bounded interaction test added; next seam remains open
 
-A bounded test should:
-1. Start from an isolated Stage-2 fixture with a known Bonsai tree and aperture.
-2. Inject one external sense event whose stream maps to a known branch.
-3. Record each A–F intermediate value and the resulting focus delta.
-4. Feed the resulting branch snapshot into Fountain's branch-selection seam and Global Workspace arbiter.
-5. Verify whether the branch candidate or winning frame changes under a controlled baseline comparison.
-6. Repeat with an `internal.*` event as a negative control; it must not alter Bonsai focus through the A–F pipeline.
-7. Keep affect and competing-drive perturbations separate so interaction effects can be attributed to one edge at a time.
+A test-only characterization has been added to `tests/test_dynamic.py`:
 
-This is a proposed fixture experiment, not yet a test result. Do not use live databases, turn on feature flags, or alter production selection weights to perform it.
+- The external positive control sends an `ai_research.arxiv` title through the real A–F pipeline and asserts that the matching Bonsai branch's focus and texture increase.
+- The internal negative control confirms that `internal.proprioception` matches the `systems` branch at the stream-matching layer, but `_magnitude_for()` returns zero; running the pipeline produces no focus/texture change and no F-step event.
+- This test makes the exclusion operationally observable rather than merely asserting that the internal magnitude helper returns zero.
+
+**Validation:** the test is committed on the PR branch. The updated exact-head full-suite CI is pending; no pass is claimed. It is an isolated fixture, not live runtime evidence.
+
+The next separate test should feed a controlled Bonsai snapshot into Fountain's branch-selection seam and Global Workspace arbiter, then compare branch selection and winning frame under a baseline perturbation. Keep affect and competing-drive perturbations separate so effects remain attributable to one edge at a time. Do not use live databases, turn on feature flags, or alter production selection weights.
 
 ### 9.6 Evidence and source anchors
 
@@ -310,6 +309,7 @@ NEX main source snapshot: `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`.
 - `theory_x/stage2_dynamic/pipeline.py`
 - `theory_x/stage2_dynamic/attention.py`
 - `theory_x/stage2_dynamic/bonsai.py`
+- `tests/test_dynamic.py` (new Stage-2 attention/Bonsai positive-control and internal-telemetry negative-control characterization)
 - `theory_x/stage6_fountain/generator.py`
 - `theory_x/stage_tom/global_workspace.py`
 - `theory_x/stage_affect/affect_state.py`
