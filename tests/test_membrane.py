@@ -389,3 +389,42 @@ class TestMembraneCompliance(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMembraneBuilderStartupRollback(unittest.TestCase):
+    def test_start_failure_after_thread_creation_stops_and_joins_worker(self):
+        import threading
+        from unittest import mock
+        import theory_x.stage4_membrane as membrane_module
+
+        writers, readers, tmp = _make_env()
+        original_start = threading.Thread.start
+        started = threading.Event()
+        attempted = []
+
+        def controlled_loop(_state, stop):
+            started.set()
+            stop.wait(2.0)
+
+        def start_then_fail(thread):
+            attempted.append(thread)
+            original_start(thread)
+            raise RuntimeError("injected membrane thread start failure")
+
+        try:
+            with mock.patch.object(
+                membrane_module, "_behavioural_loop", new=controlled_loop
+            ):
+                with mock.patch.object(
+                    threading.Thread, "start", new=start_then_fail
+                ):
+                    with self.assertRaisesRegex(
+                        RuntimeError, "injected membrane thread start failure"
+                    ):
+                        membrane_module.build_membrane(writers, readers)
+
+            self.assertEqual(len(attempted), 1)
+            self.assertTrue(started.wait(1.0))
+            self.assertFalse(attempted[0].is_alive())
+        finally:
+            _cleanup(writers, tmp)
