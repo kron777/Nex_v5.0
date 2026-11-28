@@ -613,5 +613,71 @@ class TestValueDriftFormatForPrompt(unittest.TestCase):
         self.assertIn("deepest beliefs", result)
 
 
+# ── 16. Real SelfMindView snapshots feed Metacognition attention-groove ──────
+
+class TestSelfMindViewAttentionWire(unittest.TestCase):
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_real_snapshot_themes_reach_metacognition_and_prompt(self):
+        from unittest.mock import patch
+        from theory_x.stage_tom.self_mind_view import SelfMindView
+
+        # Isolate the attention history so the five snapshots share the same
+        # known themes, rather than mixing in init_all's seed beliefs.
+        self.writers["beliefs"].write("DELETE FROM beliefs")
+        tags = json.dumps(["attention", "awareness", "consciousness"])
+        base_time = int(time.time()) + 1
+        for index in range(5):
+            self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, tier, confidence, source, created_at, tags) "
+                "VALUES (?, 7, 0.8, 'wire-test', ?, ?)",
+                (f"snapshot theme {index}", base_time + index, tags),
+            )
+
+        smv = SelfMindView(
+            dynamic_reader=self.readers["dynamic"],
+            dynamic_writer=self.writers["dynamic"],
+            beliefs_reader=self.readers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+        )
+        for _ in range(5):
+            smv._snapshot()
+
+        history = smv.aspect_history("attention", window_s=3600)
+        self.assertEqual(len(history), 5)
+        self.assertTrue(all("current_themes_json" in row for row in history))
+        self.assertTrue(all(
+            json.loads(row["current_themes_json"]) == [
+                "attention", "awareness", "consciousness"
+            ]
+            for row in history
+        ))
+
+        mc = _make_mc(self.writers, self.readers, smv=smv)
+        findings = mc._detect_drift()
+        self.assertIn("attention_groove", [item["event_type"] for item in findings])
+
+        # Exercise the actual persistence/cache/prompt path, not just the
+        # detector's return value.
+        with patch.dict(os.environ, {
+            "NEX5_METACOG_DIGEST": "0",
+            "NEX5_METACOG_PATTERN": "0",
+        }):
+            mc.tick()
+        persisted = self.readers["conversations"].read(
+            "SELECT event_type FROM meta_cognition_events "
+            "WHERE event_type = 'attention_groove'"
+        )
+        self.assertTrue(persisted)
+        self.assertIn(
+            "same themes have been recurring",
+            mc.format_for_prompt(),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
