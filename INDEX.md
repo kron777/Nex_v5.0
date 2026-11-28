@@ -4257,3 +4257,60 @@ beliefs → GrooveSpotter → groove_alerts
 **Source anchors:** `run.py` (active DiversityLoop startup and Metacognition injection); `theory_x/diversity/loop.py`; `theory_x/diversity/consolidation.py`; `theory_x/diversity/panel.py`; `gui/server.py` (`/api/diversity/overview`); `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/auto_probe/groove_breaker.py`; `scripts/trajectory.py`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
 
 **Evidence level:** source-observed active startup/call paths and read queries; source-observed derived write paths; offline episode heuristic; targeted code-path scan. Repository-wide acknowledgement writer census, production database chronology, and actual event-to-episode cardinality remain UNKNOWN.
+
+
+## §113 — Row-9 threshold contract and bounded-read behaviour (2026-11-28)
+
+### Direct source consequence
+
+The combined source path now exposes a second-order threshold ambiguity:
+
+1. `Metacognition._detect_groove()` selects at most the 3 newest unacknowledged alert rows inside a 600-second lookback.
+2. `Metacognition.tick()` writes one `meta_cognition_events(event_type='groove')` row for every item returned.
+3. After processing the returned list, `tick()` invokes `_maybe_engage_stillness()` once if the list is non-empty.
+4. `_maybe_engage_stillness()` counts every `meta_cognition_events` row with `event_type='groove'` created within the previous 1,800 seconds. The threshold is 3.
+
+Consequences derived from those source statements:
+
+- A single tick returning 3 eligible source rows writes 3 derived groove rows and can meet the stillness threshold immediately, even though no repeated chat observation was needed.
+- If only 1 source alert remains eligible, 3 separate chat-triggered ticks can write 3 derived rows from that same source alert and meet the threshold.
+- If more than 3 unacknowledged source rows exist in the 600-second lookback, the query returns only the newest 3. Older rows wait behind them; because the query has no consumption cursor and no acknowledgement update in this path, sufficiently high arrival volume can cause some older rows to age out before selection. This is a source-level bounded-read/starvation possibility, not a confirmed live incident.
+- The non-reentrant stillness check prevents overlapping active stillness rows; it does not deduplicate the evidence used to cross the threshold.
+
+### Test-contract gap
+
+`tests/test_stillness.py` tests that mocked groove counts at/above 3 write a stillness row, below-threshold counts do not, and expiry math is correct. The helper supplies the count as a mock result; it does not seed source alert IDs or prove that the counted derived events correspond to distinct alerts or episodes.
+
+`tests/test_metacognition.py` verifies one seeded unacknowledged alert can create one derived event and that an acknowledged alert is ignored. Its shared Metacognition helper does not pass a SelfNarrative object, and the groove tests do not invoke repeated ticks against one source row.
+
+The current tests therefore establish the numeric threshold and a single-read happy path, but not the threshold's intended semantic unit.
+
+### Required distinction before implementation
+
+The name `sustained_groove` and the constant `_STILLNESS_THRESHOLD = 3` do not specify whether three means:
+
+- three alert rows;
+- three distinct detector fingerprints/episodes;
+- three distinct source alert IDs;
+- three independent metacognitive observations; or
+- three observations of the same continuing pattern over time.
+
+Each interpretation has different producer and consumer requirements. The 600-second source lookback, 1,800-second derived-event count window, maximum of three returned rows per tick, and 60-second stillness duration are separate time/volume controls; none of them alone defines what counts as independent evidence.
+
+### Phase 0 characterization matrix (proposal only)
+
+| Scenario | Source setup | What to record |
+|---|---|---|
+| Repeat one alert | One alert ID, call `tick()` three times with controlled clock | Source ID read count; metacognition row count; narrative rows per source ID; stillness trigger time |
+| Three alerts in one tick | Three distinct source IDs inside lookback | Whether one tick writes three events and triggers stillness |
+| More than three alerts | Four or more eligible rows | Which three are returned; whether older rows enter or expire under controlled arrival times |
+| Episode versus row | Multiple rows with same alert type/sample IDs, then a changed signature | Compare detector fingerprints, source row IDs, trajectory episode count, and Row 9 input count |
+| Acknowledgement transition | Mark one source row acknowledged between controlled ticks in an isolated test DB | Confirm it leaves the selection set; do not modify any live database |
+
+This is a characterization plan, not a permission to alter production semantics. Do not add a deduplication rule until the intended unit is explicitly justified against the frozen specification and Founder authority.
+
+**Disposition:** Phase 0 causal/test-contract finding; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors:** `theory_x/stage9_metacognition/metacognition.py` (`_detect_groove`, `tick`, `_maybe_engage_stillness`); `tests/test_metacognition.py`; `tests/test_stillness.py`; `substrate/schema/conversations.sql`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed query limit, per-row event write, stillness count/threshold, and mocked test contract. Distinct-episode semantics and runtime event chronology remain UNKNOWN.
