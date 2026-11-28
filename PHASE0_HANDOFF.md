@@ -593,3 +593,6 @@ The current GUI path parses a human sentence into one of three bounded capabilit
 
 
 PR #457 expanded exact-head workflow 46184425657 passed: 3,080 passed, 7 skipped, 86 subtests; constructor gate and prompt insertion tests passed. PR #458 exact-head workflow 46184447225 passed: 3,078 passed, 7 skipped, 86 subtests; the paused tier-six fixture was included in the narrative. Both baseline and sandbox checks were OK; no runtime changes. See INDEX §§160–161.
+
+
+StrikeProtocol is a separate manually triggered observation harness (POST /api/strikes/fire), not an action executor: it sends probe text to the voice model, captures context and stores a separate StrikeRecord. See INDEX §164.
