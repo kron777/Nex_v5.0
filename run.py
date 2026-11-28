@@ -815,8 +815,14 @@ def main() -> None:
     # scheduler, then exit -- process death releases the model/GPU. Nothing
     # dies mid-write because Writer.close() drains its queue whole-request.
     shutdown_gate = ShutdownGate()
+    shutdown_started = False
 
     def _graceful_standby(signum, frame):
+        nonlocal shutdown_started
+        if shutdown_started:
+            log.warning("Duplicate shutdown signal ignored; shutdown is already in progress")
+            return
+        shutdown_started = True
         log.warning("Shutdown signal received -> STANDBY: draining requests and releasing GPU/VRAM")
         # One monotonic deadline covers HTTP request drain, producers and Writers.
         deadline = _time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S
