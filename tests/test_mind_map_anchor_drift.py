@@ -67,7 +67,7 @@ def test_lines_inserted_above_are_reported_with_the_new_position(repo):
 
 def test_ambiguous_duplicate_matches_are_not_automatically_reanchored(repo):
     (repo / "pkg" / "mod.py").write_text(
-        "new\\nnew\\n" + _SRC + "line 3\\nline 4\\n"
+        "new\nnew\n" + _SRC + "line 3\nline 4\n"
     )
     _git(repo, "commit", "-qam", "shift and duplicate the cited block")
 
