@@ -139,6 +139,16 @@ class HoldingZoneResolver:
         if self._stop is not None:
             self._stop.set()
 
+    def join(self, timeout: Optional[float] = None) -> bool:
+        """Wait for the resolver worker to exit within the caller's deadline."""
+        thread = self._thread
+        if thread is None:
+            return True
+        if thread is threading.current_thread():
+            return False
+        thread.join(timeout=max(0.0, timeout) if timeout is not None else None)
+        return not thread.is_alive()
+
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
     def tick(self, context: dict[str, Any] = None) -> dict[str, Any]:
