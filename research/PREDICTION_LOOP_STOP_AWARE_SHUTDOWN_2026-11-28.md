@@ -7,7 +7,7 @@
 
 - The tracked `nex_keepalive.sh` launch line sets both `NEX5_WORLD_PRED=1` and `NEX5_SELF_PRED=1`.
 - `run.py` constructs `WorldPredictionLoop` and `SelfPredictionLoop` under those flags and passes both into `AppState`. AppState signals their `stop()` methods and joins their worker threads during producer quiescence.
-- The producer join allowance is at most five seconds, within the 12-second total shutdown deadline.
+- The producer join allowance is at most five seconds, within the 12-second total shutdown deadline. The SelfPredictionLoop performs its first tick immediately on startup before waiting; the WorldPredictionLoop waits its interval before its first tick.
 - `WorldPredictionLoop.tick()` previously had no stop checkpoints once a tick began. Its `make_voice_prediction()` path can perform a 10-second price fetch, a 10-second recent-context fetch and a 30-second local voice request, then write paired voice/random predictions and a trust stamp.
 - `SelfPredictionLoop.tick()` previously continued through multiple prediction/reconciliation stages after a stop request. Its `make_self_prediction()` reads the fountain status endpoint with a 10-second timeout and then writes prediction rows; subsequent tick stages can also write to shared Writers.
 - Both loop `stop()` methods set an event but cannot interrupt an HTTP request already in progress.
