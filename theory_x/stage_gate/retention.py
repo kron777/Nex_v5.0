@@ -128,6 +128,10 @@ def _prune_table(writer, reader, table: str, ts_column: str,
 
 
 def prune_gate_decisions(writer, reader, *, stop_event=None) -> int:
+    if stop_event is None:
+        return _prune_table(
+            writer, reader, "gate_decisions", "ts", GATE_DECISIONS_RETENTION_DAYS
+        )
     return _prune_table(
         writer, reader, "gate_decisions", "ts", GATE_DECISIONS_RETENTION_DAYS,
         stop_event=stop_event,
@@ -138,6 +142,12 @@ def prune_throw_net_sessions(writer, reader, *, stop_event=None) -> int:
     # Prune only EMPTY sessions; keep any that did real work (throw_count or
     # accepted_count > 0, or a non-'empty' status) so useful sessions survive
     # instead of being deleted alongside the empties.
+    if stop_event is None:
+        return _prune_table(
+            writer, reader, "throw_net_sessions", "started_at",
+            THROW_NET_SESSIONS_RETENTION_DAYS,
+            extra_where="status = 'empty' AND throw_count = 0 AND accepted_count = 0",
+        )
     return _prune_table(
         writer, reader, "throw_net_sessions", "started_at",
         THROW_NET_SESSIONS_RETENTION_DAYS,
