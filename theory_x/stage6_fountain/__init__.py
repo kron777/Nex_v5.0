@@ -219,8 +219,33 @@ def build_fountain(
         finally:
             state._loop_running = False
 
-    t = threading.Thread(target=fountain_loop, daemon=True, name="fountain_loop")
+    # Keep the worker inert until Thread.start() has returned successfully.
+    # If start raises after creating the OS thread, rollback can release this
+    # gate only after requesting stop, so no generation begins on a failed build.
+    start_gate = threading.Event()
+
+    def _run_after_start() -> None:
+        start_gate.wait()
+        if not state._stop.is_set():
+            fountain_loop()
+
+    t = threading.Thread(target=_run_after_start, daemon=True, name="fountain_loop")
     state._thread = t
-    t.start()
+    try:
+        t.start()
+    except BaseException:
+        state._stop.set()
+        start_gate.set()
+        if t.ident is not None:
+            t.join(timeout=1.0)
+            if t.is_alive():
+                error_channel.record(
+                    "Fountain builder startup rollback left worker alive",
+                    source="stage6_fountain",
+                    level="ERROR",
+                )
+        raise
+    start_gate.set()
+
 
     return state
