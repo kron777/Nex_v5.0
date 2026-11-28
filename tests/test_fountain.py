@@ -457,3 +457,27 @@ class TestStageTomSelfNarrativePromptInjection(unittest.TestCase):
 
         self.assertNotIn("STAGE_TOM_NARRATIVE_PROMPT_SENTINEL", prompt)
         narrative.get_narrative.assert_not_called()
+
+    def test_constructor_only_creates_stage_tom_reader_when_enabled(self):
+        from theory_x.stage6_fountain.generator import FountainGenerator
+
+        def make_generator():
+            return FountainGenerator(
+                sense_writer=self.writers["sense"],
+                dynamic_writer=self.writers["dynamic"],
+                voice_client=_mock_voice_client(),
+                dynamic_reader=self.readers["dynamic"],
+                beliefs_reader=self.readers["beliefs"],
+            )
+
+        with mock.patch.dict(os.environ, {"NEX5_SELF_NARRATIVE": "0"}):
+            disabled = make_generator()
+        self.assertIsNone(disabled._self_narrative)
+
+        with mock.patch.dict(os.environ, {"NEX5_SELF_NARRATIVE": "1"}):
+            enabled = make_generator()
+        self.assertIsNotNone(enabled._self_narrative)
+        self.assertEqual(
+            type(enabled._self_narrative).__module__,
+            "theory_x.stage_tom.self_narrative",
+        )
