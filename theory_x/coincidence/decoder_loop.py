@@ -127,6 +127,8 @@ def _read_state_counts(
                 (fire_ts,),
             ).fetchone()
             if r:
+                if stop_event is not None and stop_event.is_set():
+                    return out
                 # count in last 5min
                 r5 = cx.execute(
                     f"SELECT COUNT(*) FROM {table} WHERE {col} > ? AND {col} <= ?",
