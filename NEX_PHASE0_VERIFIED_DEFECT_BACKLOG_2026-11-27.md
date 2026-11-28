@@ -1039,3 +1039,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **PR #453 validation update:** exact-head workflow 46182191953 passed at 2d15c4d4c87881138c937c5600f1a281677d8391. The two isolated tests verify that backfill timestamps a ten-day-old fire with processing time and that a recent fire can have two recent rows across weights versions. This is fixture evidence, not host occurrence.
+
+
+§156 GeniusTagger consumer inventory: GENIUS_SCORE_v2.md §7 and producer comments still say downstream consumers do not exist / log-only, but source has readiness modulation (last-hour sample, >=5 rows, 40% target, up to .15 penalty), recent-STRIKING prompt injection (24h), Fountain governor (90m trough -> reanimation 20->5 + belief), Metacognition rut writer, and optional NEX5_CONTINUITY_N prompt layer. Producer remains passive; integrated signal is not system-level log-only. Consumer activation on host remains UNKNOWN. PR #455 adds readiness/prompt tests; PR #454 covers governor; PR #452 covers Metacognition. See INDEX §156.
