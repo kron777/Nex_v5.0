@@ -760,5 +760,12 @@ class TestTaggingBeliefWriter(unittest.TestCase):
         self.assertEqual(call_params, params)
 
 
+    def test_close_forwards_the_shared_timeout_to_inner_writer(self):
+        wrapper, inner = self._make_wrapper()
+        wrapper.close(timeout=0.375)
+        inner.close.assert_called_once_with(timeout=0.375)
+
+
+
 if __name__ == "__main__":
     unittest.main()

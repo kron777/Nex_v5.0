@@ -119,7 +119,7 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
         )
         speech = _ConsumerLike(w, "speech_consumer")
 
-        _state(self.writers, self.readers,
+        report = _state(self.writers, self.readers,
                world_model=SimpleNamespace(_stop=wm.event, _threads=[wm.thread]),
                signal_loop=_LoopLike(sig), diversity_loop=_LoopLike(div),
                arc_loop=_LoopLike(arc), speech_consumer=speech,
@@ -127,6 +127,7 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
                counterfactual_node=_LoopLike(counterfactual),
                predictive_substrate=_LoopLike(predictive),
                self_mind_view=_LoopLike(self_mind)).close()
+        self.assertTrue(report["success"], report)
 
         for name, wrote in (("world_model", wm.wrote), ("signal_loop", sig.wrote),
                             ("diversity_loop", div.wrote), ("arc_loop", arc.wrote),
@@ -165,13 +166,15 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
              mock.patch.object(srv.error_channel, "record",
                                side_effect=lambda msg, **k: recorded.append(msg)):
             started = time.monotonic()
-            _state(self.writers, self.readers,
+            report = _state(self.writers, self.readers,
                    scheduler=scheduler,
                    dynamic=SimpleNamespace(_stop=events[0], _threads=[stuck[0]]),
                    world_model=SimpleNamespace(_stop=events[1], _threads=[stuck[1]]),
                    signal_loop=SimpleNamespace(stop=events[2].set, _thread=stuck[2])).close()
             elapsed = time.monotonic() - started
 
+        self.assertFalse(report["success"], report)
+        self.assertTrue(report["producer_threads_alive"])
         self.assertTrue(all(e.is_set() for e in events))
         self.assertTrue(scheduler.stopped)
         self.assertEqual(scheduler.join_timeout, 0.0)
@@ -186,9 +189,11 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
             raise RuntimeError("stop() exploded")
         w = self.writers["dynamic"]
         later = _Finisher(w, "after_the_bad_one")
-        _state(self.writers, self.readers,
+        report = _state(self.writers, self.readers,
                signal_loop=SimpleNamespace(stop=boom, _thread=None),
                diversity_loop=_LoopLike(later)).close()
+        self.assertFalse(report["success"], report)
+        self.assertTrue(any("stop failed" in e for e in report["producer_errors"]))
         self.assertIs(later.wrote, True)
         self.assertTrue(self._landed("after_the_bad_one"))
 
@@ -271,6 +276,49 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
                speech_consumer=speech).close()
         with self.assertRaises(Exception):
             self.writers["dynamic"].write("SELECT 1")             # Writers closed
+
+
+    def test_all_writers_share_one_remaining_shutdown_deadline(self):
+        class RecordingWriter:
+            def __init__(self, delay):
+                self.delay = delay
+                self.timeouts = []
+
+            def close(self, timeout=10.0):
+                self.timeouts.append(timeout)
+                time.sleep(min(self.delay, timeout))
+
+        first = RecordingWriter(0.03)
+        second = RecordingWriter(0.03)
+        deadline = time.monotonic() + 0.3
+        report = _state({"first": first, "second": second}, {}).close(deadline=deadline)
+
+        self.assertTrue(report["success"], report)
+        self.assertEqual(len(first.timeouts), 1)
+        self.assertEqual(len(second.timeouts), 1)
+        self.assertGreater(first.timeouts[0], second.timeouts[0])
+        self.assertLessEqual(first.timeouts[0], 0.3)
+        self.assertLessEqual(second.timeouts[0], 0.3)
+
+    def test_writer_timeout_is_returned_as_shutdown_failure(self):
+        class TimeoutWriter:
+            def __init__(self):
+                self.timeout = None
+
+            def close(self, timeout=10.0):
+                self.timeout = timeout
+                raise TimeoutError("simulated writer did not drain")
+
+        writer = TimeoutWriter()
+        report = _state({"slow": writer}, {}).close(
+            deadline=time.monotonic() + 0.2
+        )
+
+        self.assertFalse(report["success"], report)
+        self.assertEqual(len(report["writer_errors"]), 1)
+        self.assertIn("slow", report["writer_errors"][0])
+        self.assertGreaterEqual(writer.timeout, 0.0)
+
 
 
 class TestWorldModelKeepsItsThreads(unittest.TestCase):

@@ -96,5 +96,30 @@ class TestRunPyRegistersProducers(unittest.TestCase):
                 self.assertIn(name, registered, f"run.py never registers {name} on AppState")
 
 
+class TestRunPyGracefulShutdownOutcome(unittest.TestCase):
+    def test_clean_marker_follows_successful_deadline_bounded_close(self):
+        source = (_ROOT / "run.py").read_text()
+        start = source.index("    def _graceful_standby(signum, frame):")
+        end = source.index("    signal.signal(signal.SIGTERM, _graceful_standby)", start)
+        handler = source[start:end]
+
+        self.assertIn(
+            "deadline = _time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S", handler
+        )
+        self.assertIn("report = state.close(deadline=deadline)", handler)
+        self.assertIn('if not report.get("success", False):', handler)
+        self.assertLess(
+            handler.index("state.close(deadline=deadline)"),
+            handler.index("mark_clean_shutdown"),
+        )
+        self.assertLess(
+            handler.index("mark_clean_shutdown"),
+            handler.index("os._exit(0)"),
+        )
+        self.assertIn("os._exit(1)", handler)
+        self.assertNotIn("mark_clean_shutdown", handler[:handler.index("state.close(deadline=deadline)")])
+
+
+
 if __name__ == "__main__":
     unittest.main()

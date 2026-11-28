@@ -682,9 +682,10 @@ TABLES_PER_DB: dict[str, tuple[str, ...]] = {
 }
 
 
-# AppState.close(): one shared deadline for every held producer to finish its
-# current tick. nex_keepalive.sh sends SIGTERM and kills after 15 s; run.py
-# spends 1.5 s before close(), and the Writers drain afterwards.
+# One total deadline begins at SIGTERM receipt. It includes run.py's 1.5s
+# in-flight-fire window, producer quiescence and all Writer drains, leaving
+# 3s before nex_keepalive.sh's 15s forced-kill limit.
+_SHUTDOWN_TOTAL_BUDGET_S = 12.0
 _PRODUCER_STOP_TIMEOUT_S = 5.0
 # The keepalive force-kills after 15s. Reserve 3s for supervisor/exit overhead.
 _SHUTDOWN_TOTAL_BUDGET_S = 12.0
