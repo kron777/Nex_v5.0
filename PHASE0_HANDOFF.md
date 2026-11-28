@@ -519,3 +519,8 @@ Both rut observers query only genius_tags.class and do not carry contributing ev
 ### 28 November 2026 — Rut sample readiness
 
 GeniusTagger is started asynchronously; _own_and_start() does not wait for its first backfill to finish. Neither Metacognition nor the Fountain governor checks _backfill_done before reading genius_tags. A partial historical backfill can therefore be sampled while still being written; combined with §152 timestamp semantics, this may produce a premature decision. Host overlap remains UNKNOWN. See INDEX §154.
+
+
+### 28 November 2026 — Rut belief membrane classification
+
+self_rut_notice is not in MembraneClassifier._INSIDE_SOURCES, so the generic BeliefRetriever classifies it OUTSIDE. QueryRouter's INSIDE self-inquiry path filters it out; OUTSIDE retrieval remains query-dependent. Draft PR #454 adds test-only characterization; exact-head CI pending. Whether the source was intended to be INSIDE is UNKNOWN. See INDEX §155.
