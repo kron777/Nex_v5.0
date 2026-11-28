@@ -491,3 +491,8 @@ The `SelfNarrative.tick()` method contains a conditional rut-notice writer, but 
 The fixed rut notice is not injected as a generic reflective cue by the inspected GUI path. The GUI passes `prompt[:100]` as `current_topic`; SelfNarrative uses the entire string in a case-insensitive SQL substring match against narrative content. An unrelated prompt prefix returns no rut notice even if the row exists. Draft PR #452 adds isolated exact-versus-unrelated topic tests; exact-head CI remains pending. No prompt/retrieval policy change. See INDEX §149.
 
 GeniusTagger is separately wired to its own 60-second loop and writes the `genius_tags` input table; that does not own or dispatch `SelfNarrative.tick()`. Host worker execution and live tag freshness remain UNKNOWN. See INDEX §148.
+
+
+### 28 November 2026 — Corrected rut lifecycle and dual-path finding
+
+Correction: SelfNarrative.tick() itself has no demonstrated dispatcher, but Metacognition.tick() directly calls the injected SelfNarrative._maybe_notice_rut() helper on the GUI chat path. This bypasses the NEX5_RUT_MIRROR_OFF check located only in SelfNarrative.tick(). Separately, FountainGenerator writes the same rut text into beliefs under its NEX5_GOVERNOR_OFF-gated governor path, with an instance-local two-hour throttle; the narrative path uses persisted narrative_log history. The two writers, stores and throttles are source-observed; deployed flags, live execution, co-occurrence and intended flag scope remain UNKNOWN. Draft PR #452 adds a test-only characterization of the direct-caller bypass; exact-head CI pending. See INDEX §§148–150.
