@@ -5283,3 +5283,30 @@ This is not one uniform bug. The missing invocation has different potential cons
 **Next bounded step:** trace any existing scripts, service entrypoints or host cron/systemd units that may invoke cleanup externally, and establish the policy owner for each stale horizon. Then compare the intended retention semantics before considering any common lifecycle mechanism.
 
 **Authority boundary:** no runtime code, schema, retention horizon, feature flag, cognitive behaviour, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §138 — External retention backstop: nightly DB reaper deletes Metacognition rows after 30 days (28 November 2026)
+
+The wider repository contains a separate persistence-retention path that must be included in the Metacognition lifecycle model.
+
+- `nex_db_reaper.py` has a default `RETENTION_DAYS = 30` and includes `conversations.db:meta_cognition_events:created_at` in its target list.
+- The reaper deletes rows older than the computed cutoff in bounded batches. It does not set `resolved_at`; it physically deletes the rows.
+- The script's comments explicitly identify `meta_cognition_events` as append-only history previously written but not digested or bounded.
+- The versioned `deploy/systemd/nex5-db-reaper.timer` schedules a persistent nightly run at approximately 04:00; the paired service invokes `nex_db_reaper.py`.
+- `deploy/systemd/README.md` says these are reference copies and the active units live under `~/.config/systemd/user/`. It documents `systemctl --user enable --now nex5-db-reaper.timer` as the install/enable step.
+
+### Corrected Metacognition lifecycle
+
+The 14-day method and 30-day reaper are different controls:
+1. At 14 days, `Metacognition.decay()` is designed to mark an unresolved event as resolved, preserving the row while excluding it from `get_recent()`.
+2. At 30 days, the external reaper deletes the event row entirely if the reaper runs.
+3. If the 14-day method is never invoked but the reaper is active, an old event may remain eligible for the newest-three unresolved slots between day 14 and the next successful reaper run, but it is not retained indefinitely.
+4. The timer's presence in the repository does not prove that the user's active systemd unit is installed, enabled, healthy or has run. Runtime timer/service state remains UNKNOWN.
+
+The reaper target list does not include `goals`, `open_problems` or `novel_association_log`. Therefore this 30-day backstop is specific to Metacognition's event table; it does not resolve the other three decay ownership questions.
+
+**Disposition:** a scheduled external retention mechanism exists in source/configuration for Metacognition's table, but its deployment/runtime status is unverified. This narrows the earlier "unbounded" concern: the missing 14-day resolution and the 30-day deletion are separate lifecycle stages. No reaper code, retention value, systemd unit, or cognitive behaviour changed.
+
+**Next bounded step:** inspect the active host's user systemd timer/service status and last-run logs when host access is available; do not infer activation from the versioned unit files. Then continue tracing external cleanup paths for GoalManager, ProblemMemory and NovelAssociation.
+
+**Source anchors:** `nex_db_reaper.py` blob `5cfb609a8ad8a5f9bd0ab83729d8b42220700658`; `deploy/systemd/nex5-db-reaper.service` blob `d2930bf0737c4c021c94d1f8317ba61900fd11ee`; `deploy/systemd/nex5-db-reaper.timer` blob `9b454faea87fefa147825ebdbd516218eac2b7ae`; `deploy/systemd/README.md` blob `4866fbfda8a09bfad0bdbaf8e90de1d7b41cbdd5`.
