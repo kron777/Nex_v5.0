@@ -365,6 +365,7 @@ def main() -> None:
     # can be re-validated (it failed its 2026-09-26 gate for lack of signal).
     # Append-only side tables in beliefs.db, background thread only; nothing on
     # the fire/chat path. See theory_x/stage_warrant/recorder.py.
+    _warrant_recorder = None
     if os.environ.get("NEX5_WARRANT_RECORD") == "1":
         try:
             from theory_x.stage_warrant.recorder import WarrantRecorder as _WarrantRecorder
@@ -456,6 +457,7 @@ def main() -> None:
     # only — writes to sense_events, touches no beliefs/genius/fountain directly.
     # Both halves must be on for dialogue to flow: this loop writes the other
     # mind's turn, NEX5_SOCIAL_N (set separately) lets the fountain read it back.
+    _persona_responder = None
     if os.environ.get("NEX5_PERSONA_RESPONDER", "0") == "1":
         try:
             from theory_x.stage_tom.persona_responder import PersonaResponderLoop as _PRL
@@ -532,11 +534,13 @@ def main() -> None:
     # active-set regulator WOULD pause into dynamic.db self_maintain_shadow. Pauses
     # nothing; nothing reads the table. Env-gated, default OFF.
     # Spec: nex5_research_log/self_maintenance_spec.txt.
+    _self_maintain_shadow = None
     if os.environ.get("NEX5_SELF_MAINTAIN_SHADOW") == "1":
         try:
             from theory_x.stage_self_maintain.shadow import SelfMaintainShadow as _SMS
-            _SMS(writers["dynamic"], readers["beliefs"], readers["dynamic"],
-                 readers["sense"]).start_loop()
+            _self_maintain_shadow = _SMS(writers["dynamic"], readers["beliefs"],
+                                         readers["dynamic"], readers["sense"])
+            _self_maintain_shadow.start_loop()
             log.info("SelfMaintainShadow ready — log-only, first tick in 600s, then hourly")
         except Exception as _sms_err:
             log.warning("SelfMaintainShadow failed to start (non-fatal): %s", _sms_err)
@@ -772,6 +776,12 @@ def main() -> None:
         predictive_substrate=_predictive_substrate,
         self_mind_view=_self_mind_view,
         social_presence=_social_presence,
+        substrate_harmonic=_substrate_harmonic,
+        genius_tagger=_genius_tagger,
+        warrant_recorder=_warrant_recorder,
+        competing_drives=_competing_drives,
+        persona_responder=_persona_responder,
+        self_maintain_shadow=_self_maintain_shadow,
     )
     atexit.register(state.close)
 
