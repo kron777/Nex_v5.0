@@ -14,11 +14,7 @@ from .tools import ToolRegistry, ToolResult, _extract_url_from_query
 CAPABILITY_STAGE = "B"
 
 _PRICE_PATTERNS = re.compile(
-    r"\b(price|trading|how much|what is .+ worth|btc|eth|bitcoin|ethereum|solana|sol)\b",
-    re.I,
-)
-_CURRENT_PATTERNS = re.compile(
-    r"\b(latest|today|right now|current|live|now|just happened|this week)\b",
+    r"\b(price|trading|how much|worth)\b",
     re.I,
 )
 _MATH_PATTERNS = re.compile(
@@ -74,7 +70,7 @@ class ToolCaller:
 
         web_fetch is an HTTP fetcher, not a general search provider. Do not
         select it for generic current/factual questions that contain no URL or
-        supported CoinGecko symbol; the registry cannot satisfy those queries.
+        supported CoinGecko symbol paired with explicit price wording; the registry cannot satisfy those queries.
         """
         q = query.lower()
 
@@ -89,7 +85,7 @@ class ToolCaller:
 
         if (
             _SUPPORTED_COIN_PATTERN.search(q)
-            and (_PRICE_PATTERNS.search(q) or _CURRENT_PATTERNS.search(q))
+            and _PRICE_PATTERNS.search(q)
         ):
             return "web_fetch"
 
