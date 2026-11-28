@@ -912,8 +912,8 @@ Remaining work: define and persist candidate RuleProposal records, preserve alte
 ### Next bounded development sequence
 
 1. **Completed:** combined mainline CI passed after #343 (#2100: 2,830 passed) and after #345 (#2111: 2,834 passed); the post-#346 mainline run (#2115) was pending at this documentation snapshot.
-2. Build a traceable end-to-end single-objective case: original idea and externally supplied seed proposal → objective intake → recursive expansion → context mapping → criterion verification → Stage-7 handoff → independent Watcher verification. Keep planning review distinct from execution and acceptance.
-3. Build the candidate RuleProposal record and review-event lifecycle on top of PR #346's structured frontier request; keep candidates inert until explicit approval and prevent automatic promotion.
+2. Build the candidate RuleProposal record and review-event lifecycle on top of PR #346's structured frontier request; keep candidates inert until explicit approval and prevent automatic promotion.
+3. Extend the seeded-objective end-to-end test to cover a completed criterion outcome through the independent Watcher, preserving pending-state regression.
 4. Add an evidence-bound measured/reviewed update path for existing feedback-loop entries in `CycleRecord.tension`; preserve topology, UNKNOWN-first defaults and legacy loading, without calculating ungrounded stability scores.
 5. Preserve the already implemented Stage-2 belief-development and fresh-process CycleStore-resume tests as a completed regression baseline; do not rebuild Stage 2.
 
