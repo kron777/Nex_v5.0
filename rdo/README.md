@@ -310,7 +310,7 @@ python -m rdo history --objective-id my-objective --out rdo/.cycles
 python -m rdo resume --objective-id my-objective --revision 1 --out rdo/.cycles
 ```
 
-Each input revision is append-only and linked by SHA-256. The original wording and intent are immutable; a cycle stores the input revision/digest and a clean repository commit SHA. The selected repository must be a clean Git snapshot. The Watcher experiment registry still controls eligibility and unknown registry state remains blocked. On first revision creation, the ledger file is fsynced and its parent directory is fsynced so the new directory entry is included in the durability boundary; later revisions fsync the existing ledger file.
+Each input revision is append-only and linked by SHA-256. The original wording and intent are immutable; a cycle stores the input revision/digest and a clean repository commit SHA. The selected repository must be a clean Git snapshot. The Watcher experiment registry still controls eligibility and unknown registry state remains blocked. On first revision creation, the ledger file is fsynced and its parent directory is fsynced so the new directory entry is included in the durability boundary; later revisions fsync the existing ledger file. Objective ledger and lock paths must be regular files, not symlinks or special files; opens use no-follow semantics where supported to close the check/open race.
 
 See [the intake contract](OBJECTIVE_INTAKE.md), [the JSON Schema](schemas/objective.v1.schema.json), and [an example input](examples/objective.v1.example.json). This is advisory planning only; it does not execute work or alter NEX runtime state.
 
