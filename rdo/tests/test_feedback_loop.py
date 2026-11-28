@@ -315,6 +315,8 @@ def test_measurement_event_updates_dimension_without_changing_topology_or_stabil
         "relationships": list(_loop_record(cycle)["relationships"]),
     }
     ledger = FeedbackLoopEvidenceStore(str(tmp_path / "feedback_loop_evidence.jsonl"))
+    cycles = CycleStore(str(tmp_path / "cycles"))
+    cycles.save(cycle)  # durable pre-update snapshot for crash/replay coverage
     event = ledger.record_measurement(
         cycle, "loop.alpha", "gain", 0.72, "ratio",
         ["lab:gain-run-004"], "medium", ["experiment:run-004"],
@@ -335,9 +337,7 @@ def test_measurement_event_updates_dimension_without_changing_topology_or_stabil
     assert event["event_kind"] == "measurement_recorded"
     assert cycle.feedback_loop_evidence_events[0]["operating_envelope"] == "stress"
 
-    cycles = CycleStore(str(tmp_path / "cycles"))
-    cycles.save(cycle)
-    restored = cycles.load(cycle.id)
+    restored = cycles.load(cycle.id)  # old snapshot; ledger contains the newer event
     ledger.apply(restored)
     assert _loop_record(restored)["gain"]["value"] == 0.72
     assert restored.feedback_loop_evidence_events == cycle.feedback_loop_evidence_events
@@ -449,3 +449,19 @@ def test_cycle_record_legacy_construction_defaults_feedback_event_history():
 
     legacy = CycleRecord(id="legacy-feedback-cycle", objective="legacy")
     assert legacy.feedback_loop_evidence_events == []
+
+
+
+def test_cycle_snapshot_cannot_claim_feedback_events_when_ledger_is_missing(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    cycle = _cycle_with_feedback_loop()
+    ledger = FeedbackLoopEvidenceStore(str(path))
+    ledger.record_measurement(
+        cycle, "loop.alpha", "gain", 0.6, "ratio",
+        ["lab:gain"], "medium", ["experiment:gain"],
+    )
+    path.unlink()
+    with pytest.raises(ValueError, match="does not match the append-only ledger"):
+        ledger.apply(cycle)
