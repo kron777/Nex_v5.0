@@ -1256,7 +1256,7 @@ Exact-head full-suite workflow run 2404 passed: **2,987 passed, 7 skipped, 86 su
 
 ### 16.11 Active prediction loops versus producer-stop budget — open PR #391
 
-The tracked launcher explicitly enables `NEX5_WORLD_PRED=1` and `NEX5_SELF_PRED=1`. `run.py` constructs both loops and passes them into AppState for stop/join during shutdown. Their producer join allowance is at most five seconds.
+The tracked launcher explicitly enables `NEX5_WORLD_PRED=1` and `NEX5_SELF_PRED=1`. `run.py` constructs both loops and passes them into AppState for stop/join during shutdown. Their producer join allowance is at most five seconds. The SelfPredictionLoop performs its first tick immediately on startup before waiting; the WorldPredictionLoop waits its interval before its first tick.
 
 The WorldPredictionLoop can perform a 10-second price fetch, a 10-second recent-context fetch and a 30-second local voice request before writing paired predictions and a trust stamp. The SelfPredictionLoop can block up to ten seconds reading the fountain status endpoint, then write prediction rows and continue through additional Writer-backed stages. Before PR #391, stop events were not passed into the active ticks/functions, so those paths could continue into later writes after shutdown had been requested.
 
