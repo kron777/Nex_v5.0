@@ -749,6 +749,8 @@ class AppState:
 
         if self.scheduler is not None:
             try:
+                # This requests adapter shutdown; scheduler-thread joins remain
+                # a separate G-84 obligation and are not claimed here.
                 self.scheduler.shutdown()
             except Exception as e:
                 error_channel.record(
