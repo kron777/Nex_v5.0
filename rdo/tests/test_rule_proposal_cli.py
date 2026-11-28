@@ -77,3 +77,15 @@ def test_rule_propose_rejects_unknown_input_fields_before_store_access(tmp_path,
     path.write_text(json.dumps({"unexpected": True}), encoding="utf-8")
     assert cli.main(["rule-propose", "--input", str(path), "--dir", str(tmp_path)]) == 2
     assert "exactly the documented fields" in capsys.readouterr().err
+
+
+def test_rule_propose_rejects_duplicate_json_keys_before_store_access(tmp_path, monkeypatch, capsys):
+    class ForbiddenStore:
+        def __init__(self, path):
+            raise AssertionError("duplicate-key input must not open the proposal store")
+
+    monkeypatch.setattr(cli, "RuleProposalStore", ForbiddenStore)
+    path = tmp_path / "duplicate-rule-proposal.json"
+    path.write_text('{"request": {}, "request": {}, "candidate": {}}', encoding="utf-8")
+    assert cli.main(["rule-propose", "--input", str(path), "--dir", str(tmp_path)]) == 2
+    assert "duplicate JSON property: request" in capsys.readouterr().err
