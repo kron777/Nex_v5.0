@@ -651,12 +651,14 @@ def objective_history(workdir: str, objective_id: str) -> dict:
         record = item["record"]
         diff = (compare_revisions(history[i - 1]["record"], record)
                 if i else None)
-        revisions.append({
+        revision_summary = {
             "revision": record["revision"], "sha256": item["sha256"],
             "supersedes_sha256": record["supersedes_sha256"],
             "changed_fields": sorted((diff or {}).get("changed_fields", {}).keys()),
-            "proposal_lineage": item.get("lineage"),
-        })
+        }
+        if item.get("lineage") is not None:
+            revision_summary["proposal_lineage"] = item["lineage"]
+        revisions.append(revision_summary)
     return {"objective_id": objective_id, "revisions": revisions}
 
 
@@ -677,10 +679,12 @@ def resume_objective(workdir: str, objective_id: str, revision: int) -> dict:
             cycles.append(cycle.to_dict())
     if not cycles:
         raise ObjectiveInputError("the objective revision is stored, but no completed RDO cycle was found")
-    return {
+    result = {
         "objective": stored["record"],
         "input_sha256": stored["sha256"],
-        "proposal_lineage": stored.get("lineage"),
         "cycles": cycles,
     }
+    if stored.get("lineage") is not None:
+        result["proposal_lineage"] = stored["lineage"]
+    return result
 
