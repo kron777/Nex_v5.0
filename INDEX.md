@@ -1016,6 +1016,28 @@ This contradicted the one-canonical-Writer-per-database invariant in §4. It was
 - Regression coverage now asserts that the recursive prompt path carries the injected Writer, and that SelfMindView snapshotting succeeds while opening a second `self_binding.Writer` is forced to fail.
 - The existing direct injected-Writer test in `tests/test_self_state_history.py` remains in place.
 
+### Wider self-integration trace and unresolved edges
+
+The Writer correction preserves an existing multi-faculty path:
+
+`compositional emotion + rāga + competing-drive state + latest Fountain thought/readiness + open problem + proprioceptive substrate` → `self_binding.bind()` → `self_state` and append-only `self_state_history`.
+
+Two consumers then use related but distinct aspects of this state:
+
+- Fountain's recursive-self path rebinds on the thought-generation path, reads the resulting components and turns selected emotion/rāga patterns into a first-person prompt nudge. It does not directly write Bonsai focus or mechanically select a new branch; the intended behavioural influence is through the prompt.
+- SelfMindView's 300-second snapshot captures the bound synthesis in `self_mind_snapshots.bound_self_synthesis`. Its separate `current_summary()` recomputes beliefs, intentions, knowledge, uncertainty and attention for Chat. `run.py` also injects SelfMindView into Metacognition; Metacognition reads its attention and uncertainty histories to detect recurring attention themes and unresolved-problem stagnation, records those as metacognitive events, and can surface the recent event as prompt text.
+
+This is a genuine chain of connected representations and consumers, but the prompt-mediated feedback should not be mistaken for a measured change in selection or attention.
+
+**Unresolved semantic edges (not changed in this PR):**
+
+1. `self_binding.bind()` currently assigns `drift = "clean"` as a placeholder. The nearby comment says it reads the last logged verdict, but the inspected function contains no such read. The field is persisted but is not included in the returned `components` or synthesis. Do not treat `clean` as a measured value-drift result.
+2. The binder's attention input is the latest Fountain thought/readiness plus the newest open problem. It does not read the live Bonsai focus vector or identify the current hottest branch. That may be a deliberate narrow definition, but it is not a complete representation of Stage-2 attention.
+3. The recursive perturbation currently consumes rāga and emotion (plus the named attending text); drive, readiness and substrate tone are bound but do not directly participate in its nudge rules. Their presence in the unified record does not prove they influence the recursive loop.
+4. SelfMindView's Chat summary is recomputed from its five live aspects and is not the same object as the last persisted `bound_self_synthesis`. The snapshot and conversational summary are parallel views, not one shared narrative.
+
+These are candidates for further source tracing and controlled experiments. No extra faculty or behavioural wire should be added until the intended semantics, consumers and effects are clear.
+
 ### Validation and boundary
 
 **G-94 is corrected in the PR branch, pending exact-head full-suite CI and review.** No pass count is claimed until that run completes. The changes do not alter self-binding content, faculty semantics, prompt text, selection weights, feature flags, database schema or history shape. No live service or database was accessed.
