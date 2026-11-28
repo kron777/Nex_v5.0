@@ -5841,7 +5841,7 @@ This is a specification/documentation drift finding, not proof that every consum
 - Existing tests/test_fountain.py had no GeniusTagger consumer characterization at the inspected base.
 - PR #452 covers the Metacognition rut helper and wrapper flag boundary; exact-head CI passed.
 - PR #454 covers the Fountain governor writer and its explicit retrieval/membrane boundary; exact-head CI pending.
-- PR #455 adds test-only coverage for readiness modulation and the recent-STRIKING prompt block; exact-head CI pending.
+- PR #455 adds test-only coverage for readiness modulation and the recent-STRIKING prompt block; exact-head workflow 46182908854 passed at b74798e87174cfa1f74c740066bcd9c0904a4341.
 
 ### Evidence classification
 
@@ -5889,7 +5889,7 @@ This may be intentional specialization, but the present source does not establis
 ### Evidence classification
 
 - Each consumer's query, thresholds, effect and flag: source-observed.
-- Separate test-only characterization is in draft PRs #452–#455; #452 and #453 exact-head CI passed, #454 and #455 CI pending at this entry.
+- Separate test-only characterization is in draft PRs #452–#455; #452, #453, #454 and #455 exact-head CI passed at this entry.
 - Host flag values, active consumer set, observed sample divergence and actual behavioural impact: UNKNOWN.
 
 **Next bounded investigation:** complete exact-head CI for PRs #454/#455; create a read-only comparison specification of each consumer's sample on one identical captured tag-row set; determine whether different windows/thresholds are intentional before proposing shared logic. Do not centralize or harmonize the consumers during Phase 0.
