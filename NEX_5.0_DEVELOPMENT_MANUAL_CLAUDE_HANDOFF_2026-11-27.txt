@@ -6,7 +6,7 @@ The canonical Markdown manual remains INDEX.md; verify live source and evidence 
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `60cc178ba1f3c895651c86ad95345c98fd5a2198`  
+**Last verified against:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -295,7 +295,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — records merged DAG integrity and policy-scan fixes, #223–#226 bounded one-pen migrations, #236/#238 SelfPredictionLoop handle integration, #253 Warrant cursor closure, and current G-69/G-70/G-73–G-75 status; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — current-main snapshot refreshed after G-92 and G-94 merges; §§47–48 record merged corrections, §49 records the Bonsai → Fountain/Global Workspace characterization; Gate 0 boundaries remain.*
 
 
 
@@ -966,8 +966,41 @@ Gate 0 remains pending and Phase 1 is not authorised. G-69/#259 stays on HOLD. G
 
 
 
+## 45. Feedback-loop evidence update path — G-93 (28 November 2026)
 
-46. Cognitive network interaction trace — attention, affect, drives and workspace (28 November 2026)
+**Evidence snapshot:** merged main commit `6f12f403e13b94a4b019aa666abac448b8a9a62d` (PR #357). Exact-head sandbox run `46101032854`.
+
+### Merged capability
+
+- `FeedbackLoopAssessment` remains UNKNOWN-first. Any dimension marked `measured` must now carry a finite numeric value, a unit, traceable evidence references and a confidence label.
+- `FeedbackLoopEvidenceStore` records measurement and stability-review events in a separate append-only, hash-chained JSONL ledger.
+- Every event is bound to the existing feedback-loop ID, members and directed relationships. Replay refuses to apply evidence if the loop topology has changed.
+- Measurement and stability review remain separate. A measurement never calculates stability. A new measurement after a review resets the current verdict to UNKNOWN until another explicit review is recorded.
+- A non-UNKNOWN stability state requires an explicit review with caller-attributed reviewer, source reference, assessment evidence and confidence. The local ledger does not authenticate reviewer identity.
+- Event history is also persisted in the trailing, legacy-compatible `CycleRecord.feedback_loop_evidence_events` field. `feedback-replay` recovers a cycle snapshot if a ledger append succeeds but snapshot persistence does not.
+- CLI commands: `feedback-measure`, `feedback-review`, `feedback-replay`.
+- Operator guide: `rdo/FEEDBACK_LOOP_EVIDENCE.md`.
+
+### Exact-head verification
+
+- Full sandbox suite: **2,864 passed, 7 skipped, 45 subtests passed**.
+- Mind-map verification: **30 nodes, 0 unverified**. Existing warnings remain for missing `VIRTUE_SLATE.md`, missing `mental_factors_inventory_alobha_spec.txt`, and overdue P13 finitude unblock; 14 dark and 2 blocked nodes are existing map status, not new unverified nodes.
+- The sandbox probe confirmed unprivileged execution, no capabilities/credentials, read-only source, disposable data/tmpfs and no outbound network.
+
+### Gap status and boundary
+
+**G-93 update-path gap: closed.** The repository can now append measured dimensions and separately reviewed stability evidence to the existing CycleRecord while preserving topology and history. This does **not** implement calibrated stability, gain, damping, oscillation thresholds, causal propagation or automatic stability verdicts. Those remain UNKNOWN/unevaluated until exact v1.4 criteria and grounded measurements are available.
+
+**G-92: partially closed.** PR #352 already merged the provider-neutral, hash-chained candidate-rule proposal lifecycle. Its `approved_for_catalogue` state remains deliberately inert: no dynamic activation, no automatic promotion and no changes to `EXPANSION_RULES`. The remaining raw-idea-to-handoff gap is the provider-neutral candidate-seed proposal and approval path; objective intake still requires externally supplied seed obligations.
+
+### Next bounded development
+
+Design the raw-idea → candidate-seed alternatives → explicit human review → objective.v1 intake → recursive expansion → Stage-7 handoff lineage. Bind each candidate to the exact raw objective revision; preserve competing interpretations, assumptions, evidence needs, acceptance-criterion coverage, disconfirming cases and provenance. Do not run planning from an unreviewed external-LLM seed proposal, and do not make the candidate-rule ledger an active rule loader.
+
+No frozen S-01–S-25/M1.8 specification content, NEX runtime, protected experiment, deployment path, Gate 0 or Phase 1 authority was changed.
+
+
+## 46. Cognitive network interaction trace — attention, affect, drives and workspace (28 November 2026)
 
 **Evidence snapshot:** source files on `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. This is a source-level connection trace, not host/runtime telemetry. The exact source-file SHAs and detailed edge register are recorded in `research/SENTIENCE_5_5_COGNITIVE_WIRE_TRACE_2026-11-28.md`.
 
@@ -1017,10 +1050,9 @@ This trace is source-verified and hypothesis-generating. It identifies several e
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, M0/M1 gate, mind-map policy, live runtime flag, service or database was changed.
 
+## 47. Self-binding shared-Writer correction — G-94 (28 November 2026)
 
-47. Self-binding shared-Writer correction — G-94 (28 November 2026)
-
-**Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is proposed on draft PR #362; exact-head CI is pending.
+**Evidence snapshot:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. Correction merged in PR #362 as `f207cc7734ca833995bfbfc5a79dfec4a04eb6f6`; exact-head CI run `46114329075` passed 2,894 tests, 7 skipped and 54 subtests; baseline OK.
 
 ### Source-traced defect
 
@@ -1032,7 +1064,7 @@ The recursive self-reading and periodic self-view snapshot both had access to th
 
 This contradicted the one-canonical-Writer-per-database invariant in §4. It was not a database-schema defect or evidence of corruption; it was a source-level ownership violation on two runtime call paths.
 
-### Bounded correction on PR #362
+### Bounded correction merged in PR #362
 
 - Fountain now passes `self._dynamic_writer` through `recursive_self.format_for_prompt(dynamic_writer=...)` → `perturbation(dynamic_writer=...)` → `_bound_state(dynamic_writer=...)` → `self_binding.bind(dynamic_writer=...)`.
 - SelfMindView now passes its existing `self._dw` into `self_binding.bind()`.
@@ -1055,7 +1087,7 @@ This is a genuine chain of connected representations and consumers, but the prom
 
 **Unresolved semantic edges (not changed in this PR):**
 
-1. `self_binding.bind()` currently assigns `drift = "clean"` as a placeholder. At the base snapshot, the nearby comment claimed the binder read the last logged verdict, but the inspected function contained no such read. This PR corrects that misleading comment; the persisted value remains `clean` for compatibility and is still not a measured value-drift result. The field is not included in the returned `components` or synthesis.
+1. `self_binding.bind()` currently assigns `drift = "clean"` as a placeholder. At the base snapshot, the nearby comment claimed the binder read the last logged verdict, but the inspected function contained no such read. PR #362 corrected that misleading comment; the persisted value remains `clean` for compatibility and is still not a measured value-drift result. The field is not included in the returned `components` or synthesis.
 2. The binder's attention input is the latest Fountain thought/readiness plus the newest open problem. It does not read the live Bonsai focus vector or identify the current hottest branch. That may be a deliberate narrow definition, but it is not a complete representation of Stage-2 attention.
 3. The recursive perturbation currently consumes rāga and emotion (plus the named attending text); drive, readiness and substrate tone are bound but do not directly participate in its nudge rules. Their presence in the unified record does not prove they influence the recursive loop.
 4. SelfMindView's Chat summary is recomputed from its five live aspects and is not the same object as the last persisted `bound_self_synthesis`. The snapshot and conversational summary are parallel views, not one shared narrative.
@@ -1064,14 +1096,13 @@ These are candidates for further source tracing and controlled experiments. No e
 
 ### Validation and boundary
 
-**G-94 is corrected in the PR branch, pending exact-head full-suite CI and review.** No pass count is claimed until that run completes. The changes do not alter self-binding content, faculty semantics, prompt text, selection weights, feature flags, database schema or history shape. No live service or database was accessed.
+**G-94 is merged on main.** Exact-head CI passed as recorded above. The test evidence remains source/integration-fixture evidence, not live-host runtime evidence. The changes do not alter self-binding content, faculty semantics, prompt text, selection weights, feature flags, database schema or history shape. No live service or database was accessed.
 
 This is a persistence-ownership correction that preserves the existing cognitive connections. It does not add a new faculty or claim that the recursive self-reading nudge produces a beneficial attention change. Gate 0 and Phase 1 authority remain unchanged.
 
+## 48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
 
-48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
-
-**Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is on draft-review candidate PR #360; exact-head CI is being rerun after correcting the self-assessment count for the new adapter.
+**Evidence snapshot:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. The first G-92 candidate-seed lifecycle increment merged in PR #360 as `8fe2e74d0d24c2ae897cc1a3abb4ddbd3edc8cd0`; exact-head CI run `46115093455` passed 2,913 tests, 7 skipped and 54 subtests; baseline OK.
 
 ### What this increment adds
 
@@ -1093,14 +1124,11 @@ The first exact-head CI exposed one stale self-assessment expectation: RDO corre
 
 The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.tension._find_cycles`, `_classify_cycle`, `assess_system` and `rdo.graph` SCC machinery to distinguish prerequisite cycles, influence feedback loops and unknown cases. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
 
-**Critical next-step constraint:** the proposal and objective-intake ledgers compute different hashes. `raw_objective_sha256` hashes only the immutable raw request; `ObjectiveInputStore` hashes the full `objective.v1` record including selected seeds. Their `supersedes_sha256` fields therefore belong to two distinct revision chains. The current `objective.v1` schema also rejects additional fields and has no structured proposal ID/alternative/proposer provenance. A raw idea may be human-sourced while the selected seed graph is LLM-proposed; keep that distinction and the inferred confidence. The bridge must define a versioned or stable cross-reference carrying proposal ID, selected alternative, raw digest and review event before it maps the selected graph into intake. Never substitute the two digests or silently upgrade inferred confidence.
-
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
 
+## 49. Bonsai → Fountain branch pick → Global Workspace trace (28 November 2026)
 
-49. Bonsai → Fountain branch pick → Global Workspace trace (28 November 2026)
-
-**Evidence snapshot:** NEX `main` at `d580248ecf9436784a8772c50e733008baaf1b41`. Test-only characterization is proposed on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; exact-head CI pending.
+**Evidence snapshot:** NEX `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; exact-head CI run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests; baseline OK.
 
 ### Network path
 

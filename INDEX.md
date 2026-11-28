@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 28 November 2026 — records Sentience 5.5/NEX cognitive wire trace (§46), self-binding shared-Writer correction and open semantic edges (§47), and current RDO/Watcher progress; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — current-main snapshot refreshed after G-92 and G-94 merges; §§47–48 record merged corrections, §49 records the Bonsai → Fountain/Global Workspace characterization; Gate 0 boundaries remain.*
 
 
 
@@ -1046,7 +1046,7 @@ No frozen S-01–S-25/M1.8 specification content, Master Roadmap, M0/M1 gate, mi
 
 ## 47. Self-binding shared-Writer correction — G-94 (28 November 2026)
 
-**Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is proposed on draft PR #362; exact-head CI is pending.
+**Evidence snapshot:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. Correction merged in PR #362 as `f207cc7734ca833995bfbfc5a79dfec4a04eb6f6`; exact-head CI run `46114329075` passed 2,894 tests, 7 skipped and 54 subtests; baseline OK.
 
 ### Source-traced defect
 
@@ -1058,7 +1058,7 @@ The recursive self-reading and periodic self-view snapshot both had access to th
 
 This contradicted the one-canonical-Writer-per-database invariant in §4. It was not a database-schema defect or evidence of corruption; it was a source-level ownership violation on two runtime call paths.
 
-### Bounded correction on PR #362
+### Bounded correction merged in PR #362
 
 - Fountain now passes `self._dynamic_writer` through `recursive_self.format_for_prompt(dynamic_writer=...)` → `perturbation(dynamic_writer=...)` → `_bound_state(dynamic_writer=...)` → `self_binding.bind(dynamic_writer=...)`.
 - SelfMindView now passes its existing `self._dw` into `self_binding.bind()`.
@@ -1081,7 +1081,7 @@ This is a genuine chain of connected representations and consumers, but the prom
 
 **Unresolved semantic edges (not changed in this PR):**
 
-1. `self_binding.bind()` currently assigns `drift = "clean"` as a placeholder. At the base snapshot, the nearby comment claimed the binder read the last logged verdict, but the inspected function contained no such read. This PR corrects that misleading comment; the persisted value remains `clean` for compatibility and is still not a measured value-drift result. The field is not included in the returned `components` or synthesis.
+1. `self_binding.bind()` currently assigns `drift = "clean"` as a placeholder. At the base snapshot, the nearby comment claimed the binder read the last logged verdict, but the inspected function contained no such read. PR #362 corrected that misleading comment; the persisted value remains `clean` for compatibility and is still not a measured value-drift result. The field is not included in the returned `components` or synthesis.
 2. The binder's attention input is the latest Fountain thought/readiness plus the newest open problem. It does not read the live Bonsai focus vector or identify the current hottest branch. That may be a deliberate narrow definition, but it is not a complete representation of Stage-2 attention.
 3. The recursive perturbation currently consumes rāga and emotion (plus the named attending text); drive, readiness and substrate tone are bound but do not directly participate in its nudge rules. Their presence in the unified record does not prove they influence the recursive loop.
 4. SelfMindView's Chat summary is recomputed from its five live aspects and is not the same object as the last persisted `bound_self_synthesis`. The snapshot and conversational summary are parallel views, not one shared narrative.
@@ -1090,13 +1090,13 @@ These are candidates for further source tracing and controlled experiments. No e
 
 ### Validation and boundary
 
-**G-94 is corrected in the PR branch, pending exact-head full-suite CI and review.** No pass count is claimed until that run completes. The changes do not alter self-binding content, faculty semantics, prompt text, selection weights, feature flags, database schema or history shape. No live service or database was accessed.
+**G-94 is merged on main.** Exact-head CI passed as recorded above. The test evidence remains source/integration-fixture evidence, not live-host runtime evidence. The changes do not alter self-binding content, faculty semantics, prompt text, selection weights, feature flags, database schema or history shape. No live service or database was accessed.
 
 This is a persistence-ownership correction that preserves the existing cognitive connections. It does not add a new faculty or claim that the recursive self-reading nudge produces a beneficial attention change. Gate 0 and Phase 1 authority remain unchanged.
 
 ## 48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
 
-**Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is on draft-review candidate PR #360; exact-head CI is being rerun after correcting the self-assessment count for the new adapter.
+**Evidence snapshot:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. The first G-92 candidate-seed lifecycle increment merged in PR #360 as `8fe2e74d0d24c2ae897cc1a3abb4ddbd3edc8cd0`; exact-head CI run `46115093455` passed 2,913 tests, 7 skipped and 54 subtests; baseline OK.
 
 ### What this increment adds
 
@@ -1122,7 +1122,7 @@ No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 
 
 ## 49. Bonsai → Fountain branch pick → Global Workspace trace (28 November 2026)
 
-**Evidence snapshot:** NEX `main` at `d580248ecf9436784a8772c50e733008baaf1b41`. Test-only characterization is proposed on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; exact-head CI pending.
+**Evidence snapshot:** NEX `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; exact-head CI run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests; baseline OK.
 
 ### Network path
 
