@@ -68,7 +68,7 @@ def test_existing_objective_ledger_symlink_is_rejected_without_target_write(tmp_
 def test_objective_lock_symlink_is_rejected_for_history_and_append(tmp_path):
     directory = tmp_path / "objectives"
     store = ObjectiveInputStore(str(directory))
-    store.append(_objective())
+    first = store.append(_objective())
     lock_path = directory / "path-safety.jsonl.lock"
     lock_path.unlink()
     target = tmp_path / "outside.lock"
@@ -79,7 +79,7 @@ def test_objective_lock_symlink_is_rejected_for_history_and_append(tmp_path):
         store.history("path-safety")
     second = _objective()
     second["revision"] = 2
-    second["supersedes_sha256"] = store.history("path-safety")[0]["sha256"] if False else "0" * 64
+    second["supersedes_sha256"] = first["sha256"]
     with pytest.raises(ObjectiveInputError, match="lock path must not be a symlink"):
         store.append(second)
     assert target.read_text(encoding="utf-8") == "untouched lock\n"
