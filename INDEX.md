@@ -3626,3 +3626,62 @@ Before broadening graph recall, decide whether connected zero-overlap nodes are 
 **Host/runtime unknowns:** effective `NEX5_SEMANTIC_RETRIEVAL`; actual edge-type distribution and weights; how often graph-activated IDs are absent from the lexical/semantic candidate map; live ranking changes; and whether graph-only recall expansion is a desired product behaviour. No tests were run in this documentation pass.
 
 No runtime code, tests, schema, indexes, feature flags, retrieval policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
+
+
+
+## 99. Fountain stillness duplicate guard appears disconnected from the retrieval manifest (28 November 2026)
+
+**Question studied:** does Fountain's low-readiness duplicate-retrieval stillness guard receive the own-belief IDs it expects, given the actual slot labels emitted by prompt construction?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and related test-file inspection only. This is a candidate defect, not a runtime-observed failure.
+
+### The consumer's expected slot
+
+In `FountainGenerator.fire()`, after `_build_prompt()` returns the prompt and retrieval manifest, the stillness detector builds `_own_belief_ids` using:
+
+```python
+_own_belief_ids = frozenset(
+    bel_id for bel_id, slot, *_ in retrieval_manifest
+    if bel_id and slot == "own"
+)
+```
+
+The Jaccard duplicate check and stillness counter are reached only when this set is non-empty (and readiness is below `_STILLNESS_READINESS_CAP`). If the set is empty, this entire own-retrieval duplicate guard is skipped.
+
+### The producer's actual slot vocabulary
+
+A full scan of every `retrieval_manifest.append(...)` occurrence in the inspected `generator.py` shows these emitted slot labels:
+
+- `spectrum` for standing-point rows;
+- `own_sense` for `precipitated_from_sense` beliefs, which are explicitly rendered into the prompt;
+- `seed` for seed/reference rows;
+- `disturbance_a` and `disturbance_b` for the two sides of an unresolved tension;
+- `own_render` for distilled own-content rows when `NEX5_OWN_CONTENT_RENDER=1`.
+
+There is no `retrieval_manifest.append(..., "own", ...)` in the inspected file. The stillness consumer expects `own`, while the producer labels the rendered own-sense and opt-in distilled own-content slots `own_sense` and `own_render`. Consequently, on the inspected implementation, `_own_belief_ids` is empty for manifests built by this function and the guard appears unreachable through this path.
+
+This is a producer/consumer contract mismatch, not merely a question of whether own-content text is enabled. Even with `NEX5_OWN_CONTENT_RENDER=1`, the distilled rows use `own_render`, not `own`.
+
+### Why it matters
+
+The nearby comments describe the stillness check as a mechanism to suppress repeated own-slot retrieval when readiness is low. The current slot mismatch means the intended Jaccard comparison may never receive the relevant own-belief set. That could leave repeated retrieval patterns unfiltered by this particular guard. It does **not** prove that Fountain necessarily repeats, that the stillness counter never changes through another path, or that another independent suppression mechanism is absent.
+
+Relatedly, the stillness detector's intended comparison population needs an explicit decision: should it include all retrieved own-content candidates, only items actually rendered as text, or both `own_sense` and optional `own_render` but not seed/spectrum/disturbance? Candidate selection, prompt inclusion and activation touch must not be treated as interchangeable evidence.
+
+### Test coverage and confidence
+
+The inspected `tests/test_fountain.py`, `tests/test_fountain_arc_awareness.py`, and `tests/test_fountain_shutdown.py` contain no references to the stillness guard, its Jaccard helper, or the `own` slot contract. `tests/test_retrieval.py` does test the default-off and opt-in rendering of distilled own content, but it does not exercise the stillness consumer against the returned manifest. `tests/test_fountain_crystallizer.py` tests crystallizer near-duplicate rejection, which is a different mechanism and does not cover retrieval-set stillness.
+
+The source mismatch is high-confidence for the inspected producer and consumer, but the behavioural consequence is unverified because no test or live process was run.
+
+### Safe next step
+
+Before any fix, add a focused caller-contract test that builds representative manifests through `_build_prompt()` in both default-off and `NEX5_OWN_CONTENT_RENDER=1` modes, then verifies the intended own-slot IDs reach the stillness comparison. Decide and document the exact population semantics first. The test should also prove that seed, spectrum and disturbance entries do not accidentally count as own-content continuity. A separate regression should demonstrate the Jaccard guard's below-cap and at/above-threshold behaviour.
+
+If confirmed, the smallest likely correction is to align the consumer with the producer's explicit slot vocabulary (or centralize slot classification in one helper); do not rename slots casually because they also feed retrieval provenance and write-back logic. Re-scan every slot reader and the prompt-block manifest before changing labels. This remains a Phase 0 defect candidate pending caller-contract verification; no production fix is made here.
+
+**Source anchors inspected:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51` (all manifest append sites, `_build_prompt`, and stillness consumer); `tests/test_fountain.py` blob `4ea682443e4997e7cbbf02f795df8d2c43605299`; `tests/test_fountain_arc_awareness.py` blob `fc52380998f707a5f8cf61a544c3cc100725ef78`; `tests/test_fountain_shutdown.py` blob `83b9323802678db3f2fc219366dca4fc1a57b48f`; `tests/test_retrieval.py` blob `efd27b50c3cdc5ef64769fefcbb5529cc44ea90e`; `tests/test_fountain_crystallizer.py` blob `aa8b666f4bfe1afa0338a6993b14cf8d2d4a4d50`.
+
+**Host/runtime unknowns:** actual readiness distribution; whether the stillness branch is reached in deployment; actual repeated-retrieval Jaccard values; whether any external wrapper transforms manifest slots (none was found in the inspected call path); and behavioural impact of a corrected slot classifier. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, indexes, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
