@@ -42,7 +42,7 @@ class Crystallizer:
         # per-branch: last crystallization timestamp (to enforce window dedup)
         self._last_crystallized: dict[str, float] = {}
 
-    def check_all(self) -> list[str]:
+    def check_all(self, *, stop_event=None) -> list[str]:
         """Check all branches; crystallize those with enough cumulative high focus.
 
         Returns list of branch_ids that crystallized this pass.
@@ -52,6 +52,8 @@ class Crystallizer:
         cutoff = now - CRYSTALLIZATION_WINDOW_SECONDS
 
         for node in self._tree.all_nodes():
+            if stop_event is not None and stop_event.is_set():
+                break
             bid = node.branch_id
             focus = node.focus_increment
 
@@ -78,7 +80,7 @@ class Crystallizer:
             if now - last < CRYSTALLIZATION_WINDOW_SECONDS:
                 continue
 
-            did_crystallize = self._crystallize(node, now)
+            did_crystallize = self._crystallize(node, now, stop_event=stop_event)
             if did_crystallize:
                 crystallized.append(bid)
                 self._last_crystallized[bid] = now
@@ -87,25 +89,31 @@ class Crystallizer:
 
         return crystallized
 
-    def _crystallize(self, node, ts: float) -> bool:
+    def _crystallize(self, node, ts: float, *, stop_event=None) -> bool:
         """Precipitate one Tier 7 belief. Returns True if written."""
         branch_id = node.branch_id
-        content, stream = self._extract_content_and_stream(branch_id)
-        if content is None:
+        if stop_event is not None and stop_event.is_set():
+            return False
+        content, stream = self._extract_content_and_stream(branch_id, stop_event=stop_event)
+        if content is None or (stop_event is not None and stop_event.is_set()):
             return False
 
         belief_content = f"[{branch_id}] {content}"
 
         # Blacklist guard
-        if self._is_blacklisted(belief_content):
+        if self._is_blacklisted(belief_content, stop_event=stop_event):
             errors.record(
                 f"crystallization blocked by blacklist: {belief_content[:80]}",
                 source=_LOG_SOURCE, level="INFO",
             )
             return False
+        if stop_event is not None and stop_event.is_set():
+            return False
 
         # Dedup guard
-        if self._is_duplicate(belief_content):
+        if self._is_duplicate(belief_content, stop_event=stop_event):
+            return False
+        if stop_event is not None and stop_event.is_set():
             return False
 
         # Write belief to beliefs.db
@@ -125,7 +133,7 @@ class Crystallizer:
         )
         return True
 
-    def _extract_content_and_stream(self, branch_id: str):
+    def _extract_content_and_stream(self, branch_id: str, *, stop_event=None):
         """The most prominent content from recent pipeline events for this
         branch, as (content, stream). stream is set only when the content IS a sensed
         item's title -- then the belief carries that item's origin. A note of
@@ -141,6 +149,8 @@ class Crystallizer:
             errors.record(f"crystallization read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return None, None
 
+        if stop_event is not None and stop_event.is_set():
+            return None, None
         if not rows:
             return f"sustained attention on {branch_id}", None
 
@@ -155,7 +165,7 @@ class Crystallizer:
                 pass
         return best_row["sensation_source"] or f"sustained attention on {branch_id}", None
 
-    def _is_blacklisted(self, content: str) -> bool:
+    def _is_blacklisted(self, content: str, *, stop_event=None) -> bool:
         if self._beliefs_reader is None:
             return False
         try:
@@ -165,7 +175,7 @@ class Crystallizer:
         content_lower = content.lower()
         return any(row["pattern"].lower() in content_lower for row in patterns)
 
-    def _is_duplicate(self, content: str) -> bool:
+    def _is_duplicate(self, content: str, *, stop_event=None) -> bool:
         try:
             cutoff = time.time() - _DEDUP_WINDOW_SECONDS
             row = self._dynamic_reader.read_one(
