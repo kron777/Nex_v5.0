@@ -6234,3 +6234,69 @@ The next study should locate and trace the **existing** Sentence Code representa
 5. Use one read-only or pure operation fixture first. Do not connect a new autonomous caller, grant execution authority, add a parallel operation store or change runtime policy during Phase 0.
 
 **Disposition:** current chat selector does not consume the Mind Map or a demonstrated typed Sentence Code object; full end-to-end connection remains unproven. No defect ID assigned and no runtime change. Mind-map descriptiveness and the interpretive-cognition / operation / capability / approval / execution / verification separation remain intact.
+
+
+## §168 — ThoughtPacket and Coherence Gate are belief-ingestion contracts, not operation IR (28 November 2026)
+
+**Current NEX source snapshot:** main `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+The implemented `ThoughtPacket` in `theory_x/stage_gate/coherence_gate.py` has the fields `content`, `source_node`, `confidence`, optional `branch_id` and `metadata`. Its documented meaning is a thought about to enter the belief substrate. It is not a representation of an imperative user request, a capability invocation, or a machine operation with preconditions and permission.
+
+Source-traced producers/callers include:
+- Fountain crystallizer: source node `fountain`.
+- Stage-2 crystallization: source node `stage2_crystallization`.
+- Synergizer: source node `synergizer`.
+- CounterfactualNode: source `counterfactual.{problem_id}`, with problem/score metadata.
+- ThrowNetEngine: source and origin metadata from the selected candidate.
+- Holding-zone reshape resolver/transformer: reconstitutes and resubmits a thought with reshape lineage.
+
+The Coherence Gate returns ACCEPT, REJECT, HOLD or RESHAPE. ACCEPT can notify the configured HoldingZoneResolver; REJECT may record an eligible ThrowNet trigger; HOLD persists the candidate in the holding zone; RESHAPE enqueues it for transformation/re-submission. These are belief-ingestion and candidate-lifecycle semantics. The gate's module documentation also records a fail-open availability behaviour: evaluation exceptions are converted to ACCEPT with reason `gate_error_fallback`. That is not a machine-operation permission boundary.
+
+The relevant distinction is:
+- `ThoughtPacket`: attributed cognitive content proposed for the belief substrate.
+- `ToolCaller`: heuristic selection from a raw chat sentence to one of the currently registered Stage-B capabilities.
+- `ToolResult`: post-execution envelope (tool name, input, output, success/error), not a pre-execution intent.
+- RDO `objective.v1`: provider-neutral advisory engineering objective; supplied obligations are proposals, and the schema deliberately excludes reconciliation outcomes, evidence claims, approval flags and arbitrary execution instructions.
+
+No inspected source establishes that these objects are interchangeable or that a human sentence passes through them as one continuous typed representation. The general Sentence Code owner/schema and its complete consumers remain UNKNOWN. Do not invent a second packet/operation store or expand the ThoughtPacket contract to machine actions as a Phase 0 shortcut.
+
+**Source anchors:** `theory_x/stage_gate/coherence_gate.py:1-27,130-156,217-260`; `theory_x/stage6_fountain/crystallizer.py:434-455`; `theory_x/stage2_dynamic/crystallization.py:188-205`; `theory_x/stage3_world_model/synergizer.py:90-110`; `theory_x/stage_counterfactual/counterfactual_node.py:163-185`; `theory_x/stage_throw_net/throw_net_engine.py:140-155,215-236`; `rdo/schemas/objective.v1.schema.json`; `rdo_adapters/objective_intake.py:5-12,138-148`.
+
+## §169 — The existing chat faculties form a bounded interpretation network (28 November 2026)
+
+**Faculty-map source snapshot:** `research/NEX_CHAT_FACULTY_WIRE_MAP_2026-11-28.md`, authored against NEX main `3d7205536588e34a887939784d436ec70e8c6777`. The current main `18c8f06171e1de35c3210831a49b63d0e2487af0` descends from that snapshot; relevant chat callsites and faculty modules were rechecked for this continuity pass. Live host environment flags were not read.
+
+The map identifies thirteen ordered chat-context blocks: operator, operator anchor, compassion, compass, equanimity, apramada, virya, sraddha, prasrabdhi, affect carry, conversation memory, spectrum and tag. They are composed by `_assemble_chat_blocks()` into the voice prompt. Important source-level cross-faculty influences include:
+- Compassion is one input to Compass's situated moral lean.
+- Equanimity deliberately yields when compassion distress is live.
+- Compassion contributes to affect-carry across turns.
+- Vīrya yields to Equanimity under a hot fixation/aversion pull.
+- Vīrya and Praśrabdhi read shared focus signals for different purposes.
+- Apramāda reads held commitments; Śraddhā reads actual belief support metrics.
+
+This is more than thirteen isolated strings: some faculties read other faculty outputs or shared state, and the `NEX5_SELF_PRESENT` path can carry a per-kind salience vector across turns (0.7 prior + 0.3 current when both relevant flags are enabled). Nevertheless, the verified integration mechanism is a bounded call graph plus ordered prompt composition. It does not demonstrate unrestricted recursive propagation through every faculty.
+
+The Chat Workspace is a prompt-space selector, distinct from the Fountain Global Workspace's leading-frame arbiter. It chooses context blocks under a character budget; it is not a tool permission, action approval or execution gate. The map reports most named faculty flags as default OFF. Since the live host environment was not inspected, actual activation and behavioural effect remain UNKNOWN.
+
+The Tibetan Mind Map and the Chat Faculty Wire Map must not be conflated. The former is a descriptive diagram/ledger of aspects and roles; CI guards against action-authority fields and runtime consumption. The latter is a source-level map of actual runtime reads and prompt contributions. Neither grants faculties action authority. Their value is cognitive interpretation and context composition, not machine-operation veto power.
+
+**Source anchors:** `research/NEX_CHAT_FACULTY_WIRE_MAP_2026-11-28.md`; `gui/server.py:204-235,2348-2405`; `theory_x/stage_tom/global_workspace.py`; `theory_x/stage_tom/self_present.py`; `tests/test_mind_map_policy.py`.
+
+## §170 — One belief can be retrieved twice across OUTSIDE chat RAG and beliefs_query (28 November 2026)
+
+**Characterization PR:** #460, draft, branch `tests/chat-belief-query-overlap-2026-11-28`, latest fixture head `6b016802831350ff1cf1cf1c19c99fb49e3964b2`. Exact-head workflow `46187314674` was still running when this entry was written. **No pass count is claimed here.**
+
+### Source path
+
+- For an OUTSIDE query, the normal membrane `QueryRouter` calls `BeliefRetriever.retrieve(..., limit=8)` without an `INSIDE` side filter and formats returned beliefs as tier-labelled lines.
+- The Stage-B `beliefs_query` tool independently calls the same `BeliefRetriever` with `limit=5`, also without a side filter, then formats a second tier-labelled block.
+- The route appends the tool block to the already assembled `belief_text` before the Technical gap gate.
+- The gap gate counts occurrences of `- [Tier` rather than distinct belief IDs. Its configured minimum for Technical turns is two.
+
+PR #460 first adds a component-level fixture proving that the same seeded database ID can be returned from both paths and that combined formatted tier markers can outnumber the unique IDs. It then adds a full `/api/chat` fixture that clears only its disposable test database, inserts one matching belief, sends a query that is OUTSIDE to the membrane but recognized by `ToolCaller` as `beliefs_query`, and asserts that the same content appears twice and the route reaches a mocked voice request.
+
+If the exact-head route test passes, that establishes a reproducible fixture in which one distinct belief can contribute two tier-labelled entries and clear a two-entry response-grounding threshold. It still does not establish a live-host occurrence, frequency, a user-visible false grounding event, or production impact. The intended evidence-count semantics require a separate decision; no automatic deduplication or runtime change is made here.
+
+**Disposition at writing:** component and route characterization submitted; exact-head CI pending; no defect ID assigned pending review of intended semantics and CI. Host occurrence remains UNKNOWN. No runtime retrieval, prompt, threshold, selector, schema or authority changed.
+
+**Source anchors:** `theory_x/stage4_membrane/router.py:23-78`; `theory_x/stage3_world_model/retrieval.py`; `theory_x/stage_capability/tools.py` (`_beliefs_query`); `gui/server.py` (normal retrieval, Stage-B call and gap gate); `tests/test_membrane.py`; PR #460; workflow `46187314674`.
