@@ -198,6 +198,218 @@ def last_commit_ts(rel: str) -> float | None:
         return None
 
 
+# A quoted "path.ext:a" or "path.ext:a-b" inside the YAML text (source refs).
+_QUOTED_REF_RE = re.compile(r'"(?P<ref>[^":\s]+\.[A-Za-z0-9]+:\d+(?:-\d+)?)"')
+_NODE_ID_RE = re.compile(r"^\s*-\s+id:\s*(\S+)")
+_DRIFT_WINDOW = 400
+
+
+def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True)
+
+
+def _source_ref_lines(lines: list[str]) -> set[int]:
+    """Return source-ref line numbers from node mappings, excluding prose notes."""
+    document = yaml.compose("\n".join(lines))
+    if not isinstance(document, yaml.MappingNode):
+        return set()
+
+    def value_for(mapping, name):
+        if not isinstance(mapping, yaml.MappingNode):
+            return None
+        return next(
+            (value for key, value in mapping.value
+             if isinstance(key, yaml.ScalarNode) and key.value == name),
+            None,
+        )
+
+    nodes = value_for(document, "nodes")
+    if not isinstance(nodes, yaml.SequenceNode):
+        return set()
+
+    selected: set[int] = set()
+    for node in nodes.value:
+        source = value_for(node, "source")
+        if not isinstance(source, yaml.MappingNode):
+            continue
+        refs = value_for(source, "refs")
+        if isinstance(refs, yaml.SequenceNode):
+            selected.update(
+                ref.start_mark.line + 1
+                for ref in refs.value
+                if isinstance(ref, yaml.ScalarNode)
+            )
+        ref = value_for(source, "ref")
+        if isinstance(ref, yaml.ScalarNode):
+            selected.add(ref.start_mark.line + 1)
+    return selected
+
+def _blame_line_commits(map_path: Path, root: Path) -> dict[int, str]:
+    """Map each YAML line number to the commit that last wrote it."""
+    try:
+        rel = map_path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return {}
+    r = _git(root, "blame", "--porcelain", "--", rel)
+    if r.returncode != 0:
+        return {}
+    out: dict[int, str] = {}
+    for line in r.stdout.splitlines():
+        parts = line.split(" ")
+        if len(parts) >= 3 and re.fullmatch(r"[0-9a-f]{40}", parts[0]):
+            out[int(parts[2])] = parts[0]
+    return out
+
+
+def _commit_time(root: Path, sha: str, cache: dict) -> int:
+    if sha not in cache:
+        r = _git(root, "show", "-s", "--format=%ct", sha)
+        cache[sha] = int(r.stdout.strip() or 0) if r.returncode == 0 else 0
+    return cache[sha]
+
+
+def _newer(root: Path, shas: list[str], times: dict) -> str:
+    """The later of the candidate commits: a descendant wins over its ancestor;
+    unrelated commits (two merged branches) fall back to committer time."""
+    best = shas[0]
+    for sha in shas[1:]:
+        if sha == best:
+            continue
+        if _git(root, "merge-base", "--is-ancestor", best, sha).returncode == 0:
+            best = sha
+        elif _git(root, "merge-base", "--is-ancestor", sha, best).returncode != 0 \
+                and _commit_time(root, sha, times) > _commit_time(root, best, times):
+            best = sha
+    return best
+
+
+def anchor_drift(map_path: Path = MAP, root: Path = ROOT) -> list[dict]:
+    """Find cited line ranges that no longer hold the lines they cited.
+
+    STALE is day-granular: an edit later on the same day as a verification,
+    or a branch merged after the anchor was written, shifts cited lines with
+    no warning. For each quoted ref, the baseline is the newer of two commits:
+    the one that last wrote the ref's YAML line and the one that last wrote its
+    node's ``last_verified`` line (a re-verification that kept the anchor).
+    The cited range at the baseline is compared with the working tree; when the
+    same lines sit elsewhere the record carries their new position. Anchors
+    and dates not yet committed are not judged. Call only with complete git
+    history. Returns one dict per drifted ref: node, path, a, b, yaml_line,
+    baseline, and new_a/new_b (None when the content itself changed).
+    """
+    commits = _blame_line_commits(map_path, root)
+    if not commits:
+        return []
+    text = map_path.read_text(encoding="utf-8").splitlines()
+    # Pass 1: each line's node, and each node's last_verified line.
+    node_of: dict[int, str] = {}
+    verified_line: dict[str, int] = {}
+    node = "?"
+    for lineno, line in enumerate(text, 1):
+        m_id = _NODE_ID_RE.match(line)
+        if m_id:
+            node = m_id.group(1)
+        elif re.match(r"^[A-Za-z_]+:", line):
+            node = "?"
+        node_of[lineno] = node
+        if node != "?" and re.match(r"^\s+last_verified:", line):
+            verified_line[node] = lineno
+    times: dict[str, int] = {}
+    old_cache: dict[tuple[str, str], list[str] | None] = {}
+    cur_cache: dict[str, list[str] | None] = {}
+    out: list[dict] = []
+    source_lines = _source_ref_lines(text)
+    for lineno, line in enumerate(text, 1):
+        if lineno not in source_lines:
+            continue
+        for m in _QUOTED_REF_RE.finditer(line):
+            ref = REF_RE.match(m.group("ref"))
+            if not ref or not ref.group("a"):
+                continue
+            node = node_of.get(lineno, "?")
+            shas = [commits.get(lineno), commits.get(verified_line.get(node, -1))]
+            if not shas[0] or set(shas[0]) == {"0"}:
+                continue        # the anchor itself is being edited now
+            shas = [x for x in shas if x and set(x) != {"0"}]
+            sha = _newer(root, shas, times)
+            path, a = ref.group("path"), int(ref.group("a"))
+            b = int(ref.group("b") or a)
+            if (sha, path) not in old_cache:
+                r = _git(root, "show", f"{sha}:{path}")
+                old_cache[(sha, path)] = r.stdout.splitlines() if r.returncode == 0 else None
+            if path not in cur_cache:
+                f = root / path
+                cur_cache[path] = (f.read_text(encoding="utf-8", errors="ignore").splitlines()
+                                   if f.is_file() else None)
+            old, cur = old_cache[(sha, path)], cur_cache[path]
+            if old is None or cur is None or b > len(old):
+                continue        # missing paths and over-long ranges are check()'s errors
+            want = old[a - 1:b]
+            if cur[a - 1:b] == want:
+                continue
+            shifts = [
+                d for d in range(-_DRIFT_WINDOW, _DRIFT_WINDOW + 1)
+                if d and a - 1 + d >= 0 and cur[a - 1 + d:b + d] == want
+            ]
+            # Re-anchor only when the cited content has exactly one new home.
+            # Repeated boilerplate or duplicated blocks are ambiguous evidence;
+            # choosing the nearest match could silently point at the wrong code.
+            shift = shifts[0] if len(shifts) == 1 else None
+            out.append({"node": node, "path": path, "a": a, "b": b, "yaml_line": lineno,
+                        "baseline": sha, "ambiguous": len(shifts) > 1,
+                        "new_a": None if shift is None else a + shift,
+                        "new_b": None if shift is None else b + shift})
+    return out
+
+
+def _span(a: int, b: int) -> str:
+    return f"{a}" if a == b else f"{a}-{b}"
+
+
+def anchor_drift_warnings(map_path: Path = MAP, root: Path = ROOT) -> list[str]:
+    """Human-readable DRIFT warnings for anchor_drift()."""
+    warns = []
+    for d in anchor_drift(map_path, root):
+        where = (
+            "ambiguous duplicate matches; manual review required"
+            if d.get("ambiguous") else
+            "content changed or removed" if d["new_a"] is None else
+            f"now at :{_span(d['new_a'], d['new_b'])}"
+        )
+        warns.append(f"{d['node']}: DRIFT — {d['path']}:{_span(d['a'], d['b'])} no longer "
+                     f"holds the lines it cited at {d['baseline'][:8]} ({where})")
+    return warns
+
+
+def reanchor(map_path: Path = MAP, root: Path = ROOT) -> tuple[list[str], list[str]]:
+    """Rewrite refs whose cited lines only MOVED; never touch dates or notes.
+
+    Returns (applied, needs_review). A ref whose content changed is left
+    untouched and reported for re-verification by a person.
+    """
+    drift = anchor_drift(map_path, root)
+    lines = map_path.read_text(encoding="utf-8").split("\n")
+    applied, review = [], []
+    for d in drift:
+        old = f'"{d["path"]}:{_span(d["a"], d["b"])}"'
+        if d["new_a"] is None:
+            reason = ("has multiple identical destinations" if d.get("ambiguous")
+                      else "content changed or disappeared")
+            review.append(f"{d['node']}: {d['path']}:{_span(d['a'], d['b'])} {reason} "
+                          f"since {d['baseline'][:8]} -- re-verify by hand")
+            continue
+        new = f'"{d["path"]}:{_span(d["new_a"], d["new_b"])}"'
+        i = d["yaml_line"] - 1
+        if lines[i].count(old) != 1:
+            review.append(f"{d['node']}: {old} not uniquely on line {d['yaml_line']} -- skipped")
+            continue
+        lines[i] = lines[i].replace(old, new)
+        applied.append(f"{d['node']}: {old} -> {new}")
+    if applied:
+        map_path.write_text("\n".join(lines), encoding="utf-8")
+    return applied, review
+
+
 # ─────────────────────────────── checking ──────────────────────────────
 def check(doc: dict, verify_absent: bool = False) -> tuple[list, list]:
     errs: list[str] = check_descriptive_only(doc, ROOT)
@@ -507,12 +719,28 @@ def main() -> int:
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--verify", action="store_true", help="also run source.absent checks")
     ap.add_argument("--map", type=Path, default=MAP)
+    ap.add_argument("--reanchor", action="store_true",
+                    help="rewrite refs whose cited lines only moved (needs full git history)")
     args = ap.parse_args()
+
+    if args.reanchor:
+        if not git_history_complete():
+            print("reanchor needs complete git history", file=sys.stderr)
+            return 1
+        applied, review = reanchor(args.map, ROOT)
+        for a in applied:
+            print(f"  moved   {a}")
+        for r in review:
+            print(f"  review  {r}")
+        print(f"{len(applied)} anchors moved, {len(review)} need review")
+        return 0
 
     doc = load(args.map)
     errs, warns = check(doc, verify_absent=args.verify)
 
     if args.check:
+        if git_history_complete():
+            warns.extend(anchor_drift_warnings(args.map, ROOT))
         nodes = doc.get("nodes", [])
         unver = sum(1 for n in nodes if n["last_verified"] == "unverified")
         dark = sum(1 for n in nodes if n["dark"])

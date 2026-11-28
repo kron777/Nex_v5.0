@@ -9,6 +9,15 @@ After #362 (`b5e78842`) merged, the mind-map check (`python mind_map/mind_map.py
 
 ## 2. Re-verification of the six STALE nodes
 
+> **Correction (G-96, later on 2026-11-28).** The comparison below used the wrong baseline. It checked each range against `b5e78842~1`, the tree just before #362. It should have checked against `c6bc4e41`, the 2026-11-27 verification that wrote these anchors.
+>
+> Commits later that day had already moved several of the cited lines:
+> - `5d7f4e28`, `c42c2131` and `8570c05d` moved lines in `generator.py` by 2–4;
+> - `cc8ae436` moved the cited lines in `crystallizer.py` by 29;
+> - `8570c05d` added 9 lines to `self_binding.py`.
+>
+> So "byte-identical" below is true only against the later tree, and some anchors set here were a few lines off the intended code; mana's `self_binding.py:280-346` is one. Every anchor was re-derived from its own verification commit and corrected in the G-96 reconciliation; the affected nodes carry dated CORRECTION notes. The G-95 compass findings in §4 are unaffected.
+
 Each cited range was compared by content between `b5e78842~1` and `f5cf19c3`:
 
 | Node | Cited range(s) in the changed files | Result |
@@ -92,3 +101,14 @@ The dark count goes from 14 to 12. `MIND_MAP.mmd` is regenerated from the YAML. 
 - **The two copies have drifted apart on main** (pre-existing, not addressed here):
   - INDEX.md lacks the §48 "Critical next-step constraint" paragraph that the mirror has.
   - The mirror lacks §45.
+
+
+## 7. G-96: content-aware anchor drift guard
+
+The day-granular STALE check could miss line movement later on the same day as verification. `mind_map.py --check` now also compares every quoted source range with the content at the later of (a) the commit that last wrote the YAML ref and (b) the commit that last wrote that node's `last_verified` line. Ancestry determines which commit is later; unrelated merged branches fall back to commit time. Pure moves are reported with the new line range; edited/removed content remains a human re-verification task. Prose line pointers in notes are intentionally outside this check.
+
+`--reanchor` rewrites only a uniquely located, byte-identical moved range. A review of the implementation found that choosing the nearest match would be unsafe when identical code fragments occur more than once. The tool now marks multiple destinations as ambiguous and refuses to re-anchor them automatically. `tests/test_mind_map_anchor_drift.py` includes a duplicate-destination regression proving the original ref remains untouched. The checker scopes quoted anchors to actual `source` fields under the `nodes` collection; quoted code pointers in `notes` prose, including pointers in later nodes, are ignored and never rewritten.
+
+The original G-96 branch head `9c4ab90ff7b870971329d2bc401fe66243c9d258` passed exact-head workflow `46152114825`: 3,086 passed, 7 skipped, 86 subtests; baseline check OK; mind-map verification reported 30 nodes, 0 unverified, 12 dark, 2 blocked and zero DRIFT warnings. The two missing doctrine files and overdue `p13_finitude` unblock remain warnings, not silently repaired states. The final integration branch is based on current main and requires its own exact-head CI before merge.
+
+No NEX runtime, live host process, flags, database or service was touched. The mind map remains descriptive and has no action-control authority.
