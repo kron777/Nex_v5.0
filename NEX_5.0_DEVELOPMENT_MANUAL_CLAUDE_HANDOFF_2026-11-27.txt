@@ -2326,3 +2326,27 @@ The important architectural question is therefore not simply whether faculties a
 
 ---
 
+## 75. Supported boot-path cardinality for Theory X registry ownership — entrypoint study (28 November 2026)
+
+**Question studied:** does the normal application startup create multiple AppStates/apps in one process, or is repeated construction only a factory/test/future deployment concern?
+
+### GUI entrypoint
+
+At main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`, `gui/server.py` defines `main()` with one direct `state = build_state()`, one `atexit.register(state.close)`, and one `app = create_app(state)`, followed by `app.run(..., use_reloader=False)`. The source has no second call to either factory in this main path. Disabling the Flask reloader avoids the usual development-server parent/child re-import path for this entrypoint.
+
+### Unified run.py entrypoint
+
+`run.py` imports `AppState` and `create_app` from `gui.server`, then constructs its own `AppState` directly during `main()` startup. It does not call `gui.server.build_state()`. It registers `state.close` early, constructs/wires the faculties and producers, then calls `create_app(state, shutdown_gate=...)` once before `app.run(..., use_reloader=False, threaded=True)`. The existing `tests/test_appstate_close_runpy_producers.py` includes a source-level assertion that `run.py` contains one `AppState(` construction and that ownership registration precedes producer-start paths.
+
+### Revised risk assessment
+
+The normal supported startup paths are single-AppState/single-app per process. This supports the current Model A process-lifetime registry assumption for the intended deployment; it does not establish that repeated construction is a production failure. The remaining lifecycle question is narrower: if the GUI factory is reused, tests create multiple app states, or a future embedded/multi-app host builds multiple instances in one process, state-bound registered faculties can remain in the module-global list after their owning AppState closes. There is still no reviewed `all_nodes()` consumer establishing that such stale references are actively invoked. Treat this as a reuse/extension hazard, not an incident.
+
+**Design consequence:** preserve the current single-instance production model while testing the registry contract explicitly. Do not add an owner-aware registry or change Doctrine Model A solely to accommodate unsupported multi-instance use. If multi-instance operation becomes a supported requirement, it must be designed and tested as a deliberate architecture change.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `tests/test_appstate_close_runpy_producers.py` blob `6c9ec4ac0e88e56853963d378383789263d68e24`.
+
+**Unchanged boundaries:** no boot path, app factory, registry, AppState lifecycle, runtime configuration, doctrine, frozen specification, roadmap or cognitive/action authority is changed.
+
+---
+
