@@ -366,5 +366,94 @@ class TestCrossRestartPersistence(unittest.TestCase):
             _cleanup(writers, tmp)
 
 
+
+
+# ── G-83 source-alert replay characterization ────────────────────────────────
+
+class TestGrooveReplayCharacterization(unittest.TestCase):
+    def test_one_unacknowledged_alert_can_replenish_and_renew_stillness(self):
+        """Characterize current behaviour; this does not endorse its semantics.
+
+        One unchanged source alert is read on five controlled chat ticks.
+        The derived groove-event count reaches three, starts a 60s Row 9 hold,
+        continues growing while the hold is active, then renews the hold after
+        expiry without a new source alert or detector episode.
+        """
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        writers, readers, tmp = _make_env()
+        try:
+            writers["beliefs"].write(
+                "INSERT INTO groove_alerts "
+                "(detected_at, alert_type, severity, pattern, window_size) "
+                "VALUES (?, 'ngram_repetition', 0.7, 'same source pattern', 5)",
+                (999.0,),
+            )
+            mc = _build_mc(writers, readers)
+
+            # Keep this test focused on the existing groove -> event -> stillness
+            # path. Other independent metacognition detectors are held inert.
+            mc._detect_goal_drift = lambda now: None
+            mc._detect_drift = lambda: []
+            mc._detect_digest = lambda now: []
+            mc._detect_self_pattern = lambda now: []
+
+            controlled_times = iter((1000.0, 1010.0, 1020.0, 1030.0, 1081.0))
+            controlled_clock = SimpleNamespace(time=lambda: next(controlled_times))
+            with patch(
+                "theory_x.stage9_metacognition.metacognition.time",
+                controlled_clock,
+            ):
+                for _ in range(5):
+                    mc.tick()
+
+            source_rows = readers["beliefs"].read(
+                "SELECT id, acknowledged_at FROM groove_alerts"
+            )
+            groove_events = readers["conversations"].read(
+                "SELECT id, event_type, description, created_at "
+                "FROM meta_cognition_events WHERE event_type='groove' "
+                "ORDER BY created_at, id"
+            )
+            stillness_rows = readers["conversations"].read(
+                "SELECT started_at, expires_at, duration_s, groove_count "
+                "FROM stillness_log ORDER BY started_at, id"
+            )
+
+            self.assertEqual(len(source_rows), 1, "the source alert must remain singular")
+            self.assertIsNone(
+                source_rows[0]["acknowledged_at"],
+                "this characterization leaves the source alert unacknowledged",
+            )
+            self.assertEqual(
+                len(groove_events),
+                5,
+                "each controlled chat tick re-emits one event from the same source alert",
+            )
+            self.assertTrue(
+                all("same source pattern" in row["description"] for row in groove_events)
+            )
+            self.assertEqual(
+                len(stillness_rows),
+                2,
+                "the expired 60s hold is renewed from accumulated repeat observations",
+            )
+            self.assertEqual(
+                [row["started_at"] for row in stillness_rows],
+                [1020.0, 1081.0],
+            )
+            self.assertEqual(
+                [row["expires_at"] for row in stillness_rows],
+                [1080.0, 1141.0],
+            )
+            self.assertEqual(
+                [row["groove_count"] for row in stillness_rows],
+                [3, 5],
+            )
+        finally:
+            _cleanup(writers, tmp)
+
+
 if __name__ == "__main__":
     unittest.main()
