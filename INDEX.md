@@ -6123,7 +6123,13 @@ The feedback loop is source-observed, not runtime-observed. Repository source an
 - tests/test_gui.py::test_chat_calculation_uses_safe_tool_wire verifies that a chat sentence selects python_exec and that the numeric result 555 is injected into the voice prompt.
 - These are source/fixture tests, not proof of live host use or general action authority.
 
-### Separate manual observation path
+### Post-merge status — PR #369
+
+PR #369 merged on 28 November 2026 at 07:21:56 UTC (merge commit 194c75c313e695b60f61d1f02b16f99434e2847d). Its exact head passed workflow 46119302748: 2,930 passed, 7 skipped, 62 subtests; baseline and disposable sandbox checks passed. The later main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0 passed pytest workflow 46153028417 at 14:13 UTC. Current main therefore contains the bounded in-process AST interpreter; the old query-to-code/subprocess path is historical and fixed.
+
+The research note's earlier statement that should_use_tool(prompt, []) received an empty belief list was inaccurate for current main and has been withdrawn. Current ToolCaller.should_use_tool() takes one query argument; gui/server.py calls it with one argument. Retrieved belief_text is assembled separately and injected into response context after tool execution. This is not an established empty-belief-list defect.
+
+The current research trace and fire-path scope note have been updated to distinguish historical pre-PR #369 behavior from current main.
 
 ### Separate manual observation path
 
@@ -6140,3 +6146,31 @@ The next study is to map the exact boundary between this read-only Stage-B capab
 **Source anchors:** run.py; gui/server.py; theory_x/stage_capability/tool_caller.py; theory_x/stage_capability/tools.py; tests/test_tools.py; tests/test_gui.py.
 
 **Authority boundary:** no runtime code, tool registry, capability, approval policy, feature flag, schema, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §165 — Autonomous Fountain tool reachability remains unbuilt and unapproved (28 November 2026)
+
+**Question studied:** can the current chat capabilities be reached from NEX's autonomous Fountain/fire loop, and has that been authorized?
+
+### Source facts
+
+- run.py constructs ToolCaller and ToolRegistry for the GUI chat path. gui/server.py invokes them from /api/chat when a user sentence matches a bounded capability.
+- A full source scan of theory_x/stage6_fountain/generator.py found no ToolCaller, ToolRegistry, web_fetch, python_exec or beliefs_query references. The Fountain loop does not currently call the Stage-B tool registry.
+- observation_reports/fire_path_tools_SCOPE.md explicitly says it is a read-only scope note, not a pre-registration: nothing is built, nothing is proposed to arm, and the decision must be made before work starts.
+- The scope note's original description of python_exec as subprocess execution is historical and now superseded by PR #369. Its post-merge addendum records the current in-process AST interpreter and preserves the unbuilt status of autonomous fire-path tool use.
+
+### Why this is a separate authority decision
+
+Chat tools run in response to a specific human request. A Fountain caller would create a second, autonomous trigger based on internal state, without a per-call human request. That changes who can initiate a tool call, how often it may run, and whether a person sees the result before it shapes a later thought. The current tool sandbox does not solve trigger correctness, volume, audit visibility or human oversight.
+
+The scope note identifies unresolved design questions: caller/trigger, per-tool arming, hard daily caps, visible call records, pre-build exposure checks and oversight. None has been decided or implemented. Do not infer approval from the existing chat route or from the fact that the tools are already registered at boot.
+
+### Disposition
+
+Autonomous fire-path tool use is NOT WIRED and NOT AUTHORIZED by the inspected evidence. Keep the chat caller and any future autonomous caller separate. Any future proposal must establish a narrow trigger, per-capability authority, rate limits, durable provenance/audit, and a clear human approval policy before implementation. The existing arithmetic AST safety boundary is necessary but not sufficient for autonomous use.
+
+**Evidence classification:** source absence and scope-note status are repository-observed; host runtime invocation and any external caller are UNKNOWN. No defect ID assigned. G-83 remains OPEN.
+
+**Source anchors:** run.py; gui/server.py; theory_x/stage6_fountain/generator.py; theory_x/stage_capability/tool_caller.py; theory_x/stage_capability/tools.py; observation_reports/fire_path_tools_SCOPE.md; research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md; PR #369.
+
+**Authority boundary:** no tool caller, autonomous trigger, flag, capability, approval policy, database, schema, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
