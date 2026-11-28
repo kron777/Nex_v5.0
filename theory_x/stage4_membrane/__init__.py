@@ -118,7 +118,22 @@ def build_membrane(writers: dict, readers: dict,
             target=_behavioural_loop, args=(state, stop),
             name="membrane.behavioural", daemon=True,
         )
-        t.start()
-        state._threads = [t]  # type: ignore[attr-defined]  # G-84: joinable on close
+        # Publish ownership before start: if Thread.start() fails after the
+        # OS thread has been created, the builder must still be able to stop
+        # and join it rather than losing the only reference to a live worker.
+        state._threads = [t]  # type: ignore[attr-defined]  # G-84
+        try:
+            t.start()
+        except BaseException:
+            stop.set()
+            if t.ident is not None:
+                t.join(timeout=1.0)
+                if t.is_alive():
+                    errors.record(
+                        "membrane builder startup rollback left worker alive",
+                        source=_LOG_SOURCE,
+                        level="ERROR",
+                    )
+            raise
 
     return state
