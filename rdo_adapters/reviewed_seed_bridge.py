@@ -14,7 +14,7 @@ from typing import Any
 from rdo.graph import tarjan_sccs
 from rdo.model import Obligation, Relationship
 from rdo.tension import _classify_cycle, _find_cycles, assess_system
-from rdo_adapters.objective_intake import ObjectiveInputStore, validate_objective
+from rdo_adapters.objective_intake import ObjectiveInputStore, submit_objective, validate_objective
 from rdo_adapters.seed_proposals import SeedProposalStore
 
 SCHEMA_VERSION = "rdo.reviewed_seed_bridge.v1"
@@ -196,6 +196,37 @@ def prepare_reviewed_selection(
     approval_event = approval_events[0]
 
     history = objective_store.history(raw["objective_id"])
+    existing_matches = [
+        item for item in history
+        if item.get("lineage", {}).get("proposal_id") == proposal_id
+    ]
+    if existing_matches:
+        existing = existing_matches[-1]
+        existing_lineage = existing["lineage"]
+        if (existing_lineage.get("raw_objective_sha256") != raw_digest
+                or existing_lineage.get("selected_alternative_id") != alternative_id):
+            raise ReviewedSeedBridgeError(
+                "this proposal already has an intake revision with conflicting lineage"
+            )
+        objective = validate_objective(existing["record"])
+        objective_digest = _canonical_digest(objective)
+        graph = _graph_diagnostics(
+            objective["seed_obligations"], objective["relationships"]
+        )
+        return {
+            "status": "already_persisted_for_intake",
+            "objective": objective,
+            "objective_input_sha256": objective_digest,
+            "lineage": existing_lineage,
+            "graph_analysis": graph,
+            "persisted": True,
+            "planning_started": False,
+            "stage7_handoff_created": False,
+            "note": (
+                "The exact approved proposal lineage is already present in the "
+                "objective revision ledger; no new revision was created."
+            ),
+        }
     if history:
         first = history[0]["record"]
         if (
@@ -268,6 +299,55 @@ def prepare_reviewed_selection(
         "objective_revision": objective["revision"],
         "objective_supersedes_sha256": objective["supersedes_sha256"],
         "objective_input_sha256": objective_digest,
+    }
+    return {
+        "status": "prepared_for_intake_review",
+        "objective": objective,
+        "objective_input_sha256": objective_digest,
+        "lineage": lineage,
+        "graph_analysis": graph,
+        "persisted": False,
+        "planning_started": False,
+        "stage7_handoff_created": False,
+        "note": (
+            "Read-only preparation. The objective.v1 payload and lineage envelope "
+            "are returned for review; neither ledger is appended and no RDO cycle runs."
+        ),
+    }
+
+
+def submit_reviewed_selection(
+    proposal_store: SeedProposalStore,
+    proposal_id: str,
+    objective_store: ObjectiveInputStore,
+    repo_dir: str = ".",
+    workdir: str = "rdo/.cycles",
+) -> dict:
+    """Persist an approved objective and lineage together, then run advisory RDO planning.
+
+    The objective revision wrapper is the single durable append containing both
+    the validated objective.v1 record and its proposal lineage. The proposal ledger
+    is read-only here. A retry reuses the same objective revision and CycleStore
+    identity; it does not create another revision for the same approved proposal.
+    """
+    prepared = prepare_reviewed_selection(proposal_store, proposal_id, objective_store)
+    intake = submit_objective(
+        prepared["objective"],
+        repo_dir=repo_dir,
+        workdir=workdir,
+        objective_lineage=prepared["lineage"],
+    )
+    return {
+        "status": intake["status"],
+        "proposal_id": proposal_id,
+        "selected_alternative_id": prepared["lineage"]["selected_alternative_id"],
+        "lineage": prepared["lineage"],
+        "graph_analysis": prepared["graph_analysis"],
+        "intake": intake,
+        "note": (
+            "The approved proposal was persisted with its lineage in one objective-ledger "
+            "append. RDO planning is advisory; no Stage-7 handoff or execution was created."
+        ),
     }
     return {
         "status": "prepared_for_intake_review",
