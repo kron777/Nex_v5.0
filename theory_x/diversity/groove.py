@@ -79,43 +79,51 @@ class GrooveSpotter:
         self._last_template_ids: Optional[frozenset] = None
         self._last_centroid_ids: Optional[tuple] = None
 
-    def detect_all(self) -> list[dict]:
+    def detect_all(self, *, stop_event=None) -> list[dict]:
         rows = self._reader.read(
             "SELECT id, content FROM beliefs "
             "WHERE source IN ('fountain_insight', 'synergized') "
             "ORDER BY created_at DESC LIMIT ?",
             (WINDOW_SIZE * 2,),
         )
-        if len(rows) < 5:
+        if (stop_event is not None and stop_event.is_set()) or len(rows) < 5:
             return []
 
         window = list(rows[:WINDOW_SIZE])
         alerts = []
 
-        exact_alert = self._detect_exact_repetition(window)
+        exact_alert = self._detect_exact_repetition(window, stop_event=stop_event)
         if exact_alert:
             alerts.append(exact_alert)
-            self._push_cooldown(exact_alert)
+            self._push_cooldown(exact_alert, stop_event=stop_event)
 
-        ngram_alert = self._check_ngrams(window)
+        if stop_event is not None and stop_event.is_set():
+            return alerts
+        ngram_alert = self._check_ngrams(window, stop_event=stop_event)
         if ngram_alert:
             alerts.append(ngram_alert)
             if ngram_alert["severity"] >= 0.5:
-                self._push_cooldown(ngram_alert)
+                self._push_cooldown(ngram_alert, stop_event=stop_event)
 
-        template_alert = self._detect_template_repetition(window)
+        if stop_event is not None and stop_event.is_set():
+            return alerts
+        template_alert = self._detect_template_repetition(window, stop_event=stop_event)
         if template_alert:
             alerts.append(template_alert)
             if template_alert["severity"] >= 0.5:
-                self._push_cooldown(template_alert)
+                self._push_cooldown(template_alert, stop_event=stop_event)
 
-        centroid_alert = self._check_centroid_tightening(window, list(rows[WINDOW_SIZE:]))
+        if stop_event is not None and stop_event.is_set():
+            return alerts
+        centroid_alert = self._check_centroid_tightening(
+            window, list(rows[WINDOW_SIZE:]), stop_event=stop_event
+        )
         if centroid_alert:
             alerts.append(centroid_alert)
 
         return alerts
 
-    def _check_ngrams(self, window: list) -> Optional[dict]:
+    def _check_ngrams(self, window: list, *, stop_event=None) -> Optional[dict]:
         from collections import Counter
         all_ngrams: list[str] = []
         for row in window:
@@ -133,6 +141,8 @@ class GrooveSpotter:
         self._last_ngram_pattern = top_pattern
         excess = max(0, top_count - NGRAM_REPEAT_THRESHOLD + 1)
         severity = min(1.0, 0.5 + excess * 0.1)
+        if stop_event is not None and stop_event.is_set():
+            return None
         ids = json.dumps([r["id"] for r in window[:5]])
         self._writer.write(
             "INSERT INTO groove_alerts "
@@ -143,7 +153,7 @@ class GrooveSpotter:
         log.info("Groove alert: ngram_repetition pattern=%r severity=%.2f", top_pattern, severity)
         return {"alert_type": "ngram_repetition", "pattern": top_pattern, "severity": severity}
 
-    def _detect_exact_repetition(self, window: list) -> Optional[dict]:
+    def _detect_exact_repetition(self, window: list, *, stop_event=None) -> Optional[dict]:
         """Alert when the same exact sentence appears ≥3 times in the window."""
         contents = [r["content"] for r in window]
         counts = Counter(contents)
@@ -153,6 +163,8 @@ class GrooveSpotter:
                     return None  # same repeated sentence as last emission -- stale re-scan
                 self._last_exact_content = content
                 severity = min(1.0, 0.5 + (n - 2) * 0.2)
+                if stop_event is not None and stop_event.is_set():
+                    return None
                 ids = json.dumps([r["id"] for r in window if r["content"] == content])
                 self._writer.write(
                     "INSERT INTO groove_alerts "
@@ -173,7 +185,7 @@ class GrooveSpotter:
         self._last_exact_content = None  # condition not met -- clear
         return None
 
-    def _detect_template_repetition(self, window: list) -> Optional[dict]:
+    def _detect_template_repetition(self, window: list, *, stop_event=None) -> Optional[dict]:
         """Detect when 3+ fires share 3+ content bigrams (template-style repetition)."""
         bigram_fires: dict[str, set] = {}
         for row in window:
@@ -227,6 +239,8 @@ class GrooveSpotter:
 
         severity = min(1.0, 0.5 + (len(templated_ids) - 3) * 0.1)
         pattern = " / ".join(sample_bigrams)
+        if stop_event is not None and stop_event.is_set():
+            return None
         ids = json.dumps(list(templated_ids))
         self._writer.write(
             "INSERT INTO groove_alerts "
@@ -246,9 +260,11 @@ class GrooveSpotter:
             "window_size": len(window),
         }
 
-    def _push_cooldown(self, alert: dict) -> None:
+    def _push_cooldown(self, alert: dict, *, stop_event=None) -> None:
         """Write a cooldown entry so the crystallizer blocks this content."""
         if alert.get("severity", 0) < 0.5:
+            return
+        if stop_event is not None and stop_event.is_set():
             return
         pattern = alert.get("pattern", "")
         if not pattern:
@@ -287,13 +303,27 @@ class GrooveSpotter:
         except Exception as exc:
             log.warning("Failed to write cooldown: %s", exc)
 
-    def _check_centroid_tightening(self, current_window: list, prev_window: list) -> Optional[dict]:
+    def _check_centroid_tightening(
+        self, current_window: list, prev_window: list, *, stop_event=None
+    ) -> Optional[dict]:
         if len(prev_window) < 5:
             self._last_centroid_ids = None  # condition not met -- clear
             return None
         try:
-            cur_vecs = np.stack([embed(r["content"]) for r in current_window])
-            prev_vecs = np.stack([embed(r["content"]) for r in prev_window])
+            cur_values = []
+            for row in current_window:
+                if stop_event is not None and stop_event.is_set():
+                    return None
+                cur_values.append(embed(row["content"]))
+            prev_values = []
+            for row in prev_window:
+                if stop_event is not None and stop_event.is_set():
+                    return None
+                prev_values.append(embed(row["content"]))
+            if stop_event is not None and stop_event.is_set():
+                return None
+            cur_vecs = np.stack(cur_values)
+            prev_vecs = np.stack(prev_values)
         except Exception:
             self._last_centroid_ids = None
             return None
@@ -318,6 +348,8 @@ class GrooveSpotter:
         self._last_centroid_ids = fingerprint
 
         severity = min(1.0, tightening)
+        if stop_event is not None and stop_event.is_set():
+            return None
         ids = json.dumps([r["id"] for r in current_window[:5]])
         self._writer.write(
             "INSERT INTO groove_alerts "

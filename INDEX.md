@@ -1393,6 +1393,86 @@ The merged change validates adapter IDs before worker creation, prepares all wor
 
 
 
+## 54. Active producer cooperative shutdown sweep — validation checkpoint (28 November 2026)
+
+**Evidence snapshot:** mainline source through `55fd635bd535d15ece3e3878bf1e71621f56fa7c`; combined implementation and regression coverage on draft PR #413. The PR branch received a test-harness correction at commit `14c5e2ae6cab7aad7d12caf30bd5fe10f5a594eb`. Exact-head full-suite CI, baseline verification and mind-map verification remain required; no pass is claimed here.
+
+### Scope now covered by the combined candidate
+
+The shutdown sweep adds cooperative stop checkpoints to active producer paths and deterministic Event-based regressions across Counterfactual, AffectState, SelfMindView, PredictiveSubstrate, GeniusTagger, DriveEmergence, CompetingDrives/Fountain, NovelAssociation, SubstrateHarmonic, DiversityLoop, EdgeGenerator, WarrantRecorder, SelfMaintainShadow, SpeechQueueConsumer, SignalLoop and decoder transaction boundaries.
+
+The intended invariant is narrow: once a producer observes its stop Event, it should not begin another expensive read/compute/write unit or a later independent side effect. Existing synchronous operations already entered are allowed to return; model/TTS calls and playback already underway are not forcibly cancelled. Paired logical writes are allowed to finish once started where splitting them would create a worse partial state. This is cooperative quiescence, not transactional cancellation.
+
+### Test-harness correction
+
+The isolated Warrant shutdown regression had been appended below an earlier `if __name__ == "__main__": unittest.main()` guard. Pytest discovery would still collect it, but direct execution of the test module would invoke unittest before the appended class was defined. The guard is now moved to the end of `tests/test_warrant_recorder.py` on the PR branch, so both discovery and direct module execution include the shutdown regression.
+
+### Improvement questions and remaining boundaries
+
+1. A stop Event check is not atomically coupled to a later Writer submission: a producer can observe the pre-stop state, then submit after the stop request but before AppState reaches Writer.close(). The Writer itself does have a separate lifecycle lock that atomically orders accepted submissions before its shutdown sentinel and rejects submissions after close admission shuts. Such a late-but-accepted request is drained; if a producer outlives its join budget, later submissions fail and shutdown must remain unclean. This distinction is important: the remaining question is stop-to-submit admission semantics, not an unprotected Writer-close/sentinel race.
+2. A blocked synchronous Reader/Writer, embedding/model/TTS call or playback call can outlive the cooperative checkpoint. The producer join timeout and subsequent Writer close ordering therefore need separate lifecycle evidence; an Event alone cannot prove all work has quiesced.
+3. Detached route workers and any producer not registered with AppState require a complete ownership census. Thread creation, registration, stop, join and resource ownership must be traced together.
+4. Tests should distinguish “stop requested”, “stop observed”, “no new operation admitted”, “in-flight operation returned”, and “resource safely closed”. A clean thread join is not evidence that every detached or unregistered worker was included.
+5. Preserve historical direct-call signatures when introducing optional stop Events; test both worker-driven stop-aware calls and standalone callers.
+
+### Validation and authority boundary
+
+PR #413 remains a candidate pending fresh exact-head full-suite CI, baseline verification and mind-map verification. Earlier failed runs remain failures and cannot be substituted for the final head. No shutdown budget, retry policy, feature flag, formula, prompt, schema, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Gate 0 or Phase 1 authority is changed by this documentation/test-harness correction. No live runtime or database was accessed.
+
+**Next bounded work:** verify the exact PR head and CI; then continue the shutdown ownership audit at the boundary between producer quiescence, synchronous Writer admission/drain and resource closure. Do not introduce a new cancellation or locking protocol until the current shared-Writer ownership and shutdown ordering are fully traced.
+
+
+## 55. Shutdown ownership and Writer admission — source-level follow-up (28 November 2026)
+
+**Evidence:** `run.py` blob `d4482e2c2a2da5e165ec810fd40cf9536c45f49c`; `gui/server.py` blob `cb399a337441bebe23f3f52079ea79bf1b7ab460`; `gui/shutdown_gate.py` blob `c03e8e83b2b27c79e050605f75cd37e590848852`; `substrate/writer.py` blob `455329e3c25aa1a3e7fd977241bb4cd7f8a61e34`. Source inspection only; no host/runtime observation.
+
+### Confirmed shutdown order
+
+1. The SIGTERM/SIGINT handler in `run.py` establishes one monotonic deadline.
+2. `ShutdownGate.begin_shutdown()` atomically closes HTTP request admission under a Condition and waits for every admitted Flask request to leave.
+3. The decoder stop Event is set.
+4. `AppState.close(deadline=...)` shuts down the scheduler, signals registered producers, joins their known threads against the remaining producer budget, then closes Writers against the same absolute deadline.
+5. A successful report is required before the clean-shutdown marker is written; incomplete request drain, producer join, Writer close or marker persistence exits without a clean marker.
+
+### Important Writer lifecycle detail
+
+`Writer.submit()` and `Writer.close()` share `_lifecycle_lock`. Close first stops acceptance and enqueues one sentinel while holding that lock. Therefore every accepted request is queued before the sentinel, and submissions that lose the race to close fail synchronously. The worker drains accepted requests FIFO before it sees the sentinel and closes SQLite. This is stronger than a bare stop Event and closes the queue-ordering race at the Writer boundary.
+
+The remaining producer-level window is different: a producer can pass its stop check, then submit while Writer admission is still open because AppState deliberately waits for producers before closing Writers. That request is accepted and drained. If a producer survives the bounded join, Writer closure prevents later submissions; AppState reports the live producer and the caller refuses a clean-shutdown marker. Do not describe this as an atomic stop-to-submit barrier or as forced cancellation.
+
+### Ownership census status and improvement questions
+
+- `run.py` directly creates the decoder thread, then exposes its stop Event and thread through `state.decoder_loop`, allowing the AppState registry to stop and join it. The same entrypoint registers `state.close` with `atexit`; the explicit signal handler is the bounded clean-shutdown path.
+- `AppState._quiesce_producers()` explicitly describes its registry as bounded, not a claim that every process thread is registered. It snapshots selected multi-thread worker registries under their service lock where available, signals all managed workers before joining, and reports survivors.
+- This inspection did not establish a repository-wide census of thread creation, detached route workers, subprocesses, model calls or every service-owned worker. Do not infer completeness from the current managed tuple.
+- The separate `gui/server.py` direct-entrypoint path also registers `state.close` with `atexit`; its signal/deployment lifecycle should be compared with the production `run.py` entrypoint before treating the two launch modes as equivalent.
+- The first workflow run after the Warrant test-harness correction (`46134718448`) and the subsequent exact-head runs (`46134838495`, `46134932896`) were cancelled with no jobs when the branch advanced; none is a pass or failure diagnosis. The PR branch contains two Writer lifecycle regressions in `tests/test_writer_lifecycle.py`: a single submitter and eight concurrent submitters race close; every submission must either be accepted and drained before the sentinel or rejected after close wins, with no accepted Future stranded. The tests distinguish a `Writer.submit()` admission error from a failure of an already accepted Future. **Exact-head validation now passed** on PR head `75d9d23208b2144f05d4c4f498c393306fc152e7`: workflow run `46135005064`, pytest job `140948928374`; sandbox probe OK (unprivileged, no capabilities/credentials, read-only source, disposable data/tmpfs, no default route/outbound network); full baseline **3,045 passed, 7 skipped, 86 subtests passed**, zero known-intentional tests deselected; mind-map verification **30 nodes, 0 unverified, 12 dark, 2 blocked**. This validates the exact PR head's CI test scope, not host runtime behaviour or merge approval. Baseline and mind-map results are recorded; PR review/merge decision remains separate.
+
+### Next bounded research/development
+
+Complete the source-to-sink ownership census for thread/process creation and route-spawned work; reconcile every discovered worker with AppState ownership, stop semantics, join semantics and resource dependencies. Then test Writer acceptance ordering under a deterministic submit-vs-close race and test the AppState timeout path with a producer that remains alive. Keep the existing per-Writer lifecycle lock unless evidence demonstrates a defect; do not add a second global lock or alter shutdown budgets by assumption.
+
+No live runtime, host process, database, feature flag, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority was changed.
+
+
+## 56. Request-drain versus voice-call timeout — operational improvement candidate (28 November 2026)
+
+**Evidence source:** `research/SHUTDOWN_REQUEST_VOICE_TIMEOUT_GAP_2026-11-28.md` on the shutdown candidate branch; source snapshot after #378/#381. This is a code-derived timing risk, not an observed host failure.
+
+### Finding
+
+- The graceful shutdown budget is 12 seconds and includes HTTP request drain, producer quiescence and Writer drains; the tracked supervisor escalation is approximately 15 seconds.
+- `ShutdownGate` closes new HTTP admission and waits for admitted requests, but it does not cancel the work inside a request.
+- `VoiceClient` uses a 120-second per-request timeout. The inspected Chat route can make the initial voice call plus two sequential conditional retries (anti-repeat and provenance) when the corresponding conditions apply.
+- The theoretical cumulative timeout exposure is therefore up to 360 seconds if all three calls stall to their individual timeout. This is not measured latency and does not mean every request makes three calls.
+- If an admitted request remains inside a voice call beyond the 12-second drain deadline, the process exits non-zero before AppState producer quiescence, Writer draining or clean-marker persistence. This is fail-closed for the clean marker, but not a successful graceful shutdown. The source trace does not establish actual data loss or corruption.
+
+### Betterment path
+
+Do not silently change the 120-second voice timeout or the 12/15-second shutdown budgets. First measure normal and retry-path latency on the authorized host, then test SIGTERM during an active voice request with disposable/restorable data while recording active-request labels, Writer queue depth, exit code and clean-marker result. Only then compare a cancellable request path, bounded response abort, or a revised operational budget. Preserve the distinction between a request being admitted, a model call being attempted, a call returning and audio being physically heard.
+
+This remains a host-evidence requirement, not permission to alter the frozen specifications, Master Roadmap, Gate 0 or Phase 1 authority. No host process, live database, runtime flag or timeout was changed.
+
 ## 57. Dynamic builder startup transaction — merged and exact-head validated (28 November 2026)
 
 **Merged PR:** [#415](https://github.com/kron777/Nex_v5.0/pull/415), merge commit `93bc7a820565e577ddae155004b69dc0bcd50207`. Tested PR head: `8889eba914cbffe1767efb200f70626e71f9c945`.

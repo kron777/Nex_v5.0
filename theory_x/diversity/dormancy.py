@@ -15,18 +15,18 @@ class DormancyScanner:
         self._writer = beliefs_writer
         self._reader = beliefs_reader
 
-    def scan_incremental(self) -> int:
+    def scan_incremental(self, *, stop_event=None) -> int:
         """Update dormancy scores for a batch of beliefs. Returns count updated."""
         rows = self._reader.read(
             "SELECT id, created_at, last_referenced_at FROM beliefs "
             "WHERE source IN ('fountain_insight', 'synergized', 'behavioural_observation') "
             "ORDER BY created_at ASC LIMIT 50"
         )
-        if len(rows) < MIN_BELIEFS_FOR_SCAN:
+        if (stop_event is not None and stop_event.is_set()) or len(rows) < MIN_BELIEFS_FOR_SCAN:
             return 0
 
         avg_gap = self._average_gap()
-        if avg_gap <= 0:
+        if (stop_event is not None and stop_event.is_set()) or avg_gap <= 0:
             return 0
 
         threshold = DORMANCY_MULTIPLIER * avg_gap
@@ -34,6 +34,8 @@ class DormancyScanner:
         updated = 0
 
         for row in rows:
+            if stop_event is not None and stop_event.is_set():
+                break
             last_active = row["last_referenced_at"] or row["created_at"]
             silence = now - last_active
             if silence < threshold:

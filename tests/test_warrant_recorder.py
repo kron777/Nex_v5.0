@@ -336,5 +336,60 @@ class TestGeneratorRetrievalLogGate(unittest.TestCase):
                         seg.index('"DROP TABLE IF EXISTS fountain_retrieval_log"'))
 
 
+
+class TestRecorderShutdown(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.bdb = str(Path(self.tmp.name) / "beliefs.db")
+        self.ddb = str(Path(self.tmp.name) / "dynamic.db")
+        _beliefs(self.bdb)
+        _dynamic(self.ddb)
+        self.r = rec.WarrantRecorder(_W(self.bdb), Reader(self.bdb), Reader(self.ddb))
+        self._per_band = rec._PER_BAND
+        self._use_batch = rec._USE_BATCH
+        self.r._ensure()
+
+    def tearDown(self):
+        rec._PER_BAND = self._per_band
+        rec._USE_BATCH = self._use_batch
+        self.tmp.cleanup()
+
+    def _q(self, sql):
+        conn = sqlite3.connect(self.bdb)
+        try:
+            return conn.execute(sql).fetchall()
+        finally:
+            conn.close()
+
+    def test_use_cycle_stops_after_blocked_first_source_read(self):
+        entered = threading.Event()
+        release = threading.Event()
+        stop = threading.Event()
+        original = self.r._dr.read
+        later_reads = []
+
+        def blocked_read(sql, params=()):
+            if "fountain_retrieval_log" in sql:
+                entered.set()
+                release.wait(timeout=3.0)
+                return []
+            later_reads.append(sql)
+            return original(sql, params)
+
+        self.r._dr.read = blocked_read
+        worker = threading.Thread(
+            target=lambda: self.r.use_cycle(now=_T0, stop_event=stop),
+            name="warrant-shutdown-test",
+        )
+        worker.start()
+        self.assertTrue(entered.wait(timeout=2.0))
+        stop.set()
+        release.set()
+        worker.join(timeout=2.0)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(later_reads, [])
+        self.assertEqual(self._q("SELECT belief_id, day FROM belief_use_day"), [])
+
 if __name__ == "__main__":
     unittest.main()
