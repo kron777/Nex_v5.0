@@ -135,4 +135,5 @@ class WorldConsolidator:
                 except Exception as exc: _diag(f"  corroborate fail id={bid}: {exc!r}")
             if promoted >= _MAX_PROMOTE_PER_RUN: break
         _diag(f"=== done: {len(clusters)} clusters, {promoted} promoted ===")
-        return {"name": self.name, "state": "armed" if armed else "dry-run", "window": len(items), "clusters_found": len(clusters), "promoted": promoted, "report": report[:10]}
+        final_state = "stopped" if stop_event is not None and stop_event.is_set() else ("armed" if armed else "dry-run")
+        return {"name": self.name, "state": final_state, "window": len(items), "clusters_found": len(clusters), "promoted": promoted, "report": report[:10]}
