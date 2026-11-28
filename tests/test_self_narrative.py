@@ -480,6 +480,24 @@ class TestRutMirrorTick(unittest.TestCase):
                 self.sn.tick()
         time.sleep(0.05)
         self.assertEqual(self._rut_count(), 1)
+    def test_metacognition_direct_rut_hook_bypasses_off_flag(self):
+        """Characterize the chat-path helper call that bypasses SelfNarrative.tick()."""
+        now = time.time()
+        self._seed_tags(["ordinary"] * 4, now)
+
+        from theory_x.stage9_metacognition.metacognition import Metacognition
+        mc = Metacognition(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self.readers["beliefs"],
+            narrative=self.sn,
+        )
+        with patch.dict(os.environ, {"NEX5_RUT_MIRROR_OFF": "1"}):
+            mc.tick()
+
+        time.sleep(0.05)
+        self.assertEqual(self._rut_count(), 1)
+
     def test_rut_notice_retrieval_is_literal_topic_matched(self):
         note = (
             "I notice my recent thinking has circled the same few frames "
