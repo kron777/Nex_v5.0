@@ -5167,3 +5167,8 @@ The inspected source now supports this recurrent pathway, with explicit conditio
 ### §131 narrative-identity boundary
 
 The optional Fountain rail calls only `Metacognition.format_for_prompt()`, which returns the generic self-observation line (or a built-in digest description). It does not call the Stage-SelfNarrative formatter and does not read the pattern-specific `narrative_log` entries created by `Metacognition.tick()`. The GUI chat route is the inspected path that appends both the generic Metacognition line and topic-filtered Stage-SelfNarrative text. Do not conflate this with the separately named Stage-TOM `self_narrative` subsystem that FountainGenerator can construct behind its own flag.
+
+
+### §133 retrieval-lineage refinement
+
+The `groove_alerts.sample_belief_ids` payload is not selected by `Metacognition._detect_groove()`; that query carries only alert ID/type/severity/pattern/time. The disabled, de-wired GrooveBreaker selects the column but its current inspected logic does not use the IDs. FountainGenerator's context retrieval queries beliefs and does not query `groove_alerts` or consume `sample_belief_ids`. Therefore no direct source-alert → source-belief-ID → next-retrieval priority wire was found. The active feedback routes traced here are the pattern-specific producer cooldown and the generic cached Metacognition prompt line; the GUI-only Stage-SelfNarrative branch separately carries the alert pattern as text. This is why the next investigation proposes joining alert sample IDs to the next Fountain retrieval manifest rather than assuming such a link already exists.
