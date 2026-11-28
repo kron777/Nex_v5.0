@@ -682,6 +682,12 @@ TABLES_PER_DB: dict[str, tuple[str, ...]] = {
 }
 
 
+# AppState.close(): longest wait for the dynamic loops to finish their current
+# tick. nex_keepalive.sh sends SIGTERM and kills after 15 s; run.py spends 1.5 s
+# before close(), and the Writers drain afterwards.
+_DYNAMIC_STOP_TIMEOUT_S = 5.0
+
+
 @dataclass
 class AppState:
     writers: dict[str, Writer]
@@ -730,6 +736,25 @@ class AppState:
             except Exception as e:
                 error_channel.record(
                     f"Scheduler shutdown failed: {e}", source="gui.server", exc=e
+                )
+        # Stop and join the Stage 2 dynamic loops BEFORE the Writers close, so
+        # a tick in progress can finish its writes instead of submitting them
+        # to a draining or closed Writer (backlog G-84, first step: the other
+        # worker families still lack a coordinated stop). Bounded so the whole
+        # close fits nex_keepalive.sh's graceful-stop window before SIGKILL.
+        if self.dynamic is not None:
+            try:
+                from theory_x.stage2_dynamic import stop_dynamic
+                alive = stop_dynamic(self.dynamic, timeout=_DYNAMIC_STOP_TIMEOUT_S)
+                if alive:
+                    error_channel.record(
+                        f"dynamic loops still running at close after "
+                        f"{_DYNAMIC_STOP_TIMEOUT_S:.1f}s: {', '.join(alive)}",
+                        source="gui.server",
+                    )
+            except Exception as e:
+                error_channel.record(
+                    f"Dynamic stop failed: {e}", source="gui.server", exc=e
                 )
         for w in self.writers.values():
             try:
