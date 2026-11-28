@@ -82,6 +82,7 @@ import logging
 import os
 import re
 import secrets
+import threading
 import time
 import uuid
 from contextlib import closing
@@ -682,9 +683,10 @@ TABLES_PER_DB: dict[str, tuple[str, ...]] = {
 }
 
 
-# AppState.close(): one shared deadline for every held producer to finish its
-# current tick. nex_keepalive.sh sends SIGTERM and kills after 15 s; run.py
-# spends 1.5 s before close(), and the Writers drain afterwards.
+# One total deadline begins at SIGTERM receipt. It includes run.py's 1.5s
+# in-flight-fire window, producer quiescence and all Writer drains, leaving
+# 3s before nex_keepalive.sh's 15s forced-kill limit.
+_SHUTDOWN_TOTAL_BUDGET_S = 12.0
 _PRODUCER_STOP_TIMEOUT_S = 5.0
 
 
@@ -735,57 +737,110 @@ class AppState:
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
-    def close(self) -> None:
+    def close(self, deadline: Optional[float] = None) -> dict:
+        """Quiesce producers and drain Writers against one absolute deadline.
+
+        A returned report is authoritative: callers must not mark shutdown
+        clean unless success is true. The deadline is monotonic and may be
+        supplied by the SIGTERM handler so its pre-close delay is included.
+        """
+        started = time.monotonic()
+        if deadline is None:
+            deadline = started + _SHUTDOWN_TOTAL_BUDGET_S
+
+        scheduler_errors = []
         if self.scheduler is not None:
             try:
                 self.scheduler.shutdown()
             except Exception as e:
+                scheduler_errors.append(str(e))
                 error_channel.record(
                     f"Scheduler shutdown failed: {e}", source="gui.server", exc=e
                 )
-        # Quiesce every registered producer BEFORE the Writers close, so
-        # a tick in progress can finish its writes instead of submitting them
-        # to a draining or closed Writer (backlog G-84). All are signalled
-        # first, then joined against one shared deadline that fits
-        # nex_keepalive.sh's graceful-stop window. Producers not registered
-        # on AppState (including several run.py-only loops and the decoder)
-        # remain outside this bounded increment.
+
+        producer_timeout = min(
+            _PRODUCER_STOP_TIMEOUT_S,
+            max(0.0, deadline - time.monotonic()),
+        )
         try:
-            alive = self._quiesce_producers(_PRODUCER_STOP_TIMEOUT_S)
-            if alive:
-                error_channel.record(
-                    f"producers still running at close after "
-                    f"{_PRODUCER_STOP_TIMEOUT_S:.1f}s: {', '.join(alive)}",
-                    source="gui.server",
-                )
+            producer_result = self._quiesce_producers(producer_timeout)
         except Exception as e:
+            producer_result = {"alive": [], "errors": [f"quiesce failed: {e}"]}
             error_channel.record(
                 f"Producer stop failed: {e}", source="gui.server", exc=e
             )
-        for w in self.writers.values():
-            try:
-                w.close()
-            except Exception as e:
-                error_channel.record(
-                    f"Writer close failed: {e}", source="gui.server", exc=e
-                )
 
-    def _quiesce_producers(self, timeout: float) -> list:
+        producer_alive = list(producer_result.get("alive", ()))
+        producer_errors = list(producer_result.get("errors", ()))
+        if producer_alive:
+            error_channel.record(
+                "producers still running at close: " + ", ".join(producer_alive),
+                source="gui.server",
+            )
+
+        writer_errors = []
+        writer_threads_alive = []
+        for name, writer in self.writers.items():
+            remaining = max(0.0, deadline - time.monotonic())
+            try:
+                writer.close(timeout=remaining)
+            except Exception as e:
+                writer_errors.append(f"{name}: {e}")
+                error_channel.record(
+                    f"Writer {name} close failed: {e}",
+                    source="gui.server",
+                    exc=e,
+                )
+            finally:
+                inner = getattr(writer, "_inner", writer)
+                thread = getattr(inner, "_thread", None)
+                if isinstance(thread, threading.Thread) and thread.is_alive():
+                    writer_threads_alive.append(name)
+
+        finished = time.monotonic()
+        deadline_exceeded = finished > deadline
+        success = not (
+            scheduler_errors
+            or producer_alive
+            or producer_errors
+            or writer_errors
+            or writer_threads_alive
+            or deadline_exceeded
+        )
+        return {
+            "success": success,
+            "started_monotonic": started,
+            "deadline_monotonic": deadline,
+            "elapsed_s": max(0.0, finished - started),
+            "remaining_s": max(0.0, deadline - finished),
+            "deadline_exceeded": deadline_exceeded,
+            "producer_threads_alive": producer_alive,
+            "producer_errors": producer_errors,
+            "scheduler_errors": scheduler_errors,
+            "writer_errors": writer_errors,
+            "writer_threads_alive": writer_threads_alive,
+        }
+
+    def _quiesce_producers(self, timeout: float) -> dict:
         """Signal registered producers, then join them against one deadline.
 
-        Returns names of threads still alive at the deadline. This is a bounded
-        registry, not a claim that every run.py-created worker is registered."""
+        Returns both surviving thread names and stop/join errors. This is a
+        bounded registry, not a claim that every process thread is registered.
+        """
         import threading
 
         deadline = time.monotonic() + max(0.0, timeout)
         threads = []
         seen_threads = set()
+        errors = []
 
         def _signal(fn, what):
             try:
                 fn()
             except Exception as e:            # one bad stop() must not skip the rest
-                error_channel.record(f"{what} stop failed: {e}", source="gui.server", exc=e)
+                message = f"{what} stop failed: {e}"
+                errors.append(message)
+                error_channel.record(message, source="gui.server", exc=e)
 
         def _add_thread(thread):
             if isinstance(thread, threading.Thread) and id(thread) not in seen_threads:
@@ -839,9 +894,9 @@ class AppState:
                 if thread.is_alive():
                     alive.append(thread.name)
             except Exception as e:
-                error_channel.record(
-                    f"join for {thread.name} failed: {e}", source="gui.server", exc=e
-                )
+                message = f"join for {thread.name} failed: {e}"
+                errors.append(message)
+                error_channel.record(message, source="gui.server", exc=e)
                 alive.append(thread.name)
 
         # Scheduler.shutdown() signals every adapter. Its join() uses one
@@ -853,10 +908,10 @@ class AppState:
                     remaining = max(0.0, deadline - time.monotonic())
                     alive.extend(join(timeout=remaining) or [])
                 except Exception as e:
-                    error_channel.record(
-                        f"Scheduler join failed: {e}", source="gui.server", exc=e
-                    )
-        return alive
+                    message = f"Scheduler join failed: {e}"
+                    errors.append(message)
+                    error_channel.record(message, source="gui.server", exc=e)
+        return {"alive": alive, "errors": errors}
 
 
 def build_state(

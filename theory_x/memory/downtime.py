@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import time
 from pathlib import Path
 
@@ -38,16 +39,62 @@ def _p(data_dir, name: str) -> Path:
     return Path(data_dir) / name
 
 
+
+def _fsync_directory(directory: Path) -> None:
+    """Persist directory-entry changes such as marker creation, replace or unlink."""
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    fd = os.open(str(directory), flags)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def mark_clean_shutdown(data_dir, ts: float | None = None,
                         reason: str = "clean_standby") -> bool:
-    """Record a precise clean-shutdown time. Called from the SIGTERM/STANDBY path."""
+    """Atomically write and fsync a precise clean-shutdown marker."""
     ts = time.time() if ts is None else ts
+    directory = Path(data_dir)
+    target = _p(data_dir, _MARKER)
+    temp_path = None
     try:
-        _p(data_dir, _MARKER).write_text(
-            json.dumps({"ts": float(ts), "reason": reason}), encoding="utf-8"
+        # Remove a stale marker first. If the new write fails, boot must fail
+        # closed to the snapshot/unclean path rather than reuse an old marker.
+        try:
+            target.unlink()
+        except FileNotFoundError:
+            pass
+        else:
+            _fsync_directory(directory)
+
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f".{_MARKER}.", suffix=".tmp", dir=str(directory)
         )
+        temp_path = Path(temp_name)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({"ts": float(ts), "reason": reason}))
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        os.replace(temp_path, target)
+        temp_path = None
+        _fsync_directory(directory)
         return True
     except Exception:
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+        # Do not leave a readable clean marker after a failed persistence step.
+        try:
+            target.unlink()
+        except OSError:
+            pass
+        try:
+            _fsync_directory(directory)
+        except OSError:
+            pass
         return False
 
 
@@ -61,7 +108,9 @@ def _read_marker(data_dir):
 
 def _consume_marker(data_dir) -> None:
     try:
-        _p(data_dir, _MARKER).unlink()
+        marker = _p(data_dir, _MARKER)
+        marker.unlink()
+        _fsync_directory(marker.parent)
     except OSError:
         pass
 
