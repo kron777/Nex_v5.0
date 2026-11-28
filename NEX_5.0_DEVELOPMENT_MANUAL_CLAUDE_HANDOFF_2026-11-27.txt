@@ -5402,3 +5402,55 @@ However, its `test_targets_include_the_two_logs` assertion checks only `drive_em
 This does not invalidate the 30-day source-level backstop; it narrows the test evidence for its specific target. Do not add or alter tests in this documentation-only study unless a separate bounded test-only change is authorised and justified.
 
 **Authority boundary:** no reaper target, retention value, service/timer, test, database or runtime behaviour changed. See §138 for the retention semantics.
+
+
+## §143 — G-83 narrative retention: pattern-specific reflections outlive source-event eligibility (28 November 2026)
+
+**Question studied:** when a GrooveSpotter alert falls out of Metacognition's 600-second source query, what happens to the pattern-specific narrative rows created by repeated consumption?
+
+### Source facts
+
+- `substrate/init_db.py` creates `narrative_log(id, content, trigger, source_id, created_at)`. It has no expiry/retention column and no foreign key to `groove_alerts` (the tables live in different databases in any case).
+- `SelfNarrative.write_narrative()` performs a plain INSERT for each call; there is no deduplication by `source_id`, trigger or content.
+- `Metacognition._detect_groove()` calls `write_narrative()` on every eligible re-read of an unacknowledged source alert, passing the same GrooveSpotter alert ID as `source_id`.
+- PR #449 exact-head tests verify five narrative rows can be written with the same source alert ID from five chat ticks.
+- `SelfNarrative.format_for_prompt()` selects the newest `_DEFAULT_N=5` rows. When a topic is supplied, it filters only by case-insensitive substring match against `content`; it has no `created_at` cutoff, no `trigger` restriction and no source-ID deduplication. The GUI passes `prompt[:100]` as the topic.
+- `SelfNarrative.decay()` is a no-op.
+- The external `nex_db_reaper.py` target list includes `meta_cognition_events` at 30 days but does not include `narrative_log` or `groove_alerts`. The 30-day reaper therefore does not bound these narrative rows.
+- The source alert itself falls out of Metacognition's consumer query after 600 seconds, but that does not delete the source row or its narrative rows.
+
+### Consequence
+
+A single alert re-consumed on several chat turns can occupy all five narrative prompt slots with repeated versions of the same pattern. After the alert has aged out of the ten-minute Metacognition query—and even after its corresponding `meta_cognition_events` rows are physically deleted by a successful 30-day reaper run—the matching `narrative_log` text can still be returned by a later chat prompt if the user's first 100 characters match the stored narrative.
+
+This is a distinct persistence path from the generic Metacognition cache:
+- Metacognition cache: in-memory, refreshed by chat ticks at a 60-second TTL.
+- `meta_cognition_events`: unresolved event rows, 14-day callable decay, 30-day external DB reaper if active.
+- `narrative_log`: persistent pattern-specific text, no formatter age cutoff, no cleanup path located.
+
+The user-level reaper timer's presence in the repository does not prove that it is installed or active. However, even if it is active, it does not currently bound `narrative_log`.
+
+**Next bounded investigation:** complete the external cleanup/writer census for `narrative_log` and `groove_alerts`; locate the intended narrative retention policy; characterize duplicate source-ID occupancy of the five prompt slots; and determine whether the pattern-specific narrative is meant to be durable autobiography or a short-lived reflective cue. Do not add pruning, deduplication or acknowledgement changes without the controlling design/approval.
+
+**Disposition:** source-observed repeated narrative insertion and no-age-cutoff prompt reader; exact-head fixture verifies same-source duplicate rows. No narrative cleanup path was located in the inspected SelfNarrative/reaper sources. Active host timer state and intended retention semantics remain UNKNOWN. G-83 remains OPEN; no new defect ID or behaviour change is introduced.
+
+**Source anchors:** `substrate/init_db.py` blob `494d0a86d2fc42053fd3005d6a6b4e19c376d262`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `nex_db_reaper.py` blob `5cfb609a8ad8a5f9bd0ab83729d8b42220700658`; PR #449 exact head `8132db2a338727e580e3269ad148277db727b0d4`.
+
+
+## §143 — Host-side DB-reaper deployment history: path repair observed, successful run not established (28 November 2026)
+
+The earlier host diagnostic record adds an important qualification to §138:
+
+- On 25 November 2026, the old loaded user-systemd units initially failed with `203/EXEC` because they pointed to `/home/rr/Desktop/Desktop/nex5`, which was no longer the actual checkout path.
+- The user's actual checkout was `/mnt/games/storage/Desktop/Desktop/nex5`.
+- A later host check verified that the loaded `nex5-db-reaper.service` had been corrected to the actual checkout path, and that `nex_db_reaper.py` existed there.
+- No service was deliberately started or restarted during that check. No successful service execution, timer activation state, last-run log or completed nightly retention pass was established.
+- The repository's versioned `deploy/systemd/nex5-db-reaper.service` still contains the old `/home/rr/Desktop/Desktop/nex5` paths. The active loaded unit had been corrected independently; copying the unchanged repository reference unit over it could reintroduce the old path.
+
+**Corrected operational status:** the earlier execution-path failure was diagnosed and the loaded unit path was later corrected. This is not evidence that the timer is enabled or that the reaper has completed a successful run. The 30-day Metacognition retention backstop remains runtime-unverified.
+
+**Configuration-drift classification:** versioned reference unit and historically corrected loaded unit diverge. This is a deployment reproducibility risk, not permission to edit or reinstall service units during this Phase 0 trace.
+
+**Next bounded observation:** inspect the current loaded unit and timer with `systemctl --user cat/status/list-timers nex5-db-reaper.timer nex5-db-reaper.service`, then inspect the last service journal entry and reaper log. Do not start/restart the service as part of an evidence-only check.
+
+**Authority boundary:** no unit, path, timer, service, database or runtime state changed. This records historical host evidence and the remaining unknowns only.
