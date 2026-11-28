@@ -2277,3 +2277,24 @@ Review of `_rollback_partial_app_state()` against the enclosing `build_state()` 
 
 **Limit:** guarded cleanup calls are covered; arbitrary failures during object attribute introspection are not claimed to be impossible. No registry API, cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
+---
+
+## 79. Nested startup ownership — stage builders examined (28 November 2026)
+
+**Question:** can parent rollback recover workers from a stage builder that raises before returning its state object?
+
+The parent cannot see a builder's return value until successful return. Worker-owning builders therefore need local rollback around their own thread startup; after successful return, the parent assumes ownership.
+
+- `stage1_sense/scheduler.py`: publishes adapter registry before starts; catches `BaseException`, signals and joins started workers before re-raising. Returned scheduler exposes `_threads`, `shutdown()` and `join()`.
+- `stage2_dynamic/__init__.py`: publishes `_stop` / `_threads` before starts; workers wait behind a shared start gate. Partial start failure stops, releases the gate, joins against one deadline and re-raises.
+- `stage3_world_model/__init__.py`: same published registry/stop event and gated-start rollback pattern.
+- `stage4_membrane/__init__.py`: publishes thread reference before start; catches `BaseException`, signals stop, joins and re-raises.
+- `stage6_fountain/__init__.py`: publishes thread reference and gates work until start succeeds; failure signals stop, releases gate, joins and re-raises.
+- `stage_gate/resolver.py`: publishes `self._thread` before `start()` but has no local startup catch. In `gui.server.build_state()`, the parent already owns `_resolver` before this call; parent rollback can discover `_thread`, signal `_stop` and join.
+
+**Conclusion:** startup cleanup is layered. Builders must clean partially started workers before returning an owner; after return, the parent owns the returned state. The inspected builders largely follow this nested ownership pattern. Resolver is a deliberate case where parent-local ownership exists before the worker starts.
+
+**Verification limit:** this is source inspection, not proof of every rare OS-level `Thread.start()` failure on every platform. GUI rollback tests do not exercise every nested builder's partial-start path. Future worker-owning builders should publish stop/thread handles before start, gate work until startup commit where appropriate, and locally rollback partial starts before raising.
+
+No builder code changed. No cognitive semantics, action authority, registry API, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
