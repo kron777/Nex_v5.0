@@ -2,7 +2,7 @@ NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
 Mirror synchronized with documentation candidate PR #447.
 Evidence snapshot: main at 18c8f06171e1de35c3210831a49b63d0e2487af0; PR #447 is documentation-only and remains open.
-This file is a plain-text mirror for tools and reviewers that prefer .txt files.
+This file is a plain-text mirror for tools and reviewers who prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
@@ -2266,6 +2266,63 @@ Any design must specify unique-name enforcement, duplicate object handling, thre
 **Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `theory_x/__init__.py` blob `661dc737f54c88f763588606867ae1b9cd7e6654`; `theory_x/DOCTRINE.md` blob `6506276979364dc62da120d4b7c8966328fb2e6d`; `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `tests/test_appstate_close_runpy_producers.py` blob `6c9ec4ac0e88e56853963d378383789263d68e24`; `tests/test_appstate_close_held_loops.py` blob `a759bd71b4dbca1d82c04bd4eeb7a41b00c9ebe6`; `tests/test_focal_set.py` blob `083b8053ff09ef0975f8aab35a120904b2f55423`; `tests/test_executive_control.py` blob `d0ffe94a36e60cb30536759090affc09cfc1c3b1`.
 
 **Unchanged boundaries:** no registry code, AppState lifecycle, Protocol, doctrine, database, runtime flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority or cognitive/action authority separation is changed.
+
+---
+
+## 74. Bonsai influence ceiling in the production Global Workspace — salience study (28 November 2026)
+
+**Question studied:** does a Stage-2 attention increase merely reach Global Workspace, or can it actually win the competition that frames a Fountain fire?
+
+### Production path confirmed
+
+The source path is now traced beyond isolated helpers:
+
+1. Stage-2 `run_pipeline()` updates the Bonsai tree's branch focus from admitted sense-event magnitude.
+2. `DynamicState.status()` returns `tree.snapshot()["branches"]` as the branch vector, including each branch's `focus_num`.
+3. Fountain's production `_generate()` obtains `dynamic_state.status()` and passes it to `_build_prompt()`.
+4. With `NEX5_GLOBAL_WORKSPACE` unset or equal to `1`, Fountain's production prompt builder calls `global_workspace.arbitrate(dynamic_status, stakes_active=..., drive_line=...)`.
+5. `_bonsai_candidate()` selects the highest-focus branch only when its focus exceeds 0.1 and offers salience `focus_num * _W_BONSAI`. The winner is prepended as a framing line to the Fountain focus block. Other module blocks still append later; this is framing competition, not exclusive control over all prompt content.
+
+Therefore the attention-to-workspace path is present in the production call chain. The existing Stage-2 propagation test does not execute the entire `FountainGenerator._generate() → _build_prompt() → arbitrate()` chain; it tests the real Stage-2 pipeline, then directly tests the Fountain selection helper and workspace candidate/helper functions.
+
+### Effective influence ceiling
+
+The current source constants are:
+- surprise: 1.00 × surprise score (admitted above its gate);
+- stakes: flat 0.90;
+- momentum: flat 0.55 by default;
+- Bonsai: 0.50 × highest branch focus;
+- drive: flat 0.45.
+
+Bonsai focus is clamped to a maximum of 1.0 in `BonsaiTree.attend()`. Thus under the default, undemoted momentum weight, Bonsai's maximum salience is 0.50 and it cannot beat an active momentum candidate at 0.55. It can beat drive only when focus is strictly above 0.90, and it can lead when stronger candidates are absent. Surprise and stakes have higher ceilings.
+
+**Configuration qualification:** `_teeth_momentum_factor()` returns 1.0 unless `NEX5_L4_TEETH=1`; when enabled it applies a factor of 0.6, reducing momentum from 0.55 to 0.33. Bonsai can then beat momentum above focus 0.66, provided no stronger surprise/stakes candidate wins. The deployment's actual flag state was not inspected. Do not report either branch of this conditional as live host behaviour without runtime evidence.
+
+### What the existing analysis tool does — and does not — establish
+
+`tools/check_arbiter_competition.py` is a read-only analyser for `NEX5_GW_LOG` decision records. Its own design explicitly separates:
+- correctness of the logged effective argmax;
+- departure from the nominal flat-weight ladder; and
+- the genuinely variable/data-dependent region.
+
+It also detects demoted momentum salience as a signal that L4 teeth may have been armed. Its docstring warns that the arbiter chooses a framing line over a fetch whose content was already fixed; it is an expression/framing instrument, not a content-quality measure. `tests/test_arbiter_competition.py` checks the Bonsai-versus-drive veto region, detection of L4 demotion and other readout cases. These tests validate the analyser's calculations with synthetic records; they are not evidence of live decision frequencies.
+
+### Research conclusion
+
+The earlier claim that attention "influences the workspace" is true but incomplete. Its influence is sharply bounded by the salience ladder and by the presence of stronger candidates. Without L4 demotion, the default momentum line is structurally unbeatable by Bonsai. With L4 demotion, Bonsai has a larger competitive region, but only if its focus is high enough and surprise/stakes do not outrank it.
+
+The important architectural question is therefore not simply whether faculties are connected. It is whether the measured competition gives a faculty a meaningful opportunity to alter the frame, and whether that alteration improves the resulting output. The current source/tests establish the competition mechanics, not the quality benefit.
+
+### Next falsification study
+
+1. Add a deterministic integration test using an isolated temporary dynamic database and controlled Bonsai state. Exercise `DynamicState.status()`, the actual Fountain prompt-building caller and `global_workspace.arbitrate()` without touching production databases or external voice services.
+2. Cover the default momentum-present case, momentum-absent case, L4-demoted case, drive-only case, and surprise/stakes blockers. Assert exact candidate vectors, winner and inserted framing line.
+3. Keep `NEX5_GLOBAL_WORKSPACE`, `NEX5_L4_TEETH` and all production flags unchanged. Inject/patch only within the test.
+4. If measuring whether the frame improves output, preregister a separate content-quality evaluation. Do not infer benefit from a higher Bonsai win rate or a successful framing insertion.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `theory_x/stage2_dynamic/__init__.py` blob `b1740d7957953ca06b54133f67af821bdc76200e`; `theory_x/stage2_dynamic/bonsai.py` blob `d0389d6036deecf27dcf636771ef817c685b1e7c`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/global_workspace.py` blob `39d833d4a88ed3ad371daf7b62e7295d0dda6637`; `tools/check_arbiter_competition.py` blob `e7881f8246e474fad67c2639e69faefac2a3e1eb`; `tests/test_dynamic.py` blob `7e7493a5d79dda73f0ff374728a3da9eb34a558c`; `tests/test_arbiter_competition.py` blob `d744e47021164acae15490d722a2b030ce8b663e`.
+
+**Unchanged boundaries:** no attention magnitude, Bonsai focus, salience weights, L4 teeth, runtime flag, Global Workspace policy, prompt generation, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed.
 
 ---
 
