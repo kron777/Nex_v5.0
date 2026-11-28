@@ -556,6 +556,44 @@ class TestDynamicGUIEndpoints(unittest.TestCase):
 
 # ---- Architecture compliance -------------------------------------------------
 
+class TestBuildDynamicStartupRollback(unittest.TestCase):
+    def test_partial_thread_start_failure_does_not_release_any_loop(self):
+        from unittest import mock
+        import theory_x.stage2_dynamic as dynamic_module
+
+        writers, readers, tmp = _make_env()
+        original_start = threading.Thread.start
+        attempted = []
+        loop_entered = threading.Event()
+
+        def fail_second_start(thread):
+            attempted.append(thread)
+            if len(attempted) == 2:
+                raise RuntimeError("injected dynamic thread start failure")
+            return original_start(thread)
+
+        try:
+            with mock.patch.object(
+                dynamic_module, "_sense_poll_loop",
+                side_effect=lambda *_args: loop_entered.set(),
+            ):
+                with mock.patch.object(threading.Thread, "start", new=fail_second_start):
+                    with self.assertRaisesRegex(
+                        RuntimeError, "injected dynamic thread start failure"
+                    ):
+                        dynamic_module.build_dynamic(writers, readers)
+
+            self.assertEqual(len(attempted), 2)
+            self.assertFalse(attempted[0].is_alive())
+            self.assertIsNone(attempted[1].ident)
+            self.assertFalse(
+                loop_entered.is_set(),
+                "a Dynamic loop ran before builder startup committed",
+            )
+        finally:
+            _cleanup(writers, tmp)
+
+
 class TestStopDynamicJoinsLoops(unittest.TestCase):
     """stop_dynamic must wait for a loop's in-flight tick, not just signal it.
     Deterministic: a scheduled daily activity (hour 0, so always due) blocks
