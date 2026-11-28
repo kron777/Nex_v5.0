@@ -234,7 +234,7 @@ The #339 and #343 exact-head full-suite runs passed this test. This is isolated 
 
 The frontier request for a novel obligation kind is now version 2 and carries a SHA-256 fingerprint of the full expansion-rule content plus terminal-kind catalogue. A request is rejected by the proposal store if it was generated against an older schema or a different catalogue snapshot.
 
-New module: `rdo/rule_proposals.py`.
+New boundary adapter: `rdo_adapters/rule_proposals.py`.
 
 - Candidate proposals are provider-neutral structured data; arbitrary code, callables and unknown fields are rejected.
 - Required content includes decomposition steps, applicability, preconditions, constraints, assumptions, exceptions, anti-requirements, alternative interpretations, evidence references, disconfirming cases, and positive and negative test plans.
