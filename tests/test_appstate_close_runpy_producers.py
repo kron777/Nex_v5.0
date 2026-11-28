@@ -134,5 +134,73 @@ class TestRunPyGracefulShutdownOutcome(unittest.TestCase):
 
 
 
+class TestRunPyEarlyBootOwnership(unittest.TestCase):
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_appstate_is_created_before_any_producer_start_path(self):
+        main = next(
+            node for node in ast.parse((_ROOT / "run.py").read_text()).body
+            if isinstance(node, ast.FunctionDef) and node.name == "main"
+        )
+        state_line = min(
+            node.lineno for node in ast.walk(main)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "AppState"
+        )
+        startup_names = {
+            "build_scheduler", "build_dynamic", "build_world_model",
+            "build_membrane", "build_fountain", "build_signal_loop",
+            "_own_and_start",
+        }
+        starts = [
+            node.lineno for node in ast.walk(main)
+            if isinstance(node, ast.Call)
+            and (
+                (isinstance(node.func, ast.Name) and node.func.id in startup_names)
+                or (isinstance(node.func, ast.Attribute)
+                    and node.func.attr in {"start", "start_loop"})
+            )
+        ]
+        self.assertTrue(starts)
+        self.assertLess(state_line, min(starts))
+
+    def test_owner_is_published_before_start_and_failed_start_is_quiesced(self):
+        from run import _own_and_start
+
+        state = _state(self.writers, self.readers)
+
+        class StartThenFail:
+            def __init__(self):
+                self.stop_event = threading.Event()
+                self._thread = threading.Thread(
+                    target=self.stop_event.wait, name="boot-start-then-fail", daemon=True
+                )
+                self.owner_seen_before_start = False
+
+            def start_loop(self):
+                self.owner_seen_before_start = state.resolver is self
+                self._thread.start()
+                raise RuntimeError("injected boot worker start failure")
+
+            def stop_loop(self):
+                self.stop_event.set()
+
+        worker = StartThenFail()
+        with self.assertRaisesRegex(RuntimeError, "injected boot worker start failure"):
+            _own_and_start(state, "resolver", worker, "start_loop", "stop_loop")
+
+        self.assertTrue(worker.owner_seen_before_start)
+        self.assertIs(state.resolver, worker)
+        self.assertFalse(worker._thread.is_alive())
+        report = state.close()
+        self.assertTrue(report["success"], report)
+        self.assertFalse(worker._thread.is_alive())
+
+
 if __name__ == "__main__":
     unittest.main()
