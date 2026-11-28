@@ -80,6 +80,20 @@ NEX5_CHAT_WORKSPACE is a separate prompt-assembly mechanism:
 
 This is competition for limited prompt space, not a cognitive action score and not an authority to approve, block or veto machine operations. It can still change which aspects influence a particular reply, so its effects need separate characterization when armed.
 
+### Cross-turn carry: NEX5_SELF_PRESENT
+
+When both NEX5_CHAT_WORKSPACE=1 and NEX5_SELF_PRESENT=1, _assemble_chat_blocks() passes the raw per-kind salience vector through theory_x.stage_tom.self_present.update() before selection.
+
+- The previous per-session vector is loaded from conversations.db.
+- Each carried kind is blended as 0.7 × previous salience + 0.3 × this turn's raw salience, clamped to [0, 1].
+- New kinds begin at this turn's raw salience.
+- The complete vector, current winner and turn count are persisted.
+- The blended vector then feeds the chat block budget selector.
+
+This is a real feedback edge: which faculty was prominent on a previous turn can influence which faculty gets prompt space on the next turn. The tests in tests/test_self_present.py demonstrate that a previously leading block can retain the lead for one changed turn, but a sustained new signal eventually takes over.
+
+The carry is turn-based rather than wall-clock-decayed in the inspected implementation. Its live activation is UNKNOWN. This is structured salience continuity, not persistence of a rendered thought and not authority over an action.
+
 ## 5. Tests and evidence boundaries
 
 The current test tree contains dedicated suites for compassion, compass, affect-carry and operator-model behaviour. Those suites cover useful isolated dynamics and some route-level injection/guard behaviour.
