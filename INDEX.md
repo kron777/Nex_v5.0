@@ -2916,3 +2916,73 @@ NEX already contains bounded attention dynamics and a real quality-to-attention 
 **Source anchors inspected at main:** `theory_x/stage2_dynamic/pipeline.py` blob `fbac28e96ffc34dbf59c60242d3ac635835e6e06`; `theory_x/stage2_dynamic/attention.py` blob `d2765c7618e8421bb3e60c8898f749f2370f0344`; `theory_x/stage2_dynamic/bonsai.py` blob `d0389d6036deecf27dcf636771ef817c685b1e7c`; `theory_x/stage_tom/quality_synthesis.py` blob `284d37ef654eb2e43783e3cb6200e3f995229d75`; `theory_x/stage_tom/global_workspace.py` blob `39d833d4a88ed3ad371daf7b62e7295d0dda6637`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `research/NEX_BONSAI_FOUNTAIN_WORKSPACE_TRACE_2026-11-28.md` blob `2e0b856b3cadd1c2c3e2152a5be865492f9447cb`.
 
 **Host/runtime unknowns:** actual NEX5_QUALITY_SYNTH, NEX5_SELF_NARRATIVE and NEX5_BRANCH_TEMP settings; whether data/quality_signal.json exists on any deployment; current contents/timestamp; live per-branch sample distributions and actual runtime outcomes.
+
+## 86. Prompt-level self-reinforcement: the active Fountain SelfNarrative path (28 November 2026)
+
+**Question studied:** what does the SelfNarrative feature actually feed back into the next Fountain generation, and which implementation is active on the generator path?
+
+### Correct implementation identity
+
+The Fountain generator imports `SelfNarrative` from `theory_x.stage_tom.self_narrative` when `NEX5_SELF_NARRATIVE=1`. Before each relevant generation prompt is sent, it calls `get_narrative()` and appends the returned living narrative to prompt parts. This is the implementation that matters for the Fountain path.
+
+It is not the same class as `theory_x.stage_self_narrative.self_narrative.SelfNarrative`, which is an event-log reader/writer with a five-row prompt formatter and a separate rut-notice tick. Do not use tests for one class as evidence that the other is tested.
+
+### What the Fountain narrative composes
+
+The Stage-TOM `build_narrative()` reads:
+- recent real Fountain fires, excluding short, bracket-prefixed and near-duplicate items;
+- the three most recent promoted T6 beliefs, filtered to avoid self-referential template residue;
+- the three currently active branches over a two-hour window;
+- the most recent HOT self-observation below the tombstone tier;
+- an aggregate self-model summary;
+- the current carried momentum thread, prepended as the leading line when present.
+
+It then assembles a prompt block describing what NEX has actually been attending to. It is generated from existing records and statistics, not from a separate LLM call at prompt assembly time.
+
+### The feedback path
+
+The cycle is:
+
+1. Fountain selects attention and context, then generates a thought.
+2. The resulting fire is recorded with its hot branch and related evidence.
+3. Later narrative assembly reads recent fires, active branches, beliefs, self-model statistics and momentum.
+4. The composed narrative is injected into a later Fountain prompt when the feature flag is enabled.
+5. That next thought can influence future branch attribution, memory, beliefs and momentum.
+
+This is a prompt-level feedback loop. It can improve continuity by reminding NEX of recent activity and carried intent. It can also create self-confirmation: a branch is attended, appears in the narrative because it was attended, and is then presented as evidence of what NEX is currently about. Momentum can reinforce this effect by leading the narrative.
+
+The implementation contains some useful anti-contamination choices: near-duplicate filtering for recent fires, filtering of known self-referential template residue, tier filtering for HOT observations, and a separation between aggregate pattern summary and specific recent events. These reduce some noise; they do not establish causal independence or prevent all repeated-theme amplification.
+
+### Test and rollout boundary
+
+The generator constructor and prompt insertion both check `NEX5_SELF_NARRATIVE=1`. The host's actual flag value is unknown. The inspected `tests/test_self_narrative.py` targets the separate `theory_x.stage_self_narrative` class, not the Stage-TOM `build_narrative()` implementation used by Fountain. Therefore it must not be cited as direct coverage of the Fountain prompt-injection path.
+
+A focused test suite for the actual path should cover:
+- feature flag off: no instance and no narrative prompt block;
+- feature flag on with no fires: no block and no generation failure;
+- branch diversity and stale records: narrative reflects the intended bounded time windows;
+- repeated identical fires: near-duplicate filtering is deterministic;
+- momentum present/absent: carry appears only when valid and does not dominate all other evidence;
+- self-referential template filtering: both positive and negative examples;
+- adversarially long narrative inputs: bounded prompt contribution;
+- prompt provenance: record which source rows contributed, so the narrative can be audited after a fire.
+
+### Reuse-first design recommendation
+
+Do not remove continuity. Instead, make the narrative an evidence-balanced summary rather than a mirror of whichever branch happened to win most recently:
+- preserve source diversity and explicit timestamps/ages;
+- cap contribution per source category, not only total recent-fire count;
+- distinguish observed history from current hypotheses and carried intentions;
+- expose branch exposure counts alongside branch names, so frequency is not mistaken for merit;
+- prevent a momentum item from silently becoming a persistent identity claim;
+- retain provenance from each prompt fragment back to its source records.
+
+These are proposed measurement and design improvements, not current behavior or new policy authority. The narrative remains interpretive context. It cannot approve, block or execute operations.
+
+### Research conclusion
+
+The active Fountain SelfNarrative path is a bounded-by-source, prompt-injected composition of recent fires, active branches, T6 beliefs, HOT observations, aggregate self-model and momentum. It creates a meaningful continuity loop, but also risks reflecting prior attention back as evidence for future attention. The correct next step is direct tests and provenance/exposure measurement for the Stage-TOM implementation—not assumptions based on the similarly named event-log class. No runtime code, feature flag, database, schema, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. No tests were run in this study.
+
+**Source anchors inspected at main:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/self_narrative.py` blob `5fbc617fadc177ade59b45acf118b77c43ef2e84`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `tests/test_self_narrative.py` blob `a293b97d46a7db14fb9302e2c3206b4516eefdb1`.
+
+**Host/runtime unknowns:** actual `NEX5_SELF_NARRATIVE` setting, current Fountain prompt composition, recent-fire distribution, branch exposure skew, actual momentum quality and production effects.
