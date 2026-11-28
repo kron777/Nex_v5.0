@@ -413,3 +413,48 @@ class TestFountainBuilderStartupRollback(unittest.TestCase):
             self.assertFalse(attempted[0].is_alive())
         finally:
             _cleanup(writers, tmp)
+
+class TestStageTomSelfNarrativeRutBeliefReader(unittest.TestCase):
+    """Characterize the optional Fountain narrative reader of rut beliefs."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_recent_t6_narrative_can_include_self_rut_notice(self):
+        from substrate.paths import db_paths
+        from theory_x.stage_tom.self_narrative import SelfNarrative, build_narrative
+
+        paths = db_paths()
+        now = time.time()
+        note = (
+            "I notice my recent thinking has circled the same few frames "
+            "without surprising me. Many thoughts, little that landed. "
+            "Perhaps it is time to reach for something I have not touched."
+        )
+        self.writers["dynamic"].write(
+            "INSERT INTO fountain_events (ts, thought, readiness, hot_branch) "
+            "VALUES (?, ?, 0.8, ?)",
+            (now - 60, "A small copper bridge crossed the silent marsh at dawn with no traffic.", "systems"),
+        )
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs (content, source, tier, confidence, branch_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (note, "self_rut_notice", 6, 0.6, "self", now - 30),
+        )
+        time.sleep(0.05)
+
+        narrative = build_narrative(paths["dynamic"], paths["beliefs"])
+        self.assertIsNotNone(narrative)
+        self.assertIn(note, narrative)
+
+        # The Stage-TOM write_narrative interface appends to a private list;
+        # get_narrative() composes from DB state and does not read that list.
+        composer = SelfNarrative(paths["dynamic"], paths["beliefs"])
+        composer.write_narrative("PRIVATE_STAGE_TOM_LOG_SENTINEL", "gate", 42)
+        rendered = composer.get_narrative()
+        self.assertIn(note, rendered)
+        self.assertNotIn("PRIVATE_STAGE_TOM_LOG_SENTINEL", rendered)
+
