@@ -219,11 +219,11 @@ Remaining boundary: PatternMemory transactions are not serialized across multipl
 
 ### Next sequence
 
-1. Verify combined mainline CI after #339 and #343.
-2. Extend the existing seeded-objective end-to-end test to cover a completed criterion outcome through the independent Watcher, while preserving the pending-state regression. Keep raw-idea-to-seed generation explicitly external until a provider-neutral proposal contract is designed.
-3. Design the candidate-rule proposal and approval lifecycle for novel kinds.
-4. Persist FeedbackLoopAssessment with UNKNOWN-first semantics and measured evidence only.
-5. Preserve the already implemented Stage-2 belief-development and fresh-process CycleStore-resume tests as a regression baseline; focus next on novel-kind rule proposals and the raw-idea-to-handoff boundary.
+1. **Completed:** mainline CI passed after #343 (#2100: 2,830 passed) and after #345 (#2111: 2,834 passed); the post-#346 mainline run (#2115) was pending at this documentation snapshot.
+2. Build the candidate RuleProposal record and review-event lifecycle on top of PR #346's structured frontier request; keep candidates inert until explicit approval.
+3. Extend the seeded-objective end-to-end test to cover a completed criterion outcome through the independent Watcher, preserving pending-state regression.
+4. Add an evidence-bound measured/reviewed update path for existing feedback-loop assessments; preserve topology and UNKNOWN-first semantics.
+5. Preserve Stage-2 belief-development and fresh-process CycleStore-resume tests as a completed regression baseline; do not rebuild Stage 2.
 
 No frozen S-01–S-25/M1.8 specification content or NEX runtime/deployment path was changed by these slices.
 
