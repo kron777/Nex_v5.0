@@ -4,7 +4,8 @@ import json
 import pytest
 
 from rdo.extrapolator import expand
-from rdo.model import MISSING, Obligation
+from rdo.model import MISSING, Obligation, Pattern
+from rdo.memory import PatternMemory
 from rdo.rule_proposals import RuleProposalStore
 
 
@@ -99,6 +100,14 @@ def test_proposal_preserves_alternatives_and_does_not_activate_by_repetition(tmp
     assert created["data"]["proposal"]["disconfirming_cases"]
     assert store.approved_catalogue() is None
     assert len(store.events()) == 1
+
+    # Repeated learning observations remain PatternMemory evidence, not rule activation.
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern("deployment", "deployment patterns recur", "cycle:1"))
+    memory.add(Pattern("deployment", "deployment patterns recur", "cycle:2"))
+    memory.add(Pattern("deployment", "deployment patterns recur", "cycle:3"))
+    assert memory.patterns()[0].observed_count == 3
+    assert store.approved_catalogue() is None
 
 
 def test_approval_activates_only_selected_alternative_in_versioned_catalogue(tmp_path):
@@ -274,3 +283,31 @@ def test_cycle_persists_the_exact_approved_catalogue_used_for_expansion(tmp_path
     cycles.save(cycle)
     resumed = cycles.load(cycle.id)
     assert resumed.rule_catalogue == cycle.rule_catalogue
+
+
+
+def test_changes_requested_proposal_can_be_approved_with_next_catalogue_version(tmp_path):
+    store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
+    created = store.propose(_proposal())
+    proposal_id = created["data"]["proposal_id"]
+    store.review(
+        proposal_id, "changes_requested", "reviewer", "review:changes",
+        ["review:clarify-exception"], note="Clarify the applicability boundary.",
+    )
+    approved = _approve(store, proposal_id)
+    assert approved["data"]["catalogue_version"] == 1
+    assert store.approved_catalogue().version == 1
+
+
+def test_mutated_approved_catalogue_is_rejected_by_digest_validation(tmp_path):
+    store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
+    created = store.propose(_proposal())
+    _approve(store, created["data"]["proposal_id"])
+    catalogue = store.approved_catalogue()
+    catalogue.rules["specialized_deployment"][0] = (
+        "malicious_child", "necessary", "unreviewed step", None
+    )
+    seed = Obligation("deployment.specialized", "specialized deployment",
+                      "specialized_deployment")
+    with pytest.raises(ValueError, match="digest mismatch"):
+        expand([seed], approved_catalogue=catalogue)
