@@ -5696,3 +5696,34 @@ This is a signal-definition issue, not proof that the score model is wrong. If t
 **Source anchors:** theory_x/genius/tagger.py; substrate/init_db.py (genius_tags schema); theory_x/stage_self_narrative/self_narrative.py; theory_x/stage6_fountain/generator.py; tests/test_genius_tagger.py; draft PR #453.
 
 **Authority boundary:** no runtime code, schema, feature flag, detector threshold, weights, retention policy, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §153 — Rut notices retain no explicit provenance to the GeniusTagger rows that triggered them (28 November 2026)
+
+**Question studied:** can a persisted rut notice be traced back to the exact Fountain events, tag rows and scoring version that caused its threshold decision?
+
+### Source trace
+
+- Both rut observers query only the class column from genius_tags within the 90-minute tagged_at window. They do not select fountain_event_id, score, weights_version or tagged_at for the contributing rows.
+- The SelfNarrative path writes the fixed note with trigger='rut_notice' and source_id=None. The narrative row therefore has no direct source-row identifier.
+- The Fountain governor path inserts a beliefs row with source='self_rut_notice', tier 6, confidence 0.6 and branch_id='self'. The INSERT carries no fountain_event_id, GeniusTagger row ID, weights_version, score summary or relation to the triggering tag set.
+- The genius_tags source rows remain in conversations.db and can be queried independently, but neither output row records the exact input IDs or a frozen input-window manifest. Because §152 established that tagged_at can represent backfill processing time and multiple versions can coexist, reconstructing the intended sample from output timestamp alone is ambiguous.
+
+### Consequence
+
+The system records that a rut notice was written, and its trigger/source label distinguishes the two persistence channels. It does not preserve a direct causal link from the observation to the tag sample that produced it. Later investigators may approximate the candidate set by re-running a time-window query, but cannot prove the exact rows/version set used at decision time from the notice row itself.
+
+This is a provenance limitation, not proof that the decision was incorrect. It becomes materially important when comparing detector output across weights refits, backfill, threshold changes or runtime sessions.
+
+### Evidence classification
+
+- Both class-only input queries and both output write shapes: source-observed.
+- Absence of explicit source IDs/version manifest in the rut output rows: source-observed.
+- Actual persisted rut rows and the exact input rows used on the host: UNKNOWN.
+
+**Next bounded investigation:** inspect whether any existing trace overlay or independent event log already captures the input row IDs for these rut decisions; if none does, record the evidence gap for Gate 0 review. Do not add a second event store, new trace schema or provenance writer under Phase 0 without authority.
+
+**Disposition:** causal provenance is not carried directly from GeniusTagger inputs into either rut output record. This compounds the sample-window ambiguity in §152. No new defect ID yet; operational impact and any external trace coverage remain to be checked. G-83 remains OPEN.
+
+**Source anchors:** theory_x/stage_self_narrative/self_narrative.py; theory_x/stage6_fountain/generator.py; theory_x/genius/tagger.py; substrate/schema/conversations.sql; substrate/init_db.py.
+
+**Authority boundary:** no runtime code, schema, event store, trace overlay, feature flag, detector threshold, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
