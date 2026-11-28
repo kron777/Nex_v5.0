@@ -402,3 +402,45 @@ class TestTickAndProtocol(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSubstrateHarmonicShutdown(unittest.TestCase):
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        self.sh = _make_sh(self.writers, self.readers)
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_stop_during_stream_read_prevents_later_reads_and_persistence(self):
+        import threading
+
+        entered = threading.Event()
+        release = threading.Event()
+        stop = threading.Event()
+        calls = []
+
+        def blocked_read(_now):
+            calls.append("drives")
+            entered.set()
+            release.wait(timeout=3.0)
+            return {}
+
+        self.sh._read_drives_current = blocked_read
+        self.sh._read_drive_conflict = lambda _now: calls.append("conflict")
+        worker = threading.Thread(
+            target=lambda: self.sh.tick(stop_event=stop),
+            name="harmonic-shutdown-test",
+        )
+        worker.start()
+        self.assertTrue(entered.wait(timeout=2.0))
+        stop.set()
+        release.set()
+        worker.join(timeout=2.0)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(calls, ["drives"])
+        rows = self.readers["conversations"].read(
+            "SELECT id FROM substrate_coherence"
+        )
+        self.assertEqual(rows, [])
