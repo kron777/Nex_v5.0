@@ -22,6 +22,7 @@ from rdo.model import (
 from rdo.reconcile import Signature
 
 SCHEMA_VERSION = "rdo.objective.v1"
+RAW_OBJECTIVE_SCHEMA_VERSION = "rdo.raw_objective.v1"
 MAX_INPUT_BYTES = 1_048_576
 MAX_EXPANSION_DEPTH = 4
 _OBJECTIVE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
@@ -131,7 +132,7 @@ def validate_objective(payload: Any) -> dict:
     if revision > 1 and (not isinstance(supersedes, str) or not _SHA256.fullmatch(supersedes)):
         raise ObjectiveInputError("revisions after 1 must cite the previous sha256 digest")
 
-    original_text = _text(top["original_text"], "original_text")
+    original_text = _text(top["original_text"], "original_text", max_length=20000)
     intent = _text(top["intent"], "intent", max_length=4000)
     owner = _text(top["owner"], "owner", max_length=256)
 
@@ -283,6 +284,76 @@ def _reject_duplicate_keys(pairs):
     return out
 
 
+def validate_raw_objective(payload: Any) -> dict:
+    """Validate a raw idea before any seed graph exists; this record cannot run a cycle."""
+    top = _object(payload, "raw_objective", {
+        "schema_version", "objective_id", "raw_revision", "supersedes_raw_sha256",
+        "original_text", "intent", "owner", "source", "scope", "constraints",
+        "exclusions", "assumptions", "acceptance_criteria", "max_depth",
+    })
+    if top["schema_version"] != RAW_OBJECTIVE_SCHEMA_VERSION:
+        raise ObjectiveInputError(
+            f"raw objective schema_version must be {RAW_OBJECTIVE_SCHEMA_VERSION!r}"
+        )
+    objective_id = _text(top["objective_id"], "objective_id", max_length=64)
+    if not _OBJECTIVE_ID.fullmatch(objective_id):
+        raise ObjectiveInputError("objective_id must use 1-64 portable filename characters")
+    raw_revision = top["raw_revision"]
+    if isinstance(raw_revision, bool) or not isinstance(raw_revision, int) or raw_revision < 1:
+        raise ObjectiveInputError("raw_revision must be a positive integer")
+    supersedes = top["supersedes_raw_sha256"]
+    if raw_revision == 1 and supersedes is not None:
+        raise ObjectiveInputError("raw revision 1 must have supersedes_raw_sha256=null")
+    if raw_revision > 1 and (not isinstance(supersedes, str) or not _SHA256.fullmatch(supersedes)):
+        raise ObjectiveInputError("raw revisions after 1 must cite the previous raw-objective digest")
+
+    original_text = _text(top["original_text"], "original_text")
+    intent = _text(top["intent"], "intent", max_length=4000)
+    owner = _text(top["owner"], "owner", max_length=256)
+    source = _object(top["source"], "source", {"kind", "reference"})
+    source_kind = source["kind"]
+    if not isinstance(source_kind, str) or source_kind not in _SOURCE_KINDS:
+        raise ObjectiveInputError(f"source.kind must be one of {sorted(_SOURCE_KINDS)}")
+    source = {
+        "kind": source_kind,
+        "reference": _text(source["reference"], "source.reference", max_length=512),
+    }
+    scope = _object(top["scope"], "scope", {"in_scope", "affected_paths"})
+    scope = {
+        "in_scope": _text_list(scope["in_scope"], "scope.in_scope"),
+        "affected_paths": [
+            _safe_repo_path(path, f"scope.affected_paths[{i}]")
+            for i, path in enumerate(_text_list(scope["affected_paths"], "scope.affected_paths"))
+        ],
+    }
+    constraints = _text_list(top["constraints"], "constraints")
+    exclusions = _text_list(top["exclusions"], "exclusions")
+    assumptions = _text_list(top["assumptions"], "assumptions")
+    acceptance_criteria = _text_list(
+        top["acceptance_criteria"], "acceptance_criteria", allow_empty=False
+    )
+    max_depth = top["max_depth"]
+    if (isinstance(max_depth, bool) or not isinstance(max_depth, int)
+            or not 0 <= max_depth <= MAX_EXPANSION_DEPTH):
+        raise ObjectiveInputError(f"max_depth must be an integer from 0 to {MAX_EXPANSION_DEPTH}")
+    return {
+        "schema_version": RAW_OBJECTIVE_SCHEMA_VERSION,
+        "objective_id": objective_id,
+        "raw_revision": raw_revision,
+        "supersedes_raw_sha256": supersedes,
+        "original_text": original_text,
+        "intent": intent,
+        "owner": owner,
+        "source": source,
+        "scope": scope,
+        "constraints": constraints,
+        "exclusions": exclusions,
+        "assumptions": assumptions,
+        "acceptance_criteria": acceptance_criteria,
+        "max_depth": max_depth,
+    }
+
+
 def load_objective_file(path: str) -> dict:
     """Read a bounded JSON file; reject duplicate keys and oversized inputs."""
     size = os.path.getsize(path)
@@ -422,8 +493,11 @@ def _repository_revision(repo_dir: str) -> str:
     return head
 
 
-def _cycle_id(objective_id: str, revision: int, repository_revision: str) -> str:
+def _cycle_id(objective_id: str, revision: int, repository_revision: str,
+              seed_proposal_reference: Optional[dict] = None) -> str:
     identity = f"{objective_id}\n{revision}\n{repository_revision}"
+    if seed_proposal_reference is not None:
+        identity += "\n" + _digest(seed_proposal_reference)
     token = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
     return f"obj_{token}_r{revision:06d}"
 
@@ -444,13 +518,37 @@ def _cycle_summary(cycle, summary: Optional[dict] = None) -> dict:
     }
 
 
-def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
+def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cycles",
+                     seed_proposal_reference: Optional[dict] = None) -> dict:
     """Persist one immutable objective revision and run the existing RDO pipeline."""
     record = validate_objective(payload)
+    if record["source"]["kind"] == "external_llm" and seed_proposal_reference is None:
+        raise ObjectiveInputError(
+            "external-LLM seed obligations require an explicitly approved seed proposal before intake"
+        )
+    verified_seed_reference = None
+    if seed_proposal_reference is not None:
+        from .seed_proposals import SeedProposalError, SeedProposalStore
+        try:
+            approved = SeedProposalStore(
+                os.path.join(workdir, "seed_proposals.jsonl")
+            ).verify_reference(seed_proposal_reference)
+        except SeedProposalError as exc:
+            raise ObjectiveInputError(f"seed proposal approval could not be verified: {exc}") from exc
+        approved_record = approved["objective"]
+        for key in record:
+            if key not in {"revision", "supersedes_sha256"} and record[key] != approved_record[key]:
+                raise ObjectiveInputError(
+                    f"objective field {key!r} does not match the approved seed proposal"
+                )
+        verified_seed_reference = approved["reference"]
     input_store = ObjectiveInputStore(os.path.join(workdir, "objectives"))
     stored = input_store.append(record)
     repository_revision = _repository_revision(repo_dir)
-    cycle_id = _cycle_id(record["objective_id"], record["revision"], repository_revision)
+    cycle_id = _cycle_id(
+        record["objective_id"], record["revision"], repository_revision,
+        verified_seed_reference,
+    )
     cycle_store = CycleStore(workdir)
     metadata = {
         "schema_version": record["schema_version"],
@@ -459,6 +557,8 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
         "sha256": stored["sha256"],
         "repository_revision": repository_revision,
     }
+    if verified_seed_reference is not None:
+        metadata["seed_proposal"] = verified_seed_reference
 
     if cycle_id in cycle_store.list_ids():
         existing = cycle_store.load(cycle_id)
@@ -522,6 +622,48 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
         "cycle": cycle.to_dict(),
         "persisted_to": cycle_store._cycle_path(cycle_id),
     }
+
+
+def submit_approved_seed_proposal(proposal_id: str, repo_dir: str = ".",
+                                  workdir: str = "rdo/.cycles") -> dict:
+    """Convert one explicitly approved seed alternative into an objective.v1 intake."""
+    from .seed_proposals import SeedProposalStore
+
+    proposals = SeedProposalStore(os.path.join(workdir, "seed_proposals.jsonl"))
+    approved = proposals.approved_objective(proposal_id)
+    raw = approved["raw_objective"]
+    history = ObjectiveInputStore(os.path.join(workdir, "objectives")).history(
+        raw["objective_id"]
+    )
+    candidate = approved["objective"]
+    if history:
+        first = history[0]["record"]
+        if (first["original_text"] != raw["original_text"]
+                or first["intent"] != raw["intent"]):
+            raise ObjectiveInputError(
+                "raw idea text/intent differs from the immutable objective history; use a new objective_id"
+            )
+        last = history[-1]
+        last_record = last["record"]
+        same_content = all(
+            last_record[key] == candidate[key]
+            for key in candidate if key not in {"revision", "supersedes_sha256"}
+        )
+        if same_content:
+            revision = last_record["revision"]
+            supersedes = last_record["supersedes_sha256"]
+        else:
+            revision = len(history) + 1
+            supersedes = last["sha256"]
+    else:
+        revision, supersedes = 1, None
+    approved = proposals.approved_objective(
+        proposal_id, revision=revision, supersedes_sha256=supersedes
+    )
+    return submit_objective(
+        approved["objective"], repo_dir=repo_dir, workdir=workdir,
+        seed_proposal_reference=approved["reference"],
+    )
 
 
 def objective_history(workdir: str, objective_id: str) -> dict:
