@@ -891,6 +891,7 @@ class AppState:
             ("competing_drives", self.competing_drives, "stop"),
             ("persona_responder", self.persona_responder, "stop"),
             ("self_maintain_shadow", self.self_maintain_shadow, "stop"),
+            ("strike_protocol", self.strike_protocol, "stop"),
         )
         for label, worker, stop_name in managed:
             if worker is None:
@@ -900,11 +901,27 @@ class AppState:
                 _signal(stop, label)
             thread = worker if isinstance(worker, threading.Thread) else getattr(worker, "_thread", None)
             _add_thread(thread)
+            # Some services own multiple delayed workers rather than one _thread.
+            # Snapshot under the service lock when available; workers may remove
+            # themselves from the registry as they finish.
+            owned_lock = getattr(worker, "_thread_lock", None)
+            if owned_lock is not None:
+                with owned_lock:
+                    owned_threads = list(getattr(worker, "_threads", ()) or ())
+            else:
+                owned_threads = list(getattr(worker, "_threads", ()) or ())
+            for owned_thread in owned_threads:
+                _add_thread(owned_thread)
 
         me = threading.current_thread()
         alive = []
         for thread in threads:
-            if thread.ident is None or thread is me:  # never started / close() from inside it
+            if thread.ident is None:  # never started
+                continue
+            if thread is me:
+                # A producer cannot join itself; report it as alive so close()
+                # cannot mistake a re-entrant shutdown for a completed drain.
+                alive.append(thread.name)
                 continue
             try:
                 thread.join(max(0.0, deadline - time.monotonic()))
