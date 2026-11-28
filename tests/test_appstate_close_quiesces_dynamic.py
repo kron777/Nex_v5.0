@@ -162,9 +162,8 @@ class TestAppStateCloseQuiescesDynamic(unittest.TestCase):
         state.fountain = fountain
         closer = threading.Thread(target=state.close, name="test_appstate_close")
         closer.start()
-        time.sleep(0.05)
+        self.assertTrue(fountain._stop.wait(1.0), "close did not request Fountain stop")
         self.assertTrue(closer.is_alive(), "close did not wait for the in-flight Fountain tick")
-        self.assertTrue(fountain._stop.is_set(), "close did not request Fountain stop")
         release.set()
         closer.join(timeout=1.0)
 
