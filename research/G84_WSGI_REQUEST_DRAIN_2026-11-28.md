@@ -25,3 +25,8 @@ This replaces the arbitrary 1.5-second delay with an observed request drain. It 
 ## Remaining boundary
 
 The gate covers requests entering through this Flask application. It does not automatically own detached background work spawned by a route; such workers must still be registered with AppState. It also does not itself prove lifecycle behavior for an alternate external WSGI server, reverse-proxy workers, or direct non-HTTP callers. Those remain separate deployment/runtime census work. No route behavior changes during normal operation, no database schema or strike policy changes, and no frozen specification, Master Roadmap, Gate 0 or Phase 1 authority change.
+
+
+## Integration snapshot
+
+After PR #377 merged, the request gate is now layered ahead of the expanded AppState producer registry, including StrikeProtocol's delayed direct-SQLite workers and in-flight fire calls. The shutdown order is therefore: stop HTTP admission and drain active requests; stop/join registered producers; drain Writers; persist the clean marker. All phases consume the same monotonic deadline.
