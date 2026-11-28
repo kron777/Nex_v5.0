@@ -100,6 +100,7 @@ from substrate import Reader, Writer, db_paths
 from substrate.paths import DbPath
 from voice.llm import VoiceClient, VoiceRequest
 from voice.registers import by_name, classify, default_register
+from gui.shutdown_gate import ShutdownGate, install_shutdown_gate
 
 THEORY_X_STAGE = None
 
@@ -1151,7 +1152,7 @@ def build_state(
     )
 
 
-def create_app(state: AppState) -> Flask:
+def create_app(state: AppState, shutdown_gate: Optional[ShutdownGate] = None) -> Flask:
     app = Flask(
         __name__,
         template_folder=str(Path(__file__).parent / "templates"),
@@ -1160,6 +1161,10 @@ def create_app(state: AppState) -> Flask:
     # Session secret — persisted in a gitignored file so admin logins survive
     # server restarts during development without requiring re-auth every process.
     app.secret_key = _ensure_secret()
+
+    request_gate = shutdown_gate or ShutdownGate()
+    install_shutdown_gate(app, request_gate)
+
 
     # -- auth gate: deny-by-default for state-changing requests --------------
     # Each mutating route was historically expected to re-check session["admin"]
