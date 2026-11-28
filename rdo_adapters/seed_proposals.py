@@ -542,6 +542,10 @@ class SeedProposalStore:
             "proposal_id", "proposal_sha256", "raw_objective_sha256",
             "raw_revision", "selected_alternative_id", "review_event_sha256",
         })
+        if not isinstance(ref["proposal_id"], str) or not _PROPOSAL_ID.fullmatch(ref["proposal_id"]):
+            raise SeedProposalError("seed proposal reference proposal_id is invalid")
+        if not isinstance(ref["selected_alternative_id"], str) or not _ALT_ID.fullmatch(ref["selected_alternative_id"]):
+            raise SeedProposalError("seed proposal reference selected_alternative_id is invalid")
         for key in ("proposal_sha256", "raw_objective_sha256", "review_event_sha256"):
             if not isinstance(ref[key], str) or not _SHA256.fullmatch(ref[key]):
                 raise SeedProposalError(f"seed proposal reference {key} must be a SHA-256 digest")
