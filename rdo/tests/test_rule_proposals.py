@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from rdo.extrapolator import MISSING, expand
-from rdo.model import Obligation
+from rdo.extrapolator import expand
+from rdo.model import MISSING, Obligation
 from rdo.rule_proposals import RuleProposalStore
 
 
@@ -245,3 +245,32 @@ def test_untrusted_catalogue_objects_and_conflicting_rules_fail_closed():
     )
     with pytest.raises(ValueError, match="invalid version or digest"):
         expand([seed], approved_catalogue=forged)
+
+
+
+def test_cycle_persists_the_exact_approved_catalogue_used_for_expansion(tmp_path):
+    from rdo.memory import CycleStore
+    from rdo.orchestrator import run_cycle
+
+    store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
+    created = store.propose(_proposal())
+    _approve(store, created["data"]["proposal_id"])
+    catalogue = store.approved_catalogue()
+    seed = Obligation(
+        "deployment.specialized", "specialized deployment", "specialized_deployment",
+        rationale="A deployment-specific mechanism is required.",
+    )
+
+    cycle, _ = run_cycle(
+        "approved-rule-cycle", "specialized deployment", [], [seed], {},
+        repo_dir=str(tmp_path), active_experiments=[], authorised_gates=set(),
+        approved_catalogue=catalogue,
+    )
+    assert cycle.rule_catalogue["version"] == catalogue.version
+    assert cycle.rule_catalogue["sha256"] == catalogue.sha256
+    assert "specialized_deployment" in cycle.rule_catalogue["rules"]
+
+    cycles = CycleStore(str(tmp_path / "cycles"))
+    cycles.save(cycle)
+    resumed = cycles.load(cycle.id)
+    assert resumed.rule_catalogue == cycle.rule_catalogue
