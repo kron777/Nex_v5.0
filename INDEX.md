@@ -6027,3 +6027,36 @@ Record as a source-level eligibility question adjacent to the wider paused-belie
 **Source anchors:** substrate/schema/beliefs.sql; theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; PR #458.
 
 **Authority boundary:** no runtime code, pause state, schema, retrieval policy, feature flag, prompt policy, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §162 — Phase 26 SelfNarrative has two distinct design lineages (28 November 2026)
+
+**Question studied:** is the optional Stage-TOM living narrative the implementation specified by the Phase 26 SelfNarrative design, or a separate later prompt-composition mechanism?
+
+### Historical and documentary evidence
+
+- theory_x/SELF_NARRATIVE_SPEC.md was authored in commit 6a591c936c49e5d0c136731e4a2fc9b22f4c92d2 on 10 May 2026. It remains marked DRAFT — awaiting Phase 26-build and has no later file-history amendment in the inspected repository history.
+- That spec defines autobiographical accumulation: event writers persist entries in conversations.db narrative_log; format_for_prompt() reads existing entries as-is; no synthesis or LLM inference at output time. It locates the class at theory_x/stage_self_narrative/self_narrative.py.
+- The persistent StageSelfNarrative implementation is in that path. run.py constructs it once and injects it into CoherenceGate and other consumers; it writes/reads narrative_log.
+- A separate theory_x/stage_tom/self_narrative.py was first introduced on 28 June 2026 in commit 84e7d5daf345f75d6c6d0431223a2d2dfff70f5c. Its commit message describes a living identity account assembled afresh from recent Fountain fires, tier-6 beliefs and active branches, then inserted into the Fountain prompt before static spectrum standing-points.
+- The Stage-TOM implementation is not a read-only narrative_log formatter. It composes prompt context from several live database readers (later extended with HOT observation, aggregate self-model and momentum). Its own class has a write_narrative() method, but its private _log is not read by get_narrative().
+- The 28 June introduction also added NEX5_SELF_NARRATIVE=1 to the then-current launcher. The current tracked nex_keepalive.sh still exports NEX5_SELF_NARRATIVE=1 in launch_nex(). nex_config.py registers the flag as boolean. This proves the tracked launcher requests activation when used; it does not prove the host is currently invoking this launcher or the effective process environment.
+- theory_x/DOCTRINE.md remains marked DRAFT awaiting Jon's review/approval. The Phase 26 spec is also marked DRAFT. Neither document is the missing Frozen V2.1 artifact or a recovered Founder Sign-Off.
+
+### Interpretation boundary
+
+Two distinct implementations and two different design descriptions coexist under the same SelfNarrative name:
+1. Persistent event-written narrative memory in StageSelfNarrative.
+2. Optional Fountain-time narrative composition in Stage-TOM.
+
+The later Stage-TOM mechanism may have been intended as an experiment or extension, but the inspected history does not show an amendment to SELF_NARRATIVE_SPEC.md or an explicit authority decision reconciling the two. This is a design/provenance ambiguity, not proof of unauthorized behavior or a reason to delete either implementation.
+
+### Disposition and next step
+
+Keep the two paths separate in architecture maps, tests and evidence. Do not unify them, retire one, or infer that the later Stage-TOM implementation supersedes the Phase 26 spec. Any normative reconciliation belongs to the appropriate founder/specification authority. Host activation remains UNKNOWN despite the tracked launch command setting the flag.
+
+**Evidence classification:** file contents and commit history are source/history-observed; tracked launcher flag is source-observed; host service selection, effective environment, live execution and semantic output effect are UNKNOWN. No new defect ID assigned. G-83 remains OPEN.
+
+**Source anchors:** theory_x/SELF_NARRATIVE_SPEC.md; theory_x/DOCTRINE.md; theory_x/stage_self_narrative/self_narrative.py; theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; nex_keepalive.sh; nex_config.py; commits 6a591c936c49e5d0c136731e4a2fc9b22f4c92d2 and 84e7d5daf345f75d6c6d0431223a2d2dfff70f5c.
+
+**Authority boundary:** no runtime code, launcher, feature flag, narrative store, schema, prompt policy, cognitive authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
