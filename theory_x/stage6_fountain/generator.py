@@ -2292,10 +2292,14 @@ class FountainGenerator:
                         trace.remember("fountain_output_candidate", _reconcile_candidate_id)
                         trace.remember("fountain_output_parent", _reconcile_candidate_id)
                     if thought:
+                        if _stopping():
+                            return None
                         _emitted = True
                         if os.environ.get("NEX5_RECONCILE_WB") == "1" and self._problem_memory is not None:
                             import json as _wbjson
                             for _wbp in _probs[:2]:
+                                if _stopping():
+                                    return None
                                 try:
                                     _prev = _wbp["observations"] if "observations" in _wbp.keys() else None
                                     _lasttxt = ""
@@ -2336,12 +2340,16 @@ class FountainGenerator:
                                     ))
                                     _is_artifact = ((not _abstain) and (not _planning)
                                                     and 0 < len(_tnorm) <= 700)
+                                    if _stopping():
+                                        return None
                                     if (os.environ.get("NEX5_ABSTAIN_CLOSE") == "1"
                                             and _abstain and _ocount >= 10 and _is_target):
                                         self._problem_memory.close(int(_wbp["id"]))
                                     elif (os.environ.get("NEX5_COMMIT_CLOSE") == "1"
                                             and _is_artifact and _ocount >= 10 and _is_target):
                                         self._problem_memory.observe(int(_wbp["id"]), thought)
+                                        if _stopping():
+                                            return None
                                         self._problem_memory.close(int(_wbp["id"]))
                                     elif (len(_tnorm) >= 300
                                             and _tnorm != _lasttxt.strip()):
@@ -2660,6 +2668,8 @@ class FountainGenerator:
             _moved = 1 if (hot_branch and _branch_prev and hot_branch != _branch_prev) else 0
             _nudge = 1 if getattr(self, "_pending_nudge_active", False) else 0
             _recursion_ts = _tt2.time()
+            if _stopping():
+                return None
             _recursion_row_id = self._dynamic_writer.write(
                 "INSERT OR REPLACE INTO recursion_attrib VALUES (?,?,?,?,?)",
                 (_recursion_ts, _nudge, hot_branch or "", _branch_prev, _moved),
@@ -2708,6 +2718,8 @@ class FountainGenerator:
         # cadence and NEX5_L4_STAKES gate as the world-contact check above.
         # Routes corpus_convergence.max_df_star() -> a signal row -> an
         # open_problem via signal_to_problem (WIRE_MAP.md row 1).
+        if _stopping():
+            return None
         if (int(getattr(self, "_total_fires", 0)) % 5 == 4
                 and os.environ.get("NEX5_L4_STAKES") == "1"):
             try:
@@ -2716,6 +2728,8 @@ class FountainGenerator:
                 _cv = max_df_star()  # read-only, 50 rows from beliefs.db
                 _breached = bool(_cv.get("breach"))
                 if _breached and not bool(getattr(self, "_advancements_breached", False)):
+                    if _stopping():
+                        return None
                     _sid = emit_advancements_drift(
                         self._beliefs_writer,
                         token=_cv.get("token"),
@@ -2745,6 +2759,8 @@ class FountainGenerator:
                     hot_branch)
             except Exception:
                 _carry_branch = hot_branch  # never distort the carry
+        if _stopping():
+            return None
         if _stopping():
             return None
         if os.environ.get("NEX5_HOT_OBSERVER") == "1":
