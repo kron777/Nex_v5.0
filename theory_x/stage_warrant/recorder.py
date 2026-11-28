@@ -244,46 +244,55 @@ class WarrantRecorder:
         now = time.time() if now is None else now
         pairs, cur_new = set(), {}
 
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
         def take(key, rows, id_key, bid_keys, ts_key, tie_key=None):
             last = None
-            for r in rows:
-                if stop_event is not None and stop_event.is_set():
+            for row in rows:
+                if _stopping():
                     return False
-                for k in bid_keys:
-                    if r[k] is not None:
-                        pairs.add((int(r[k]), int(float(r[ts_key]) // _DAY)))
-                last = r
+                for key_name in bid_keys:
+                    if row[key_name] is not None:
+                        pairs.add((int(row[key_name]), int(float(row[ts_key]) // _DAY)))
+                last = row
             if last is not None:
                 cur_new[key] = (
                     (float(last[ts_key]), int(last[tie_key]))
                     if tie_key else float(last[id_key])
                 )
+            return not _stopping()
 
         c = self._cursor("use_retrieval_id")
-        take("use_retrieval_id", self._dr.read(
+        rows = self._dr.read(
             "SELECT id, belief_id, ts FROM fountain_retrieval_log WHERE id > ? "
-            # guaranteed identity-block retrievals are not use (see warrant.py)
-            "AND slot IS NOT 'identity_block' "
-            "ORDER BY id LIMIT ?", (int(c), _USE_BATCH))
-        if stop_event is not None and stop_event.is_set() or not take("use_retrieval_id", rows, "id", ("belief_id",), "ts"):
+            "AND slot IS NOT 'identity_block' ORDER BY id LIMIT ?",
+            (int(c), _USE_BATCH),
+        )
+        if _stopping() or not take("use_retrieval_id", rows, "id", ("belief_id",), "ts"):
             return 0
+
         c = self._cursor("use_anchor_id")
         rows = self._dr.read(
             "SELECT id, anchor_belief_id, ts FROM fountain_events WHERE id > ? "
-            "AND anchor_belief_id IS NOT NULL ORDER BY id LIMIT ?", (int(c), _USE_BATCH))
-        if stop_event is not None and stop_event.is_set() or not take("use_anchor_id", rows, "id", ("anchor_belief_id",), "ts"):
+            "AND anchor_belief_id IS NOT NULL ORDER BY id LIMIT ?",
+            (int(c), _USE_BATCH),
+        )
+        if _stopping() or not take("use_anchor_id", rows, "id", ("anchor_belief_id",), "ts"):
             return 0
+
         c = self._cursor("use_synergizer_id")
         rows = self._br.read(
             "SELECT id, belief_id_a, belief_id_b, ts FROM synergizer_log WHERE id > ? "
-            "ORDER BY id LIMIT ?", (int(c), _USE_BATCH))
-        if stop_event is not None and stop_event.is_set() or not take("use_synergizer_id", rows, "id", ("belief_id_a", "belief_id_b"), "ts"):
+            "ORDER BY id LIMIT ?", (int(c), _USE_BATCH),
+        )
+        if _stopping() or not take(
+            "use_synergizer_id", rows, "id", ("belief_id_a", "belief_id_b"), "ts"
+        ):
             return 0
-        # Use event time first and declared primary-key columns as tie-breakers.
-        # A key-only cursor can miss late additions to an older child/arc (for
-        # example, an active arc receiving a new member after newer arcs exist).
-        # Hidden rowids are not durable across VACUUM, so they are never cursors.
-        # The new event cursor replays history once; belief_use_day is idempotent.
+
+        # Use event time and primary-key tie-breakers; hidden rowids are not
+        # durable across VACUUM. The idempotent day table permits replay.
         last = self._tuple_cursor("use_lineage_event", (0.0, 0, 0, ""))
         rows = self._br.read(
             "SELECT created_at, child_id, parent_id, relationship "
@@ -292,9 +301,11 @@ class WarrantRecorder:
             "ORDER BY created_at, child_id, parent_id, relationship LIMIT ?",
             (*last, _USE_BATCH),
         )
-        if stop_event is not None and stop_event.is_set():
+        if _stopping():
             return 0
         for row in rows:
+            if _stopping():
+                return 0
             pairs.add((int(row["parent_id"]), int(float(row["created_at"]) // _DAY)))
         if rows:
             row = rows[-1]
@@ -310,9 +321,11 @@ class WarrantRecorder:
             "ORDER BY joined_at, arc_id, belief_id LIMIT ?",
             (*last, _USE_BATCH),
         )
-        if stop_event is not None and stop_event.is_set():
+        if _stopping():
             return 0
         for row in rows:
+            if _stopping():
+                return 0
             pairs.add((int(row["belief_id"]), int(float(row["joined_at"]) // _DAY)))
         if rows:
             row = rows[-1]
@@ -320,22 +333,22 @@ class WarrantRecorder:
                 float(row["joined_at"]), int(row["arc_id"]), int(row["belief_id"])
             )
 
-        if stop_event is not None and stop_event.is_set():
+        if _stopping():
             return 0
         if pairs:
-            # Once this idempotent data/cursor commit begins, finish it so the
-            # cursor cannot lag a partially applied batch on the next restart.
+            # Once the idempotent data/cursor commit starts, finish it so the
+            # cursors cannot lag a partially applied batch on the next restart.
             write_batch(self._w, [(
-                "INSERT OR IGNORE INTO belief_use_day (belief_id, day) VALUES (?, ?)", p)
-                for p in sorted(pairs)])
-            ids = sorted({b for b, _ in pairs})
+                "INSERT OR IGNORE INTO belief_use_day (belief_id, day) VALUES (?, ?)", pair)
+                for pair in sorted(pairs)])
+            ids = sorted({belief_id for belief_id, _day in pairs})
             for i in range(0, len(ids), 500):
                 chunk = ids[i:i + 500]
-                ph = ",".join("?" * len(chunk))
+                placeholders = ",".join("?" * len(chunk))
                 self._w.write(
                     "INSERT INTO belief_use_days (belief_id, days, first_day, last_day, updated_at) "
                     f"SELECT belief_id, COUNT(*), MIN(day), MAX(day), ? FROM belief_use_day "
-                    f"WHERE belief_id IN ({ph}) GROUP BY belief_id "
+                    f"WHERE belief_id IN ({placeholders}) GROUP BY belief_id "
                     "ON CONFLICT(belief_id) DO UPDATE SET days=excluded.days, "
                     "first_day=excluded.first_day, last_day=excluded.last_day, "
                     "updated_at=excluded.updated_at", (now, *chunk))
