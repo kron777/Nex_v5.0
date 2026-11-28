@@ -17,15 +17,15 @@
 - Check after source/candidate/adjacency reads and between candidate scoring iterations.
 - Discard a proposal batch if stop is observed during scoring; do not begin persistence for that source.
 - Check between source beliefs so a stop does not start the next proposal batch.
-- Check before each edge write. If stop arrives during an opposition edge insert, complete its paired undo-log write before observing stop at the next edge.
+- Check before starting each source-belief persistence batch. Once started, finish the complete bounded batch (at most five edges) and any opposition-edge undo-log pairs; observe stop before the next source belief.
 - Return the count of completed edge units when persistence stops early.
 - Add deterministic tests for stop after source read, during candidate scoring, after an opposition edge write and between proposal/persistence.
 
 ## 3. Boundaries
 
 - Reader calls and pure candidate scoring are synchronous; a current call/iteration must return before stop is observed.
-- An edge row already written is not rolled back. For opposition edges, its undo-log record is completed as the paired audit operation.
-- Stop prevents later edges and later source beliefs from starting.
+- An edge row already written is not rolled back. The full per-source batch is the bounded commit unit, so once it starts all proposed edges (at most five) and opposition undo-log pairs finish.
+- Stop prevents the next source belief's proposal/persistence batch from starting.
 - This does not change graph semantics or grant the edge generator authority over actions.
 
 ## 4. Validation
