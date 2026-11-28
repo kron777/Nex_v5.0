@@ -3899,3 +3899,43 @@ Record this as a **high-confidence source-level dormant path / historical operat
 **Source anchors:** ac6e4032e2b115f34ca86fbff8778a5cc51d14ca (initial stillness path); 251cd797579aa08b8b848a5e95cd58c4c3e22b72 (own-only Jaccard narrowing because all-slot overlap was too low); f18e859f11820326cb7698fa30003410d728835f (historical 4,965 duplicate_retrieval cycles and 1,526 force_fires); theory_x/stage6_fountain/generator.py blob 26061914b1dd80858c3568217cd1ef0c49ce2c51 (current source filters); tests/test_retrieval.py blob efd27b50c3cdc5ef64769fefcbb5529cc44ea90e (prompt-render-only coverage).
 
 **Evidence level:** historical operational counts as reported in repository commit evidence; current source-level reachability; no current live database/runtime verification and no tests run in this pass. Intended retirement policy UNKNOWN.
+
+## 105. Stillness records — two distinct mechanisms and the missing chronology (28 November 2026)
+
+**Question studied:** do the historical duplicate-retrieval counts date the stillness detector's operation after the May anti-echo change, and are all repository records named `stillness_log` describing the same mechanism?
+
+### Chronology now established
+
+- **30 April 2026 22:22 UTC —** commit `ac6e4032e2b115f34ca86fbff8778a5cc51d14ca` introduced the Fountain duplicate-retrieval stillness path. It compared retrieval-manifest belief IDs against the last three real fires, required readiness below 0.85, and included a force-fire escape after three consecutive stillness skips.
+- **1 May 2026 05:11 UTC —** commit `251cd797579aa08b8b848a5e95cd58c4c3e22b72` changed the detector to compare only slot `own`, because random spectrum/seed draws diluted all-slot Jaccard to roughly 0.2. Both the current set and prior-fire SQL reader were narrowed to the same slot.
+- **16 May 2026 15:21 UTC —** commit `60732402f92c10819591072cd7c13d1688a21351` disabled the `own_thoughts` prompt/manifest producer as part of the anti-echo intervention. This is the producer-side break described in §§101–104.
+- **9 July 2026 13:58 UTC —** commit `f18e859f11820326cb7698fa30003410d728835f` reported 4,965 `duplicate_retrieval` rows among 26,299 fountain cycles, and 1,526 `force_fires`. The same commit distinguishes empty-thought stillness cycles from actual speech and uses the historical counts in its self-prediction audit.
+
+The July commit date is the date the aggregate was reported, **not the event-window boundary**. The commit does not supply timestamps or an ID/time range for those 4,965 rows. Therefore it cannot establish whether the counted duplicate-retrieval events occurred before or after the 16 May producer disable. The apparent chronology gap remains unresolved; do not infer post-May operation from the July report date.
+
+### A second, separate stillness mechanism
+
+The repository also has a different stillness mechanism with a table of the same name in a different database:
+
+- Commit `c4b005f32e931047711ef6cdbe03e84a00183885` (11 May 2026) introduced **Row 9 Stillness**. Metacognition writes a time-bounded stillness row to **`conversations.db`** after at least three groove events in a 1,800-second window; the FountainCrystallizer reads the active row and suppresses crystallization for 60 seconds. Its tests are `tests/test_stillness.py` and concern Metacognition/Crystallizer behaviour.
+- The duplicate-retrieval detector's `stillness_log` and `fountain_events.stillness_reason` belong to the **dynamic fountain retrieval/stillness path**, not the conversations.db Row 9 path.
+- A 23 May journal commit (`a20968e6c7517b0fd491e8676ed9d2aa549a7761`) records a 90-minute fountain pause and says the relevant stillness log was empty in that window. Its narrative concerns the substrate/Row 9 mechanism and does not date the duplicate-retrieval event population.
+
+This name collision matters: a search for `stillness_log`, or a statement that “stillness was active”, is not enough to identify which database, producer, consumer, or suppression effect was involved. Treat these as separate mechanisms unless a concrete cross-database caller proves otherwise.
+
+### Revised conclusion
+
+1. The duplicate-retrieval detector was introduced and deliberately refined to own-only comparison in late April/early May.
+2. Its original `own` producer was disabled on 16 May as part of a documented anti-echo intervention.
+3. A July audit reports substantial historical duplicate-retrieval/force-fire counts, but does not date those events. The source-level dormant-path finding in §104 remains valid for the inspected current source; whether the detector became dormant immediately on 16 May, later, or after a runtime-only transition remains UNKNOWN.
+4. Row 9 Stillness is a distinct conversations.db mechanism. Its existence or tests do not validate the Fountain duplicate-retrieval detector, and vice versa.
+
+### Next evidence step
+
+The decisive artifact would be a retained, time-indexed `dynamic.db` snapshot or exported rows for `fountain_events`, `fountain_retrieval_log`, and the dynamic `stillness_log`, sufficient to align event timestamps/IDs with the May 16 change and identify the last `duplicate_retrieval` and `force_fire` events. If unavailable, retain the chronology as UNKNOWN; do not fabricate a date range from aggregate totals. Continue the repository-wide caller census separately for both stillness mechanisms.
+
+**Disposition:** documentation/evidence refinement only. No runtime code, tests, schema, flags, or cognitive authority changed. No tests run. No Gate 0 claim.
+
+**Source anchors:** `ac6e4032e2b115f34ca86fbff8778a5cc51d14ca` (initial duplicate-retrieval detector); `251cd797579aa08b8b848a5e95cd58c4c3e22b72` (own-only Jaccard); `60732402f92c10819591072cd7c13d1688a21351` (May anti-echo producer disable); `f18e859f11820326cb7698fa30003410d728835f` (July aggregate counts); `c4b005f32e931047711ef6cdbe03e84a00183885` (separate conversations.db Row 9 stillness); `a20968e6c7517b0fd491e8676ed9d2aa549a7761` (23 May journal observation).
+
+**Evidence level:** commit-dated source/history evidence for code changes; July aggregate operational counts as reported by commit message; event-level chronology and current runtime state UNKNOWN.
