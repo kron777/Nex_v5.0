@@ -63,7 +63,7 @@ class BehaviouralSelfModel:
         self._cached_metrics: Optional[dict] = None
         self._cache_ts: float = 0.0
 
-    def observe(self) -> dict:
+    def observe(self, *, stop_event=None) -> dict:
         """Compute behavioural metrics from the last 100 NEX messages."""
         try:
             rows = self._reader.read(
@@ -74,7 +74,7 @@ class BehaviouralSelfModel:
             errors.record(f"observe read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return self._empty_metrics()
 
-        if not rows:
+        if not rows or (stop_event is not None and stop_event.is_set()):
             return self._empty_metrics()
 
         total = len(rows)
@@ -85,6 +85,8 @@ class BehaviouralSelfModel:
         total_words = 0
 
         for row in rows:
+            if stop_event is not None and stop_event.is_set():
+                return self._empty_metrics()
             content = (row["content"] or "").lower()
             words = content.split()
             total_words += len(words)
@@ -112,14 +114,18 @@ class BehaviouralSelfModel:
             "sample_size": total,
         }
 
-    def compare_to_seeds(self) -> list[dict]:
+    def compare_to_seeds(self, *, stop_event=None) -> list[dict]:
         """Compare observed behaviour against keystone seed assertions.
 
         Returns list of divergences.
         """
-        metrics = self.observe()
+        metrics = self.observe(stop_event=stop_event)
+        if stop_event is not None and stop_event.is_set():
+            return []
         divergences = []
         for expectation in _KEYSTONE_EXPECTATIONS:
+            if stop_event is not None and stop_event.is_set():
+                return []
             metric = expectation["metric"]
             value = metrics.get(metric, 0.0)
             threshold = expectation["threshold"]
@@ -146,15 +152,19 @@ class BehaviouralSelfModel:
 
     def write_behavioural_beliefs(self, beliefs_writer: Writer,
                                   beliefs_reader: Reader,
-                                  coherence_gate=None) -> int:
+                                  coherence_gate=None, *, stop_event=None) -> int:
         """Write beliefs for significant divergences. Returns count written."""
-        divergences = self.compare_to_seeds()
-        if not divergences:
+        if stop_event is not None and stop_event.is_set():
+            return 0
+        divergences = self.compare_to_seeds(stop_event=stop_event)
+        if not divergences or (stop_event is not None and stop_event.is_set()):
             return 0
 
         written = 0
         now = int(time.time())
         for div in divergences:
+            if stop_event is not None and stop_event.is_set():
+                break
             content = div["divergence"]
             # Dedup: skip if identical content already exists
             try:
@@ -162,12 +172,16 @@ class BehaviouralSelfModel:
                     "SELECT id FROM beliefs WHERE content = ? AND source = 'behavioural_observation'",
                     (content,),
                 )
+                if stop_event is not None and stop_event.is_set():
+                    break
                 if existing:
                     continue
             except Exception:
                 pass
 
             # Phase 22 — Coherence Gate (before INSERT)
+            if stop_event is not None and stop_event.is_set():
+                break
             if coherence_gate is not None:
                 try:
                     from theory_x.stage_gate.coherence_gate import ThoughtPacket, GateOutcome
@@ -178,6 +192,8 @@ class BehaviouralSelfModel:
                         branch_id="systems",
                     )
                     decision = coherence_gate.check(packet)
+                    if stop_event is not None and stop_event.is_set():
+                        break
                     if decision.outcome != GateOutcome.ACCEPT:
                         errors.record(
                             f"BSM gate {decision.outcome.value} ({decision.reason}): {content[:60]}",
@@ -187,6 +203,8 @@ class BehaviouralSelfModel:
                 except Exception as exc:
                     errors.record(f"bsm gate check error: {exc}", source=_LOG_SOURCE, exc=exc)
 
+            if stop_event is not None and stop_event.is_set():
+                break
             try:
                 beliefs_writer.write(
                     "INSERT INTO beliefs "
