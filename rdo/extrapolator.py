@@ -20,7 +20,6 @@ frontier stays visible.
 """
 from __future__ import annotations
 
-import re
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .rule_proposals import ApprovedRuleCatalogue
