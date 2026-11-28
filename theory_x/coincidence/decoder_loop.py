@@ -191,6 +191,8 @@ def decoder_tick(
         reader = sense_reader or Reader(SENSE_DB)
 
         def _process(cx):
+            if stop_event is not None and stop_event.is_set():
+                return {"processed": 0, "words": 0}
             cx.row_factory = Row
             # The daemon cursor is a small dynamic-DB key/value table. Ensure
             # it exists inside the same canonical Writer transaction before
@@ -199,6 +201,8 @@ def decoder_tick(
                 "CREATE TABLE IF NOT EXISTS daemon_kv ("
                 "key TEXT PRIMARY KEY, value TEXT NOT NULL)"
             )
+            if stop_event is not None and stop_event.is_set():
+                return {"processed": 0, "words": 0}
             last_fid = _get_last_fid(cx)
             rows = cx.execute(
                 "SELECT id, ts, thought, hot_branch, tag FROM fountain_events "
