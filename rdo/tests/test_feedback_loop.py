@@ -543,13 +543,13 @@ def test_feedback_evidence_ledger_rejects_blank_lines_and_duplicate_json_keys(tm
         cycle, "loop.alpha", "gain", 0.5, "ratio",
         ["lab:gain"], "medium", ["experiment:gain"],
     )
-    path.write_text(path.read_text(encoding="utf-8") + "\\n", encoding="utf-8")
+    path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="blank or unterminated"):
         ledger.events(cycle.id)
 
     path.write_text(
         '{"schema_version":"rdo.feedback_loop_evidence.v1",'
-        '"schema_version":"rdo.feedback_loop_evidence.v1"}\\n',
+        '"schema_version":"rdo.feedback_loop_evidence.v1"}\n',
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="duplicate JSON key"):
@@ -593,7 +593,7 @@ def test_feedback_evidence_ledger_validates_deterministic_event_identity(tmp_pat
     event = json.loads(path.read_text(encoding="utf-8"))
     event["data"]["event_id"] = "fle_" + "0" * 24
     event["event_sha256"] = feedback_module._event_digest(event)
-    path.write_text(json.dumps(event) + "\\n", encoding="utf-8")
+    path.write_text(json.dumps(event) + "\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="event identity digest mismatch"):
         ledger.events(cycle.id)
