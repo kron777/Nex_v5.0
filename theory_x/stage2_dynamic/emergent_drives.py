@@ -88,6 +88,9 @@ class EmergentDriveDetector:
         except Exception:
             pass
 
+        if stop_event is not None and stop_event.is_set():
+            return []
+
         # Dedup: skip any branch that already has a proposal awaiting approval,
         # so a branch proposes ONCE and waits rather than re-proposing every 12h
         # scan. Fail-open: if the read fails, dedup is simply skipped this pass.
