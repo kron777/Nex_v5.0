@@ -1957,13 +1957,13 @@ This means a signal can be delayed until the current builder returns. That trade
 
 - This is repository source/test work, not a live host or robot shutdown rehearsal. Real SIGTERM delivery, service-manager timeouts, SQLite contention and hardware startup timing remain unknown.
 - A synchronous builder can delay the response to a boot-shutdown request until its next checkpoint.
-- Partial Writer cleanup covers constructors that returned and were published in the local registry. A failure inside a Writer constructor after an OS thread exists but before the constructor returns is not implemented in this candidate; the individual Writer rollback is being addressed independently in candidate PR #421.
+- Partial Writer cleanup covers constructors that returned and were published in the local registry. A failure inside a Writer constructor after an OS thread exists but before the constructor returns is handled by the separate rebased candidate PR #421 (§62). Its original exact-head suite passed; the rebased head is undergoing a fresh exact-head run.
 - SIGKILL, power loss and process abort cannot be handled by Python cleanup.
 - No process-wide thread census, new runtime flag, database, cognitive mechanism, Mind Aspect action authority or frozen-spec change is introduced.
 
 ### Current status
 
-The implementation is on `fix/boot-time-appstate-ownership-2026-11-28`. The first full run on `fa2116ecd9404011072a536a74c200c42b872777` reported 3,057 passed, 7 skipped and 85 subtests, with one failure in a stale AST assertion that required direct AppState registration for the decoder. The source correctly routes the decoder through `_own_and_start`; the assertion now recognises that helper. The corrected implementation/test head was then extended with G-92 documentation corrections: stale README/seed-lifecycle claims about missing CLI/intake lifecycle were removed, and `REVIEWED_SEED_BRIDGE.md` now distinguishes read-only preparation from explicit persistence/advisory intake. Current exact head: `2f2b39b951dcc06325811ee6eb1560a5fca12ef6`; workflow run `46144386998` is pending. No pass is claimed for the current head. Do not treat the candidate as merged or host-validated until exact-head CI and separate host evidence gates are met.
+**Merged:** PR #420, merge commit `bf5dbbed66fc0d4884471420998823f658aedc7b`. Exact-head workflow run `46144422152` passed **3,058 tests, 7 skipped, 86 subtests**; baseline check OK and the isolated sandbox probe passed. The initial run on `fa2116ecd9404011072a536a74c200c42b872777` had one stale AST assertion failure; the corrected test now recognises decoder ownership through `_own_and_start`. The merged implementation is the boot ownership baseline. It has not been validated by a live host/robot SIGTERM rehearsal; real signal delivery, service-manager timeouts, SQLite contention and hardware startup timing remain unknown.
 
 
 ## 61. G-92 reviewed seed bridge and CLI — implementation status correction (28 November 2026)
@@ -1997,3 +1997,21 @@ The source is `rdo_adapters/reviewed_seed_bridge.py`; the CLI is documented in `
 **G-92 is partially closed, not complete.** Both candidate lifecycle layers now exist: seed alternatives can be proposed/reviewed and explicitly bridged into objective.v1 intake; novel-kind rule proposals can be recorded/reviewed without activation. The explicit approved-seed → objective.v1 → persisted cycle → resume → Stage-7 handoff lineage path is already covered by rdo/tests/test_reviewed_seed_bridge.py::test_approved_seed_lineage_survives_objective_cycle_resume_and_stage7. The handoff is a separate explicit operation, not an automatic side effect of intake. The remaining gap is upstream raw-idea-to-seed formulation: seed alternatives still require an external human/provider; there is no integrated provider or autonomous raw-idea compiler. Planning remains advisory, and objective-context mapping and criterion verification retain their separate evidence/review path. A rule approved for catalogue consideration still requires a separate ordinary source change, tests and CI before it can enter the active catalogue. No provider is inferred, no rule is automatically promoted, and no execution authority is created.
 
 This update corrects the development status only. It does not create a new rule, activate a candidate, create a Stage-7 handoff, authorize execution, or change frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 or Phase 1 authority.
+
+## 63. Rule-proposal ledger append durability and replay validation — merged PR #423 (28 November 2026)
+
+**Merged:** `c374185338070aeb2653227c04c487ef11fd5e6c`. Candidate branch head `df33ed8140b08fa10f28988268fe018222a2a2bf`; exact-head workflow run `46144136825` passed **3,054 tests, 7 skipped, 86 subtests**; baseline check OK and the isolated sandbox probe passed.
+
+### Source-derived corrections
+
+- Validate the prospective event against the complete replay snapshot while holding the exclusive ledger lock, before writing bytes.
+- Apply the configured byte limit to the encoded append, not merely the pre-existing ledger size.
+- After first creating the ledger, fsync the file and then its parent directory so the directory entry is included in the durability boundary.
+- Regression coverage verifies parent-directory fsync and that a malformed prospective event appends no bytes (the empty ledger file may exist).
+
+This is a narrow integrity/durability correction to the existing append-only rule-proposal ledger. It does not change event schemas, review decisions, catalogue activation, execution authority or live runtime behavior.
+
+**Unchanged boundaries:** no frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, cognitive/action authority or runtime feature-flag design is changed.
+
+---
+
