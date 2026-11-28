@@ -409,3 +409,4 @@ Producer/consumer distinction: commit `543e4ce957f2e3ad8e3ebf9fb25cd1bf977fed1a`
 ### 28 November 2026 — Metacognition cache age on Fountain rail
 
 `format_for_prompt()` reads `_cached_recent` only; it does not check cache age or refresh. Fountain's optional reader does not call `tick()`, so with `NEX5_METACOG_VOICE=1` it may reuse the last chat-refreshed observation across fires until another chat tick or explicit invalidation. The 14-day decay caller is not located in production. This is a source-level stale-context possibility, not a live occurrence. See INDEX §131.
+Session-scope refinement: `meta_cognition_events` schema has nullable `session_id`, but `Metacognition.tick(context)` ignores context and `_write_event()` does not populate the field; GUI calls `tick()` without context and Row 9 has no session predicate. Current source is database-global, not session-scoped. Intended scope UNKNOWN. See INDEX §129.
