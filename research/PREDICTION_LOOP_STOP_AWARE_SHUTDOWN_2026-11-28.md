@@ -17,7 +17,7 @@
 - Pass each loop's stop event into its active tick.
 - Check the event after the WorldPredictionLoop's due-resolution stage and after each blocking network operation in `make_voice_prediction()`, before beginning its paired prediction writes.
 - Check the event after the SelfPredictionLoop's status fetch and between its sequential prediction/reconciliation stages, before starting additional writes.
-- Preserve direct/standalone function calls by making the stop-event argument optional.
+- Preserve direct/standalone function calls and the existing `tick()` call interface by making the stop-event argument optional and resolving it from each loop's stored event.
 - Add deterministic tests that signal stop while the world voice call and self status read are blocked, then verify no prediction write begins after those calls return; also verify each tick stops before starting its next stage.
 
 ## 3. Boundaries and residuals
