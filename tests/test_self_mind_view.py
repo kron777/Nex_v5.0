@@ -241,6 +241,23 @@ class TestSnapshotPersistence(unittest.TestCase):
 
 # ── 8. snapshot() JSON fields parse cleanly ──────────────────────────────────
 
+
+    def test_snapshot_uses_the_shared_dynamic_writer_for_self_binding(self):
+        from theory_x.stage_tom import self_binding
+        smv = _make_smv(self.writers, self.readers)
+        with patch.object(
+            self_binding,
+            "Writer",
+            side_effect=AssertionError("SelfMindView opened a second dynamic Writer"),
+        ):
+            smv._snapshot()
+        row = self.readers["dynamic"].read_one(
+            "SELECT synthesis FROM self_state WHERE id = 1"
+        )
+        self.assertIsNotNone(row)
+        self.assertTrue(row["synthesis"])
+
+
 class TestSnapshotJSON(unittest.TestCase):
     def setUp(self):
         self.writers, self.readers, self.tmp = _make_env()

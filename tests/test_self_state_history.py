@@ -96,6 +96,23 @@ class TestSelfStateHistory(unittest.TestCase):
         self.assertEqual(result, {"raga": "free"})
         bind.assert_called_once_with(dynamic_writer=writer)
 
+
+    def test_recursive_self_prompt_passes_the_appstate_writer_through_binding(self):
+        from theory_x.stage_tom import recursive_self
+        writer = self._get_dynamic_writer()
+        with patch.object(
+            recursive_self,
+            "_bound_state",
+            return_value={"raga": "fixated", "emotion": "engaged joy",
+                          "attending": "attention-wire test"},
+        ) as bound_state, patch.object(
+            recursive_self, "_starved_branch", return_value="history"
+        ):
+            line = recursive_self.format_for_prompt(dynamic_writer=writer)
+        bound_state.assert_called_once_with(dynamic_writer=writer)
+        self.assertIn("fixated", line)
+        self.assertIn("history", line)
+
     def test_history_survives_many_binds(self):
         from theory_x.stage_tom import self_binding
         for _ in range(5):

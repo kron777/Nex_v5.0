@@ -229,8 +229,10 @@ def bind(dynamic_writer: Writer | None = None) -> dict:
 
         emotion = emo.get("emotion", "unknown")
         raga_level = raga.get("raga", "unknown")
-        # value-drift is expensive (model calls) — bind reads last logged verdict only
-        drift = "clean"  # default; full check runs separately, not every bind cycle
+        # Value-drift is not yet wired into this binder. The persisted "clean"
+        # value is a compatibility placeholder, not a measured verdict. Keep
+        # this explicit until a grounded existing verdict source is connected.
+        drift = "clean"
 
         synthesis = _synthesize(emotion, raga_level, drive, att, substrate)
         components = {
