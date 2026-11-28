@@ -66,10 +66,9 @@ def _proposal(target="specialized_deployment"):
     }
 
 
-def _propose(store, proposal=None, cycle=None):
-    proposal = proposal or _proposal()
+def _source_cycle(proposal):
     source = proposal["source_obligation"]
-    cycle = cycle or CycleRecord(
+    return CycleRecord(
         id=proposal["source_cycle_id"],
         objective="source frontier fixture",
         frontier=[{
@@ -84,15 +83,21 @@ def _propose(store, proposal=None, cycle=None):
             },
         }],
     )
-    return store.propose(proposal, source_cycle=cycle)
+
+
+def _propose(store, proposal=None, cycle=None):
+    proposal = proposal or _proposal()
+    return store.propose(proposal, source_cycle=cycle or _source_cycle(proposal))
 
 
 def _approve(store, proposal_id, decision="approved", alternative="environment_first"):
+    proposal = store.get_proposal(proposal_id)
     return store.review(
         proposal_id, decision, "reviewer attribution", "review:rule-design-001",
         ["review:rule-contract-001"], selected_alternative=alternative,
         positive_test_evidence=["tests/test_deployment_rule.py::test_environment_first"],
         negative_test_evidence=["tests/test_deployment_rule.py::test_docs_only_not_decomposed"],
+        source_cycle=_source_cycle(proposal),
     )
 
 
@@ -145,6 +150,7 @@ def test_approval_activates_only_selected_alternative_in_versioned_catalogue(tmp
             selected_alternative="environment_first",
             positive_test_evidence=["tests/other.py::test_unrelated"],
             negative_test_evidence=["tests/test_deployment_rule.py::test_docs_only_not_decomposed"],
+            source_cycle=_source_cycle(store.get_proposal(proposal_id)),
         )
 
     approved = _approve(store, proposal_id)
@@ -205,10 +211,12 @@ def test_rejected_or_changes_requested_proposals_never_enter_catalogue(tmp_path)
     proposal_id = created["data"]["proposal_id"]
 
     store.review(proposal_id, "changes_requested", "reviewer", "review:changes",
-                 ["review:missing-negative-case"], note="Add another disconfirming case.")
+                 ["review:missing-negative-case"], note="Add another disconfirming case.",
+                 source_cycle=_source_cycle(store.get_proposal(proposal_id)))
     assert store.approved_catalogue() is None
     store.review(proposal_id, "rejected", "reviewer", "review:reject",
-                 ["review:scope-conflict"], note="This rule is too domain-specific.")
+                 ["review:scope-conflict"], note="This rule is too domain-specific.",
+                 source_cycle=_source_cycle(store.get_proposal(proposal_id)))
     assert store.approved_catalogue() is None
     with pytest.raises(ValueError, match="terminal"):
         _approve(store, proposal_id)
@@ -321,6 +329,7 @@ def test_changes_requested_proposal_can_be_approved_with_next_catalogue_version(
     store.review(
         proposal_id, "changes_requested", "reviewer", "review:changes",
         ["review:clarify-exception"], note="Clarify the applicability boundary.",
+        source_cycle=_source_cycle(store.get_proposal(proposal_id)),
     )
     approved = _approve(store, proposal_id)
     assert approved["data"]["catalogue_version"] == 1
