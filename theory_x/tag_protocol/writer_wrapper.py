@@ -186,8 +186,8 @@ class TaggingBeliefWriter:
     def queue_depth(self) -> int:
         return self._inner.queue_depth()
 
-    def close(self) -> None:
-        self._inner.close()
+    def close(self, timeout: float = 10.0) -> None:
+        self._inner.close(timeout=timeout)
 
     def start(self) -> None:
         self._inner.start()

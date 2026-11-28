@@ -40,7 +40,7 @@ from theory_x.world_bridge.selector import WorldBridgeSelector
 from theory_x.stage6_fountain.readiness import FOUNTAIN_CHECK_INTERVAL_SECONDS
 from theory_x.modes import build_mode_state
 from speech.voices import build_voice_state
-from gui.server import AppState, create_app
+from gui.server import AppState, create_app, _SHUTDOWN_TOTAL_BUDGET_S
 from voice.llm import VoiceClient
 
 
@@ -805,16 +805,11 @@ def main() -> None:
     # dies mid-write because Writer.close() drains its queue whole-request.
     def _graceful_standby(signum, frame):
         log.warning("SIGTERM received -> STANDBY: finishing writes, releasing GPU/VRAM")
-        # round 11 (item 1): stamp a precise clean-shutdown marker so the NEXT boot
-        # reads this as a clean STANDBY (exact offline_from) rather than falling back
-        # to the snapshot mtime and labelling it unclean.
+        # Start one monotonic deadline at signal receipt. The 1.5s in-flight
+        # fire window, producer joins and every Writer drain all consume it.
+        deadline = _time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S
         try:
-            from theory_x.memory import downtime as _downtime
-            _downtime.mark_clean_shutdown(str(paths["beliefs"].parent))
-        except Exception:
-            pass
-        try:
-            _time.sleep(1.5)  # window for a current fire to enqueue its writes
+            _time.sleep(min(1.5, max(0.0, deadline - _time.monotonic())))
         except Exception:
             pass
         try:
@@ -822,11 +817,29 @@ def main() -> None:
                 _decoder_stop.set()
         except Exception:
             pass
+
         try:
-            state.close()   # drains Writer queues + scheduler.shutdown()
-            log.info("STANDBY: dbs flushed, scheduler down -- clean exit")
+            report = state.close(deadline=deadline)
         except Exception as _e:
-            log.error("STANDBY cleanup error: %s", _e)
+            report = {"success": False, "exception": str(_e)}
+        if not report.get("success", False):
+            log.error(
+                "STANDBY cleanup incomplete; no clean-shutdown marker will be written: %s",
+                report,
+            )
+            os._exit(1)
+
+        try:
+            from theory_x.memory import downtime as _downtime
+            marked = _downtime.mark_clean_shutdown(str(paths["beliefs"].parent))
+        except Exception as _e:
+            marked = False
+            log.error("STANDBY clean-shutdown marker failed: %s", _e)
+        if not marked:
+            log.error("STANDBY Writers stopped but clean-shutdown marker was not persisted")
+            os._exit(1)
+
+        log.info("STANDBY: producers stopped, Writers drained, clean marker persisted")
         os._exit(0)  # frees the VRAM held by torch/kokoro in this process
     signal.signal(signal.SIGTERM, _graceful_standby)
 
