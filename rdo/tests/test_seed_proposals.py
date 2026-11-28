@@ -16,7 +16,7 @@ def _raw(revision=1, supersedes=None):
         "intent": "Create a traceable first-level development network.",
         "owner": "founder",
         "source": {"kind": "external_llm", "reference": "source:raw-idea-1"},
-        "scope": {"in_scope": ["RDO intake and proposal review"], "affected_paths": ["rdo_adapters"]},
+        "scope": {"in_scope": ["RDO intake and proposal review"], "affected_paths": ["rdo_adapters/seed_proposals.py"]},
         "constraints": ["No unreviewed planning cycle."],
         "exclusions": ["No runtime or deployment changes."],
         "assumptions": ["The objective can be represented by more than one seed graph."],
@@ -261,3 +261,31 @@ def test_human_authored_seed_proposal_can_mark_stated_confidence(tmp_path):
     item = store.submit(raw, alternatives, proposer_kind="human",
                         proposer_reference="founder", source_reference="source:human-analysis")
     assert item["proposal"]["alternatives"][0]["seed_obligations"][0]["confidence"] == "stated"
+
+
+def test_raw_objective_revision_two_must_link_to_previous_exact_digest(tmp_path):
+    from rdo_adapters.seed_proposals import _digest, validate_raw_objective
+
+    store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
+    first = validate_raw_objective(_raw())
+    _submit(store, first)
+    second_raw = _raw(revision=2, supersedes=_digest(first))
+    second_raw["constraints"] = ["A later revision adds an explicit constraint."]
+    second = store.submit(
+        second_raw, [_alternative("alternative-c", "gamma"),
+                     _alternative("alternative-d", "delta")],
+        proposer_kind="external_llm", proposer_reference="model",
+        source_reference="source:raw-revision-2",
+    )
+    assert second["proposal"]["raw_objective"]["revision"] == 2
+
+
+def test_ledger_append_refuses_to_exceed_byte_limit(tmp_path, monkeypatch):
+    import rdo_adapters.seed_proposals as seed_module
+
+    path = tmp_path / "seed_proposals.jsonl"
+    monkeypatch.setattr(seed_module, "MAX_LEDGER_BYTES", 32)
+    store = SeedProposalStore(str(path))
+    with pytest.raises(SeedProposalError, match="byte limit"):
+        _submit(store)
+    assert path.read_text(encoding="utf-8") == ""
