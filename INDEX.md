@@ -1137,9 +1137,9 @@ The following changes are present on the verified mainline:
 
 ### 16.2 Flask request lifecycle — merged PR #378
 
-PR #378 (`fix(shutdown): drain in-flight Flask requests before AppState close`) merged as `3d7205536588e34a887939784d436ec70e8c6777`. Its `ShutdownGate` atomically closes HTTP request admission, counts active Flask requests, rejects new requests with HTTP 503 after shutdown begins, and waits for admitted requests to finish before decoder stop and `AppState.close()`. The same 12-second monotonic deadline covers request drain, producer shutdown and Writer drain. The previous fixed 1.5-second wait is removed. SIGTERM and SIGINT share the guarded handler.
+PR #378 (`fix(shutdown): drain in-flight Flask requests before AppState close`) merged as `3d7205536588e34a887939784d436ec70e8c6777`. Its `ShutdownGate` atomically closes HTTP request admission, counts active Flask requests, rejects new requests with HTTP 503 after shutdown begins, and waits for admitted requests to finish before decoder stop and `AppState.close()`. The same 12-second monotonic deadline covers request drain, producer shutdown and Writer drain. The previous fixed 1.5-second wait is removed. SIGTERM and SIGINT share the guarded, re-entrancy-safe handler; duplicate signals cannot enter AppState close twice.
 
-The proposed failure path reports active request labels, thread names and elapsed durations; if request drain times out, it does not close Writers under active requests, does not write a clean marker and exits non-zero.
+The failure path reports active request labels, thread names and elapsed durations; if request drain times out, it does not close Writers under active requests, does not write a clean marker and exits non-zero.
 
 **Boundary:** this gate covers requests entering through this Flask application. Detached work spawned by a route must still be registered with AppState. Alternate WSGI servers, reverse-proxy workers, direct non-HTTP callers and host/service-manager behaviour remain outside the demonstrated boundary.
 
