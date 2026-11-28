@@ -388,6 +388,7 @@ class SeedProposalStore:
     def _snapshot(events: List[dict]) -> Dict[str, dict]:
         proposals: Dict[str, dict] = {}
         raw_revisions: Dict[tuple, str] = {}
+        first_raw_objectives: Dict[str, dict] = {}
         for event in events:
             pid = event["proposal_id"]
             if event["event_kind"] == "proposal_submitted":
@@ -413,6 +414,12 @@ class SeedProposalStore:
                 old_hash = raw_revisions.get(identity)
                 if old_hash is not None and old_hash != raw_digest:
                     raise SeedProposalError("one raw-objective revision is bound to conflicting content")
+                first_raw = first_raw_objectives.setdefault(raw["objective_id"], raw)
+                if (raw["original_text"] != first_raw["original_text"]
+                        or raw["intent"] != first_raw["intent"]):
+                    raise SeedProposalError(
+                        "raw objective original_text and intent are immutable across revisions"
+                    )
                 raw_revisions[identity] = raw_digest
                 alternatives = record["alternatives"]
                 if not isinstance(alternatives, list) or not 2 <= len(alternatives) <= MAX_ALTERNATIVES:
