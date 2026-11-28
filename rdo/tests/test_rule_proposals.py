@@ -135,7 +135,7 @@ def test_proposal_preserves_alternatives_and_does_not_activate_by_repetition(tmp
 
 def test_approval_activates_only_selected_alternative_in_versioned_catalogue(tmp_path):
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
-    created = store.propose(_proposal())
+    created = _propose(store, _proposal())
     proposal_id = created["data"]["proposal_id"]
 
     with pytest.raises(ValueError, match="every declared positive test"):
@@ -165,7 +165,7 @@ def test_approval_activates_only_selected_alternative_in_versioned_catalogue(tmp
 
 def test_only_approved_catalogue_changes_recursive_expansion(tmp_path):
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
-    created = store.propose(_proposal())
+    created = _propose(store, _proposal())
     proposal_id = created["data"]["proposal_id"]
     seed = Obligation(
         "deployment.specialized", "specialized deployment", "specialized_deployment",
@@ -198,7 +198,7 @@ def test_only_approved_catalogue_changes_recursive_expansion(tmp_path):
 
 def test_rejected_or_changes_requested_proposals_never_enter_catalogue(tmp_path):
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
-    created = store.propose(_proposal())
+    created = _propose(store, _proposal())
     proposal_id = created["data"]["proposal_id"]
 
     store.review(proposal_id, "changes_requested", "reviewer", "review:changes",
@@ -216,7 +216,7 @@ def test_approval_requires_existing_proposal_and_known_alternative(tmp_path):
     with pytest.raises(ValueError, match="does not exist"):
         _approve(store, "rp_does_not_exist")
 
-    created = store.propose(_proposal())
+    created = _propose(store, _proposal())
     with pytest.raises(ValueError, match="not part of this proposal"):
         _approve(store, created["data"]["proposal_id"], alternative="unknown")
 
@@ -224,18 +224,20 @@ def test_approval_requires_existing_proposal_and_known_alternative(tmp_path):
 def test_builtin_and_terminal_kinds_cannot_be_overridden(tmp_path):
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
     with pytest.raises(ValueError, match="built-in"):
-        store.propose(_proposal("persistence"))
+        _propose(store, _proposal("persistence"))
     with pytest.raises(ValueError, match="built-in"):
-        store.propose(_proposal("schema"))
+        _propose(store, _proposal("schema"))
 
 
 def test_approved_rule_kind_cannot_be_approved_twice(tmp_path):
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
-    first = store.propose(_proposal())
+    first = _propose(store, _proposal())
     _approve(store, first["data"]["proposal_id"])
     second_payload = _proposal()
+    second_payload["source_cycle_id"] = "cycle-002"
+    second_payload["source_frontier_key"] = "deployment.specialized.second"
     second_payload["source_obligation"]["key"] = "deployment.specialized.second"
-    second_payload["provenance"] = ["frontier:cycle-002:deployment.specialized"]
+    second_payload["provenance"] = ["frontier:cycle-002:deployment.specialized.second"]
     second = _propose(store, second_payload)
 
     with pytest.raises(ValueError, match="already has an approved rule"):
@@ -245,7 +247,7 @@ def test_approved_rule_kind_cannot_be_approved_twice(tmp_path):
 def test_event_ledger_is_hash_chained_and_tampering_is_detected(tmp_path):
     path = tmp_path / "rule_proposals.jsonl"
     store = RuleProposalStore(str(path))
-    created = store.propose(_proposal())
+    created = _propose(store, _proposal())
     _approve(store, created["data"]["proposal_id"])
 
     events = store.events()
@@ -285,7 +287,7 @@ def test_cycle_persists_the_exact_approved_catalogue_used_for_expansion(tmp_path
     from rdo.orchestrator import run_cycle
 
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
-    created = store.propose(_proposal())
+    created = _propose(store, _proposal())
     _approve(store, created["data"]["proposal_id"])
     catalogue = store.approved_catalogue()
     seed = Obligation(
@@ -311,7 +313,7 @@ def test_cycle_persists_the_exact_approved_catalogue_used_for_expansion(tmp_path
 
 def test_changes_requested_proposal_can_be_approved_with_next_catalogue_version(tmp_path):
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
-    created = store.propose(_proposal())
+    created = _propose(store, _proposal())
     proposal_id = created["data"]["proposal_id"]
     store.review(
         proposal_id, "changes_requested", "reviewer", "review:changes",
@@ -324,7 +326,7 @@ def test_changes_requested_proposal_can_be_approved_with_next_catalogue_version(
 
 def test_mutated_approved_catalogue_is_rejected_by_digest_validation(tmp_path):
     store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
-    created = store.propose(_proposal())
+    created = _propose(store, _proposal())
     _approve(store, created["data"]["proposal_id"])
     catalogue = store.approved_catalogue()
     catalogue.rules["specialized_deployment"][0] = (
