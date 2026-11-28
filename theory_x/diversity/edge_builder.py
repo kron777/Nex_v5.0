@@ -49,6 +49,7 @@ def edge_builder_tick(
     *,
     beliefs_reader: Reader | None = None,
     beliefs_writer: Writer | None = None,
+    stop_event=None,
 ) -> dict:
     """One pass through the canonical Reader/Writer pair.
 
@@ -63,6 +64,8 @@ def edge_builder_tick(
     try:
         # Find beliefs with fewer than MIN_EDGES_PER_BELIEF outgoing edges.
         # Prefer newer beliefs (created_at DESC).
+        if stop_event is not None and stop_event.is_set():
+            return {"considered": 0, "wrote": 0, "skipped": 0}
         candidates = reader.read("""
             SELECT b.id, b.content
             FROM beliefs b
@@ -79,7 +82,7 @@ def edge_builder_tick(
             LIMIT ?
         """, (MIN_EDGES_PER_BELIEF, MIN_CONTENT_LEN, BELIEFS_PER_TICK))
 
-        if not candidates:
+        if not candidates or (stop_event is not None and stop_event.is_set()):
             return {"considered": 0, "wrote": 0, "skipped": 0}
 
         # Build the comparison pool — recent beliefs above a content threshold.
@@ -91,14 +94,22 @@ def edge_builder_tick(
             ORDER BY created_at DESC
             LIMIT ?
         """, (MIN_CONTENT_LEN, POOL_SIZE))
-        pool = [(r["id"], r["content"]) for r in pool_rows
-                if not _should_skip(r["content"])]
+        if stop_event is not None and stop_event.is_set():
+            return {"considered": len(candidates), "wrote": 0, "skipped": 0}
+        pool = []
+        for r in pool_rows:
+            if stop_event is not None and stop_event.is_set():
+                return {"considered": len(candidates), "wrote": 0, "skipped": 0}
+            if not _should_skip(r["content"]):
+                pool.append((r["id"], r["content"]))
         if not pool:
             return {"considered": len(candidates), "wrote": 0, "skipped": len(candidates)}
 
         statements: list[tuple[str, tuple]] = []
         skipped = 0
         for candidate in candidates:
+            if stop_event is not None and stop_event.is_set():
+                break
             if _should_skip(candidate["content"]):
                 skipped += 1
                 continue
@@ -109,20 +120,28 @@ def edge_builder_tick(
                 log.warning("embed failed for belief %s: %s", candidate["id"], exc)
                 skipped += 1
                 continue
+            if stop_event is not None and stop_event.is_set():
+                break
 
             # Score every pool member; collect (target_id, similarity) above threshold.
             scores: list[tuple[int, float]] = []
             for pool_id, pool_content in pool:
+                if stop_event is not None and stop_event.is_set():
+                    break
                 if pool_id == candidate["id"]:
                     continue
                 try:
                     pool_vector = embed_belief(pool_id, pool_content)
+                    if stop_event is not None and stop_event.is_set():
+                        break
                     similarity = cosine(source_vector, pool_vector)
                 except Exception:
                     continue
                 if similarity >= SIM_THRESHOLD:
                     scores.append((pool_id, similarity))
 
+            if stop_event is not None and stop_event.is_set():
+                break
             scores.sort(key=lambda item: item[1], reverse=True)
             top = scores[:TOP_K_PER_BELIEF]
             if not top:
@@ -136,6 +155,9 @@ def edge_builder_tick(
                     "VALUES (?, ?, 'cross_domain', ?, ?)",
                     (candidate["id"], target_id, float(similarity), now),
                 ))
+
+        if stop_event is not None and stop_event.is_set():
+            return {"considered": len(candidates), "wrote": 0, "skipped": skipped}
 
         # One BEGIN IMMEDIATE / COMMIT through the canonical per-DB Writer.
         # rowcount is captured per statement so ignored duplicates remain zero.
@@ -160,6 +182,7 @@ def edge_builder_loop(state, stop: threading.Event) -> None:
             stats = edge_builder_tick(
                 beliefs_reader=state.readers["beliefs"],
                 beliefs_writer=state.writers["beliefs"],
+                stop_event=stop,
             )
             if stats["wrote"] > 0:
                 log.info(
