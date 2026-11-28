@@ -62,3 +62,17 @@ The integration test now calls three consecutive qualifying chat-turn ticks and 
 This is a one-column read projection plus an isolated integration test. No database schema, prompt text, detector threshold, feature flag, cognitive policy or governance register changed. The runtime may now emit an existing `attention_groove` observation when repeated themes genuinely appear across snapshots; that is the intended previously disconnected detector behavior.
 
 Exact-head full-suite CI is pending for the expanded three-tick/recency-pool characterization. No pass count is claimed until it completes.
+
+
+## 7. Existing salience-weighted candidate — already implemented, still default-off
+
+A separate source trace found that Candidate 4 (NEX5_SALIENT_SELF_OBS) is no longer design-only:
+
+- theory_x/stage9_metacognition/metacognition.py contains the flag check, a 10-row candidate pool and severity × quadratic-decay ranking, with recency as the tie-breaker.
+- tests/test_salient_self_obs.py covers the flag-off recency behaviour, flag-on ranking, decay clamp, wider pool, tie handling and prompt rendering.
+- This differs from the original preregistration's proposed simple severity-descending sort. The code comment documents the quadratic decay choice.
+- The source default is OFF. The live host environment flag was not inspected in this audit.
+
+The expanded SelfMindView integration fixture now characterizes both selection modes. With the salience flag OFF, three repeated maximum-severity attention_groove rows occupy the three-row recency pool and displace an older distinct event. With the flag ON, the wider pool retains that older event, but the fresh attention_groove rows still win because their severity is 1.0 and their decay is effectively 1.0. The salience ranking therefore mitigates some recency-only starvation but does not deduplicate repeated events or prevent a persistent maximum-severity episode from winning the prompt pick.
+
+This is a separate candidate policy, not an automatic fix for the attention-groove event-generation issue. Do not arm it or invent a cooldown/episode policy from this test alone; measure the actual interaction and keep approval/authority boundaries explicit.

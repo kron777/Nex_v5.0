@@ -1,6 +1,8 @@
-# Salience-weighted self-observation — DESIGN + PRE-REGISTRATION (not built)
+# Salience-weighted self-observation — DESIGN + PRE-REGISTRATION (implementation status updated 28 November 2026)
 
-## 0. Status — design only. Nothing built, nothing wired, nothing armed.
+## 0. Status — original design is implemented behind a default-off flag; live arming not checked
+
+This document was originally a design/pre-registration record. Since it was written, Candidate 4 has been implemented in theory_x/stage9_metacognition/metacognition.py and covered by tests/test_salient_self_obs.py. The source flag is NEX5_SALIENT_SELF_OBS and the default code path remains OFF unless the environment value is exactly 1. The live host environment was not inspected here. The original statements below that say nothing was built and the proposed raw severity sort are historical; the implementation uses severity × quadratic decay over a 10-row candidate pool.
 
 This is Candidate 4 from the 2026-11-07 "what's next" round: `format_for_prompt()`
 across the self-observation surfaces always picks the **most recent** unresolved
@@ -34,19 +36,9 @@ synthetic data needed.
 LIMIT 3`, and `format_for_prompt()` just takes `recent[0]`. The data needed is
 already there; nothing new to store.
 
-**Proposed fix:** change the ordering to `severity DESC` (ties broken by
-`created_at DESC`), fetch a slightly larger candidate window (e.g. `LIMIT 10`
-instead of `LIMIT 3` unresolved rows) before caching the top one. No new
-staleness bound is needed — `decay()`'s existing 14-day auto-resolve already
-caps how old a candidate can be, so a severity-ranked pick can never surface
-something ancient that should have aged out; it already wouldn't still be
-"unresolved" by then.
+**Implemented source behaviour:** when the flag is ON, fetch 10 unresolved candidates and rank them by `severity * max(0, 1 - (age_days / _STALE_DAYS)^2)`, with recency as the tie-breaker. The source comments explain why quadratic decay was selected instead of a simple severity sort. The existing 14-day `decay()` auto-resolution horizon remains the shared decay zero-point. `tests/test_salient_self_obs.py` covers the implemented ranking and flag-off compatibility.
 
-**Proposed flag:** `NEX5_SALIENT_SELF_OBS`, default off. OFF reproduces
-today's `ORDER BY created_at DESC LIMIT 3` exactly (byte-identical, including
-the `LIMIT 3` cache size, to avoid any incidental behaviour change from the
-candidate-window widening alone). ON switches both the ordering and the
-candidate-window size together, as one change.
+**Implemented flag:** `NEX5_SALIENT_SELF_OBS`, default off in source. OFF reproduces today's `ORDER BY created_at DESC LIMIT 3`; ON widens the pool to 10 and applies severity × quadratic decay. The source tests cover both branches. Live host arming remains UNKNOWN because no host environment was inspected.
 
 ### 2b. `harmonizer.py::_content_specific_tension_line()` — buildable, but **zero live exposure today**
 
@@ -144,13 +136,7 @@ already-true prediction given the current table, not a hoped-for future one.
 
 ## 7. What this document does NOT do
 
-It does not build 2a or 2b. It does not touch `metacognition.py`,
-`harmonizer.py`, `nex_config.py`, or any schema file. No flag exists yet to
-arm. This is design + measurement plan only, so that when Jon gives the
-go-ahead to build, the fix, its flag name, its window, and its tripwires are
-already settled rather than re-derived under time pressure — same reason
-`expectMood_PREREGISTRATION.md` was written ahead of arming, not at arming
-time.
+It does not arm the feature, change harmonizer ranking, add severity to open_problems, or alter any schema. Candidate 4's metacognition selection code and source tests now exist, but the source default is off and the live environment flag state was not checked. The original measurement plan remains relevant; it should be executed against current evidence before any flag is armed.
 
 ---
 

@@ -676,6 +676,7 @@ class TestSelfMindViewAttentionWire(unittest.TestCase):
         with patch.dict(os.environ, {
             "NEX5_METACOG_DIGEST": "0",
             "NEX5_METACOG_PATTERN": "0",
+            "NEX5_SALIENT_SELF_OBS": "0",
         }):
             for _ in range(3):
                 mc.tick()
@@ -696,6 +697,57 @@ class TestSelfMindViewAttentionWire(unittest.TestCase):
             "same themes have been recurring",
             mc.format_for_prompt(),
         )
+
+
+    def test_salience_ranking_does_not_deduplicate_repeated_max_severity_groove(self):
+        from unittest.mock import patch
+        from theory_x.stage_tom.self_mind_view import SelfMindView
+
+        self.writers["beliefs"].write("DELETE FROM beliefs")
+        tags = json.dumps(["attention", "awareness", "consciousness"])
+        base_time = int(time.time()) + 1
+        for index in range(5):
+            self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, tier, confidence, source, created_at, tags) "
+                "VALUES (?, 7, 0.8, 'wire-test', ?, ?)",
+                (f"salience snapshot theme {index}", base_time + index, tags),
+            )
+        smv = SelfMindView(
+            dynamic_reader=self.readers["dynamic"],
+            dynamic_writer=self.writers["dynamic"],
+            beliefs_reader=self.readers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+        )
+        for _ in range(5):
+            smv._snapshot()
+        mc = _make_mc(self.writers, self.readers, smv=smv)
+
+        # An older maximum-severity event is retained in the wider candidate
+        # pool, but a fresh maximum-severity attention event still wins its
+        # severity*decay score. Salience ranking is not episode deduplication.
+        mc._write_event({
+            "event_type": "value_drift_distance",
+            "description": "older maximum-severity observation",
+            "severity": 1.0,
+            "source": "wire-test",
+        }, time.time() - 86400)
+
+        with patch.dict(os.environ, {
+            "NEX5_METACOG_DIGEST": "0",
+            "NEX5_METACOG_PATTERN": "0",
+            "NEX5_SALIENT_SELF_OBS": "1",
+        }):
+            for _ in range(3):
+                mc.tick()
+        recent = mc._cached_recent
+        self.assertEqual(len(recent), 4)
+        self.assertEqual(recent[0]["event_type"], "attention_groove")
+        self.assertIn("value_drift_distance", [row["event_type"] for row in recent])
+        self.assertEqual(
+            [row["event_type"] for row in recent].count("attention_groove"), 3
+        )
+        self.assertIn("same themes have been recurring", mc.format_for_prompt())
+
 
 
 if __name__ == "__main__":
