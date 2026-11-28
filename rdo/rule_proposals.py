@@ -104,7 +104,8 @@ def _text_list(value, name: str, *, required: bool = False, limit: int = 64) -> 
 
 def _normalise_proposal(raw: dict) -> dict:
     required = {
-        "target_kind", "source_obligation", "alternatives", "assumptions",
+        "target_kind", "source_cycle_id", "source_frontier_key", "source_obligation",
+        "alternatives", "assumptions",
         "applicability", "preconditions", "exceptions", "anti_requirements",
         "evidence_needs", "disconfirming_cases", "provenance",
         "positive_tests", "negative_tests",
@@ -114,6 +115,12 @@ def _normalise_proposal(raw: dict) -> dict:
         extra = sorted(set(raw) - required) if isinstance(raw, dict) else []
         raise ValueError(f"proposal fields mismatch; missing={missing}, extra={extra}")
     target = _text(raw["target_kind"], "target_kind", 64)
+    source_cycle_id = _text(raw["source_cycle_id"], "source_cycle_id", 128)
+    source_frontier_key = _text(raw["source_frontier_key"], "source_frontier_key", 256)
+    if not _ALT_ID.fullmatch(source_cycle_id):
+        raise ValueError("source_cycle_id must be a portable cycle identifier")
+    if not _ALT_ID.fullmatch(source_frontier_key):
+        raise ValueError("source_frontier_key must be a portable obligation key")
     if not _TOKEN.fullmatch(target):
         raise ValueError("target_kind must be a lowercase snake_case kind")
     source = raw["source_obligation"]
@@ -175,6 +182,8 @@ def _normalise_proposal(raw: dict) -> dict:
     result = {
         "schema_version": 1,
         "target_kind": target,
+        "source_cycle_id": source_cycle_id,
+        "source_frontier_key": source_frontier_key,
         "source_obligation": checked_source,
         "alternatives": checked_alternatives,
     }
@@ -263,8 +272,33 @@ class RuleProposalStore:
             finally:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
-    def propose(self, raw: dict) -> dict:
+    def propose(self, raw: dict, source_cycle=None) -> dict:
         proposal = _normalise_proposal(raw)
+        if source_cycle is None:
+            raise ValueError("a persisted source cycle is required for frontier traceability")
+        if getattr(source_cycle, "id", None) != proposal["source_cycle_id"]:
+            raise ValueError("source cycle ID does not match the proposal")
+        source_frontier = next((
+            item for item in getattr(source_cycle, "frontier", [])
+            if item.get("key") == proposal["source_frontier_key"]
+            and item.get("frontier_type") == "novel_kind_requires_rule_proposal"
+        ), None)
+        if source_frontier is None:
+            raise ValueError("source cycle has no matching novel-kind frontier item")
+        request = source_frontier.get("rule_proposal_request", {})
+        source = request.get("source_obligation", {})
+        if (request.get("target_kind") != proposal["target_kind"]
+                or any(source.get(field) != proposal["source_obligation"].get(field)
+                       for field in ("key", "title", "kind"))):
+            raise ValueError("proposal does not match the source frontier obligation")
+        provenance_ref = (
+            f"frontier:{proposal['source_cycle_id']}:{proposal['source_frontier_key']}"
+        )
+        if provenance_ref not in proposal["provenance"]:
+            raise ValueError("proposal provenance must cite its exact source frontier")
+        proposal["source_frontier_sha256"] = hashlib.sha256(
+            _canonical(source_frontier)
+        ).hexdigest()
         # Novel kinds only: built-in and terminal rules are not shadowed.
         from .extrapolator import EXPANSION_RULES, TERMINAL_KINDS
         target = proposal["target_kind"]
