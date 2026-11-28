@@ -2240,3 +2240,19 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 **Limits:** tracked Python source was scanned; non-Python launchers, dynamically loaded external modules, plugins and runtime monkey-patching were not exhaustively examined. No live registry, host process, database or robot runtime was inspected. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
+---
+
+## 77. Tracked-Python `build_state()` callsite census — standalone GUI path (28 November 2026)
+
+**Scope:** scanned all 719 tracked Python files for direct `build_state()` calls and declarations, following the registry writer inventory.
+
+**Observed callsites:** the only production declaration/call pair found is in `gui/server.py`: `build_state()` is defined there, and the module's standalone `main()` calls it with defaults, then registers `state.close` with `atexit`, creates the Flask app and runs it. Because `with_tools` defaults to `True`, this standalone entrypoint exercises the ProblemMemory/GoalManager/Metacognition registration path on successful construction. `run.py` is a separate executable path; it constructs AppState directly and does not call the factory. The only test callsite found is `tests/test_gui_build_state_rollback.py`, which explicitly sets `with_tools=False`; it does not execute the tool-node registry writes. No other tracked Python callsite was found.
+
+**Failure-path interpretation:** the standalone `gui.server.main()` call is not wrapped in a retry loop or a catch-and-rebuild path in the inspected source. If `build_state()` raises, the exception propagates out of `main()`; in ordinary script execution the process terminates, so registry residue is released with the process. After successful construction, `atexit` closes the AppState and normal interpreter exit then releases the process registry. Thus the current tracked standalone path does not demonstrate a surviving-interpreter stale-node scenario.
+
+**Revised risk boundary:** the rollback candidate still needs to ensure resources are cleaned when the factory raises. Registry appends are not rolled back, but in the only tracked production callsite the failure is process-terminal rather than caught and retried. The remaining risk requires an embedding caller, external wrapper, or future code that catches the exception and keeps the interpreter alive, or explicitly invokes the factory repeatedly. No such tracked Python callsite was found. This is not proof about external consumers or runtime embedding.
+
+**Decision refinement:** retain the current registry API and avoid adding speculative unregister/scope semantics. The rollback PR's tested resource-ownership correction remains useful independently. A follow-up registry lifecycle change should require a demonstrated non-terminal factory caller or a real production consumer.
+
+**Limits:** this census covers tracked Python files in the current branch only. Non-Python launchers and external callers are outside the repository scan. No live boot, failure injection, host process or robot runtime was exercised. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
