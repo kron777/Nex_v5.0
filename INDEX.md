@@ -3733,3 +3733,41 @@ This remains a Phase 0 defect candidate. No production slot renaming, behavioura
 **Host/runtime unknowns:** effective `NEX5_OWN_CONTENT_RENDER` and `NEX5_IDENTITY_BLOCK`; actual slot distribution in live manifests/log rows; whether old persisted rows contain legacy `own` labels; actual Jaccard distributions; readiness distribution; and whether the two guards would change firing behaviour if correctly wired. No tests were run in this documentation pass.
 
 No runtime code, tests, schema, indexes, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
+
+
+## 101. Fountain stillness slot mismatch — historical origin narrowed (28 November 2026)
+
+**Question studied:** was the literal `own` expectation always wrong, or was it a valid contract that later drifted away from the manifest producer?
+
+**Evidence snapshot:** current source `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`, plus Git commit history and patches for the original manifest and stillness work. Static archaeology only; no runtime or tests run.
+
+### Historical sequence
+
+1. **30 April 2026 — manifest and first stillness detector.** Commit `41b3516b8d2f2fe87a82a4444dcfcb6d5c25183b` introduced `fountain_retrieval_log` and the `retrieval_manifest`. Its documented slot vocabulary was `own/seed/spectrum/disturbance_a/disturbance_b`; the own-belief producer appended slot `own`. Commit `ac6e4032e2b115f34ca86fbff8778a5cc51d14ca` added the first stillness detector and compared all manifest IDs with the prior fire's log.
+2. **1 May 2026 — own-only Jaccard became intentional.** Commit `251cd797579aa08b8b848a5e95cd58c4c3e22b72` explicitly narrowed both current and historical sets to slot `own`, because random seed/spectrum draws diluted the overlap signal. It set the threshold to 0.7 and made the reader return a Jaccard value. At this point, the producer and both readers agreed: this was not an accidental string in the first implementation.
+3. **By 8 August 2026 — the producer vocabulary had changed.** Commit `33476505eff8ec740d31ece7af78eeb95b7df865` (R37) documents the existing retrieval log as covering `seed`, `own_sense`, and `spectrum`. Its patch adds prompt-block instrumentation, not the slot rename itself. Therefore the transition from `own` to `own_sense` occurred after the 1 May stillness contract and no later than the 8 August R37 snapshot. The exact commit that changed the producer label has **not yet been located** in this pass.
+4. **26 October 2026 — a new own-related class was added separately.** Commit `a90a76cd1783a1f725dcb0c73cd8ffce1ba0a5eb` adds the optional guaranteed identity block with its explicit `identity_block` manifest slot and dedicated tests. This is a distinct semantic class, not evidence that it belongs in the retrieval-duplication set.
+5. **15 November 2026 — smṛti independently treats `own_sense` as the primary retrieved object.** Commit `231059a12439b0c10e0d92dcea79b6567c03d621` selects the top-ranked `own_sense` entry for observational retention-through-crystallization. This corroborates that `own_sense` is an established producer vocabulary, while the old stillness/Jaccard reader continues to expect `own`.
+
+### Revised diagnosis
+
+This is now best described as **historical contract drift**, not a producer that was always malformed. The stillness detector's own-only population was a deliberate design choice, supported by the 1 May rationale. A later retrieval refactor changed the producer label to `own_sense` without an evidenced corresponding update to both stillness readers. The exact rename commit and its intended compatibility treatment remain unlocated.
+
+This distinction matters: a repair should preserve the original intent (compare the intended own-content retrieval population, not random seeds/spectrum) while deciding whether `own_render`, `identity_block`, and any other future classes are in or out. It should not simply broaden to all manifest IDs, nor rename every producer slot to `own`.
+
+### Next bounded archaeology/test task
+
+Locate the commit that first changes the producer from `own` to `own_sense`; inspect its full diff and contemporaneous tests/research notes for an explicit decision. Then write the integration-test contract before proposing a patch:
+
+- the current-fire set and prior-fire set must use the same explicitly defined retrieval population;
+- `own_sense` is the historically intended primary own-retrieval class unless the rename's rationale says otherwise;
+- `own_render` is separately gated distilled own-content rendering and must not be included by assumption;
+- `identity_block` is an explicit identity injection, not automatically the same retrieval population;
+- `seed`, `spectrum`, and disturbance classes remain excluded from the own-retrieval Jaccard;
+- old persisted `own` rows need an explicit compatibility decision (read both labels, migration, or time-bounded handling), informed by actual database distribution rather than guesswork.
+
+Only after that contract is evidenced should a minimal source fix be considered. No code/test/schema/flag change is authorised or made by this research note.
+
+**Source anchors:** `41b3516b8d2f2fe87a82a4444dcfcb6d5c25183b` (original manifest producer and slot vocabulary); `ac6e4032e2b115f34ca86fbff8778a5cc51d14ca` (first stillness detector and all-ID comparison); `251cd797579aa08b8b848a5e95cd58c4c3e22b72` (own-only current/historical Jaccard); `33476505eff8ec740d31ece7af78eeb95b7df865` (R37 documentation of `own_sense` vocabulary); `a90a76cd1783a1f725dcb0c73cd8ffce1ba0a5eb` (identity block slot); `231059a12439b0c10e0d92dcea79b6567c03d621` (smṛti consumes top-ranked `own_sense`).
+
+**Evidence level:** source/history-observed for the original and current contracts; exact producer-rename commit UNKNOWN; live database slot distribution and behavioural impact UNKNOWN; no test verification or runtime observation.
