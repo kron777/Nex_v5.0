@@ -80,3 +80,51 @@ def test_writer_can_be_explicitly_restarted_after_clean_close(tmp_path):
         assert row_id == 1
     finally:
         writer.close()
+
+
+def test_submit_close_race_never_strands_an_accepted_request(tmp_path):
+    path = tmp_path / "writer-race.db"
+    _database(path)
+    writer = Writer(path, name="writer-submit-close-race")
+    barrier = threading.Barrier(3)
+    outcome = {}
+
+    def submit():
+        barrier.wait()
+        try:
+            future = writer.submit(WriteRequest(
+                sql="INSERT INTO items(value) VALUES ('raced')"
+            ))
+            outcome["accepted_result"] = future.result(timeout=3)
+        except RuntimeError as exc:
+            outcome["rejected"] = str(exc)
+
+    def close():
+        barrier.wait()
+        try:
+            writer.close(timeout=3)
+        except Exception as exc:  # captured for assertion in the test thread
+            outcome["close_error"] = repr(exc)
+
+    submitter = threading.Thread(target=submit, name="writer-race-submit")
+    closer = threading.Thread(target=close, name="writer-race-close")
+    submitter.start()
+    closer.start()
+    barrier.wait()
+    submitter.join(timeout=4)
+    closer.join(timeout=4)
+
+    assert not submitter.is_alive()
+    assert not closer.is_alive()
+    assert "close_error" not in outcome
+    assert ("accepted_result" in outcome) != ("rejected" in outcome)
+    assert writer._thread is None
+
+    reader = Reader(path)
+    rows = reader.read("SELECT value FROM items ORDER BY id")
+    if "accepted_result" in outcome:
+        assert outcome["accepted_result"] == 1
+        assert [row["value"] for row in rows] == ["raced"]
+    else:
+        assert "closed or not running" in outcome["rejected"]
+        assert rows == []
