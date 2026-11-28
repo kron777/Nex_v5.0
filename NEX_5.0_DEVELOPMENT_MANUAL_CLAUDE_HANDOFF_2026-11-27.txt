@@ -5110,3 +5110,8 @@ This is not yet proof that the column is globally unused or that auto-acknowledg
 ### §132 history refinement
 
 The nullable `acknowledged_at` column is present when `groove_alerts` first appears in `substrate/schema/beliefs.sql` at commit `a396dda08e8861e22029ceef813c69211671a37e` (26 April 2026). That commit's message describes adding diversity/rut-detection mechanisms; its schema patch creates the table with the nullable field but does not document who acknowledges alerts, what acknowledgement means, or when it should occur. No separate acknowledgement decision was located in that commit message/patch. This confirms early schema provenance, not intended semantics or approval.
+
+
+### §132 producer/consumer distinction — prior stale re-fire fix
+
+The earlier producer-side stale re-fire defect was explicitly fixed in commit `543e4ce957f2e3ad8e3ebf9fb25cd1bf977fed1a` (22 July 2026): GrooveSpotter now keeps one in-memory fingerprint per detector and suppresses an unchanged rolling-window condition, clearing the fingerprint when that condition stops holding. The commit explicitly distinguishes this producer-side insert deduplication from `_push_cooldown()`, and records that the fix stops the cooldown from being refreshed every 60-second scan. It does **not** add an acknowledgement write to `groove_alerts.acknowledged_at`. Therefore, the current G-83 replay is a separate consumer-side phenomenon: one already-created alert row is read repeatedly by Metacognition during its 600-second window. Do not reopen the already-fixed producer stale-insert issue as if it were the same defect.
