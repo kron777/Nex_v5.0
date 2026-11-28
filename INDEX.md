@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `b5e78842f43ac93c2624697f686da0b600306177`  
+**Last verified against:** `main` at `d7d204c24807eb3e46c37d70f2c1dcaae63830dc`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 28 November 2026 — records Sentience 5.5/NEX cognitive wire trace (§46), self-binding shared-Writer correction and open semantic edges (§47), and current RDO/Watcher progress; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — records Sentience 5.5/NEX cognitive wire trace (§46), self-binding shared-Writer correction and open semantic edges (§47), current RDO/Watcher progress, and current-main lifecycle/integration reconciliation (§16); Gate 0 boundaries remain.*
 
 
 
@@ -1119,3 +1119,134 @@ The first exact-head CI exposed one stale self-assessment expectation: RDO corre
 The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.tension._find_cycles`, `_classify_cycle`, `assess_system` and `rdo.graph` SCC machinery to distinguish prerequisite cycles, influence feedback loops and unknown cases. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
+
+
+---
+
+## 16. Current-main reconciliation — lifecycle hardening and cognitive wire characterization (28 November 2026)
+
+**Verified base:** `main` at `3377197c4d216aedc7708a9d1ee758144bd0b09b`. This section supersedes the 27 November mainline/PR inventory in §11 for changes merged after that snapshot. It does not retroactively refresh older evidence artefacts or convert PR-only work into mainline capability.
+
+### 16.1 Graceful shutdown: merged lifecycle increments
+
+The following changes are present on the verified mainline:
+
+- **#370 — bounded graceful shutdown and truthful close reporting** (merge `88df7413b31e3ab9898c9ee99eef7fb552e70745`). One 12-second monotonic deadline begins at signal receipt and is shared by producer stop/join and all Writer drains. `AppState.close(deadline=...)` returns a structured report; Writer wrappers receive only the remaining budget; a clean-shutdown marker is written only after successful close and successful marker persistence. An incomplete drain exits non-zero and does not claim a clean shutdown. Exact-head full-suite evidence recorded in the PR: 2,923 passed, 7 skipped, 62 subtests; baseline verification passed. This is a bounded application-level protocol, not proof that every process thread is registered.
+- **#375 — remaining known Writer producers** (merge `ee88ae41b979ba802aef42a0350c2a410d16d519`). Adds interruptible stop Events and retained thread handles for the identified AppState-held and `run.py`-started producers; registers them with AppState so in-flight Writer work is joined before Writer closure. The membrane thread is retained. Cadences, first delays, tick order and processing policy are intended to remain unchanged. This closes the identified producer set in that increment, not the repository-wide thread census.
+- **#377 — StrikeProtocol catalogue workers** (merge `3377197c4d216aedc7708a9d1ee758144bd0b09b`, which was main head immediately before #378). StrikeProtocol's delayed direct-SQLite belief-count workers and in-flight `fire()` callers now have stop/ownership tracking. Long waits are interruptible; new fire calls are rejected after stop begins; a worker cannot schedule a delayed write after shutdown starts. Interrupted SILENCE observation is marked incomplete rather than represented as completed. Exact-head GitHub Actions `tests` workflow reports success. This is a direct-catalogue lifecycle correction, not a migration of that catalogue to the shared Writer and not a change to strike policy.
+
+### 16.2 Flask request lifecycle — merged PR #378
+
+PR #378 (`fix/shutdown: drain in-flight Flask requests before AppState close`) is merged as `3d7205536588e34a887939784d436ec70e8c6777` and is present in the verified mainline. Its `ShutdownGate` atomically closes HTTP request admission, counts active Flask requests, rejects new requests with HTTP 503 after shutdown begins, and waits for admitted requests to finish before decoder stop and `AppState.close()`. The same 12-second monotonic deadline covers request drain, producer shutdown and Writer drain. The previous fixed 1.5-second wait is removed. SIGTERM and SIGINT share the guarded handler.
+
+Exact-head full-suite workflow run 2339 completed successfully: **2,971 passed, 7 skipped, 86 subtests**; baseline verification reported **OK**. The CI job also ran the mind-map verifier. This is repository CI evidence, not host-level shutdown observation.
+
+**Boundary:** the gate covers requests entering through this Flask application. Detached work spawned by a route must still be registered with AppState. Alternate WSGI servers, reverse-proxy workers, direct non-HTTP callers and host/service-manager behaviour remain outside the demonstrated boundary. A timeout reports active request labels, thread names and elapsed durations; it does not close Writers under active requests, does not write a clean marker and exits non-zero.
+
+A source scan of the current 4,763-line `gui/server.py` found no direct `threading.Thread` construction, thread `.start()` call, executor submission, `create_task()` or subprocess spawn in the route module. The matches were thread lifecycle inspection/ownership code. This narrows the direct route-spawn concern but does not rule out detached work inside services called by routes, tasks created elsewhere, or alternate WSGI/server entry points. The gate is installed before the authentication and route-specific request hooks.
+
+The request gate is now current-main code. Do not overstate it as proof of complete process/thread quiescence or verified host shutdown behaviour. A stale comment beside the 12-second budget still referred to the removed 1.5-second in-flight-fire wait; PR #389 proposes a comment-only correction and remains unmerged at this snapshot.
+
+### 16.3 Cognitive integration characterization — merged PR #381
+
+PR #381 is merged as `81ec438a7be7fe3cc81112cbb39c715b76ffe026`, carrying the test/research-only work originally proposed in #379 into current main. It adds source maps and deterministic characterization for chat-time affect faculty dependencies and the Stage-2 Bonsai attention state flowing into Fountain branch selection and Global Workspace framing. It also extends a scoped Sentience 5.5 comparison across Integration, Self-Model, Meta-Awareness, Cognitive-Control, Orchestrator, System-Integration and Control sources.
+
+The tests exercise actual Stage-2 A–F events, the Bonsai focus admission threshold, Fountain's hottest-branch selection, the opt-in positive-temperature alternative, and Global Workspace candidate competition. Its negative control checks that internal telemetry alone does not create Bonsai focus, an F-step event or a workspace candidate.
+
+**Interpretation boundary:** this characterizes specific source pathways and deterministic test behaviour; it is not a broad demonstration of cognitive efficacy or consciousness. The Sentience comparison is explicitly limited to inspected files because repository-wide search indexing was incomplete.
+
+Mind Aspects remain interpretive faculties. They must not become action-control gates, approval authorities or vetoes by virtue of their position in a descriptive mind map. Keep interpretive cognition separate from typed operation representation, capability validation, approval authority, execution and post-execution verification.
+
+PR #381 exact-head full-suite workflow run 2350 passed: **2,979 passed, 7 skipped, 86 subtests**; baseline verification reported **OK**. The mind-map verifier reported **30 nodes, 0 unverified, 12 dark, 2 blocked**. This is source/test characterization evidence, not a claim of broad cognitive efficacy or consciousness.
+
+### 16.4 Superseded branches and status discipline
+
+- **#373** is closed without merge; it was a stacked G-84 step-4 branch superseded by the clean current-main replay #375.
+- **#376** is closed without merge; its StrikeProtocol work was superseded by the current-main replay #377.
+- **#378** is merged as `3d7205536588e34a887939784d436ec70e8c6777`. **#381** is merged as `81ec438a7be7fe3cc81112cbb39c715b76ffe026`; original #379 is closed as superseded. **#384** is merged as `d7d204c24807eb3e46c37d70f2c1dcaae63830dc`.
+- Historical test results from superseded heads must not be represented as current-main validation.
+- PR metadata, mergeability and an in-progress CI run are not equivalent to successful exact-head validation or merge.
+
+### 16.5 Remaining research and development work
+
+1. Recheck #388 and #389 exact head SHAs, all required CI jobs, baseline verification and merge state before updating this section again.
+2. Rescan the complete shutdown path now that #378 is merged: signal receipt, request admission, detached route work, registered producers, direct database writers, Writers, clean-marker persistence, process exit and keepalive restart. Add regressions only for demonstrated gaps.
+3. Continue the host/server evidence work: inspect the actual deployment contract and determine whether the Flask threaded server is the only entry point. Do not infer host behaviour from repository tests.
+4. Continue the faculty producer→consumer audit from #381, distinguishing construction, boot wiring, flag enablement, consumption and measured behavioural effect.
+5. Reconcile the G-84/G-92 status text and Phase 0 evidence pack only against a fresh current-main snapshot. The original #363 documentation reconciliation was deliberately not carried forward because its status text was stale. The #379 cognitive characterization was replayed as #381 after #378 advanced main.
+6. Keep S-01–S-25/M1.8, the Master Roadmap, Gate 0 and Phase 1 authority unchanged. No open PR, passing test suite or technical mergeability authorizes a phase transition.
+
+This section is a dated source/PR snapshot. Refresh it after subsequent merges rather than silently treating it as live status.
+
+
+### 16.6 Repository-side supervisor contract — source verified, host unit unverified
+
+The current-main `nex_keepalive.sh` source provides a concrete application/supervisor boundary:
+
+- It resolves the checkout directory from the script's own location and starts `.venv/bin/python3 run.py`; it does not bind the code checkout to one fixed home/Desktop path.
+- The NEX HTTP listener is supervised on port 8765. The script uses a separate power-switch port 8766.
+- The launcher keeps a single-instance `flock` lock, scopes child termination to the PID it launched, and sends SIGTERM for deliberate shutdown.
+- `graceful_stop_child()` polls the child for up to approximately 15 seconds (30 × 0.5 seconds), then escalates to SIGKILL if the child remains alive. It subsequently runs `fuser -k` against the NEX port and clears PID/identity bookkeeping.
+- The 12-second application shutdown budget introduced by #370 therefore leaves an intended three-second margin before the supervisor's approximately 15-second SIGKILL escalation. This is source arithmetic, not a measured host timing guarantee.
+- The launcher sets a large explicit environment for its child, including many NEX feature flags and `MOLTBOOK_DRY_RUN=1`. This is the tracked launch command, not proof that the user's currently running process was started from this exact checkout or environment.
+- The script writes its operational state under `/home/rr/.nex`; this is a host-specific assumption even though checkout resolution is portable. The launcher also contains logic for externally owned systemd power-switch and keepalive services.
+
+**Not verified:** the installed user/system systemd unit contents, effective unit environment, service manager timeout/kill settings, actual running PID/command line, live environment, active WSGI entry point, reverse-proxy topology, host thread inventory, and whether the currently running process uses this exact checkout. Those require authorized host evidence; repository source alone cannot establish them.
+
+This narrows the host-evidence task: compare the installed unit and effective process state with this tracked supervisor contract. Do not state that the 12-second/15-second relationship is operationally proven until that comparison and a controlled host shutdown observation exist.
+
+
+### 16.7 Faculty integration: tracked launch flags versus source gates
+
+A source-to-launch comparison of current-main `gui/server.py`, the `theory_x/stage_affect/` modules and `nex_keepalive.sh` narrows the runtime-integration claim:
+
+- The chat route calls the faculty stance functions only when both the corresponding environment flag equals `1` and the session is admin-scoped. These stance strings are prompt contributions; this path does not grant an authority to execute actions.
+- The tracked launcher explicitly sets `NEX5_COMPASS`, `NEX5_EQUANIMITY`, `NEX5_APRAMADA` and `NEX5_AFFECT_CARRY`.
+- The tracked launch line does **not** explicitly set `NEX5_COMPASSION`, `NEX5_VIRYA`, `NEX5_SRADDHA` or `NEX5_PRASRABDHI`. In particular, `NEX5_COMPASS` and `NEX5_COMPASSION` are distinct flags; do not conflate them.
+- Compass itself reads the situated compassion signal directly when it weighs care, clarity and affliction dimensions. Equanimity also reads the compassion distress signal to avoid flattening a warranted compassionate response. Therefore, the absence of the standalone compassion prompt flag does not imply that compassion data is absent from those faculty calculations.
+- The vīrya and praśrabdhi stance functions each have their own explicit OFF-by-default flag. Their pairwise tests in #381 characterize the functions and their dependencies under controlled inputs; those tests do not establish that the tracked launcher enables either prompt contribution.
+- The launcher may inherit additional environment from its parent service manager. Since the installed unit and effective process environment have not been inspected, the tracked launch line is not proof that these flags are OFF on the live host.
+
+This is an important distinction between a tested source dependency, a call site, a tracked launch setting and effective runtime enablement. Keep the #381 tests classified as deterministic source/function characterization until the exact deployment environment is observed. Do not change launch flags as part of this audit.
+
+
+### 16.8 Capability execution boundary — current-main source trace and merged corrections
+
+The current `theory_x/stage_capability/` registry exposes exactly three tools:
+
+- `web_fetch`: bounded HTTP GET against the existing hostname allowlist, with redirects disabled, URL scheme/credentials checked, and at most 2,000 characters of extracted text returned.
+- `python_exec`: a deliberately restricted arithmetic AST interpreter; it does not execute arbitrary Python source.
+- `beliefs_query`: read-only retrieval from NEX's own belief graph.
+
+The chat route now calls `ToolCaller.should_use_tool(prompt)`, then `build_tool_kwargs(...)`, then `ToolRegistry.execute(...)` synchronously in the same request path. PR #384 removed the unused beliefs-list parameter and the route's placeholder empty-list argument. The registry is a capability allowlist, but this path does not expose a general typed operation envelope or a separate approval-authority decision before execution. The current three tools are bounded read/calculation operations; `web_fetch` makes an outbound network GET but does not write to an external system. Do not describe this as a current arbitrary-action executor. The chat trace records tool execution success/error metadata and prompt-injection length; those are observability records, not an independent verification of an external effect or a post-execution verifier.
+
+Two source-level gaps were identified on the pre-merge base and corrected in **PR #384**, now merged as `d7d204c24807eb3e46c37d70f2c1dcaae63830dc`:
+
+1. **Redirect/URL validation:** the old implementation validated only the initial URL and used `urllib.request.urlopen()`, whose default redirect handler could follow a 3xx response without reapplying the allowlist. #384 now validates HTTP/HTTPS, rejects embedded URL credentials, normalizes `urlsplit().hostname`, and disables automatic redirects. A redirect response fails instead of fetching an unvalidated destination.
+2. **Tool-selection/fetch-target mismatch:** the old `ToolCaller` selected `web_fetch` for generic current/factual wording and unsupported price targets, even though the fetcher only accepts an explicit URL or a supported CoinGecko price query. #384 now selects it only for an explicit URL or a supported CoinGecko symbol paired with explicit price intent, matches symbols as whole words, and removes the unused beliefs argument. Generic factual/current/news queries and unsupported price targets no longer select a fetcher that cannot satisfy them; this does not add general web search.
+
+Exact-head full-suite workflow run 2378 passed: **2,986 passed, 7 skipped, 86 subtests**; baseline verification reported **OK**. The mind-map verifier reported **30 nodes, 0 unverified, 12 dark, 2 blocked**.
+
+The fetched page text is still wrapped as a tool result and inserted into the voice prompt. The inspected call site does not establish a dedicated untrusted-content delimiter or a tested prompt-injection boundary. The #384 corrections do not solve prompt injection or DNS rebinding; these remain explicit follow-up research.
+
+**Authority separation for future capabilities:** keep interpretive Mind Aspects separate from typed operation representation, capability validation, approval authority, execution and post-execution verification. The descriptive Tibetan mind map is not an action-control policy. Before adding consequential write/action tools, establish these stages explicitly; do not let a cognitive faculty score or veto an operation merely because of its descriptive position.
+
+
+### 16.9 Request-drain budget versus voice-call timeout — measured risk, not yet host-verified
+
+A source trace found a material timing mismatch: the total request/shutdown budget is **12 seconds**, while the default `VoiceClient` HTTP request timeout is **120 seconds**. The chat route may also perform one anti-repeat retry and one provenance retry, each as another sequential `state.voice.speak()` call when the relevant admin-scoped conditions are met.
+
+The shutdown gate has no cancellation hook into an admitted VoiceClient call. If an active request remains blocked beyond the 12-second deadline, `begin_shutdown()` reports failure and `run.py` calls `os._exit(1)` before `AppState.close()`, producer quiescence, Writer draining or clean-marker persistence. The supervisor can then force-kill the child at approximately 15 seconds.
+
+This is fail-closed for the clean marker, but not a completed graceful shutdown. Pending Writer work may not be drained in that path; the source trace does not establish that data loss or database corruption actually occurs.
+
+A detailed source-bounded timing report is in `research/SHUTDOWN_REQUEST_VOICE_TIMEOUT_GAP_2026-11-28.md`. The next step is a controlled host experiment measuring ordinary/worst-case chat latency (including retries), then SIGTERM during an active voice request while observing request labels, Writer queue depth, exit code and clean-marker persistence. Do not reduce the 120-second VoiceClient timeout or change the 12/15-second shutdown budgets until that evidence exists.
+
+
+### 16.10 SenseScheduler stop-during-poll race — open PR #388
+
+Current-main `SenseScheduler._AdapterThread._run()` previously performed `adapter.poll()` and then `adapter.submit(events)` without rechecking the worker stop event. `SenseScheduler.shutdown()` signals stop but cannot interrupt a poll already blocked in network I/O. The default adapter fetch has a 10-second connect and 20-second read timeout, while `AppState.close()` gives producer quiescence at most five seconds (subject to the remaining 12-second total deadline) before attempting Writer closure. The adapter source also records measured 5–6-second TLS handshakes for some slow-but-working hosts, already longer than the five-second join allowance.
+
+If shutdown begins during a poll, that poll can return after stop was signalled and the old worker loop would still begin a Writer submission. PR #388 proposes checking the stop event immediately after poll and discarding those results when shutdown has begun. It adds a deterministic blocked-poll regression test and a source note.
+
+**Boundary:** #388 is open and its exact-head CI is pending; the correction is not current-main behaviour yet. It does not interrupt the in-flight poll, change adapter timeouts/cadence, or cancel a submission that already started before stop. It narrows the late-submit window but does not establish complete producer or host-level shutdown safety; slow polls can still cause a non-clean exit.
