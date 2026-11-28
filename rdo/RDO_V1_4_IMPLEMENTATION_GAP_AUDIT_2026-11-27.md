@@ -21,7 +21,7 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 - q/tau performance-margin evidence now validates arithmetic, identity and comparable envelope constraints, but capacity/headroom assessment, operating-envelope classification, feedback-loop stability, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
 - the twelve adversarial cases are only partly represented in tests.
 
-**Current vertical-slice status:** persisted-cycle CLI exposure from #331, typed observed-failure evidence from #339, and context-mapping/criterion-review events from #343 are now merged. The remaining work is to connect these records into one traceable cycle-level assessment path without collapsing structural candidates, measured observations and reviewed interpretations into one claim. No causal attribution, propagation probability, stability calculation or calibrated threshold is supplied by these increments. Extend the existing RDO; do not replace the orchestrator or create a parallel system.
+**Current vertical-slice status:** persisted-cycle CLI exposure from #331, typed observed-failure evidence from #339, context-mapping/criterion-review events from #343, persistence failure-safety improvements from #345, and structured novel-kind frontier requests from #346 are merged. The remaining work is to connect these records into a traceable cycle-level assessment path without collapsing structural candidates, measured observations and reviewed interpretations. No causal attribution, propagation probability, stability calculation or calibrated threshold is supplied. Extend the existing RDO; do not replace the orchestrator or create a parallel system.
 
 ## 2. Current implementation inventory
 
@@ -200,17 +200,22 @@ This increment remains external/advisory RDO code. It does not change NEX runtim
 
 **G-91 — context mapping:** partially closed by #343. Human reviewers can now map each context item to canonical obligations and record criterion-level pending/passed/failed/not-applicable outcomes with provenance. Remaining: no automatic mapping, no independent dereferencing/authentication of caller-supplied evidence references, and no automatic application of reviewed mappings to a subsequent cycle. Context-review events do not rewrite the original cycle or handoff manifest.
 
-### G-92 — first-level decomposition and novel expansion-rule lifecycle (open)
+### G-92 — first-level decomposition and novel expansion-rule lifecycle (partially advanced; still open)
 
-The current objective intake requires externally supplied seed obligations; the recursive cycle starts from those seeds. The Extrapolator has a finite static rule catalogue. When a novel kind has no rule, the system records a frontier rather than inventing one. PatternMemory stores lessons, confirmations and disconfirmations, but it does not create or promote executable rules.
+Objective intake still requires externally supplied seed obligations; the recursive cycle starts from those seeds. PR #346 now turns an unknown-kind frontier stop into a versioned (`schema_version: 1`) `rule_proposal_request` containing the source obligation, known rule kinds, terminal kinds and review dimensions. The obligation remains unexpanded; the request is an inert, provider-neutral handoff to a human or external LLM. It does not generate, approve or activate a rule. PatternMemory remains descriptive and does not promote patterns into executable rules.
 
-This means the current repository can recursively expand a supplied seed graph, but it does not independently convert arbitrary raw objective text into a complete first-level seed graph or derive executable rules for every novel kind. The external LLM/human seed-proposal boundary is usable, but no provider is integrated.
+Remaining work: define and persist candidate RuleProposal records, preserve alternative interpretations and disconfirmations, validate applicability/exceptions/evidence/tests, and record explicit review/approval before an approved rule can enter a versioned active catalogue. Raw-idea-to-seed generation remains an external LLM/human boundary; no provider is integrated. Frequency alone must never promote a rule.
 
-Recommended next research/development: a provider-neutral proposal contract for seed obligations and candidate expansion rules, preserving competing interpretations, assumptions, applicability, exceptions, disconfirmations, provenance and tests. Candidate rules must remain inactive until reviewed and approved; frequency alone must never promote a rule.
-
-### G-93 — feedback-loop assessment persistence (open)
+### G-93 — feedback-loop measurement/review update path (open)
 
 `assess_system` already creates a `FeedbackLoopAssessment` for each detected influence cycle, serializes it into `TensionAssessment.dimensions.feedback_loop_assessments`, and persists it inside `CycleRecord.tension`. The topology and UNKNOWN-first placeholders are therefore present. The missing capability is a traceable update path for measured dimensions and independently reviewed stability evidence; no CLI/API path currently accepts those updates. The model does not calculate stability, gain, damping or thresholds. A future evidence-bound update path should preserve original topology, validate measurement evidence, observation windows and provenance, preserve legacy-cycle loading, and leave stability UNKNOWN unless a separately reviewed assessment is supported.
+
+### G-94 — persistence failure safety and writer coordination (partially closed)
+
+PR #345 hardens CycleStore replacement with a same-directory temporary file, file fsync, atomic replacement and directory fsync. PatternMemory now appends/fsyncs a candidate snapshot before publishing the updated in-memory object; failure-injection tests cover new records, corroboration, refutation and cycle replacement.
+
+Remaining boundary: PatternMemory transactions are not serialized across multiple processes. CycleStore atomic replacement prevents partial files but does not serialize concurrent read-modify-write operations; a single writer per cycle ID is required and the last successful replacement wins. If concurrent writers become a requirement, add explicit locking or optimistic version checks rather than assuming atomic rename provides transaction isolation.
+
 
 ### Next sequence
 
@@ -227,4 +232,4 @@ No frozen S-01–S-25/M1.8 specification content or NEX runtime/deployment path 
 
 The earlier next-step wording to run the Stage-2 belief-development slice and fresh-process persistence/resume is stale. The repository already contains `rdo/STAGE2_EXTRAPOLATOR_MVP.md` and `rdo/tests/test_stage2_extrapolator_mvp.py`. The test exercises the belief-decay objective through the existing Extrapolator/reconciler/CycleStore and launches a fresh Python subprocess to reload the persisted cycle, checking discovered counts, deferred frontier and native-planning kind. It also guards against writing reusable patterns from deterministic fixture reviews without authorised review provenance.
 
-The #339 and #343 exact-head full-suite runs passed this test. This is isolated repository/test-store verification only; it is not live belief-database or host-runtime evidence. Keep it as a regression baseline and do not rebuild Stage 2.
+The #339, #343, #345 and #346 exact-head full-suite runs passed this test. This is isolated repository/test-store verification only; it is not live belief-database or host-runtime evidence. Keep it as a regression baseline and do not rebuild Stage 2.
