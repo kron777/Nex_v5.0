@@ -8,6 +8,7 @@ calculation and defaults all conclusions to UNKNOWN.
 from __future__ import annotations
 
 import dataclasses
+from datetime import datetime
 import fcntl
 import hashlib
 import json
@@ -28,6 +29,8 @@ MEASURED_DIMENSIONS = (
 )
 OPERATING_ENVELOPES = ("normal", "busy", "degraded", "stress", "recovery", UNKNOWN)
 _EVENT_SCHEMA = "rdo.feedback_loop_evidence.v1"
+_MAX_LEDGER_BYTES = 16 * 1024 * 1024
+_MAX_LEDGER_EVENTS = 100_000
 
 
 def _text(value: Any, name: str, maximum: int = 2000) -> str:
@@ -68,6 +71,46 @@ def _event_digest(event: dict) -> str:
     return hashlib.sha256(_canonical({
         key: value for key, value in event.items() if key != "event_sha256"
     })).hexdigest()
+
+
+def _reject_duplicate_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _valid_recorded_at(value: Any) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() is not None
+
+
+def _expected_event_id(event_kind: str, data: dict) -> str:
+    if event_kind == "measurement_recorded":
+        identity = {
+            key: data[key] for key in (
+                "cycle_id", "loop_id", "dimension", "value", "unit", "evidence",
+                "confidence", "provenance", "operating_envelope", "recorded_at",
+            )
+        }
+        prefix = "fle_"
+    else:
+        identity = {
+            key: data[key] for key in (
+                "cycle_id", "loop_id", "stability_state", "reviewer",
+                "source_reference", "assessment_evidence", "confidence", "note",
+                "recorded_at",
+            )
+        }
+        prefix = "flr_"
+    return prefix + hashlib.sha256(_canonical(identity)).hexdigest()[:24]
 
 
 @dataclasses.dataclass
@@ -185,38 +228,71 @@ class FeedbackLoopEvidenceStore:
         self.path = path
 
     def _read_unlocked(self, fh) -> List[dict]:
+        if os.fstat(fh.fileno()).st_size > _MAX_LEDGER_BYTES:
+            raise ValueError("feedback-loop evidence ledger exceeds size limit")
         fh.seek(0)
         events = []
         event_ids = set()
         previous = None
+        envelope_keys = {
+            "schema_version", "event_kind", "sequence",
+            "previous_event_sha256", "data", "event_sha256",
+        }
+        measurement_keys = {
+            "event_id", "cycle_id", "loop_id", "topology_sha256", "dimension",
+            "value", "unit", "evidence", "confidence", "provenance",
+            "operating_envelope", "recorded_at",
+        }
+        review_keys = {
+            "event_id", "cycle_id", "loop_id", "topology_sha256", "stability_state",
+            "reviewer", "source_reference", "assessment_evidence", "confidence",
+            "note", "recorded_at",
+        }
         for number, line in enumerate(fh, 1):
-            if not line.strip():
-                continue
+            if number > _MAX_LEDGER_EVENTS:
+                raise ValueError("feedback-loop evidence ledger exceeds event limit")
+            if not line.endswith("\n") or not line.strip():
+                raise ValueError(f"feedback-loop evidence line {number} is blank or unterminated")
             try:
-                event = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"feedback-loop evidence line {number} is invalid JSON") from exc
-            if (not isinstance(event, dict) or event.get("schema_version") != _EVENT_SCHEMA
+                event = json.loads(line, object_pairs_hook=_reject_duplicate_keys)
+            except (json.JSONDecodeError, ValueError) as exc:
+                raise ValueError(f"feedback-loop evidence line {number} is invalid JSON: {exc}") from exc
+            if not isinstance(event, dict) or set(event) != envelope_keys:
+                raise ValueError(f"feedback-loop evidence envelope is invalid at line {number}")
+            if (event.get("schema_version") != _EVENT_SCHEMA
+                    or not isinstance(event.get("schema_version"), str)
+                    or not isinstance(event.get("sequence"), int)
+                    or isinstance(event.get("sequence"), bool)
                     or event.get("sequence") != len(events) + 1
                     or event.get("previous_event_sha256") != previous):
                 raise ValueError(f"feedback-loop evidence chain is invalid at line {number}")
-            if event.get("event_sha256") != _event_digest(event):
+            if (not isinstance(event.get("event_sha256"), str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", event["event_sha256"])
+                    or event["event_sha256"] != _event_digest(event)):
                 raise ValueError(f"feedback-loop evidence digest mismatch at line {number}")
             kind = event.get("event_kind")
             data = event.get("data")
             if kind not in {"measurement_recorded", "stability_reviewed"} or not isinstance(data, dict):
                 raise ValueError(f"unsupported feedback-loop event at line {number}")
-            if not all(isinstance(data.get(key), str) and data[key].strip()
-                       for key in ("event_id", "cycle_id", "loop_id", "topology_sha256", "recorded_at")):
+            expected_keys = measurement_keys if kind == "measurement_recorded" else review_keys
+            if set(data) != expected_keys:
+                raise ValueError(f"feedback-loop event fields are invalid at line {number}")
+            if not all(
+                isinstance(data.get(key), str) and data[key].strip()
+                for key in ("event_id", "cycle_id", "loop_id", "recorded_at")
+            ):
                 raise ValueError(f"feedback-loop event identity is invalid at line {number}")
+            if not _valid_recorded_at(data["recorded_at"]):
+                raise ValueError(f"feedback-loop event timestamp is invalid at line {number}")
             if data["event_id"] in event_ids:
                 raise ValueError(f"duplicate feedback-loop event ID at line {number}")
             event_ids.add(data["event_id"])
-            if not re.fullmatch(r"[0-9a-f]{64}", data["topology_sha256"]):
+            if not re.fullmatch(r"[0-9a-f]{64}", data.get("topology_sha256", "")):
                 raise ValueError(f"feedback-loop topology digest is invalid at line {number}")
+            if data["event_id"] != _expected_event_id(kind, data):
+                raise ValueError(f"feedback-loop event identity digest mismatch at line {number}")
             if kind == "measurement_recorded":
                 if (data.get("dimension") not in MEASURED_DIMENSIONS
-                        or isinstance(data.get("value"), bool)
                         or not _finite_number(data.get("value"))
                         or not isinstance(data.get("unit"), str) or not data["unit"].strip()
                         or not _has_traceable_evidence(data.get("evidence"))
@@ -230,7 +306,7 @@ class FeedbackLoopEvidenceStore:
                         or not isinstance(data.get("source_reference"), str) or not data["source_reference"].strip()
                         or not _has_traceable_evidence(data.get("assessment_evidence"))
                         or not isinstance(data.get("confidence"), str) or not data["confidence"].strip()
-                        or not isinstance(data.get("note"), str)):
+                        or not isinstance(data.get("note"), str) or len(data["note"]) > 2000):
                     raise ValueError(f"feedback-loop stability review is invalid at line {number}")
             events.append(event)
             previous = event["event_sha256"]
@@ -238,10 +314,15 @@ class FeedbackLoopEvidenceStore:
 
     def _append(self, event_kind: str, data: dict) -> dict:
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        if os.path.islink(self.path):
+            raise ValueError("feedback-loop evidence ledger must not be a symlink")
+        created = not os.path.exists(self.path)
         with open(self.path, "a+", encoding="utf-8") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
             try:
                 events = self._read_unlocked(fh)
+                if len(events) >= _MAX_LEDGER_EVENTS:
+                    raise ValueError("feedback-loop evidence ledger exceeds event limit")
                 if any(event["data"]["event_id"] == data["event_id"] for event in events):
                     raise ValueError("duplicate feedback-loop evidence event")
                 event = {
@@ -256,6 +337,13 @@ class FeedbackLoopEvidenceStore:
                 fh.write(json.dumps(event, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n")
                 fh.flush()
                 os.fsync(fh.fileno())
+                if created:
+                    directory = os.path.dirname(os.path.abspath(self.path)) or "."
+                    dir_fd = os.open(directory, os.O_RDONLY)
+                    try:
+                        os.fsync(dir_fd)
+                    finally:
+                        os.close(dir_fd)
                 return event
             finally:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
@@ -263,6 +351,8 @@ class FeedbackLoopEvidenceStore:
     def events(self, cycle_id: Optional[str] = None) -> List[dict]:
         if not os.path.exists(self.path):
             return []
+        if os.path.islink(self.path):
+            raise ValueError("feedback-loop evidence ledger must not be a symlink")
         with open(self.path, "r", encoding="utf-8") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_SH)
             try:
@@ -298,6 +388,9 @@ class FeedbackLoopEvidenceStore:
     def record_measurement(self, cycle, loop_id: str, dimension: str, value: float,
                            unit: str, evidence: List[str], confidence: str,
                            provenance: List[str], operating_envelope: str = UNKNOWN) -> dict:
+        # Refuse to append if the cycle snapshot or topology has drifted from
+        # the existing ledger. This prevents a failed replay from poisoning it.
+        self.apply(cycle)
         loop_id = _text(loop_id, "loop_id", 256)
         if dimension not in MEASURED_DIMENSIONS:
             raise ValueError(f"dimension must be one of {MEASURED_DIMENSIONS}")
@@ -333,6 +426,8 @@ class FeedbackLoopEvidenceStore:
                                 reviewer: str, source_reference: str,
                                 assessment_evidence: List[str], confidence: str,
                                 note: str = "") -> dict:
+        # Preflight the current snapshot against the full history before append.
+        self.apply(cycle)
         loop_id = _text(loop_id, "loop_id", 256)
         if stability_state not in STABILITY_STATES:
             raise ValueError(f"stability_state must be one of {STABILITY_STATES}")
