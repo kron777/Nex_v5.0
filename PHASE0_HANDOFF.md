@@ -439,3 +439,7 @@ Persistence-loop effect: GrooveSpotter reads only stored Fountain/Synergized bel
 ### 28 November 2026 — lifecycle ownership split
 
 Theory X `register()/all_nodes()` is not a lifecycle dispatcher. `AppState._quiesce_producers()` is a separate bounded shutdown list for named worker services; `AppState.close()` shuts down the scheduler, quiesces workers and drains Writers, but does not iterate cognitive nodes or call `decay(now)`. Metacognition remains chat-tick-driven and has no autonomous worker in the inspected path. See INDEX §136.
+
+### 28 November 2026 — registered-node decay inventory
+
+Four persistent cleanup methods are present: Metacognition 14d, GoalManager 60d, ProblemMemory 30d and NovelAssociation 14d. Unit tests directly call each method; no production dispatcher/call was located in inspected boot/chat/background paths. Their consequences differ: Metacognition old unresolved rows remain eligible for the newest-three prompt slots; old open ProblemMemory rows remain eligible for chat matching; old GoalManager rows remain open; NovelAssociation's independent 2-hour prompt cutoff already hides old entries, so its 14-day decay is housekeeping. ProblemMemory is instantiated by main `run.py` but not registered there; only the optional test `create_app(with_tools=True)` path registers it. Do not infer one uniform defect or add a generic scheduler. See INDEX §137.
