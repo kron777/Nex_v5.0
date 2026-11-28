@@ -11,6 +11,8 @@ Pinned here, on isolated temporary databases:
   so each one's in-flight write lands;
 - producers are signalled first and joined against ONE shared deadline, so
   several stuck producers cannot multiply the shutdown time;
+- if any producer remains alive or its stop fails, no shared Writer is closed
+  underneath it; the supervisor enforces the final hard deadline;
 - build_world_model() keeps its loop threads, so they can be joined.
 
 Fountain and HoldingZoneResolver are now included through explicit stop and
@@ -194,6 +196,7 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
                diversity_loop=_LoopLike(later)).close()
         self.assertFalse(report["success"], report)
         self.assertTrue(any("stop failed" in e for e in report["producer_errors"]))
+        self.assertEqual(set(report["writer_close_skipped"]), set(self.writers))
         self.assertIs(later.wrote, True)
         self.assertTrue(self._landed("after_the_bad_one"))
 
@@ -299,6 +302,32 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
         self.assertGreater(first.timeouts[0], second.timeouts[0])
         self.assertLessEqual(first.timeouts[0], 0.3)
         self.assertLessEqual(second.timeouts[0], 0.3)
+
+    def test_live_producer_prevents_all_writer_closure(self):
+        import gui.server as srv
+
+        writer = self.writers["dynamic"]
+        finisher = _Finisher(writer, "late_producer", delay=0.2)
+        original_close = writer.close
+        with mock.patch.object(srv, "_PRODUCER_STOP_TIMEOUT_S", 0.05), \
+             mock.patch.object(writer, "close", wraps=original_close) as close_spy:
+            report = _state(
+                self.writers, self.readers,
+                signal_loop=_LoopLike(finisher),
+            ).close()
+
+        self.assertFalse(report["success"], report)
+        self.assertIn("fake_late_producer", report["producer_threads_alive"])
+        self.assertEqual(set(report["writer_close_skipped"]), set(self.writers))
+        self.assertIn("dynamic", report["writer_threads_alive"])
+        close_spy.assert_not_called()
+
+        # The producer is still allowed to finish its in-flight logical write
+        # while the shared Writer remains open; tearDown closes it afterwards.
+        finisher.thread.join(timeout=1.0)
+        self.assertFalse(finisher.thread.is_alive())
+        self.assertIs(finisher.wrote, True)
+        self.assertTrue(self._landed("late_producer"))
 
     def test_writer_timeout_is_returned_as_shutdown_failure(self):
         class TimeoutWriter:
