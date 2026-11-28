@@ -506,3 +506,6 @@ The Fountain governor writes `source='self_rut_notice'` only after the current `
 ### 28 November 2026 — GeniusTagger rut-window timestamp semantics
 
 GeniusTagger backfill can process 14-day-old Fountain events but writes tagged_at=ts_now; the rut observers filter on tagged_at within 90 minutes, so historical fires can appear recent during backfill. The schema allows multiple rows per (fountain_event_id, weights_version) and rut queries do not deduplicate IDs or filter versions. Draft PR #453 adds test-only characterization; exact-head CI pending. Actual host history and impact remain UNKNOWN. See INDEX §152.
+
+
+PR #452 exact-head workflow 46181820624 passed at e3e1e037f0769e66e62b84fe982abf37f49e1485. The isolated test confirms the direct Metacognition caller bypasses the wrapper OFF check; live host state remains UNKNOWN.
