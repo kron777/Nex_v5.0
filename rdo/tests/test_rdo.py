@@ -711,12 +711,13 @@ def test_rdo_self_assessment_lean_and_independent():
     assert "operating_envelope.py" in r["evidence_models"]
     assert "feedback_loop.py" in r["evidence_models"]
     assert "failure_evidence.py" in r["evidence_models"]
-    assert r["boundary_adapter_count"] == 2
+    assert r["boundary_adapter_count"] == 3
     assert r["total_module_count"] == (
         r["module_count"] + r["evidence_model_count"] + r["boundary_adapter_count"]
     )
     assert "objective_intake.py" in r["boundary_adapters"]
     assert "handoff.py" in r["boundary_adapters"]
+    assert "rule_proposals.py" in r["boundary_adapters"]
     assert not any(f["verdict"] == "VIOLATION" for f in r["findings"])
 
 # ---- correction regressions: evidence availability and downstream interpretation ----
