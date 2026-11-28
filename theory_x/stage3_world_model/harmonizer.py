@@ -799,7 +799,10 @@ class Harmonizer:
         """
         if stop_event is not None and stop_event.is_set():
             return 0
-        conflicts = self.scan_for_conflicts(stop_event=stop_event)
+        if stop_event is None:
+            conflicts = self.scan_for_conflicts()
+        else:
+            conflicts = self.scan_for_conflicts(stop_event=stop_event)
         if stop_event is not None and stop_event.is_set():
             return 0
         acted = 0
@@ -835,7 +838,10 @@ class Harmonizer:
 
         if stop_event is not None and stop_event.is_set():
             return acted
-        acted += self._escalate_stale_paradoxes(stop_event=stop_event)
+        if stop_event is None:
+            acted += self._escalate_stale_paradoxes()
+        else:
+            acted += self._escalate_stale_paradoxes(stop_event=stop_event)
         return acted
 
     # ── Direct re-check of already-flagged pairs (the LIMIT-200 fix) ───────────
@@ -894,7 +900,8 @@ class Harmonizer:
             return 0
         acted = 0
         now = time.time()
-        for a_id, b_id, ts in self._open_paradox_pairs(stop_event=stop_event):
+        pairs = self._open_paradox_pairs() if stop_event is None else self._open_paradox_pairs(stop_event=stop_event)
+        for a_id, b_id, ts in pairs:
             if stop_event is not None and stop_event.is_set():
                 break
             if now - ts < PARADOX_INCUBATION_SECONDS:
