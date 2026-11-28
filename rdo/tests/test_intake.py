@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from rdo.model import AcceptanceVerificationRecord, ContextRequirement, NECESSARY, ANTI_REQUIREMENT, CONDITIONAL
+from rdo.rule_proposals import RuleProposalStore
 from rdo_adapters.objective_intake import (
     ObjectiveInputError,
     ObjectiveInputStore,
@@ -564,3 +565,119 @@ def test_stage7_real_objective_example_is_valid():
     assert record["objective_id"] == "stage7-real-objective-record"
     assert record["scope"]["affected_paths"] == ["rdo/STAGE7_HANDOFF.md"]
     assert record["seed_obligations"][0]["key"] == "record-stage7-real-objective-run"
+
+
+
+def test_intake_uses_only_explicitly_selected_approved_novel_rules_and_versions_cycle(tmp_path):
+    repo = make_clean_repo(tmp_path / "repo")
+    raw = payload("approved_rule_intake")
+    raw["seed_obligations"].append({
+        "key": "specialized_route_seed",
+        "title": "Specialized route mechanism",
+        "kind": "specialized_route",
+        "classification": "necessary",
+        "rationale": "The objective includes a specialized route mechanism.",
+        "impact": "Without it, the specialized route cannot be prepared.",
+        "evidence_needs": ["A source-backed route policy."],
+        "assumptions": [],
+        "confidence": "inferred",
+    })
+
+    baseline = submit_objective(
+        raw, repo_dir=str(repo), workdir=str(tmp_path / "baseline_cycles")
+    )
+    assert not any(
+        key.startswith("specialized_route_seed.")
+        for key in [item["key"] for item in baseline["cycle"]["obligations"]]
+    )
+    assert baseline["cycle"]["rule_catalogue"] == {}
+
+    proposal = {
+        "target_kind": "specialized_route",
+        "source_obligation": {
+            "key": "specialized_route_seed",
+            "title": "Specialized route mechanism",
+            "kind": "specialized_route",
+        },
+        "alternatives": [{
+            "id": "route_contract_first",
+            "description": "Define the route contract before adding its consumer.",
+            "steps": [{
+                "child_kind": "route_contract",
+                "classification": "necessary",
+                "rationale": "A specialized route needs an explicit contract.",
+                "shared_target": None,
+            }],
+        }],
+        "assumptions": ["The route is read-only."],
+        "applicability": ["Only objectives that explicitly request a specialized route."],
+        "preconditions": ["The route's consumer is identified."],
+        "exceptions": ["Do not apply to unrelated routes."],
+        "anti_requirements": ["Do not add a write path."],
+        "evidence_needs": ["Route contract source and consumer evidence."],
+        "disconfirming_cases": ["A generic route with no specialized contract."],
+        "provenance": ["frontier:approved_rule_intake:specialized_route_seed"],
+        "positive_tests": ["tests/test_specialized_route.py::test_contract"],
+        "negative_tests": ["tests/test_specialized_route.py::test_generic_route_unchanged"],
+    }
+    ledger = str(tmp_path / "rule_store" / "rule_proposals.jsonl")
+    store = RuleProposalStore(ledger)
+    created = store.propose(proposal)
+    proposal_id = created["data"]["proposal_id"]
+    store.review(
+        proposal_id, "approved", "reviewer attribution", "review:route-rule",
+        ["review:scope", "review:contract"],
+        selected_alternative="route_contract_first",
+        positive_test_evidence=["tests/test_specialized_route.py::test_contract"],
+        negative_test_evidence=["tests/test_specialized_route.py::test_generic_route_unchanged"],
+    )
+
+    selected = submit_objective(
+        raw, repo_dir=str(repo), workdir=str(tmp_path / "selected_cycles"),
+        rule_proposals_path=ledger, approved_rule_kinds=["specialized_route"],
+    )
+    selected_keys = {item["key"] for item in selected["cycle"]["obligations"]}
+    assert "specialized_route_seed.route_contract" in selected_keys
+    assert selected["cycle"]["rule_catalogue"]["version"] == 1
+    assert selected["cycle"]["rule_catalogue"]["sha256"] == store.approved_catalogue(
+        kinds=["specialized_route"]
+    ).sha256
+    assert selected["cycle"]["id"] != baseline["cycle"]["id"]
+    assert selected["cycle"]["objective_input"]["rule_catalogue"]["selected_kinds"] == [
+        "specialized_route"
+    ]
+
+
+def test_intake_rejects_unapproved_or_unknown_rule_selection_before_cycle_creation(tmp_path):
+    repo = make_clean_repo(tmp_path / "repo")
+    raw = payload("unapproved_rule_intake")
+    ledger = str(tmp_path / "rule_store" / "rule_proposals.jsonl")
+    store = RuleProposalStore(ledger)
+    created = store.propose({
+        "target_kind": "novel_worker",
+        "source_obligation": {"key": "worker", "title": "Novel worker", "kind": "novel_worker"},
+        "alternatives": [{
+            "id": "basic",
+            "description": "Basic worker decomposition.",
+            "steps": [{
+                "child_kind": "worker_lifecycle", "classification": "necessary",
+                "rationale": "A worker needs a lifecycle.", "shared_target": None,
+            }],
+        }],
+        "assumptions": [],
+        "applicability": ["Only explicitly scoped worker objectives."],
+        "preconditions": ["The worker's trigger is identified."],
+        "exceptions": [],
+        "anti_requirements": ["Do not start the worker autonomously."],
+        "evidence_needs": ["A lifecycle contract."],
+        "disconfirming_cases": ["An objective that only documents an existing worker."],
+        "provenance": ["frontier:unapproved:worker"],
+        "positive_tests": ["tests/test_worker_rule.py::test_lifecycle"],
+        "negative_tests": ["tests/test_worker_rule.py::test_documentation_only"],
+    })
+    with pytest.raises(ObjectiveInputError, match="not approved"):
+        submit_objective(
+            raw, repo_dir=str(repo), workdir=str(tmp_path / "cycles"),
+            rule_proposals_path=ledger, approved_rule_kinds=["novel_worker"],
+        )
+    assert not list((tmp_path / "cycles").glob("cycle_*.json"))
