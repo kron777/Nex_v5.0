@@ -297,7 +297,7 @@ def _validate_alternative(value: Any, raw: dict, label: str, proposer_kind: str)
             raise SeedProposalError("acceptance criterion coverage has an invalid or duplicate index")
         covered.add(criterion_index)
         obligation_keys = _text_list(entry["obligation_keys"], "coverage.obligation_keys",
-                                     required=True, maximum_items=MAX_SEEDS, maximum_length=128)
+                                     maximum_items=MAX_SEEDS, maximum_length=128)
         if set(obligation_keys) - keys:
             raise SeedProposalError("acceptance criterion coverage references an unknown seed key")
         checked_coverage.append({
@@ -332,7 +332,7 @@ def _validate_proposal(raw_objective: Any, alternatives: Any, proposer_kind: str
     source_reference = _text(source_reference, "source_reference", 1000)
     if not isinstance(alternatives, list) or not 2 <= len(alternatives) <= MAX_ALTERNATIVES:
         raise SeedProposalError(f"alternatives must contain 2-{MAX_ALTERNATIVES} competing interpretations")
-    checked = [_validate_alternative(alt, raw, f"alternatives[{i}]")
+    checked = [_validate_alternative(alt, raw, f"alternatives[{i}]", proposer_kind)
                for i, alt in enumerate(alternatives)]
     ids = [alt["alternative_id"] for alt in checked]
     if len(ids) != len(set(ids)):
@@ -416,7 +416,7 @@ class SeedProposalStore:
                 alternatives = record["alternatives"]
                 if not isinstance(alternatives, list) or not 2 <= len(alternatives) <= MAX_ALTERNATIVES:
                     raise SeedProposalError("persisted proposal alternatives are invalid")
-                checked = [_validate_alternative(alt, raw, f"persisted alternatives[{i}]")
+                checked = [_validate_alternative(alt, raw, f"persisted alternatives[{i}]", record["proposer_kind"])
                            for i, alt in enumerate(alternatives)]
                 if checked != alternatives:
                     raise SeedProposalError("persisted seed proposal alternative is not canonical")
@@ -426,6 +426,14 @@ class SeedProposalStore:
                 expected = "seedprop_" + _digest(identity_body)[:24]
                 if pid != expected or record["proposal_id"] != pid or pid in proposals:
                     raise SeedProposalError("duplicate or mismatched seed proposal identity")
+                predecessor_id = record["supersedes_proposal_id"]
+                if predecessor_id is not None:
+                    predecessor = proposals.get(predecessor_id)
+                    if (not isinstance(predecessor_id, str) or not _PROPOSAL_ID.fullmatch(predecessor_id)
+                            or predecessor is None
+                            or predecessor["status"] not in ("changes_requested", "rejected")
+                            or predecessor["proposal"]["raw_objective_sha256"] != raw_digest):
+                        raise SeedProposalError("seed proposal supersession lineage is invalid")
                 _text(record["proposer_reference"], "proposer_reference", 512)
                 _text(record["source_reference"], "source_reference", 1000)
                 if record["proposer_kind"] not in ("human", "external_llm"):
