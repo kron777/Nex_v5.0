@@ -118,7 +118,7 @@ def _validate_manifest(manifest: Any) -> dict:
     proposal_lineage = manifest.get("proposal_lineage")
     if proposal_lineage is not None and (
         not isinstance(proposal_lineage, dict)
-        or proposal_lineage.get("schema_version") != "rdo.reviewed_seed_bridge.v1"
+        or proposal_lineage.get("schema_version") != "rdo.reviewed_seed_bridge.v2"
     ):
         raise HandoffError("manifest proposal lineage is invalid")
     if manifest["authority"].get("execution_authority") != "none":
