@@ -219,6 +219,7 @@ def main() -> None:
     voice_state = build_voice_state(writers, readers)
     log.info("Voice state ready — current voice: %s", voice_state.current_name())
 
+    _abort_if_boot_shutdown_requested(state)
     state.mode_state = mode_state
     state.voice_state = voice_state
 
