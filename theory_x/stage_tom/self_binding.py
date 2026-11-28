@@ -232,7 +232,7 @@ def bind(dynamic_writer: Writer | None = None) -> dict:
         # Value-drift is not yet wired into this binder. The persisted "clean"
         # value is a compatibility placeholder, not a measured verdict. Keep
         # this explicit until a grounded existing verdict source is connected.
-        drift = "clean" cycle
+        drift = "clean"
 
         synthesis = _synthesize(emotion, raga_level, drive, att, substrate)
         components = {
