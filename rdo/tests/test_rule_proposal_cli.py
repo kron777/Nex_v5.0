@@ -22,15 +22,18 @@ def test_rule_proposal_cli_routes_submit_review_and_history(tmp_path, monkeypatc
             calls.append(("review", pid, decision, kwargs))
             return {"proposal": {"proposal_id": pid}, "status": decision}
 
-        def proposals(self):
-            return [{"proposal": {"proposal_id": proposal_id}, "status": "approved_for_catalogue"}]
-
-        def events(self):
-            return [
-                {"proposal_id": proposal_id, "event_kind": "proposal_submitted"},
-                {"proposal_id": proposal_id, "event_kind": "review_decision"},
-                {"proposal_id": "ruleprop_" + "b" * 24, "event_kind": "proposal_submitted"},
-            ]
+        def history(self, requested_id=None):
+            assert requested_id in (None, proposal_id)
+            return {
+                "proposal_count": 1,
+                "proposals": [
+                    {"proposal": {"proposal_id": proposal_id}, "status": "approved_for_catalogue"}
+                ],
+                "events": [
+                    {"proposal_id": proposal_id, "event_kind": "proposal_submitted"},
+                    {"proposal_id": proposal_id, "event_kind": "review_decision"},
+                ],
+            }
 
     monkeypatch.setattr(cli, "RuleProposalStore", FakeStore)
     payload = {
