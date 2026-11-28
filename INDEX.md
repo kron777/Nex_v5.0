@@ -1350,3 +1350,31 @@ The exact-head CI run 2526 was still running its full baseline suite when this e
 The same internal-start pattern appears in Dynamic, World Model, Membrane and Fountain builders. This is a cross-subsystem research queue only. Inspect each builder's own cleanup contract, constructor dependencies and tests before changing it. The boot-level owner-before-first-start boundary remains separate from builder-level rollback.
 
 **Unchanged boundaries:** no frozen S-01–S-25/M1.8 content, Master Roadmap, Gate 0/Phase 1 authority, Tibetan mind-map role, cognitive interpretation/action-authority separation, NEX runtime flags, databases or live host state changed by this method entry.
+
+
+
+## 52. Dynamic builder startup rollback — first cross-builder application (28 November 2026)
+
+**Implementation branch / PR:** `fix/dynamic-builder-transactional-startup-2026-11-28`, [PR #415](https://github.com/kron777/Nex_v5.0/pull/415), exact head `8889eba914cbffe1767efb200f70626e71f9c945`. Base at PR creation: `58a3cb13d4b15c65421e595830d78d233e663ffb`.
+
+### Source-derived gap
+
+`build_dynamic()` creates a DynamicState, prepares a list of loop functions, then starts each thread sequentially. Before this increment, it assigned `state._stop` and `state._threads` only after every `Thread.start()` succeeded. If a later start raised, earlier threads could already be running, but the builder would not return the state or expose its ownership handles to the caller. The normal `stop_dynamic()` contract could therefore not be used by the caller for that failed construction.
+
+This is a source-derived partial-construction risk, not a report of an observed production failure or host leak.
+
+### Bounded implementation
+
+- Publish `state._stop` and the live `state._threads` list before starting any worker.
+- Prepare workers behind a shared activation gate; loop bodies cannot begin until every thread start succeeds.
+- If a start fails, set the stop event, release the gate so started wrappers can exit without entering their loop body, and join started threads against one shared one-second rollback budget.
+- Preserve and re-raise the original startup exception. Log any worker that unexpectedly survives the bounded rollback.
+- Add a deterministic regression injecting failure on the second thread start; it asserts that the first thread is joined, the second was never started, and the patched first loop body was never entered.
+
+### Validation boundary and next work
+
+PR #415 was opened against current `main`; exact-head CI had not yet been reported when this entry was written. No test pass is claimed. The regression exercises the second-start failure and gate/rollback ordering, but does not inject a failure after a worker has passed the gate, because the gate is deliberately withheld until all starts succeed.
+
+This change does not alter the successful Dynamic loop cadence or processing semantics. It does not solve boot-level ownership before AppState. World Model, Membrane and Fountain have similar internal-start patterns, but their cleanup contracts differ and remain separate investigations. No shared thread utility or bulk refactor is justified yet.
+
+**Unchanged boundaries:** no frozen S-01–S-25/M1.8 content, Master Roadmap, Gate 0/Phase 1 authority, mind-map role, cognitive/action authority separation, NEX runtime flags, databases or live host state changed by this increment.
