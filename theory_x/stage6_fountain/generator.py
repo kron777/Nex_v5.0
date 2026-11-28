@@ -1688,7 +1688,9 @@ class FountainGenerator:
             except Exception:
                 trace = None
         if trace is None:
-            # The default-OFF path keeps the original direct call and exception path.
+            # Preserve the historical call shape when no stop Event is supplied.
+            if stop_event is None:
+                return self._generate(dynamic_state, beliefs_reader)
             return self._generate(dynamic_state, beliefs_reader, stop_event=stop_event)
 
         _tick_record_id = trace.record(
@@ -1698,7 +1700,12 @@ class FountainGenerator:
         )
         trace.remember("fountain_tick", _tick_record_id)
         try:
-            result = self._generate(dynamic_state, beliefs_reader, trace=trace, stop_event=stop_event)
+            if stop_event is None:
+                result = self._generate(dynamic_state, beliefs_reader, trace=trace)
+            else:
+                result = self._generate(
+                    dynamic_state, beliefs_reader, trace=trace, stop_event=stop_event
+                )
         except Exception as exc:
             if trace is not None:
                 trace.record("output", "generation_error",
