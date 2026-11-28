@@ -72,6 +72,9 @@ class WorldPredictionLoop:
         self._thread: Optional[threading.Thread] = None
 
     def tick(self, stop_event: Optional[threading.Event] = None) -> None:
+        if stop_event is None:
+            stop_event = self._stop
+
         def _stopping() -> bool:
             return stop_event is not None and stop_event.is_set()
 
@@ -127,7 +130,7 @@ class WorldPredictionLoop:
             while not self._stop.is_set():
                 self._stop.wait(interval)
                 if not self._stop.is_set():
-                    self.tick(stop_event=self._stop)
+                    self.tick()
 
         self._thread = threading.Thread(
             target=_run, name="world_prediction_loop", daemon=True
