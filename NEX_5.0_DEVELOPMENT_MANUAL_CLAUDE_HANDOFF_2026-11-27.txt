@@ -5403,7 +5403,7 @@ This does not invalidate the 30-day source-level backstop; it narrows the test e
 
 **Authority boundary:** no reaper target, retention value, service/timer, test, database or runtime behaviour changed. See §138 for the retention semantics.
 
-## §143 — Host-side DB-reaper deployment history: path repair observed, successful run not established (28 November 2026)
+## §145 — Host-side DB-reaper deployment history: path repair observed, successful run not established (28 November 2026)
 
 The earlier host diagnostic record adds an important qualification to §138:
 
@@ -5431,10 +5431,14 @@ The earlier host diagnostic record adds an important qualification to §138:
 - `SelfNarrative.write_narrative()` performs a plain INSERT for each call; there is no deduplication by `source_id`, trigger or content.
 - `Metacognition._detect_groove()` calls `write_narrative()` on every eligible re-read of an unacknowledged source alert, passing the same GrooveSpotter alert ID as `source_id`.
 - PR #449 exact-head tests verify five narrative rows can be written with the same source alert ID from five chat ticks.
-- `SelfNarrative.format_for_prompt()` selects the newest `_DEFAULT_N=5` rows. When a topic is supplied, it filters only by case-insensitive substring match against `content`; it has no `created_at` cutoff, no `trigger` restriction and no source-ID deduplication. The GUI passes `prompt[:100]` as the topic.
+- `SelfNarrative.format_for_prompt()` selects the newest `_DEFAULT_N=5` rows. When a topic is supplied, it filters only by case-insensitive substring match against `content`; it has no `created_at` cutoff, no `trigger` restriction and no source-ID deduplication. The GUI passes `prompt[:100]` as the topic. It selects only `content` and `created_at`, so the stored `trigger` and `source_id` are not passed into the prompt.
 - `SelfNarrative.decay()` is a no-op.
 - The external `nex_db_reaper.py` target list includes `meta_cognition_events` at 30 days but does not include `narrative_log` or `groove_alerts`. The 30-day reaper therefore does not bound these narrative rows.
-- The source alert itself falls out of Metacognition's consumer query after 600 seconds, but that does not delete the source row or its narrative rows.
+- The source alert itself falls out of Metacognition's consumer query after 600 seconds, but that does not delete the source row or its narrative rows. The 600-second value is `_GROOVE_LOOKBACK`; `_detect_groove()` reads only `detected_at > now - 600` and `acknowledged_at IS NULL`.
+
+### Additional writer paths and provenance loss
+
+The same `SelfNarrative.write_narrative()` INSERT is also called by inspected paths in ProblemMemory (problem opened/closed), GoalManager (goal completed), NovelAssociation (strong cross-domain crossing), and CoherenceGate (accepted insight tied to an open problem). The `SelfNarrative` rut-notice helper is called directly from `Metacognition.tick()`. These are distinct narrative triggers; they do not establish a common retention policy. The formatter strips `trigger` and `source_id` from its SELECT, so the LLM receives the narrative text and age label but not the stored provenance needed to distinguish a repeated groove alert from a problem, goal or association event.
 
 ### Consequence
 
