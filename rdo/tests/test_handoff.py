@@ -706,7 +706,7 @@ def test_completed_acceptance_criterion_passes_independent_watcher_verification(
     from rdo_adapters.handoff import record_context_mapping, record_acceptance_verification
 
     repo = _clean_repo(tmp_path / "repo")
-    (repo / ".gitignore").write_text("rdo/.cycles/\\n", encoding="utf-8")
+    (repo / ".gitignore").write_text("rdo/.cycles/\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
     subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "ignore RDO cycle store"], check=True)
     workdir = str(repo / "rdo" / ".cycles")
