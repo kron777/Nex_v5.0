@@ -4,6 +4,14 @@
 **Repository:** `kron777/Nex_v5.0`  
 **Method:** source trace plus isolated tests; no live service or database access.
 
+## 0. Governing objective and architectural boundary
+
+The target pathway remains: human sentence intake → cognitive interpretation through the existing Mind Aspects → the existing Sentence Code representation → Recursive Extrapolator → executable interfaces → verified result.
+
+The Mind Aspects contribute cognitive interpretation. The Tibetan mind map is a model of those aspects, not an action-control authority: an aspect must not gate, score, block or veto an action merely because of its place in that map.
+
+This increment does not recreate, replace or claim to wire the Sentence Code or Mind Aspects. It hardens one legacy arithmetic tool interface downstream of sentence intake. It is supporting work on an existing execution edge, not evidence that the complete governing pathway is operational.
+
 ## 1. Existing wire
 
 The inspected path in `gui/server.py` is:
