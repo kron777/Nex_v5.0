@@ -1301,7 +1301,7 @@ nodes:
         - "tests/test_episodic_falsifier.py:42-54"
         - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
-        - "gui/server.py:3524-3539"
+        - "gui/server.py:3564-3578"
         - "nex_keepalive.sh:219-220"
         - "SENTIENCE_PROGRAM.md:148-157"
     last_verified: 2026-11-28
@@ -1334,6 +1334,9 @@ nodes:
       unchanged since 2026-11-27.
       Same day, G-84 step 2 added AppState._quiesce_producers() above it: the endpoint
       moved by 47 lines to :3524-3539, byte-identical content; anchor updated.
+      Follow-up source check after the registered-producer shutdown expansion (Fountain,
+      HoldingZoneResolver, scheduler adapters and additional AppState workers): the endpoint
+      is now at gui/server.py:3564-3578. Its SELECT-only body remains unchanged.
 
       Falsifier run 2026-11-09, isolated test env (NEX5_DATA_DIR override, never the live DB/loop):
       tests/test_episodic_falsifier.py adds two checks against the real query_episodes()/
