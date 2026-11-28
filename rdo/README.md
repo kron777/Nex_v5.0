@@ -453,6 +453,8 @@ A novel obligation kind remains a visible frontier item; it is never silently ex
 
 Even `approved_for_catalogue` means only that a candidate is eligible for a separate code/catalogue change review. There is deliberately no activation API: `EXPANSION_RULES` remains the only active catalogue and changes only through an ordinary reviewed source change with tests and CI. Proposer/reviewer labels are caller-attributed, not identity-authenticated.
 
+The `rule-history` command now derives both proposal statuses and event rows from one locked ledger read, so a concurrent review cannot make the two sections disagree.
+
 The lifecycle is available through three provider-neutral CLI commands. Supply
 a JSON file containing exactly `request`, `candidate`, `proposer_kind`,
 `proposer_reference` and `source_reference`; an optional
