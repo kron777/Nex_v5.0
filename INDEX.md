@@ -1043,3 +1043,34 @@ The current source contains several distinct interaction paths. They should be u
 This trace is source-verified and hypothesis-generating. It identifies several existing connections and important non-connections; it does not yet establish runtime liveness, beneficial cognitive effect, or a unified integrated subject. No new node or runtime wire was added. A test-only characterization has now been added to `tests/test_dynamic.py`: an external `ai_research.arxiv` event must increase that branch's Bonsai focus and texture, while an `internal.proprioception` event is confirmed to match the systems branch but produce zero magnitude, no focus/texture change and no Stage-2 F-step event. This strengthens the previously weak internal-event assertion and adds a positive control. Exact-head CI is pending; no pass is claimed. The test currently establishes the Stage-2 pipeline → Bonsai edge only. Fountain branch selection and workspace framing remain the next separate test seam.
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, M0/M1 gate, mind-map policy, live runtime flag, service or database was changed.
+
+
+## 49. Bonsai → Fountain branch pick → Global Workspace trace (28 November 2026)
+
+**Evidence snapshot:** NEX `main` at `d580248ecf9436784a8772c50e733008baaf1b41`. Test-only characterization is proposed on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; exact-head CI pending.
+
+### Network path
+
+The Stage-2 A–F pipeline already propagates external sense events into Bonsai branch focus and texture. This increment follows that state into two separate downstream consumers:
+
+1. Fountain's `_weighted_branch_pick(sorted_branches, top_pick)` reads the branch `focus_num` values. With `NEX5_BRANCH_TEMP` unset/zero it returns the hottest branch unchanged; with a positive temperature it performs softmax-weighted selection, allowing a lower-focus branch to surface.
+2. The Global Workspace's `_bonsai_candidate(status)` reads the same branch state, converts the hottest branch's focus into salience using `_W_BONSAI`, and offers it to `arbitrate_candidates()` alongside other candidate frames. The winner becomes the leading frame; other faculty contributions remain below it.
+
+These are separate consumers of a shared state, not one single arbiter. Fountain branch choice is stochastic when its temperature flag is enabled; Global Workspace frame selection is deterministic argmax over candidate salience.
+
+### Test added
+
+`tests/test_dynamic.py` now sends repeated `ai_research.arxiv` events through the real Stage-2 pipeline, verifies the branch focus exceeds the Global Workspace admission threshold, then asserts:
+- the default Fountain path picks the highest-focus branch;
+- a deterministic high-temperature draw can select a lower-focus branch;
+- the same Bonsai snapshot produces an `ai_research` Global Workspace candidate and wins against a deliberately lower-salience momentum candidate.
+
+The existing internal-telemetry negative control remains separate: `internal.proprioception` maps to `systems` at the match layer but produces zero magnitude and no Bonsai focus change/F-step event. This protects the known anti-starvation boundary.
+
+### Interpretation and limits
+
+This establishes a source-level, fixture-tested path from external perception through attention state into branch selection and workspace framing. It does not prove that either selection strategy improves cognition or that the resulting language output is more accurate. It does not exercise live Fountain fires, real databases, or production feature flags.
+
+The next research step is to measure interaction effects under controlled perturbations: vary one branch's focus, one workspace candidate and one competing drive separately; record winner-kind shifts and downstream output changes. Keep the default-off branch temperature and all other production settings unchanged.
+
+No runtime behavior, prompt policy, salience weight, feature flag, database schema, frozen specification or gate authority was changed.
