@@ -1119,3 +1119,93 @@ The first exact-head CI exposed one stale self-assessment expectation: RDO corre
 The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.tension._find_cycles`, `_classify_cycle`, `assess_system` and `rdo.graph` SCC machinery to distinguish prerequisite cycles, influence feedback loops and unknown cases. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
+
+
+
+## 49. Development practice refinement — evidence, influence and learning (28 November 2026)
+
+**Research snapshot:** current `main` at `55fd635bd535d15ece3e3878bf1e71621f56fa7c`. This entry records an engineering-method refinement from the existing INDEX, RDO design and development records, the G-92/G-93 lifecycle work, the cognitive interaction trace and the design-mindedness investigation. It is a development aid, not a governing specification, roadmap amendment or runtime finding.
+
+### The central correction: diagnose the kind of gap before proposing a fix
+
+Classify each finding before choosing an implementation:
+
+1. **Absent capability:** no suitable mechanism exists in the current architecture.
+2. **Disconnected capability:** the mechanism exists, but a required producer-to-consumer path is missing or incorrectly wired.
+3. **Unconsumed or ineffective output:** a producer runs, but its output is not consumed, is neutralised, is stale, or has no demonstrated effect.
+4. **Deliberate exclusion:** a path is disabled or filtered because prior evidence showed distortion, starvation, amplification, unsafe side effects or experimental confounding. Preserve it unless new evidence and authority justify reconsideration.
+5. **Measurement gap:** the mechanism/path exists, but its actual influence, operating envelope or runtime status is unknown.
+6. **Semantic/authority gap:** source behaviour exists but intended meaning, lifecycle contract, policy or approval is unresolved. Do not guess implementation semantics from convenient code.
+7. **Regression or ownership defect:** a previously established invariant has been violated by a change, concurrency path, alternate consumer or lifecycle boundary.
+
+These classes can overlap. Record the primary gap and any secondary gaps. Do not automatically translate every finding into a new feature.
+
+### Trace influence as a relationship, not a component count
+
+For each material signal or state, trace:
+
+- origin and producer;
+- representation, units, confidence, provenance and freshness;
+- transformations, filters, defaults, thresholds and selection rules;
+- persistence and ownership;
+- every direct and indirect consumer;
+- whether the effect is descriptive, prompt-mediated, selection-changing, state-changing or externally consequential;
+- flags, deployment conditions, capability checks and approval authority;
+- failure, retry, restart, concurrency and stale-data behaviour.
+
+Assess influence per relationship: direct/indirect, read/behavioural, conditional/unconditional, bounded/unbounded, reversible/irreversible, measured/unmeasured. A count of consumers or files is not an authority or impact score. A prompt contribution is not proof of mechanical selection influence; a log entry is not proof of consumption; boot construction is not proof of liveness.
+
+Record intentional negative edges explicitly. Use positive and negative controls where practical. A signal useful for self-description may be harmful when used for attention steering; a bounded scan may starve items unless it rotates; a safety filter in one path does not protect alternate consumers.
+
+### Use a stronger evidence ladder
+
+Keep these states separate in every report:
+
+- specified;
+- present in source;
+- boot-wired;
+- enabled in the examined environment;
+- consumed by a real downstream path;
+- measured under a controlled probe or authorised runtime observation;
+- validated against a relevant falsifier, baseline and regression set.
+
+For each claim preserve the exact source commit and path/line or symbol, test path and exact workflow/run/job, evidence class, counter-evidence, verification date and remaining unknowns. Source anchors establish where to inspect, not semantic satisfaction. A fixture establishes only its fixture scope. CI validates only the exact tested commit and test scope. Host behaviour remains UNKNOWN without authorised host evidence.
+
+For PR work, independently check open/closed, draft/ready, base, head, merge base, changed files and exact-head CI. A green workflow on a stale base is not validation of a replay onto current main. Documentation commits after a code test do not change the tested code, but the new exact head should still be recorded accurately.
+
+### Improve experiment design before increasing implementation scope
+
+For a proposed connection or behaviour change:
+
+1. State the causal claim in one sentence.
+2. Identify the smallest observable intermediate variables.
+3. Capture a baseline and source/fixture conditions.
+4. Perturb one independent input at a time.
+5. Include a positive control and a negative/intentional-exclusion control where appropriate.
+6. Trace the effect through the intended consumer, not merely the producer.
+7. Test counterfactual subtraction or disablement where feasible.
+8. Inspect unintended consumers, feedback amplification, starvation and side effects.
+9. Compare predicted and observed outcomes; preserve null, adverse and ambiguous results.
+10. Only then decide whether the next integration level is justified.
+
+Separate three levels of evidence: one connection works; the subsystem behaves coherently; the whole system delivers a beneficial, stable outcome. Passing the first does not imply the second or third. Prompt wording, self-report and component labels must not substitute for measured changes in attention, retrieval, selection or external behaviour.
+
+### Make boundedness fair and lifecycle-safe
+
+Whenever code uses limits, windows, top-K selection, pagination, sampling, retries or periodic scans, ask whether the bound creates starvation, permanent ordering bias, missed updates or restart gaps. Inspect cursor semantics, rotation, idempotency and recovery. When state is shared, identify the canonical owner and writer; inspect submit/close races, concurrent mutation, atomic persistence, replay and failure between ledger and snapshot writes.
+
+Reuse existing infrastructure when its responsibility fits. Do not mechanically split modules based on LOC heuristics or create a parallel ledger, queue, workspace, node or authority layer merely to make a gap look addressed. Conversely, do not overload an existing component when ownership and lifecycle become incoherent. Choose the smallest change that closes the invariant, not necessarily the smallest textual diff.
+
+### Treat NEX and RDO as systems that must also be examined critically
+
+NEX's disabled mechanisms can encode experimental learning, not unfinished work. Recover the reason for an OFF state before proposing activation. Preserve welfare constraints, boundedness, reversibility and neutral alternatives where a mechanism can create aversive or self-reinforcing states. Do not describe functional analogues as proof of subjective experience.
+
+RDO remains advisory and separate from NEX runtime cognition. Its source-signature reconciliation is not semantic verification; its prioritisation mathematics is not calibrated merely because it produces numbers; repeated patterns do not automatically justify new rules. Compare efficiency only across comparable executed-and-verified cycles, with denominators and missing outcomes preserved. Planning-only and imported-retrospective cycles are not execution outcomes. Human approval, scope review, acceptance, independent verification and execution remain distinct decisions.
+
+### Revised research–develop–observe loop
+
+`Orient → classify the gap → trace the relationship network → form competing hypotheses → identify disconfirming evidence → check authority and existing mechanisms → design the smallest causal probe → implement one bounded increment → validate exact scope → rescan changed and adjacent paths → record outcomes and newly exposed obligations → reassess.`
+
+The loop is iterative, not a rigid waterfall. Research and implementation may proceed together where the evidence and authority permit. Stop expanding when the next obligation is actionable, an existing mechanism should be reused, a required authority/runtime fact is unavailable, or expected information gain has materially diminished. Record the unresolved boundary and continue elsewhere rather than inventing certainty.
+
+**No NEX runtime code, feature flags, databases, frozen S-01–S-25/M1.8 content, Master Roadmap, mind-map authority, Gate 0 or Phase 1 status was changed by this method study.** This entry is a refinement of engineering practice only.
