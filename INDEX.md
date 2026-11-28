@@ -1145,7 +1145,7 @@ Exact-head full-suite workflow run 2339 completed successfully: **2,971 passed, 
 
 A source scan of the current 4,763-line `gui/server.py` found no direct `threading.Thread` construction, thread `.start()` call, executor submission, `create_task()` or subprocess spawn in the route module. The matches were thread lifecycle inspection/ownership code. This narrows the direct route-spawn concern but does not rule out detached work inside services called by routes, tasks created elsewhere, or alternate WSGI/server entry points. The gate is installed before the authentication and route-specific request hooks.
 
-The request gate is now current-main code. Do not overstate it as proof of complete process/thread quiescence or verified host shutdown behaviour.
+The request gate is now current-main code. Do not overstate it as proof of complete process/thread quiescence or verified host shutdown behaviour. A stale comment beside the 12-second budget still referred to the removed 1.5-second in-flight-fire wait; PR #386 proposes a comment-only correction and remains unmerged at this snapshot.
 
 ### 16.3 Cognitive integration characterization — merged PR #381
 
