@@ -1335,3 +1335,12 @@ PR #399 is the clean current-main replay of the NovelAssociation scan correction
 PR #400 is the clean current-main replay of the CounterfactualNode correction originally proposed in #397, rebased onto main after #393 merged. It passes the stop Event through the active tick and checks after problem retrieval, candidate fetch and scoring, before each gate call, and after gate return before starting the accepted-belief insert.
 
 **Boundary:** #400 is open and its exact-head full-suite CI is pending; no pass count is claimed. TimeFetch, RefinementEngine and Gate.check are synchronous and not cancellable. Gate.check may perform its own Writer-backed work before returning; the correction prevents later candidate insertion once stop is observed but cannot interrupt work already inside the gate.
+
+
+### 16.21 AffectState active tick and persistence boundary — open PR #402
+
+AffectState is always started by `run.py`, registered with AppState and performs its first background tick immediately before entering its interval wait. The active tick computes valence, optional mood nudge, arousal, stability and surprise inputs from substrate reads, mutates its in-memory vector, then writes the affect row, history row and optional mood-nudge audit. Before PR #402, the stop Event interrupted only the interval wait; the active tick did not receive it.
+
+PR #402 passes the existing Event into the active tick and checks it between preparation stages and once under the state lock before integration. The optional mood-nudge audit is deferred into the persistence phase so a prepared-but-aborted tick is not recorded as applied. Once in-memory integration begins, the current persistence sequence is allowed to finish rather than deliberately splitting a logical update. Deterministic tests cover stop during preparation, before commit, already-stopped entry and stop during commit.
+
+**Boundary:** #402 is open and exact-head CI is pending; no pass count is claimed. Substrate reads are not cancelled. The final check is cooperative, not an atomic Event/state transaction. Affect, nudge and history writes remain separate Writer submissions rather than one database transaction. See `research/AFFECT_STATE_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
