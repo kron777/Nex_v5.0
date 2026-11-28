@@ -5344,3 +5344,32 @@ The implementation follows that split: node tests directly call `decay(now)` and
 Do not collapse these into a single "wired" or "complete" label.
 
 **Authority boundary:** Doctrine §4 is recorded as design intent, not elevated above the frozen specification/sign-off hierarchy. No lifecycle policy, scheduler, code, schema, flags, roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §137 — Registered-node lifecycle census: protocol membership is not tick/decay ownership (28 November 2026)
+
+The current `run.py` boot path registers nine objects with the Theory X protocol registry: SelfNarrative, HoldingZoneResolver, GoalManager, Metacognition, NovelAssociation, SubstrateHarmonic, GeniusTagger, DriveEmergence and AffectState. The registry validates/stores node objects and returns them through `all_nodes()`; it does not dispatch `tick()` or `decay()`.
+
+### Lifecycle classification
+
+| Node | Actual tick owner found | Public decay behaviour |
+|---|---|---|
+| SelfNarrative | Direct narrative methods are called by Metacognition/GUI; no owned loop found | No-op |
+| HoldingZoneResolver | AppState-owned 300-second loop calls tick; tick invokes `fade_stale()` | No-op; time decay is inside tick |
+| GoalManager | No normal boot/chat tick owner found; GUI uses `get_active()`/CRUD | Real 60-day stale-goal cancellation; no production caller located (G-60) |
+| Metacognition | GUI chat handler calls tick once per chat request | Real 14-day unresolved-event resolution; no production caller located (§130/G-83) |
+| NovelAssociation | AppState-owned 1,800-second loop calls tick | Real 14-day stale-log annotation; no decay caller located. Its prompt formatter independently limits reads to a two-hour lookback, so this is currently housekeeping rather than a stale prompt injection path |
+| SubstrateHarmonic | AppState-owned worker calls tick | No-op; state is DB-backed |
+| GeniusTagger | AppState-owned worker calls tick | No-op protocol stub |
+| DriveEmergence | AppState-owned worker calls `_background_tick()` | Public decay is no-op; internal `_decay()` runs inside its background tick |
+| AffectState | AppState-owned worker calls `_background_tick()` | Public decay is no-op; internal `_decay()` runs inside its background tick |
+
+**Important correction to G-60's earlier wording:** `run.py` constructs ProblemMemory and passes it to consumers, but does **not** register it with Theory X. GoalManager is registered. ProblemMemory nevertheless exposes a 30-day `decay()` method, and no caller was located in the reviewed normal boot/chat paths. G-60 remains the existing finding for ProblemMemory/GoalManager stale lifecycle ownership; do not create a duplicate ID.
+
+### Result
+
+There are three substantive unowned decay paths in the registered-node set: GoalManager (60-day goal cancellation), Metacognition (14-day event resolution), and NovelAssociation (14-day stale log annotation). ProblemMemory adds a fourth callable stale cleanup but is not a registered node. The first two affect open/reflective state and are tracked by G-60/G-83; NovelAssociation's two-hour prompt lookback limits the observed consequence of its uncalled 14-day housekeeping method.
+
+This confirms that the Protocol's `tick/decay/state` shape is an interface, not a scheduler. Background workers and GUI calls own their own tick cadence; no central lifecycle coordinator dispatches decay across all registered nodes.
+
+**Disposition:** source-observed registry membership and method ownership. No automatic decay is claimed where no caller was found. G-60 and G-83 remain OPEN; NovelAssociation's uncalled cleanup is recorded as a housekeeping gap, not promoted to a new defect ID without evidence of operational impact. No scheduler, code, retention policy, schema, flag, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
