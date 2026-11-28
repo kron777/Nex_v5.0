@@ -17,8 +17,8 @@ from typing import Dict, List, Optional, Tuple
 from .model import CLASSIFICATIONS
 
 EVENT_SCHEMA = "rdo.rule_proposal_event.v1"
-_TOKEN = re.compile(r"[a-z][a-z0-9_]{0,63}\\Z")
-_ALT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\\Z")
+_TOKEN = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
+_ALT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
 
 
 @dataclasses.dataclass(frozen=True)
