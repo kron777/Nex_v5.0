@@ -980,11 +980,14 @@ def main() -> None:
 
         log.info("STANDBY: producers stopped, Writers drained, clean marker persisted")
         os._exit(0)  # frees the VRAM held by torch/kokoro in this process
-    signal.signal(signal.SIGTERM, _graceful_standby)
-    signal.signal(signal.SIGINT, _graceful_standby)
-
     _abort_if_boot_shutdown_requested(state)
     app = create_app(state, shutdown_gate=shutdown_gate)
+    _abort_if_boot_shutdown_requested(state)
+
+    # Only switch to clean-shutdown semantics after the application object is
+    # fully constructed. Earlier signals remain boot-abort requests.
+    signal.signal(signal.SIGTERM, _graceful_standby)
+    signal.signal(signal.SIGINT, _graceful_standby)
 
     host = os.environ.get("NEX5_HOST", "127.0.0.1")
     port = int(os.environ.get("NEX5_PORT", "8765"))
