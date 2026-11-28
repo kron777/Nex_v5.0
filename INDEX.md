@@ -3216,3 +3216,67 @@ No runtime code, database schema, indexes, feature flags, tests, frozen S-01–S
 **Source anchors inspected at main:** substrate/schema/beliefs.sql blob 44a3f95dbf4c522d84dd030c9c825afffe760b6b; substrate/source_kind.py blob 11b052d529defefecd16caafae5b95a3b251c0f0; theory_x/stage3_world_model/retrieval.py blob aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3; theory_x/stage3_world_model/promotion.py blob 035f89c34d0bd9391bc531107f7689f14a529042; theory_x/stage3_world_model/erosion.py blob 93a80b9105d7510c58f793e40cecbb1364832d5b; theory_x/stage3_world_model/harmonizer.py blob e72008ec21ad91e20cbdcfc73bacf14263e34382; theory_x/stage_tom/self_narrative.py blob 5fbc617fadc177ade59b45acf118b77c43ef2e84; tests/test_belief_confidence_retrieval_pathway.py blob b2505f2494db8fcd2453f7f5ee28184906e83daa; tests/test_promotion_atomicity.py blob 503cfb9f130391245a2b99746080cf3ae3c5cfd7; tests/test_erosion.py blob 530191ab3252a632ec077eaed8988ae5a4819357; tests/test_source_kind.py blob d54ea4cb30b8d8315b1e3f34903f6088198c5374.
 
 **Host/runtime unknowns:** live source-kind completeness; active confidence/tier distributions; which producers and promotion/contradiction loops are firing; feature flags governing semantic retrieval, tier climb, held tension and related pathways; whether the live prompt is using this Stage-TOM narrative; and whether the source-level selection mismatch is currently exercised.
+
+
+## 91. Corroboration provenance: similarity is not source independence (28 November 2026)
+
+**Question studied:** what exactly increments a belief's corroboration count, and does the mechanism distinguish independent evidence from repeated, related or self-generated signals?
+
+### 91.1 Two observed routes call the same corroboration counter
+
+The Stage-3 PipelineHooks route is registered as the DynamicState pipeline hook and is called after step F. It ignores events below magnitude 0.6, forms query tokens from sensation_source and branch_id, scans a bounded set of recent eligible beliefs, and calls BeliefPromoter.corroborate() when token overlap reaches 0.7. The default candidate scan is the 50 newest unlocked, unpaused beliefs through Tier 7. With NEX5_TIER_CLIMB=1, it additionally considers up to 500 Tier-6 rows.
+
+The WorldConsolidator route is separate and dark unless NEX5_WORLD_CONSOLIDATE=1 (dry/report modes do not arm writes). It samples a bounded recent Tier-7 window, filters apparent world beliefs, embeds and clusters them by cosine similarity, then calls corroborate() on eligible cluster members, subject to a maximum of three promotions per run. The inspected code does not attach a distinct observation/source identity to each corroboration call.
+
+Both routes therefore feed the same corroboration_count and tier-promotion mechanism, but their triggering evidence is not equivalent:
+- PipelineHooks uses a high-magnitude event plus lexical overlap with a stored belief.
+- WorldConsolidator uses similarity among stored beliefs in a cluster.
+- Neither call signature passes an explicit independent-source group, observation identity or evidence-event record into corroborate().
+
+This does not prove that the current system double-counts a particular event or that these routes are both enabled. It establishes that the shared counter itself does not enforce source independence.
+
+### 91.2 Why this matters
+
+A threshold such as three, five or eight corroborations is only meaningful as an evidence threshold if the counted events have a defined relationship to independent observations. If several events derive from one upstream feed, or several clustered beliefs are paraphrases/copies of one source, the counter can rise without the same number of independent confirmations.
+
+The opposite risk also exists: overly strict deduplication could discard genuinely independent observations that happen to share content. Independence therefore cannot be inferred from text similarity alone. It needs source lineage and event identity.
+
+The source_kind trigger classifies each belief's broad origin (authored, self, seeded, world, other_mind or received), and source_stream can preserve a sense-stream identity. Those fields are valuable foundations, but a broad kind such as world does not identify a particular feed, publisher, upstream event or copied source chain. Nor does source_kind by itself prove that two records are independent.
+
+### 91.3 The current promotion threshold is tier-dependent, not evidence-calibrated
+
+The current corroboration thresholds are Tier 7→6: 3; Tier 6→5: 5; Tier 5→4: 8; Tier 4→3: 12; Tier 3→2: 20. Tier 2→1 is reserved for reseed ceremony. The atomicity tests verify that concurrent calls do not lose increments and that threshold crossing promotes exactly once. That is a concurrency guarantee, not a guarantee that the increments represent independent evidence.
+
+The promotion transaction itself increments the counter and records the tier event. After a promotion commits, the code writes a supports edge to a high-overlap peer and may record provenance reinforcement. The edge is a useful relationship record, but it is not a substitute for the source evidence that justified the count.
+
+### 91.4 A safer evidence contract
+
+Reuse the existing source_kind, source_stream, belief_edges and promotion_log before proposing a new subsystem. The next evidence-quality layer should make each corroboration attributable to a stable event:
+- observation/event ID and upstream source identity;
+- source lineage or copy/derivation group;
+- source_kind and source_stream where available;
+- time observed and time ingested;
+- target belief ID and support/opposition rationale;
+- whether this event has already contributed to this belief's count;
+- whether it is independent of prior contributing events.
+
+A deduplication key should be deterministic and scoped to the target belief plus evidence event, so replay does not increment twice. Independence groups should be explicit and conservative: unknown lineage remains unknown, not silently independent. Keep the existing tier thresholds unchanged until a measurement study demonstrates what their counts currently mean.
+
+### 91.5 Test and measurement plan
+
+- Unit-test same event replay, distinct events from the same upstream source, independent sources with similar text, copied/paraphrased source material, missing provenance, and source-stream inheritance.
+- Test PipelineHooks with repeated events from one source and distinct source events; assert exactly which events can increment the count.
+- Test WorldConsolidator clusters containing paraphrases from one source versus independently sourced observations; verify cluster membership alone is not labelled independent evidence.
+- Preserve the existing concurrent atomicity tests; add provenance/idempotency tests rather than replacing them.
+- Report raw corroboration count separately from independent-source count and unknown-lineage count. Do not silently reinterpret historical counts as independent evidence.
+- Confirm actual feature flags and producers only through the authorised host-side read-only gate.
+
+### Research conclusion
+
+The existing code has two concrete corroboration feeders and a transactionally safe counter. The counter's concurrency correctness is established by tests, but independence of the counted evidence is not enforced at the shared API boundary. The next meaningful improvement is not a more elaborate promotion formula: it is provenance-aware, replay-safe evidence accounting that makes "five corroborations" mean something inspectable.
+
+No runtime code, database schema, indexes, feature flags, tests, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. This was source research and manual documentation only; no tests were run in this study.
+
+**Source anchors inspected at main:** theory_x/stage3_world_model/pipeline_hooks.py blob 6750bb427ed493a3310d9ea69d0e82207d0d38f1; theory_x/stage3_world_model/world_consolidation.py blob 192550c20c7b8e776dfa55f4f82d80fd4cc7ce69; theory_x/stage3_world_model/promotion.py blob 035f89c34d0bd9391bc531107f7689f14a529042; substrate/source_kind.py blob 11b052d529defefecd16caafae5b95a3b251c0f0; tests/test_promotion_atomicity.py blob 503cfb9f130391245a2b99746080cf3ae3c5cfd7; tests/test_source_kind.py blob d54ea4cb30b8d8315b1e3f34903f6088198c5374.
+
+**Host/runtime unknowns:** NEX5_TIER_CLIMB, NEX5_WORLD_CONSOLIDATE and related flags; actual PipelineHooks event/source mix; whether WorldConsolidator is armed; upstream lineage quality; number of distinct independent sources represented by historical corroboration counts; and live promotion rates by source kind.
