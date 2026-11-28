@@ -201,3 +201,12 @@ PR #280 merged as `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`. It serializes Writ
 Exact-head CI run `46045754339` passed **2,640 tests, 7 skipped, 45 subtests; baseline OK**. Regression tests exercise accepted-request draining, late-submit rejection, timeout behavior, prevention of a second worker while the first remains alive, and explicit restart. Post-merge main CI is in progress.
 
 This closes the Writer-level late-submission/forgotten-worker subproblem within G-84. It does not stop or join all NEX producers: `AppState.close()` still ignores several started loops, the EdgeGeneratorLoop is not retained in AppState, and scheduler adapter threads are not joined. The application-level global shutdown coordinator remains open. No live process or database was touched.
+
+## 11. G-84 application shutdown coordinator — 28 November 2026
+
+PR #354 and PR #361 have merged the second and third staged shutdown increments. PR #354 introduces shared monotonic producer quiescence and scheduler adapter joins (merge `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`, exact CI run `46102788846`). PR #361 registers the four remaining run.py-only producer wrappers identified in the source trace (merge `bbce631723ed92496c878a9927c688900972413d`, exact CI run `46116200382`).
+
+PR #370 is the draft step-4 candidate. It starts one 12-second deadline at SIGTERM receipt, includes the handler delay, passes remaining time through producer and Writer shutdown, returns a structured aggregate report, and only writes a clean marker after successful closure. The marker helper now uses atomic replacement plus file/directory fsync; marker consumption fsyncs the directory. Current candidate head is `db05df2382174f74753a950d5bfd8e8188da39f3`; exact-head full-suite run `46119700203` is pending. The initial run exposed a missing threading import, corrected before this head.
+
+G-84 remains open pending exact-head CI/merge, a complete process-wide thread census and a controlled host/supervisor shutdown test. Source and fixture evidence only; no live host shutdown was performed.
+

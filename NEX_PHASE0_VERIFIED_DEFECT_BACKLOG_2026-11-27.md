@@ -493,3 +493,11 @@ PR #347 merged as `8d6bc95d387687ed470713467d8779d09479e11d` after exact-head ru
 PR #348 merged as `321a156e162a6554e27ae329522f253e8f6fe676` after exact-head run `46091039346` passed 2,838 tests, 7 skipped and 45 subtests, baseline OK with no STALE mind-map warnings. `AppState.close()` now stops Stage-2 dynamic loops before closing Writers, with a five-second bounded wait. This is only G-84 step 1: Fountain, SelfPrediction/WorldPrediction, speech/other consumers, decoder and scheduler adapter threads are not all joined under a global deadline. G-84 remains OPEN.
 
 The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `python tools/one_pen_census.py` on current main before treating its count or classifications as current. The scan remains heuristic and does not prove reachability.
+
+### G-84 staged shutdown update — 28 November 2026 (after PR #361)
+
+- **Step 2 — PR #354 merged** as `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`; exact-head run `46102788846` passed. AppState now stops the registered producer families and joins scheduler adapters against one shared monotonic producer deadline.
+- **Step 3 — PR #361 merged** as `bbce631723ed92496c878a9927c688900972413d`; exact-head run `46116200382` passed. AppState now registers and joins the four run.py-only EdgeGeneratorLoop, WorldPredictionLoop, SelfPredictionLoop and decoder producers.
+- **Step 4 — PR #370 draft candidate:** head `db05df2382174f74753a950d5bfd8e8188da39f3`; exact-head full-suite run `46119700203` pending. The first run `46118876580` failed because the Writer-liveness report lacked a `threading` import; this was corrected before the current run. The candidate starts one 12-second monotonic deadline at SIGTERM receipt, includes the 1.5-second handler delay, caps producer quiescence at five seconds, passes the remaining budget through Writer closes, returns an aggregate shutdown report, and writes the clean marker only after success. The marker is now atomically replaced with file and directory fsync; marker consumption also fsyncs the directory.
+- G-84 remains **OPEN** until step 4 passes exact-head CI and merges. A complete process-wide thread census and controlled host/supervisor shutdown test remain outstanding. No live host shutdown has been performed.
+

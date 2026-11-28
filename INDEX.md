@@ -967,7 +967,7 @@ A read-only host re-run needs founder authorisation.
 
 ### G-84 step 4 candidate — PR #370 (draft; exact-head CI in progress)
 
-- Rebased onto current main `5ba300779ff3081508e56b509d53a27846bf7c67`; candidate head `0ec1426507e733d5e4c99270e45b4d3303bbac8a`, exact-head full-suite run `46118876580` in progress.
+- Rebased onto current main `5ba300779ff3081508e56b509d53a27846bf7c67`; candidate head `db05df2382174f74753a950d5bfd8e8188da39f3`, exact-head full-suite run `46119700203` pending. The first run `46118876580` failed because the Writer-liveness report lacked a `threading` import; this was corrected in `9c24b3135c80e3d4282ba4abbbbcd2dd7e16bc82` before the current run.
 - Starts a 12-second monotonic budget at SIGTERM receipt, including the handler's 1.5-second delay; caps producer quiescence at five seconds and passes the remaining global budget through Writer closes.
 - AppState.close() returns a structured report with surviving producers, stop/join errors, scheduler errors, Writer errors, Writer threads still alive and deadline exhaustion.
 - TaggingBeliefWriter forwards the timeout. The clean marker is written only after a successful close report and successful marker persistence; incomplete shutdown exits non-zero without a clean marker.
@@ -1191,9 +1191,13 @@ A new source trace was added in main commit `5ba30077` at `research/SENTENCE_TO_
 - PR #369, branch `fix/sentence-tool-execution-boundary-2026-11-28-rebased`, is the actual correction candidate: constrained numeric-prefix extraction, no natural-language fallback, and an in-process AST allowlist. It is now rebased onto current main `5ba30077` at head `f9bd490eebab6c82f1a3704f7527291ff5489869`; exact-head full-suite run `46119302748` is in progress. The previous pre-rebase head passed run `46118580628`. No merge is claimed.
 - The rebase adds a 990-character and 61-node sentence-expression cap before parsing, and converts syntax/recursion failures into non-selection. Registry-level `math.*` support remains unavailable through the numeric-only sentence grammar. The separate chat-context issue below remains open.
 
+
+
+**Adjacent tool-security gap — `web_fetch`:** current main validates the initial URL against an allowed-domain list, then calls `urllib.request.urlopen()`, which follows redirects without revalidating the redirect host, scheme or resolved address. A redirect from an allowed host could therefore reach a private/loopback service (SSRF). The host normalization also uses `lstrip("www.")` rather than removing an exact `www.` prefix. PR #369 does not change this path; track redirect/DNS/IP validation as a separate security increment.
+
 The chat route still calls `should_use_tool(prompt, [])` even after membrane retrieval has produced `belief_text`. The ToolCaller therefore sees an empty belief list and may select its factual web fallback when internal belief support already exists. PR #369 does not correct this context-propagation edge; keep it as a separate bounded follow-up.
 
-This arithmetic route is one narrow typed operation boundary, not the existing Sentence Code and not a general human-sentence-to-machine-operation compiler. The governing pathway remains human sentence → interpretation through existing Mind Aspects → Sentence Code → Recursive Extrapolator → validated executable interfaces → verified result. The RDO objective intake is a development-work representation, not a runtime action request; the chat-to-RDO wire is absent in inspected source, and the two authority contracts must not be connected blindly.
+This arithmetic route is one narrow typed operation boundary, not a complete Sentence Code compiler and not a general human-sentence-to-machine-operation compiler. The governing pathway remains human sentence → interpretation through existing Mind Aspects → Sentence Code → Recursive Extrapolator → validated executable interfaces → verified result. The RDO objective intake is a development-work representation, not a runtime action request; the chat-to-RDO wire is absent in inspected source, and the two authority contracts must not be connected blindly.
 
 The Sentience 5.5 comparison in the source trace is also appropriately limited: Voice_Interaction_Node queues raw strings; Action_Execution_Node accepts a pre-structured dictionary but its task performer is a random simulated-success placeholder and its no-LLM advisory fallback reports `is_safe=True`; Interaction_Interface_Node maps a few labels to canned responses. These are sketches, not an integrated sentence-to-execution bridge.
 

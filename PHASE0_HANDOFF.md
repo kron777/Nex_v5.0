@@ -289,3 +289,11 @@ Every `warrant_validate` verdict from before PR #271 was computed on history-fre
 - PR #348 merged as `321a156e162a6554e27ae329522f253e8f6fe676`; exact-head CI run `46091039346`: 2,838 passed, 7 skipped, 45 subtests; baseline OK, no STALE warnings. AppState now quiesces dynamic loops before Writer close. G-84 remains open for the remaining producers and global shutdown deadline.
 - The 112-site census is pre-merge evidence at `a6d08405`; rerun it on current main before using the count as current.
 - Founder decisions G-80, G-78, G-76 and the non-substrate scope question under G-61 remain pending. Gate 0 remains pending; Phase 1 remains unauthorized.
+
+## 28 November 2026 — G-84 shutdown steps 2–4
+
+- PR #354 merged as `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`; exact-head run `46102788846` passed. This is G-84 step 2: shared monotonic producer deadline and scheduler adapter joins.
+- PR #361 merged as `bbce631723ed92496c878a9927c688900972413d`; exact-head run `46116200382` passed. This is G-84 step 3: run.py-only EdgeGeneratorLoop, WorldPredictionLoop, SelfPredictionLoop and decoder registration/joins.
+- PR #370 is the draft step-4 candidate at head `db05df2382174f74753a950d5bfd8e8188da39f3`; exact-head full-suite run `46119700203` is pending. It uses a 12-second total deadline from SIGTERM receipt, passes the remaining budget through producers and Writers, returns an aggregate shutdown report, and writes a clean marker only after successful drain. The marker and its boot-time consumption now use file/directory fsync.
+- G-84 remains open until PR #370 merges and a controlled host/supervisor shutdown test plus complete process thread census are recorded. Gate 0 remains pending; Phase 1 remains unauthorized.
+
