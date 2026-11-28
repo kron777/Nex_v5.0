@@ -327,3 +327,8 @@ The Sentience 5.5 Stillness_Node.py cited as Row 9 prior art is now inspected. I
 ### 28 November 2026 — G-83 speech-consumer boundary
 
 Row 9 prevents the current fire from reaching the crystallizer's later speech enqueue, but SpeechQueueConsumer is a separate beliefs.db-only daemon and does not read conversations.stillness_log. Already-pending speech entries can continue to drain while Row 9 is active, subject to the consumer's independent pause and quiet-hours controls. tests/test_speech.py has no pending-entry-during-Row-9 case. This is evidence that Row 9 is not a speech-consumer pause. See INDEX §119; G-83 remains OPEN.
+
+
+### 28 November 2026 — G-83 reader census and influence classification
+
+The tracked-source reader map is extended in INDEX §120. Two additional live influence routes were found: CompetingDrives reads 24-hour max groove severity into its coherence drive (0.30 factor), and Fountain's recent-STRIKING prompt block uses the most recent qualifying alert pattern to filter candidate context. The former can influence a changed drive-tension prompt; the latter can alter prompt material when NEX5_GENIUS_PROMPT_OFF is not 1. The documented keepalive profile explicitly sets NEX5_RECONCILE=1, disabling substrate-voice's own groove-triggered path. Stakes readiness and topic shadow are separately gated. SubstrateHarmonic, snapshot, GUI and probe routes are observational/request-triggered, not acknowledgement writers. No direct tracked-code write to acknowledged_at was found; external/untracked/dynamic SQL and live host state remain UNKNOWN. G-83 remains OPEN. No code/tests/runtime changes; Gate 0 pending; Phase 1 unauthorized.
