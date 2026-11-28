@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Tuple
 
-from .rule_proposals import ApprovedRuleCatalogue
+from rdo_adapters.rule_proposals import ApprovedRuleCatalogue
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, HYPOTHESIS, NECESSARY,
                     OPTIONAL, UNKNOWN, Obligation, RECON_UNKNOWN, REUSE_EXISTING,
                     SIGNATURE_MATCHED, Relationship, has_valid_reuse_review)
