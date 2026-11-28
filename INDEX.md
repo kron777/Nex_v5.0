@@ -2207,3 +2207,58 @@ The normal run.py path constructs one AppState and one Flask app, so the repeate
 
 ---
 
+## 73. Separate cognitive-node registry from AppState shutdown ownership — lifecycle study (28 November 2026)
+
+**Question studied:** does the existing shutdown machinery already provide an owner-scoped lifecycle model, and is it distinct from the process-level SentienceNode registry?
+
+### Important distinction established
+
+There are two different registries in this architecture and they must not be conflated:
+
+1. **SentienceNode registry** — `theory_x/__init__.py` keeps a module-global list intended for process-lifetime cognitive nodes, with `register()` and `all_nodes()`. Doctrine §4 (Model A) explicitly distinguishes process-lifetime nodes from session-scoped WorkingMemory.
+2. **AppState producer ownership** — `gui/server.py`'s `AppState._quiesce_producers()` keeps a bounded list of state-owned producers/workers. It signals stop methods/events, gathers joinable threads, joins against a shared deadline, and reports survivors/errors before `AppState.close()` closes Writers. Its own docstring explicitly says it is not a claim that every process thread is registered.
+
+The second mechanism is an owner-scoped shutdown inventory, not a consumer of the SentienceNode registry. The source and tests show it is deliberately populated through AppState fields and run.py's `_own_and_start()` boot path.
+
+### What existing tests establish
+
+- `tests/test_appstate_close_runpy_producers.py` pins the four run.py-only producer handles and checks in-flight writes finish before Writer closure; it also source-checks the boot wiring and early AppState ownership.
+- `tests/test_appstate_close_held_loops.py` covers membrane behavioural, NovelAssociation, AffectState, DriveEmergence and SocialPresence shutdown handling.
+- `tests/test_appstate_close_joins_producers.py`, `test_appstate_close_quiesces_dynamic.py` and `test_appstate_close_runpy_writers.py` add other producer, dynamic-loop and writer shutdown coverage.
+- `tests/test_focal_set.py` and `tests/test_executive_control.py` verify those two nodes satisfy the SentienceNode Protocol. These are conformance tests, not tests of registry membership, uniqueness, removal or owner lifecycle.
+
+This is meaningful lifecycle protection for AppState-owned workers. It does **not** prove that the SentienceNode registry is owner-aware or that its contents are drained/removed on AppState close.
+
+### Doctrine-to-implementation tension
+
+Doctrine §4 says registered nodes are process-lifetime (FocalSet is the canonical example) and session-scoped WorkingMemory is kept outside the process registry. The Protocol documentation says node names are unique across all nodes, but `register()` currently only performs a runtime Protocol attribute check and appends. It does not enforce uniqueness. The registry also has no visible removal, owner association or lock.
+
+Production boot code registers additional faculties that are constructed in the same process as an AppState and, in several cases, retain that state's database Readers/Writers or services: `SelfNarrative`, `HoldingZoneResolver`, `GoalManager`, `Metacognition`, `NovelAssociation`, `SubstrateHarmonic`, `GeniusTagger`, `DriveEmergence`, and the GUI membrane's `self_model` and `behavioural` nodes. The GUI `build_state()` route also registers ProblemMemory, GoalManager and Metacognition. The normal unified `run.py` boot constructs one AppState and one app per process, so this can be consistent with a process-lifetime contract in the intended deployment. It becomes a lifecycle concern if multiple AppStates/apps are built sequentially in one process or if a future registry consumer outlives the state that owns a faculty.
+
+The registration calls in `build_state()` and several run.py paths suppress exceptions; other run.py paths log warnings. Therefore a boot path's construction of a faculty does not prove that registration succeeded. No reviewed source or test currently establishes an operational consumer that iterates `all_nodes()`; the inspected `gui/server.py` and `run.py` do not call it. Repository-wide consumer inventory remains open because the available code-search result was incomplete; do not state that the registry is unused.
+
+### Updated design judgment — no patch yet
+
+Do not simply clear the process registry in `AppState.close()`: module-level process-lifetime nodes such as FocalSet and ExecutiveControl must survive an AppState teardown if they are genuinely process-owned. Do not automatically move every registered node into AppState either: that would change the Doctrine's Model A scope and may conflate observability with worker shutdown.
+
+Before choosing a design, finish the consumer inventory and establish whether the intended contract is:
+- process-singleton cognitive nodes only, with state-bound faculties excluded;
+- process registry plus explicit owner metadata and unregister/close semantics; or
+- separate process and AppState registries with narrowly defined responsibilities.
+
+Any design must specify unique-name enforcement, duplicate object handling, thread safety, registration failure reporting, owner-close ordering and behaviour during repeated app construction. A registry is metadata/observability, not an action authority or a new cross-node orchestrator.
+
+### Next falsification work
+
+1. Find every `register()` call and every direct/aliased `all_nodes()` consumer across the complete repository, tests, scripts and alternate entry points. Treat current GitHub code-search results as incomplete.
+2. Determine whether `gui/server.py`'s `main()` invokes `build_state()` and `create_app()` exactly once in the intended process; distinguish this supported lifecycle from test/reload/multi-app usage.
+3. Use isolated temporary databases to construct two AppStates sequentially, create apps, close the first, and inspect registry identity/name membership. Do not call methods on stale nodes until the source/test establishes whether a consumer does so.
+4. Add tests only after selecting the contract: duplicate names, same-object re-registration, different-object same-name registration, repeated app creation, failed registration reporting, and process singleton preservation across AppState close.
+5. Keep AppState producer shutdown tests separate; they prove worker quiescence and Writer ordering, not cognitive-node registry ownership.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `theory_x/__init__.py` blob `661dc737f54c88f763588606867ae1b9cd7e6654`; `theory_x/DOCTRINE.md` blob `6506276979364dc62da120d4b7c8966328fb2e6d`; `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `tests/test_appstate_close_runpy_producers.py` blob `6c9ec4ac0e88e56853963d378383789263d68e24`; `tests/test_appstate_close_held_loops.py` blob `a759bd71b4dbca1d82c04bd4eeb7a41b00c9ebe6`; `tests/test_focal_set.py` blob `083b8053ff09ef0975f8aab35a120904b2f55423`; `tests/test_executive_control.py` blob `d0ffe94a36e60cb30536759090affc09cfc1c3b1`.
+
+**Unchanged boundaries:** no registry code, AppState lifecycle, Protocol, doctrine, database, runtime flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority or cognitive/action authority separation is changed.
+
+---
+
