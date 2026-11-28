@@ -527,3 +527,8 @@ self_rut_notice is not in MembraneClassifier._INSIDE_SOURCES, so the generic Bel
 
 
 PR #453 exact-head workflow 46182191953 passed at 2d15c4d4c87881138c937c5600f1a281677d8391. Fixture tests validate the backfill timestamp and same-fire multi-version row behaviours; host occurrence and detector impact remain UNKNOWN.
+
+
+### 28 November 2026 — GeniusTagger consumer inventory
+
+The tagger producer is write-only, but its integrated signal is consumed by ReadinessEvaluator (up to .15 readiness penalty), recent-STRIKING Fountain prompt injection, the governor (reanimation cadence 20->5 plus self_rut_notice), Metacognition rut narrative, and optional NEX5_CONTINUITY_N prompt context. GENIUS_SCORE_v2.md §7's statement that consumers do not yet exist is stale against the inspected source. Actual host flags/activity remain UNKNOWN. PR #455 covers readiness/prompt consumers; #454 governor; #452 Metacognition. See INDEX §156.
