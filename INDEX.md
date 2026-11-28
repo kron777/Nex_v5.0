@@ -2089,9 +2089,23 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 **Bounded correction:** `RuleProposalStore.history()` and `SeedProposalStore.history()` each read and validate their append-only ledger once, derive proposal state and filtered event rows from that same snapshot, and return both together. Both CLIs now use these APIs. Optional proposal-ID validation and unknown-ID errors remain explicit.
 
-**Regression coverage:** `rdo/tests/test_rule_proposals.py` and `rdo/tests/test_seed_proposals.py` assert each history operation reads its ledger once and returns a review status consistent with the event sequence. Both CLI routing tests exercise the snapshot-based methods. Exact-head CI is pending; no pass is claimed.
+**Regression coverage:** `rdo/tests/test_rule_proposals.py` and `rdo/tests/test_seed_proposals.py` assert each history operation reads its ledger once and returns a review status consistent with the event sequence. Both CLI routing tests exercise the snapshot-based methods. Original implementation/test head `611ad5f6aff4c1aea44574fb9defae8a80309def` passed exact-head workflows `46149016907` and `46149041938`, each with 3,076 passed, 7 skipped and 86 subtests. The rebased integration branch includes the later #442 duplicate-key guard and requires its own exact-head run; no pass is claimed for that combined head.
 
 **Boundaries:** read-only reporting only. No proposal schema, review semantics, rule-catalogue activation, action authority, runtime state, frozen S-01–S-25/M1.8, Master Roadmap or Gate 0 boundary changes.
+
+---
+
+---
+
+## 69. Reject duplicate JSON keys in seed proposal CLI input — merged PR #442 (28 November 2026)
+
+**Source-derived gap:** `seed-propose` used the default `json.load()`, which silently accepts duplicate object keys and retains the last value. The parallel `rule-propose` path already rejected duplicates, including nested objects.
+
+**Bounded correction:** route seed proposal input through the shared recursive duplicate-key hook. The hook raises `ValueError`, which both CLI paths report as a concise input error with exit code 2. Duplicate keys are rejected before the proposal store is opened.
+
+**Regression coverage:** `rdo/tests/test_seed_proposal_cli.py` covers duplicate top-level and nested properties and asserts the store is never accessed. Existing rule-proposal duplicate-key coverage remains in place. **Merged:** PR #442, merge commit `4ede2994e5177ad6b56211ddc0f91c274222caaa`. Exact-head workflow run `46151854310` passed **3,075 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed.
+
+**Boundaries:** no seed schema, proposal/review semantics, provenance, approval, intake, planning, Stage-7, execution authority or runtime behavior changed.
 
 ---
 
