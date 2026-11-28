@@ -2227,3 +2227,23 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 **Boundaries:** read-only source scan; no code behaviour changed. The scan does not validate runtime imports, dynamic reflection, monkey-patching, or consumers outside the scanned package. No live host, database or robot runtime accessed. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
+---
+
+## 76. Full repository Python registry read/write inventory (28 November 2026)
+
+**Scope:** scanned all **719 Python files** in the active branch tree: 273 under `theory_x/`, 261 under `tests/`, and 185 in the remaining application, GUI, runtime, RDO, scripts, tools and watcher paths. The scan searched for the process registry's `all_nodes()`, `_registered_nodes`, imports/references to `theory_x`, and registration aliases. This is a complete inventory of tracked Python files at this branch head, not of non-Python files, dynamic runtime behaviour or external consumers.
+
+**Only actual registry reader found:** `tests/test_genius_tagger.py`. Its `TestSentienceNodeProtocol` test registers its own GeniusTagger instance, iterates `theory_x.all_nodes()`, selects only that exact object by identity, and invokes `tick()`, `decay(now)` and `state(now)` to verify the generic protocol round-trip. Its `tearDown()` removes that test's own object from the private module list by identity because no public unregister API exists. The test comment describes the sweep as hypothetical cross-node integration; it is not evidence of a production sweep.
+
+**Production-reader result:** no production Python call to the process registry's `all_nodes()` was found. No production Python access to `_registered_nodes` was found. This is stronger than the earlier package-only result: within the tracked Python source, the registry currently has writers but no production reader.
+
+**Production writers:** explicit calls found in `run.py` and `gui/server.py`. They register a mixture of module-level/process-scoped and runtime/AppState-associated nodes. The exact ownership distinctions and factory-specific partial-build side effects remain as recorded in §§72–73. Many other classes implement `SentienceNode`, but implementation of the protocol does not itself register them.
+
+**Risk reassessment:** the stale-reference scenario remains real at the object-graph level for `build_state(with_tools=True)` failure/retry, but no production Python consumer was found that would currently tick or decay those retained nodes. Therefore the previously described post-close Writer failure is a latent conditional hazard, not a demonstrated active production path. The registry may be intended for an external observer, future integration, manual diagnostics, or may be a legacy/dormant mechanism; source alone does not establish which. Do not remove registrations or introduce scopes/unregister solely because the current repository lacks a production reader.
+
+**Test-isolation note:** the GeniusTagger test's direct mutation of `_registered_nodes` is intentionally identity-scoped and performed in `tearDown()`, but it couples the test to a private global implementation detail. A future public test fixture or scoped registry API could improve isolation if a production registry contract is established. No change is made now.
+
+**Decision:** keep the current registry API and registration semantics unchanged for this PR. Treat the build-state rollback fix as independently valid. Defer registry redesign until an owner or consumer is identified, or a concrete supported multi-AppState/retry use case is established. If the registry is meant to support process monitoring, the missing production reader should become an explicit architecture/documentation question rather than an assumed feature.
+
+**Limits:** tracked Python source was scanned; non-Python launchers, dynamically loaded external modules, plugins and runtime monkey-patching were not exhaustively examined. No live registry, host process, database or robot runtime was inspected. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
