@@ -5857,3 +5857,45 @@ This is a specification/documentation drift finding, not proof that every consum
 **Source anchors:** GENIUS_SCORE_v2.md; theory_x/genius/tagger.py; run.py; theory_x/stage6_fountain/readiness.py; theory_x/stage6_fountain/generator.py; theory_x/stage6_fountain/__init__.py; theory_x/stage9_metacognition/metacognition.py; gui/server.py; tests/test_genius_tagger.py; tests/test_fountain.py; draft PRs #454 and #455.
 
 **Authority boundary:** no runtime code, weights, schema, feature flag, consumer policy, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §157 — GeniusTagger consumers independently sample different windows, thresholds and control flags (28 November 2026)
+
+**Question studied:** do the downstream GeniusTagger consumers share one defined sample/decision contract, or does each consumer independently interpret the same table?
+
+### Consumer comparison
+
+| Consumer | Sample and decision | Downstream effect | Control |
+|---|---|---|---|
+| ReadinessEvaluator | tagged_at > now-1h; minimum 5; target 40% STRIKING; max penalty 0.15 | subtracts from Fountain readiness | NEX5_FOUNTAIN_READINESS_MOD_OFF |
+| Recent STRIKING prompt block | STRIKING rows tagged in last 24h and older than 5 minutes by tagged_at; top 200, content dedup to 10, sample 2 | injects prior Fountain thoughts into next prompt | NEX5_GENIUS_PROMPT_OFF |
+| Fountain governor | tagged_at >= now-90m; minimum 4; <=5% STRIKING | changes reanimation cadence 20->5 and writes self_rut_notice | NEX5_GOVERNOR_OFF |
+| Metacognition rut observer | tagged_at >= now-90m; minimum 4; <=5% STRIKING; 2h DB throttle | writes rut_notice to narrative_log | NEX5_RUT_MIRROR_OFF (wrapper-local; direct caller bypasses) |
+| Continuity prompt layer | all-time top score rows; no time or class filter | injects prior high-scoring thoughts | NEX5_CONTINUITY_N (default 0) |
+
+### Source trace
+
+- Each consumer owns its own SQL query, window, sample minimum, threshold, cache/throttle and flag. There is no shared query helper or common decision snapshot in the inspected source.
+- All time-window consumers use tagged_at, so the backfill semantics from §152 affect their samples differently: one hour, 90 minutes and 24 hours. The continuity layer is not time-bounded.
+- The rut readers and readiness reader do not filter weights_version or distinct fountain_event_id. The recent STRIKING prompt block deduplicates similar thought text after retrieval, but its SQL candidate rows can still contain multiple versions of one event. The optional continuity layer has no explicit event/version deduplication.
+- The controls are separate. Turning off one consumer does not disable the others. The NEX5_RUT_MIRROR_OFF wrapper check does not protect the actual Metacognition direct-helper path (§150).
+- The consumers do not persist a common sample manifest, decision record or set of input tag-row IDs (§153).
+
+### Consequence
+
+GeniusTagger is not one central control loop. It is a fan-out signal feeding several independent controllers and prompt paths. The same underlying rows can produce different decisions because each consumer uses a different time horizon, minimum sample, target/threshold and OFF flag. During backfill, the same historical event may enter several windows as if newly tagged. Across weights versions, some consumers may count duplicate rows while others partially collapse duplicate text.
+
+This may be intentional specialization, but the present source does not establish a shared contract explaining why the windows and thresholds differ, which consumer owns the canonical interpretation, or whether flags are intended to operate independently.
+
+### Evidence classification
+
+- Each consumer's query, thresholds, effect and flag: source-observed.
+- Separate test-only characterization is in draft PRs #452–#455; #452 and #453 exact-head CI passed, #454 and #455 CI pending at this entry.
+- Host flag values, active consumer set, observed sample divergence and actual behavioural impact: UNKNOWN.
+
+**Next bounded investigation:** complete exact-head CI for PRs #454/#455; create a read-only comparison specification of each consumer's sample on one identical captured tag-row set; determine whether different windows/thresholds are intentional before proposing shared logic. Do not centralize or harmonize the consumers during Phase 0.
+
+**Disposition:** independent consumer contracts and sample divergence recorded. No defect ID yet; the question is whether the variation is intended and whether the host's current flag set activates all paths. G-83 remains OPEN.
+
+**Source anchors:** theory_x/stage6_fountain/readiness.py; theory_x/stage6_fountain/generator.py; theory_x/stage9_metacognition/metacognition.py; gui/server.py; nex_config.py; tests/test_fountain.py; tests/test_self_narrative.py; draft PRs #452–#455.
+
+**Authority boundary:** no runtime code, consumer threshold, time window, flag, shared event store, schema, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
