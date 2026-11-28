@@ -624,6 +624,48 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
     }
 
 
+def submit_approved_seed_proposal(proposal_id: str, repo_dir: str = ".",
+                                  workdir: str = "rdo/.cycles") -> dict:
+    """Convert one explicitly approved seed alternative into an objective.v1 intake."""
+    from .seed_proposals import SeedProposalStore
+
+    proposals = SeedProposalStore(os.path.join(workdir, "seed_proposals.jsonl"))
+    approved = proposals.approved_objective(proposal_id)
+    raw = approved["raw_objective"]
+    history = ObjectiveInputStore(os.path.join(workdir, "objectives")).history(
+        raw["objective_id"]
+    )
+    candidate = approved["objective"]
+    if history:
+        first = history[0]["record"]
+        if (first["original_text"] != raw["original_text"]
+                or first["intent"] != raw["intent"]):
+            raise ObjectiveInputError(
+                "raw idea text/intent differs from the immutable objective history; use a new objective_id"
+            )
+        last = history[-1]
+        last_record = last["record"]
+        same_content = all(
+            last_record[key] == candidate[key]
+            for key in candidate if key not in {"revision", "supersedes_sha256"}
+        )
+        if same_content:
+            revision = last_record["revision"]
+            supersedes = last_record["supersedes_sha256"]
+        else:
+            revision = len(history) + 1
+            supersedes = last["sha256"]
+    else:
+        revision, supersedes = 1, None
+    approved = proposals.approved_objective(
+        proposal_id, revision=revision, supersedes_sha256=supersedes
+    )
+    return submit_objective(
+        approved["objective"], repo_dir=repo_dir, workdir=workdir,
+        seed_proposal_reference=approved["reference"],
+    )
+
+
 def objective_history(workdir: str, objective_id: str) -> dict:
     history = ObjectiveInputStore(os.path.join(workdir, "objectives")).history(objective_id)
     revisions = []
