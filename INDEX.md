@@ -4050,3 +4050,66 @@ A future implementation must explicitly choose which of these is counted, dedupl
 **Source anchors:** `theory_x/diversity/loop.py`; `theory_x/diversity/groove.py`; `theory_x/stage9_metacognition/metacognition.py`; `substrate/writer.py`; `gui/server.py`; `tests/test_metacognition.py`; `tests/test_stillness.py`. Snapshot: `18c8f06171e1de35c3210831a49b63d0e2487af0`.
 
 **Evidence level:** source-observed producer and consumer path; source-observed database boundary; test-coverage inspection. Complete writer census, runtime chronology, and semantic event identity remain UNKNOWN.
+
+
+## §109 — Groove source identity survives through the narrative side-path (2026-11-28)
+
+### Correction and qualification to §§107–108
+
+The earlier statement that the groove source ID was not persisted applies specifically to the `meta_cognition_events` row written by `Metacognition._write_event()`. It must not be read as saying that no downstream record retains the source identity. A second, separately persisted path exists and is wired at runtime:
+
+- `run.py` constructs `SelfNarrative(writers["conversations"], readers["conversations"])` and passes it as `narrative=self_narrative` to `Metacognition`.
+- `Metacognition.tick()` passes `ev.get("groove_id")` to `write_narrative()` for each groove event returned by `_detect_groove()`.
+- `SelfNarrative.write_narrative()` inserts `content, trigger, source_id, created_at` into `narrative_log`; the source ID is the originating `groove_alerts.id`.
+- The canonical `narrative_log` DDL is in `substrate/init_db.py`'s conversations migrations. It contains a nullable integer `source_id` and an index on `created_at`; no uniqueness constraint on `(trigger, source_id)` or `source_id` is present in the inspected schema.
+- `theory_x/SELF_NARRATIVE_SPEC.md` explicitly defines a groove narrative's `source_id` as the source `groove_alerts.id`, and describes a write for each row returned by `_detect_groove()`.
+
+Therefore, when the optional narrative writer is constructed and its write succeeds, the same source alert can be correlated across repeated observations by querying `narrative_log`. This is useful forensic provenance. It is not idempotency: the write is a plain `INSERT`, and neither the table schema nor the inspected writer enforces one narrative row per source alert. A repeated Metacognition tick can add another narrative row with the same `source_id`.
+
+### The two derived streams must remain distinct
+
+| Stream | Destination | Source ID retained? | Duplicate prevention shown? |
+|---|---|---|---|
+| Metacognitive event | `meta_cognition_events` in conversations.db | No; `_write_event()` persists no `groove_id` column | No source-ID idempotency shown |
+| Self-narrative record | `narrative_log` in conversations.db | Yes, via `source_id` when narrative is wired and write succeeds | No; plain insert, no source-ID uniqueness |
+
+Both streams are downstream of the same `groove_events` list in `tick()`. Stillness counts only the first stream's `event_type='groove'` rows. The narrative stream can aid source-level auditing, but it does not currently constrain or correct the count used by Row 9.
+
+### Schema and migration finding
+
+The source table's canonical DDL is `substrate/schema/beliefs.sql`:
+
+```sql
+CREATE TABLE IF NOT EXISTS groove_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    detected_at REAL NOT NULL,
+    alert_type TEXT NOT NULL,
+    severity REAL NOT NULL,
+    pattern TEXT,
+    sample_belief_ids TEXT,
+    window_size INTEGER NOT NULL,
+    acknowledged_at REAL
+);
+```
+
+`substrate/init_db.py` maps the beliefs database to `beliefs.sql`; `init_all()` applies that schema before additive migrations. Thus a fresh database receives the current table definition. The current `_MIGRATIONS["beliefs"]` inspection did not locate an `ALTER TABLE groove_alerts ADD COLUMN acknowledged_at` migration. Since `CREATE TABLE IF NOT EXISTS` does not add a column to an already-existing older table, an installation whose pre-existing `groove_alerts` table predates this column would need separate migration evidence. The 2026-11-14 live-database journal records the column present in its sampled database (0/1,198 rows acknowledged); that historical observation does not prove every extant copy has the same schema.
+
+### Test coverage and limits
+
+- `tests/test_self_narrative.py` verifies that `source_id` is written and that independent calls produce independent rows. It does not test repeated ticks against one unchanged groove alert ID.
+- `tests/test_metacognition.py` builds Metacognition without a narrative dependency in its shared helper; its one-alert test verifies a derived event but not the live paired narrative write.
+- The static schema guards in `tests/test_schema_indexes.py` scan static SQL references/compilability against a fresh initialized store. They establish useful table/column coverage, not once-only consumption semantics or distinct-source counting.
+- No tests were run in this source-only pass. No live database was queried.
+
+### Revised next evidence
+
+1. Add a read-only forensic query to a retained snapshot (not the live DB) that groups `narrative_log` by `trigger, source_id` and compares distinct source IDs with repeated row counts; separately group `meta_cognition_events` by time/source description where attribution is possible. Preserve limitations: event rows lack source IDs, so descriptions are not a robust join key.
+2. Characterize repeated `tick()` calls with one alert and a wired `SelfNarrative`: assert counts and IDs in both destination tables. Then compare with three distinct source alert IDs.
+3. Complete the full tracked-code census for writes to `groove_alerts.acknowledged_at`; this targeted pass still does not establish that no indirect or dynamically assembled writer exists.
+4. Decide the semantic unit before any code change: detector observation, alert row, detector episode/fingerprint, metacognitive observation, or distinct evidence for stillness. Then specify retry/crash/retention behaviour separately for event and narrative streams.
+
+**Disposition:** Phase 0 source-level correction and provenance refinement; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors and main snapshot:** `run.py` (SelfNarrative construction/injection); `theory_x/stage9_metacognition/metacognition.py` (tick and source ID pass-through); `theory_x/stage_self_narrative/self_narrative.py` (narrative insert); `theory_x/SELF_NARRATIVE_SPEC.md`; `substrate/schema/beliefs.sql`; `substrate/init_db.py` (schema map, apply path, conversations migration); `substrate/schema/conversations.sql`; `tests/test_self_narrative.py`; `tests/test_metacognition.py`; `tests/test_schema_indexes.py`; `journal/INVESTIGATION_2026-11-14_groove_facts.txt`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed initialization, runtime dependency injection, source ID pass-through, and narrative persistence; test-coverage inspection; historical DB observation from journal. Full acknowledgement-writer census, present runtime chronology, and installed-schema distribution remain UNKNOWN.
