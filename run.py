@@ -20,6 +20,7 @@ import types
 import logging
 import os
 import signal
+import threading
 import time as _time
 
 import nex_config
@@ -45,6 +46,42 @@ from gui.shutdown_gate import ShutdownGate
 from voice.llm import VoiceClient
 
 
+def _own_and_start(state: AppState, field: str, worker, start_method: str,
+                   stop_method: str):
+    """Publish a worker to AppState before starting it; rollback a failed start.
+
+    Builders that start internally must provide their own transactional rollback.
+    This helper covers the explicit run.py start sites.
+    """
+    setattr(state, field, worker)
+    try:
+        getattr(worker, start_method)()
+    except BaseException:
+        stop = getattr(worker, stop_method, None)
+        if callable(stop):
+            try:
+                stop()
+            except Exception as exc:
+                logging.getLogger("nex5.boot").error(
+                    "%s stop after startup failure failed: %s", field, exc
+                )
+        thread = worker if isinstance(worker, threading.Thread) else getattr(worker, "_thread", None)
+        if isinstance(thread, threading.Thread) and thread.ident is not None:
+            if thread is not threading.current_thread():
+                try:
+                    thread.join(timeout=1.0)
+                    if thread.is_alive():
+                        logging.getLogger("nex5.boot").error(
+                            "%s worker survived startup rollback", field
+                        )
+                except Exception as exc:
+                    logging.getLogger("nex5.boot").error(
+                        "%s join after startup failure failed: %s", field, exc
+                    )
+        raise
+    return worker
+
+
 def main() -> None:
     # One authority for logging (D-C): root INFO, third-party quieted, central
     # error handler installed. Replaces the old basicConfig + install_handler.
@@ -59,17 +96,75 @@ def main() -> None:
     log.info("NEX 5.0 booting")
     log.info("Alpha: %s", ALPHA.lines[0])
 
+    # The client is inert until speak()/health_check(); create it before any
+    # producer so AppState can exist before the first worker starts.
+    voice = VoiceClient(
+        url=os.environ.get("NEX5_VOICE_URL", "http://localhost:11434/v1/chat/completions"),
+        model=os.environ.get("NEX5_VOICE_MODEL", "qwen2.5:3b"),
+    )
+
     # 1. Init databases
     log.info("Initialising databases...")
     init_all()
 
-    # 2. Build writers/readers
+    # 2. Build writers/readers. Writers start their own daemon threads in
+    # __init__, so partial construction has its own bounded cleanup owner.
     paths = db_paths()
-    writers = {name: Writer(p, name=name) for name, p in paths.items()}
-    readers = {name: Reader(p) for name, p in paths.items()}
-    # Tag Protocol — wrap beliefs writer so new INSERTs auto-generate tags
-    from theory_x.tag_protocol.writer_wrapper import TaggingBeliefWriter as _TBW
-    writers["beliefs"] = _TBW(writers["beliefs"])
+    writers = {}
+
+    def _close_partial_writers() -> None:
+        deadline = _time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S
+        for _writer in list(writers.values()):
+            _raw = getattr(_writer, "_inner", _writer)
+            try:
+                _raw.close(timeout=max(0.0, deadline - _time.monotonic()))
+            except Exception as _close_error:
+                log.error("Partial Writer cleanup failed: %s", _close_error)
+
+    atexit.register(_close_partial_writers)
+
+    def _partial_boot_shutdown(signum, frame):
+        log.warning("Shutdown during Writer construction; draining constructed Writers")
+        _close_partial_writers()
+        os._exit(1)  # boot did not complete; deliberately write no clean marker
+
+    signal.signal(signal.SIGTERM, _partial_boot_shutdown)
+    signal.signal(signal.SIGINT, _partial_boot_shutdown)
+
+    try:
+        for _name, _path in paths.items():
+            writers[_name] = Writer(_path, name=_name)
+    except BaseException:
+        _close_partial_writers()
+        raise
+
+    try:
+        readers = {name: Reader(p) for name, p in paths.items()}
+        # Tag Protocol — wrap beliefs writer so new INSERTs auto-generate tags
+        from theory_x.tag_protocol.writer_wrapper import TaggingBeliefWriter as _TBW
+        writers["beliefs"] = _TBW(writers["beliefs"])
+        state = AppState(writers=writers, readers=readers, voice=voice)
+    except BaseException:
+        _close_partial_writers()
+        raise
+
+    atexit.unregister(_close_partial_writers)
+    atexit.register(state.close)
+
+    _boot_shutdown_started = False
+
+    def _boot_shutdown(signum, frame):
+        nonlocal _boot_shutdown_started
+        if _boot_shutdown_started:
+            os._exit(1)
+        _boot_shutdown_started = True
+        log.warning("Shutdown during NEX boot; stopping registered producers and draining Writers")
+        report = state.close(deadline=_time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S)
+        log.warning("Boot interrupted; clean-shutdown marker intentionally not written: %s", report)
+        os._exit(1)
+
+    signal.signal(signal.SIGTERM, _boot_shutdown)
+    signal.signal(signal.SIGINT, _boot_shutdown)
 
     # 3. Self-location commitment
     log.info("Committing self-location...")
@@ -107,9 +202,13 @@ def main() -> None:
     voice_state = build_voice_state(writers, readers)
     log.info("Voice state ready — current voice: %s", voice_state.current_name())
 
+    state.mode_state = mode_state
+    state.voice_state = voice_state
+
     # 5. Sense scheduler (external feeds auto-start during construction)
     log.info("Starting sense scheduler (external feeds auto-start)...")
     scheduler = build_scheduler(writers, readers, mode_state=mode_state)
+    state.scheduler = scheduler
     log.info("Sense scheduler constructed — 28 adapters wired (4 internal, 24 external)")
 
     # 9b-pre. SelfNarrative — autobiographical accumulation (Phase 26)
@@ -152,13 +251,8 @@ def main() -> None:
     # 5. Dynamic formation
     log.info("Starting dynamic formation...")
     dynamic = build_dynamic(writers, readers, coherence_gate=coherence_gate)
+    state.dynamic = dynamic
     log.info("Dynamic started — bonsai tree active")
-
-    # 6. Voice client (shared by world model, fountain, strikes)
-    voice = VoiceClient(
-        url=os.environ.get("NEX5_VOICE_URL", "http://localhost:11434/v1/chat/completions"),
-        model=os.environ.get("NEX5_VOICE_MODEL", "qwen2.5:3b"),
-    )
 
     # Voice health check
     if voice.health_check():
@@ -170,12 +264,13 @@ def main() -> None:
     from theory_x.stage_gate.transformer import ReshapeTransformer
     _transformer = ReshapeTransformer(voice)
     _resolver.set_transformer(_transformer)
-    _resolver.start_loop()
+    _own_and_start(state, "resolver", _resolver, "start_loop", "stop_loop")
     log.info("Reshape transformer ready — reshape path active, resolver loop started")
 
     # 7. World model
     log.info("Starting world model...")
     world_model = build_world_model(writers, readers, dynamic_state=dynamic, voice_client=voice, coherence_gate=coherence_gate)
+    state.world_model = world_model
     log.info("World model started")
 
     # 8. Membrane
@@ -186,6 +281,7 @@ def main() -> None:
         world_model_state=world_model,
         coherence_gate=coherence_gate,
     )
+    state.membrane = membrane
     log.info("Membrane drawn — inside/outside boundary active")
 
     # 9. Problem memory (needed by fountain for task-bearing override)
@@ -231,7 +327,7 @@ def main() -> None:
             readers["beliefs"],
             self_narrative=self_narrative,
         )
-        novel_association.start_loop()
+        _own_and_start(state, "novel_association", novel_association, "start_loop", "stop")
         try:
             from theory_x import register as _tx_register_na
             _tx_register_na(novel_association)
@@ -260,6 +356,7 @@ def main() -> None:
             coherence_gate=coherence_gate,
         )
         _throw_net_monitor = _ThrowNetMonitor(_throw_net_engine)
+        state.throw_net_monitor = _throw_net_monitor
         # RETIRED 2026-10-05 (repair queue item 4): in five months its sessions
         # produced 4 beliefs (one sentence x4), ~21k held-zone churn, re-gated
         # existing beliefs (ACCEPT writes nothing) and re-triggered itself via its
@@ -267,7 +364,7 @@ def main() -> None:
         # started; trigger telemetry (gate / gap / user_query rows) is still
         # logged. NEX5_THROWNET=1 restores the loop.
         if os.environ.get("NEX5_THROWNET") == "1":
-            _throw_net_monitor.start_loop()
+            _own_and_start(state, "throw_net_monitor", _throw_net_monitor, "start_loop", "stop")
             log.info("Throw-net monitor ready — autonomous cycle every 300s when triggers pending")
         else:
             log.info("Throw-net monitor RETIRED — loop not started (NEX5_THROWNET=1 restores); triggers still logged")
@@ -287,7 +384,7 @@ def main() -> None:
             beliefs_reader=readers["beliefs"],
             dynamic_reader=readers["dynamic"],
         )
-        _substrate_harmonic.start_loop()
+        _own_and_start(state, "substrate_harmonic", _substrate_harmonic, "start_loop", "stop_loop")
         try:
             from theory_x import register as _tx_register_harmonic
             _tx_register_harmonic(_substrate_harmonic)
@@ -311,7 +408,7 @@ def main() -> None:
             dynamic_reader=readers["dynamic"],
             beliefs_reader=readers["beliefs"],
         )
-        _genius_tagger.start_loop()
+        _own_and_start(state, "genius_tagger", _genius_tagger, "start_loop", "stop_loop")
         try:
             from theory_x import register as _tx_register_genius
             _tx_register_genius(_genius_tagger)
@@ -338,7 +435,7 @@ def main() -> None:
             time_fetch=_tf_cn,
             refinement_engine=_re_cn,
         )
-        _counterfactual_node.start_loop()
+        _own_and_start(state, "counterfactual_node", _counterfactual_node, "start_loop", "stop")
         log.info("CounterfactualNode ready — autonomous cycle every 300s")
     except Exception as _cn_err:
         log.warning("CounterfactualNode failed to start (non-fatal): %s", _cn_err)
@@ -352,7 +449,7 @@ def main() -> None:
             readers["conversations"],
             readers["beliefs"],
         )
-        _drive_emergence.start_loop()
+        _own_and_start(state, "drive_emergence", _drive_emergence, "start_loop", "stop")
         try:
             from theory_x import register as _tx_register_de
             _tx_register_de(_drive_emergence)
@@ -372,7 +469,7 @@ def main() -> None:
             from theory_x.stage_warrant.recorder import WarrantRecorder as _WarrantRecorder
             _warrant_recorder = _WarrantRecorder(
                 writers["beliefs"], readers["beliefs"], readers["dynamic"])
-            _warrant_recorder.start_loop()
+            _own_and_start(state, "warrant_recorder", _warrant_recorder, "start_loop", "stop")
             log.info("WarrantRecorder ready — use-days every 900s, survival checks every 3600s")
         except Exception as _wr_err:
             log.warning("WarrantRecorder failed to start (non-fatal): %s", _wr_err)
@@ -386,7 +483,7 @@ def main() -> None:
             beliefs_reader=readers["beliefs"],
             dynamic_reader=readers.get("dynamic"),
         )
-        _competing_drives.start_loop()
+        _own_and_start(state, "competing_drives", _competing_drives, "start_loop", "stop")
         log.info("CompetingDrives ready — 5-drive tension every 600s")
     except Exception as _cd_err:
         log.warning("CompetingDrives failed to start (non-fatal): %s", _cd_err)
@@ -421,7 +518,7 @@ def main() -> None:
             readers["beliefs"],
             dynamic_reader=readers["dynamic"],
         )
-        _affect_state.start_loop()
+        _own_and_start(state, "affect_state", _affect_state, "start_loop", "stop")
         try:
             from theory_x import register as _tx_register_as
             _tx_register_as(_affect_state)
@@ -443,7 +540,7 @@ def main() -> None:
             sense_reader=readers["sense"],
             drive_emergence=_drive_emergence,
         )
-        _predictive_substrate.start_loop()
+        _own_and_start(state, "predictive_substrate", _predictive_substrate, "start_loop", "stop")
         log.info("PredictiveSubstrate ready — autonomous cycle every 300s")
     except Exception as _ps_err:
         log.warning("PredictiveSubstrate failed to start (non-fatal): %s", _ps_err)
@@ -470,7 +567,7 @@ def main() -> None:
                 conversations_writer=writers["conversations"],
                 conversations_reader=readers["conversations"],
             )
-            _persona_responder.start_loop()
+            _own_and_start(state, "persona_responder", _persona_responder, "start_loop", "stop")
             log.info("PersonaResponder ready — separate mind answering NEX every %ds",
                       _persona_interval)
         except Exception as _pr_err:
@@ -487,7 +584,7 @@ def main() -> None:
             conversations_reader=readers["conversations"],
             drive_emergence=_drive_emergence,
         )
-        _self_mind_view.start_loop()
+        _own_and_start(state, "self_mind_view", _self_mind_view, "start_loop", "stop")
         log.info("SelfMindView ready — autonomous cycle every 300s")
     except Exception as _smv_err:
         log.warning("SelfMindView failed to start (non-fatal): %s", _smv_err)
@@ -506,7 +603,7 @@ def main() -> None:
                 conversations_reader=readers["conversations"],
                 beliefs_reader=readers["beliefs"],
             )
-            _world_pred_loop.start_loop()
+            _own_and_start(state, "world_pred_loop", _world_pred_loop, "start_loop", "stop")
             log.info(
                 "WorldPredictionLoop ready — voice+random calls, interval=%ss horizon=%ss",
                 _world_pred_loop._interval, _world_pred_loop._horizon,
@@ -527,7 +624,7 @@ def main() -> None:
                 dynamic_reader=readers["dynamic"],
                 beliefs_reader=readers["beliefs"],
             )
-            _self_pred_loop.start_loop()
+            _own_and_start(state, "self_pred_loop", _self_pred_loop, "start_loop", "stop")
         except Exception as _spl_err:
             log.warning("SelfPredictionLoop failed to start (non-fatal): %s", _spl_err)
 
@@ -541,7 +638,7 @@ def main() -> None:
             from theory_x.stage_self_maintain.shadow import SelfMaintainShadow as _SMS
             _self_maintain_shadow = _SMS(writers["dynamic"], readers["beliefs"],
                                          readers["dynamic"], readers["sense"])
-            _self_maintain_shadow.start_loop()
+            _own_and_start(state, "self_maintain_shadow", _self_maintain_shadow, "start_loop", "stop")
             log.info("SelfMaintainShadow ready — log-only, first tick in 600s, then hourly")
         except Exception as _sms_err:
             log.warning("SelfMaintainShadow failed to start (non-fatal): %s", _sms_err)
@@ -635,6 +732,7 @@ def main() -> None:
                               coherence_gate=coherence_gate,
                               drive_emergence=_drive_emergence, erosion=world_model.erosion, competing_drives=_competing_drives,
                               metacognition=metacognition)
+    state.fountain = fountain
     log.info("Fountain lit — loop running at %ds interval", FOUNTAIN_CHECK_INTERVAL_SECONDS)
 
     # 11. Strike protocols
@@ -676,7 +774,7 @@ def main() -> None:
                 voice_state=voice_state,
                 backend=_kokoro_backend,
             )
-            speech_consumer.start()
+            _own_and_start(state, "speech_consumer", speech_consumer, "start", "stop")
             log.info("Speech consumer started (voice=%s)", speech_cfg.voice)
         else:
             log.info("Speech disabled via NEX5_SPEECH_ENABLED=false")
@@ -689,13 +787,14 @@ def main() -> None:
     log.info("Starting signal detection loop...")
     from theory_x.signals import build_signal_loop
     signal_loop = build_signal_loop(writers, readers)
+    state.signal_loop = signal_loop
     log.info("Signal loop ready — detectors running every 60s")
 
     # 14. Diversity ecology (LLM-free, sentence-transformers)
     log.info("Starting diversity ecology loop...")
     from theory_x.diversity import build_diversity_loop
     diversity_loop = build_diversity_loop(writers, readers)
-    diversity_loop.start()
+    _own_and_start(state, "diversity_loop", diversity_loop, "start", "stop")
     log.info("Diversity loop ready")
 
     # 15. Arc reader (LLM-free, retrospective arc detection)
@@ -718,7 +817,7 @@ def main() -> None:
     log.info("Starting edge generator loop...")
     from theory_x.stage3_world_model.edge_generator import build_edge_generator_loop
     edge_generator_loop = build_edge_generator_loop(writers, readers)
-    edge_generator_loop.start()
+    _own_and_start(state, "edge_generator_loop", edge_generator_loop, "start", "stop")
     log.info("EdgeGeneratorLoop started (tick=30min)")
 
     # 17. Probe archaeology (Lens Theory)
@@ -737,54 +836,46 @@ def main() -> None:
         log.warning("Probe runner failed to start (non-fatal): %s", _probe_err)
 
     # 18. Wire AppState and start GUI
-    state = AppState(
-        writers=writers,
-        readers=readers,
-        voice=voice,
-        scheduler=scheduler,
-        dynamic=dynamic,
-        world_model=world_model,
-        membrane=membrane,
-        fountain=fountain,
-        strike_protocol=strike_protocol,
-        catalogue=catalogue,
-        problem_memory=problem_memory,
-        goal_manager=goal_manager,
-        metacognition=metacognition,
-        self_narrative=self_narrative,
-        novel_association=novel_association,
-        tool_registry=tool_registry,
-        tool_caller=tool_caller,
-        speech_consumer=speech_consumer,
-        mode_state=mode_state,
-        voice_state=voice_state,
-        signal_loop=signal_loop,
-        diversity_loop=diversity_loop,
-        arc_loop=arc_loop,
-        probe_runner=probe_runner,
-        probes_reader=probes_reader,
-        coherence_gate=coherence_gate,
-        resolver=_resolver,
-        world_pred_loop=_world_pred_loop,
-        self_pred_loop=_self_pred_loop,
-        edge_generator_loop=edge_generator_loop,
-        trigger_detector=_trigger_detector,
-        throw_net_monitor=_throw_net_monitor,
-        counterfactual_node=_counterfactual_node,
-        voice_engine=_voice_engine,
-        affect_state=_affect_state,
-        drive_emergence=_drive_emergence,
-        predictive_substrate=_predictive_substrate,
-        self_mind_view=_self_mind_view,
-        social_presence=_social_presence,
-        substrate_harmonic=_substrate_harmonic,
-        genius_tagger=_genius_tagger,
-        warrant_recorder=_warrant_recorder,
-        competing_drives=_competing_drives,
-        persona_responder=_persona_responder,
-        self_maintain_shadow=_self_maintain_shadow,
-    )
-    atexit.register(state.close)
+    # Complete the early AppState with the non-worker services. Worker fields
+    # were attached before their start calls above, so a failed boot already has
+    # a complete shutdown owner.
+    state.strike_protocol = strike_protocol
+    state.catalogue = catalogue
+    state.problem_memory = problem_memory
+    state.goal_manager = goal_manager
+    state.metacognition = metacognition
+    state.self_narrative = self_narrative
+    state.novel_association = novel_association
+    state.tool_registry = tool_registry
+    state.tool_caller = tool_caller
+    state.speech_consumer = speech_consumer
+    state.mode_state = mode_state
+    state.voice_state = voice_state
+    state.signal_loop = signal_loop
+    state.diversity_loop = diversity_loop
+    state.arc_loop = arc_loop
+    state.probe_runner = probe_runner
+    state.probes_reader = probes_reader
+    state.coherence_gate = coherence_gate
+    state.resolver = _resolver
+    state.world_pred_loop = _world_pred_loop
+    state.self_pred_loop = _self_pred_loop
+    state.edge_generator_loop = edge_generator_loop
+    state.trigger_detector = _trigger_detector
+    state.throw_net_monitor = _throw_net_monitor
+    state.counterfactual_node = _counterfactual_node
+    state.voice_engine = _voice_engine
+    state.affect_state = _affect_state
+    state.drive_emergence = _drive_emergence
+    state.predictive_substrate = _predictive_substrate
+    state.self_mind_view = _self_mind_view
+    state.social_presence = _social_presence
+    state.substrate_harmonic = _substrate_harmonic
+    state.genius_tagger = _genius_tagger
+    state.warrant_recorder = _warrant_recorder
+    state.competing_drives = _competing_drives
+    state.persona_responder = _persona_responder
+    state.self_maintain_shadow = _self_maintain_shadow
 
     # Decoder daemon — tokenizes each fountain output, logs substrate state.
     # NB 2026-05-30: was briefly cut as "cosmetic" but it feeds /api/decoder/recent
@@ -798,11 +889,11 @@ def main() -> None:
             target=decoder_loop, args=(state, _decoder_stop),
             daemon=True, name="decoder_loop",
         )
-        _decoder_thread.start()
-        atexit.register(lambda: _decoder_stop.set())
-        # Registered so AppState.close() stops and joins it with the rest (G-84).
         state.decoder_loop = types.SimpleNamespace(
             stop=_decoder_stop.set, _thread=_decoder_thread)
+        atexit.register(lambda: _decoder_stop.set())
+        _decoder_thread.start()
+        # Registered before start so failed startup remains visible to AppState (G-84).
         log.info("Decoder loop started — tokenizing fountain outputs every 30s")
     except Exception as _dec_exc:
         log.warning("decoder_loop failed to start: %s", _dec_exc)
