@@ -574,3 +574,6 @@ The 10 May Phase 26 draft spec describes persistent narrative_log accumulation a
 
 
 PR #457 exact-head workflow 46183886214 passed: 3,079 passed, 7 skipped, 86 subtests; baseline and sandbox checks OK. PR #456 first failed on an assertion expecting full T6 text; the source truncates to 80 characters, so the test now checks the emitted prefix and awaits re-run. See INDEX §160.
+
+
+The tracked launch command sets NEX5_SELF_NARRATIVE=1 and NEX5_GOVERNOR_OFF=1 together: it enables the Stage-TOM reader while disabling the Fountain governor's self_rut_notice writer. Old stored rows remain eligible; host launcher/service selection and actual rows are UNKNOWN. See INDEX §160/§162.
