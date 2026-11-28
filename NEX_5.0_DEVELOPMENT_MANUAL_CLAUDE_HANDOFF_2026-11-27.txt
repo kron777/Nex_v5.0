@@ -3338,3 +3338,47 @@ NEX has two belief-to-prompt routes with different eligibility contracts. The or
 **Source anchors inspected at main:** theory_x/stage3_world_model/retrieval.py blob aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3; theory_x/stage_tom/self_narrative.py blob 5fbc617fadc177ade59b45acf118b77c43ef2e84; theory_x/stage3_world_model/harmonizer.py blob e72008ec21ad91e20cbdcfc73bacf14263e34382; tests/test_self_narrative.py (older Stage-SelfNarrative test path; blob SHA to be resolved if exact test evidence is later needed).
 
 **Host/runtime unknowns:** NEX5_SELF_NARRATIVE setting; whether this Stage-TOM narrative is used in the live generator; live Tier-6 paused/low-confidence population; whether any such rows have entered prompts; and actual Harmonizer resolution flags/outcomes.
+
+
+## 93. Reification retrieval override: current-main eligibility and test gap (28 November 2026)
+
+**Question studied:** does the special `reification_recognition` inclusion path preserve the ordinary belief-eligibility and membrane boundaries, and is the word “always” in its comment an accurate description of the resulting retrieval?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. This is a static source/test/PR comparison. No host, live database, feature flag or runtime was inspected.
+
+### Current source path
+
+In `theory_x/stage3_world_model/retrieval.py`, the ordinary candidate query applies:
+
+- `tier <= 6`;
+- `paused = 0`;
+- `locked = 1 OR confidence >= 0.15`.
+
+It does **not** currently include `erosion_stage != 'retired'` in the mainline query.
+
+When `side_filter == "INSIDE"`, the normal candidate rows are first passed through the membrane classifier. After that filtering, the code performs a separate lookup for `source = 'reification_recognition'` and appends the row if its ID is not already present. That second lookup currently has no tier, paused, confidence, retirement or membrane-classification predicate. It can therefore reintroduce a row that the ordinary query would exclude, and it is appended after the membrane side filter has already run.
+
+This is a source-level eligibility bypass, not evidence that a particular inactive row is present in a live prompt. It is also important not to overstate the comment “Always include”: after the row is appended, it still enters the ordinary scoring/selection path. With query tokens, zero-overlap candidates are dropped unless the optional semantic fallback admits them; with an empty-token query, the appended row is still subject to the final `rows[:limit]` slice. The special path is an extra candidate opportunity, not a guaranteed final result.
+
+### Independent test coverage
+
+- `tests/test_belief_confidence_retrieval_pathway.py` builds an isolated database from the real schema and tests the ordinary retriever's confidence floor, locked exception, paused exclusion and tier ceiling. It does not exercise `side_filter="INSIDE"` or the reification override.
+- The mainline `tests/test_retrieval.py` exercises FountainGenerator's own-content/seed context path; it does not currently contain the reification-override regression tests.
+- PR **#117 — Apply eligibility to reification retrieval override** contains the targeted tests and a proposed source correction. Its head `1dd1985f797bb218dd2aa10d077c092589ac6e63` passed workflow `45803079139` (1,611 passed, 5 skipped, 30 subtests), but the PR remains **open and draft**, based on the older `claude/nex-continuity-wire` commit `de93134f34adac07a3a41c2a05b33720510a2bfc`, not current main `18c8f06171e1de35c3210831a49b63d0e2487af0`. Its green run is not current-main validation and its changes are not present on current main.
+
+PR #117 proposes to add `tier < 8`, `paused = 0` and `erosion_stage != 'retired'` to the special lookup, and to exclude retired-marker rows from the ordinary pool. It does not add the ordinary confidence-floor condition to the special lookup. That remaining difference must be an explicit policy decision: should reification recognition be a deliberate confidence-floor exception, or should the same eligibility contract apply? Do not silently assume either.
+
+### Consequence and bounded disposition
+
+There are two separate issues to keep distinct:
+
+1. **Eligibility integrity:** the special candidate lookup currently bypasses ordinary active-state checks and the membrane classifier; the main pool also lacks the independent retired-marker predicate.
+2. **Selection semantics:** the comment promises “always include,” but scoring, zero-overlap handling and the result limit can still omit the candidate.
+
+The safest next step is a current-main replay of #117's targeted tests and narrowly scoped filters, but only after the owner confirms the intended treatment of reification beliefs and whether the confidence floor is an exception. Add tests for paused, Tier-8, lower-tier retired, low-confidence, membrane-side mismatch, zero-overlap, empty-query and limit-boundary cases. Keep “eligible candidate” distinct from “selected result” in test names and documentation.
+
+**Disposition:** verified current-main source gap; proposed correction remains unmerged and stale-base. No code, test, schema, index, flag, retrieval policy, mind-map authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or runtime state was changed in this study. No tests were run for this documentation pass.
+
+**Source anchors inspected:** `theory_x/stage3_world_model/retrieval.py` blob `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3`; `tests/test_belief_confidence_retrieval_pathway.py` blob `b2505f2494db8fcd2453f7f5ee28184906e83daa`; current-main `tests/test_retrieval.py` blob `efd27b50c3cdc5ef64769fefcbb5529cc44ea90e`; PR #117 diff and metadata; exact-head workflow `45803079139`.
+
+**Host/runtime unknowns:** effective `NEX5_SELF_NARRATIVE` and retrieval flags; whether INSIDE self-inquiry calls occur in the deployed process; live reification row tier/pause/confidence/retirement state; actual membrane classification of that row; whether it has been selected into any prompt; and whether the draft #117 fix is intentionally superseded or simply awaiting a current-main replay.
