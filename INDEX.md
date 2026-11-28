@@ -1926,6 +1926,7 @@ This is a deliberate return to study, not scope drift. The evidence changed from
 - The direct `run.py` starts already corresponded to fields understood by `AppState`. The defect was that ownership was published too late, not that a second process-wide supervisor was missing.
 - Internally-started builders still need their own transactional rollback because the caller cannot publish an object it has not yet received.
 - SignalLoop was the remaining internal-start boundary after the Scheduler, Dynamic, World Model, Membrane and Fountain rollback increments.
+- The decoder thread was the only direct `Thread.start()` call left in `run.py`; it is now represented as an AppState-owned worker and started through `_own_and_start`.
 
 ### Candidate ownership sequence
 
@@ -1950,12 +1951,13 @@ This means a signal can be delayed until the current builder returns. That trade
 - A boot-shutdown request injected during a start call must unwind through the helper and quiesce the worker.
 - AppState must honor the absolute deadline latched at the boot signal.
 - SignalLoop uses a start gate so a failed `Thread.start()` cannot enter the detector loop body; its regression injects a failure after the OS thread has been created.
+- The decoder uses the same owner-before-start helper; its regression injects a failure after thread creation and verifies the stop Event is set and the worker is joined.
 
 ### Boundaries and unresolved evidence
 
 - This is repository source/test work, not a live host or robot shutdown rehearsal. Real SIGTERM delivery, service-manager timeouts, SQLite contention and hardware startup timing remain unknown.
 - A synchronous builder can delay the response to a boot-shutdown request until its next checkpoint.
-- Partial Writer cleanup covers constructors that returned and were published in the local registry. A failure inside a Writer constructor after an OS thread exists but before the constructor returns is not yet separately fault-injected.
+- Partial Writer cleanup covers constructors that returned and were published in the local registry. A failure inside a Writer constructor after an OS thread exists but before the constructor returns is not implemented in this candidate; the individual Writer rollback is being addressed independently in candidate PR #421.
 - SIGKILL, power loss and process abort cannot be handled by Python cleanup.
 - No process-wide thread census, new runtime flag, database, cognitive mechanism, Mind Aspect action authority or frozen-spec change is introduced.
 
