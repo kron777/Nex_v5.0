@@ -500,7 +500,7 @@ class SelfMindView:
             "uncertainty": "taken_at, open_problem_count, review_queue_count, t3_t4_count",
             "attention": (
                 "taken_at, recent_belief_count_5m, recent_gate_count_5m, "
-                "current_drive_theme"
+                "current_drive_theme, current_themes_json"
             ),
         }
         cols = _aspect_cols.get(aspect, "taken_at")
