@@ -1,4 +1,4 @@
-"""AppState.close() must quiesce every producer it holds before closing Writers.
+"""AppState.close() must quiesce its registered producer families before closing Writers.
 
 Backlog G-84, step 2. Step 1 made close() stop and join the Stage 2 dynamic
 loops. The other producer families AppState holds -- the World Model loops,
@@ -6,7 +6,7 @@ SignalLoop, DiversityLoop, ArcLoop and the SpeechQueueConsumer -- were still
 left running while the Writers closed, so a tick in progress could lose its
 writes. Pinned here, on isolated temporary databases:
 
-- every held producer is asked to stop and is joined BEFORE any Writer closes,
+- every registered producer is asked to stop and is joined BEFORE any Writer closes,
   so each one's in-flight write lands;
 - producers are signalled first and joined against ONE shared deadline, so
   several stuck producers cannot multiply the shutdown time;
