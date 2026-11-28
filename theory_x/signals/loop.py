@@ -62,12 +62,14 @@ class SignalLoop:
     def _run(self):
         while not self._stop_flag.is_set():
             try:
-                self._tick()
+                self._tick(stop_event=self._stop_flag)
             except Exception as e:
                 logger.warning("SignalLoop tick failed: %s", e)
             self._stop_flag.wait(self._interval)
 
-    def _tick(self):
+    def _tick(self, *, stop_event=None):
+        if stop_event is not None and stop_event.is_set():
+            return
         now = time.time()
 
         # Round 70: bounded retention for `signals`. Self-throttled to one pass
@@ -80,12 +82,20 @@ class SignalLoop:
         except Exception as _re:
             logger.warning("signals reap skipped (non-fatal): %s", _re)
 
+        if stop_event is not None and stop_event.is_set():
+            return
         all_signals = []
 
         for det in self._detectors:
+            if stop_event is not None and stop_event.is_set():
+                return
             try:
-                sigs = det.detect()
+                sigs = det.detect(stop_event=stop_event)
+                if stop_event is not None and stop_event.is_set():
+                    return
                 for s in sigs:
+                    if stop_event is not None and stop_event.is_set():
+                        return
                     sig_id = self._beliefs_writer.write(
                         "INSERT INTO signals "
                         "(detected_at, detector_name, signal_type, payload, "
@@ -108,13 +118,17 @@ class SignalLoop:
             except Exception as e:
                 logger.warning("Detector %s failed: %s", det.__class__.__name__, e)
 
-        if not all_signals:
+        if not all_signals or (stop_event is not None and stop_event.is_set()):
             return
 
         logger.info("SignalLoop tick: %d signals emitted", len(all_signals))
 
-        matches = self._library.match(all_signals)
+        matches = self._library.match(all_signals, stop_event=stop_event)
+        if stop_event is not None and stop_event.is_set():
+            return
         for m in matches:
+            if stop_event is not None and stop_event.is_set():
+                return
             self._beliefs_writer.write(
                 "INSERT INTO patterns "
                 "(matched_at, template_name, signal_ids, "
