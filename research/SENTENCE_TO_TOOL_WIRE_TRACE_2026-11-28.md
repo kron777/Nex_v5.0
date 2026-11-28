@@ -57,6 +57,20 @@ The output still follows the existing ToolResult → response-context path. No n
 - A natural-language calculation sentence is traced through ToolCaller, ToolRegistry and response-context formatting, then through the Flask `/api/chat` route into the actual voice request prompt.
 - A sentence containing a dynamic-import payload is not selected as a calculation operation.
 
+## 5. Adjacent RDO path — related, but not yet connected
+
+NEX also contains a more structured objective-intake path:
+
+- rdo/OBJECTIVE_INTAKE.md defines provider-neutral rdo.objective.v1 input.
+- The contract preserves the original human request, submitted intent, scope, constraints, exclusions, assumptions, acceptance criteria, proposed seed obligations and typed relationships.
+- The deterministic RDO validates the input and reuses its existing expansion, reconciliation, graph and planning pipeline.
+- The intake is explicitly advisory: it does not accept reconciliation outcomes, approval flags, executable commands or deployment instructions.
+- The Stage-7 path is a separate, reviewed development handoff; it is not a general runtime action executor.
+
+This is a promising objective-level intermediate representation, but it is not the user's Sentence Code and not yet a free-form sentence-to-machine-operation compiler. The inspected gui/server.py chat route has no rdo, rdo_adapters or objective_intake call. The chat-to-RDO wire is therefore absent in the inspected source.
+
+Do not connect it blindly: RDO objective obligations describe development work, while runtime tool operations describe actions NEX may perform in response to a user. Their authority, validation and execution contracts differ. Reuse may be possible at the representation/provenance layer, but that requires a deliberate mapping.
+
 ## 5. Limits and next wire
 
 This is a narrow safety and dataflow correction, not completion of the human-sentence-to-machine-code objective. It covers simple arithmetic only. The next step is to design and test a typed intermediate operation representation for broader capabilities, with explicit schemas, provenance, preconditions, approval policy and post-execution verification. It must reuse the existing capability and governance boundaries rather than introducing a second execution framework.
