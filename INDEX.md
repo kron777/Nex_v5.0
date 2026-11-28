@@ -4966,3 +4966,8 @@ Trace the other GrooveSpotter alert types (exact repetition, template repetition
 **Source anchors:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage6_fountain/crystallizer.py` blob `c0a5cf1388825e7fc9438cf1188aedd8e2ed8959`; `theory_x/diversity/loop.py` blob `186a1979283394a53154b609855b80f1fcfe0247`; `theory_x/diversity/groove.py` blob `1174b9001c7ffc876cec78ae677cb664481ad04e`; Metacognition source in §126; GUI/voice boundary in §127.
 
 **Evidence level:** source-observed generator/crystallizer/producer/consumer paths; exact-head CI pending for the consumer and route tests; no production runtime observation or semantic model-effect evidence.
+
+
+### §128 audit note — exact-repetition threshold remains ambiguous
+
+One small producer detail is not yet closed: `groove.py` defines `EXACT_REPEAT_MIN = 2`, and `_detect_exact_repetition()` uses that constant, but the method docstring says the same sentence must appear at least three times. The current PR #448 fingerprint test uses three repeated rows, so it proves fingerprint behaviour but does not discriminate between a threshold of two and three. The inspected `tests/test_diversity.py` contains no explicit exact-repeat threshold assertion. Treat the implemented threshold as two for source-trace purposes, but leave the intended threshold UNKNOWN; do not change it or encode it as a normative requirement without locating the decision/history. This is a documentation/test-coverage discrepancy, not yet a new verified defect ID.
