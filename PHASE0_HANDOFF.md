@@ -272,3 +272,20 @@ PR #280 merged as `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`; exact-head CI run 
 ### RDO v1.4 implementation gap audit
 
 See `rdo/RDO_V1_4_IMPLEMENTATION_GAP_AUDIT_2026-11-27.md` for the current source-to-requirement matrix and next vertical-slice increment.
+
+
+## 28 November 2026 — one-pen census and open persistence PRs
+
+At main `a6d084051e1d523812ef51c2d93784cba226499d`, the new read-only census tool (`tools/one_pen_census.py`) finds a single boot-reachable direct writer to the substrate databases: SignalToProblem (G-85). PR #347 proposes that fix, and PR #348 proposes G-84 step 1 (`AppState.close()` quiesces the dynamic loops before the Writers close). Both have green exact-head CI on current main; see INDEX §44 for run IDs.
+
+The census also records `strikes/catalogue.py` as a documented direct-write exception for its own separate database.
+
+Every `warrant_validate` verdict from before PR #271 was computed on history-free survival (G-78). Founder decisions are pending on G-80, G-78, G-76 and the census scope (G-61). Gate 0 remains pending.
+
+
+## Post-census persistence update — 28 November 2026
+
+- PR #347 merged as `8d6bc95d387687ed470713467d8779d09479e11d`; exact-head CI run `46089697232`: 2,841 passed, 7 skipped, 45 subtests. The primary SignalToProblem one-pen bypass is corrected with idempotent recovery ordering; no cross-database atomicity is claimed. G-85's identified source defect is closed; G-61 remains open for census scope/governance and remaining exceptions.
+- PR #348 merged as `321a156e162a6554e27ae329522f253e8f6fe676`; exact-head CI run `46091039346`: 2,838 passed, 7 skipped, 45 subtests; baseline OK, no STALE warnings. AppState now quiesces dynamic loops before Writer close. G-84 remains open for the remaining producers and global shutdown deadline.
+- The 112-site census is pre-merge evidence at `a6d08405`; rerun it on current main before using the count as current.
+- Founder decisions G-80, G-78, G-76 and the non-substrate scope question under G-61 remain pending. Gate 0 remains pending; Phase 1 remains unauthorized.
