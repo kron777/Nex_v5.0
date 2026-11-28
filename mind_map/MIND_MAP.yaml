@@ -245,7 +245,7 @@ nodes:
     probe: { valence_delta_samples: 35, distinct_values: 12, min: 0.0219, max: 0.2237, source: "/tmp/nex5_affect_state.log" }
     falsifier: "A price that is constant is not a price. Valence should vary with content."
     falsifier_status: pass
-    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-405", "theory_x/stage6_fountain/generator.py:611-652", "theory_x/stage6_fountain/generator.py:857-863", "nex_keepalive.sh:225-226"] }
+    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:341-415", "theory_x/stage6_fountain/generator.py:611-652", "theory_x/stage6_fountain/generator.py:857-863", "nex_keepalive.sh:225-226"] }
     last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: 'no location yet pinned' was wrong -- the check regex just
@@ -290,6 +290,10 @@ nodes:
       script-relative resolution, inserting 6 lines above the launch block; the launch line's tail
       moved from nex_keepalive.sh:219-220 to :225-226 with byte-identical content. The launch line
       still sets NEX5_MOOD=1 and omits NEX5_VALENCE_DRIVE. Live process state remains UNKNOWN.
+
+      2026-11-28 (G-84 step 4): AffectState's loop gained a stop Event and stop(), adding 10 lines
+      above the cited range; _compute_valence_delta() and its neighbours moved from
+      affect_state.py:331-405 to :341-415 with byte-identical content.
   - id: mana
     label: "māna — self-conceit"
     layer: arm
@@ -1302,7 +1306,7 @@ nodes:
       retry_bridge_for_tensions() periodically re-attempts a synthesis bridge without forcing one.
       39 tests pass (test_held_tension.py, test_retry_bridge_for_tensions.py,
       test_harmonizer_active_count_fix.py, test_hud_tensions_episodes.py), all run in isolation
-      2026-11-09. A read-only HUD endpoint exists (gui/server.py:3538, api_harmonizer_tensions; pointer corrected 2026-11-28 from a drifted :3056, re-pinned after the G-84 producer edits); nothing live consumes it.
+      2026-11-09. A read-only HUD endpoint exists (gui/server.py:3555, api_harmonizer_tensions; pointer corrected 2026-11-28 from a drifted :3056, re-pinned after the G-84 producer edits); nothing live consumes it.
 
       SENTIENCE_PROGRAM.md's own summary row (line 36) still cited `stage_warrant`/`NEX5_WARRANT` --
       an unrelated belief-support-scoring module, not a dissonance mechanism -- as if it were the
@@ -1401,7 +1405,7 @@ nodes:
         - "tests/test_episodic_falsifier.py:42-54"
         - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
-        - "gui/server.py:3573-3587"
+        - "gui/server.py:3590-3604"
         - "nex_keepalive.sh:225-226"
         - "SENTIENCE_PROGRAM.md:148-157"
     last_verified: 2026-11-28
@@ -1456,6 +1460,10 @@ nodes:
       2026-11-28 anchor correction: 14873c10 (2026-11-27, after that day's verification) inserted 6
       lines near the top of nex_keepalive.sh; the launch line's tail moved from :219-220 to :225-226
       with byte-identical content. The launch line still omits NEX5_EPISODIC.
+
+      2026-11-28 (G-84 step 4): six more AppState producer fields and eleven more quiesce lines
+      moved the api_episodic_episodes endpoint by 17 lines to gui/server.py:3590-3604,
+      byte-identical content.
 
 constraints:
   - { from: p13_finitude,     to: prices,  label: "caps the budget" }
