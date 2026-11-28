@@ -113,6 +113,8 @@ def edge_builder_tick(
             if _should_skip(candidate["content"]):
                 skipped += 1
                 continue
+            if stop_event is not None and stop_event.is_set():
+                break
 
             try:
                 source_vector = embed_belief(candidate["id"], candidate["content"])
