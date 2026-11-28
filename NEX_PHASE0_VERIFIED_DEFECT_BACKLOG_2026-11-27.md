@@ -1081,3 +1081,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **PR #456 corrected exact-head validation:** workflow 46184315945 passed at 7996f5d091ffc0a45f77484bd4b3c7d6e6cb391b: 3,078 passed, 7 skipped, 86 subtests; baseline and sandbox checks OK; mind-map check 30 nodes, 0 unverified, 12 dark, 2 blocked. The original test failure was an assertion mismatch with the source's 80-character truncation, corrected without runtime changes. PR #457's initial head passed; follow-up constructor-gate coverage on 1751a45a853c9ceff89653c006c8436c87d47b00 is pending. See INDEX §160.
+
+
+**28 November 2026 — §164 existing sentence-to-capability route:** GUI chat selects among three bounded tools (allowlisted HTTP GET, AST-interpreted arithmetic, read-only beliefs query), executes immediately and injects successful results into the voice prompt. The arithmetic route never evaluates arbitrary Python; tests cover the AST boundary and GUI result injection. There is no separate durable typed Operation/approval record or post-action verification in this path, but current tools are read-only/pure. Do not generalize this to state-changing or embodied tools without separate capability validation, approval, execution and verification. No runtime change or defect ID. See INDEX §164.
