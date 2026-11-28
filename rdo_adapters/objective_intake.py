@@ -15,7 +15,7 @@ import subprocess
 from typing import Any, Dict, List, Optional
 
 from rdo.memory import CycleStore, PatternMemory
-from rdo.rule_proposals import RuleProposalStore
+from .rule_proposals import RuleProposalStore
 from rdo.model import (
     ANTI_REQUIREMENT, CLASSIFICATIONS, CONDITIONAL, FUTURE, HYPOTHESIS,
     NECESSARY, OPTIONAL, UNKNOWN, Obligation, Relationship,
