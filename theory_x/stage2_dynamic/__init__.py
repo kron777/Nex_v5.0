@@ -688,14 +688,51 @@ def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicS
         )
     # --- end moltbook ---
 
+    # Publish the stop/ownership handles before starting any worker. Workers
+    # wait behind a shared gate so a partial Thread.start() failure cannot let
+    # an earlier loop perform work before the builder commits successfully.
+    start_gate = threading.Event()
     threads = []
-    for fn, name in loops:
-        t = threading.Thread(target=fn, args=(state, stop), name=name, daemon=True)
-        t.start()
-        threads.append(t)
-
     state._stop = stop  # type: ignore[attr-defined]
     state._threads = threads  # type: ignore[attr-defined]
+
+    def _run_after_start(fn, loop_state, stop_event, gate):
+        gate.wait()
+        if not stop_event.is_set():
+            fn(loop_state, stop_event)
+
+    try:
+        for fn, name in loops:
+            t = threading.Thread(
+                target=_run_after_start,
+                args=(fn, state, stop, start_gate),
+                name=name,
+                daemon=True,
+            )
+            threads.append(t)
+            t.start()
+    except BaseException:
+        # Abort before releasing the gate. Workers that did start will observe
+        # stop and exit without entering their loop body. Join against one
+        # bounded rollback budget, preserving the original startup exception.
+        stop.set()
+        start_gate.set()
+        deadline = time.monotonic() + 1.0
+        alive = []
+        for worker in threads:
+            if worker.ident is None:
+                continue  # Thread.start() never succeeded for this worker.
+            worker.join(max(0.0, deadline - time.monotonic()))
+            if worker.is_alive():
+                alive.append(worker.name)
+        if alive:
+            import logging
+            logging.getLogger("theory_x.stage2_dynamic").error(
+                "Dynamic builder startup rollback left workers alive: %s", alive
+            )
+        raise
+
+    start_gate.set()
     return state
 
 
