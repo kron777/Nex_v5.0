@@ -881,8 +881,8 @@ nodes:
     blocked: false
     falsifier: "Should fail loudly if two writers claim the same subject."
     falsifier_status: fail
-    source: { kind: composite, refs: ["nex_keepalive.sh:20-45", "substrate/writer.py:1-16", "substrate/writer.py:57-155", "substrate/writer.py:170-258", "substrate/db.py:135-196"] }
-    last_verified: 2026-11-27
+    source: { kind: composite, refs: ["nex_keepalive.sh:20-45", "substrate/writer.py:1-16", "substrate/writer.py:58-213", "substrate/writer.py:214-375", "substrate/db.py:135-196"] }
+    last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: 'anchor not pinned' was wrong -- NEX5_CONTINUITY_N is a real,
       registered config var; the original check's un-excluded .venv noise drowned the real hit.
@@ -923,6 +923,20 @@ nodes:
       the serialized Writer worker, wraps it in BEGIN IMMEDIATE/COMMIT, and rolls back on
       callback failure. This extends the one-pen boundary without adding a second connection
       or a same-subject detector. The preventive-vs-detective falsifier therefore remains FAIL.
+
+      2026-11-28 Writer lifecycle re-verification: substrate/writer.py now additionally
+      handles Thread.start() raising after the OS worker was created but before Writer
+      construction returns. Startup closes admission, queues the existing shutdown sentinel,
+      and performs a bounded join while preserving the original start exception. If rollback
+      times out, the worker reference remains held and a second worker cannot replace it;
+      after the worker exits, the stale sentinel is discarded before retry. Four deterministic
+      regression cases cover post-start failure, pre-thread-creation failure, database-open
+      failure during caller-side start failure, and rollback timeout/retry. PR #424 exact-head
+      CI (e4b8a96495219a05b3264d437d502653b7fbf297) passed 3,064 tests, 7 skipped and 86
+      subtests; the baseline and isolated sandbox checks passed. This is source/test evidence,
+      not a live dual-writer or host runtime rehearsal. The preventive-vs-detective distinction
+      remains unchanged: this adds rollback protection, not a detector that loudly reports
+      two writers claiming the same subject.
 
       2026-11-28 anchor correction: 14873c10 (2026-11-27) replaced the hard-coded cd at line 12 with
       script-relative resolution (+6 lines); the single-instance flock and scoped-child supervision
