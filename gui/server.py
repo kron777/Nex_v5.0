@@ -730,6 +730,23 @@ class AppState:
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
     def close(self) -> None:
+        # One deadline is shared by the currently managed worker families. This
+        # increment adds Fountain to G-84's first dynamic-loop quiescence step;
+        # other producer families still require registration and join support.
+        deadline = time.monotonic() + _DYNAMIC_STOP_TIMEOUT_S
+
+        # Signal Fountain before waiting for any other worker so its idle wait
+        # is interrupted while Writers are still open.
+        if self.fountain is not None:
+            try:
+                stop = getattr(self.fountain, "stop", None)
+                if callable(stop):
+                    stop()
+            except Exception as e:
+                error_channel.record(
+                    f"Fountain stop failed: {e}", source="gui.server", exc=e
+                )
+
         if self.scheduler is not None:
             try:
                 self.scheduler.shutdown()
@@ -737,25 +754,40 @@ class AppState:
                 error_channel.record(
                     f"Scheduler shutdown failed: {e}", source="gui.server", exc=e
                 )
+
         # Stop and join the Stage 2 dynamic loops BEFORE the Writers close, so
         # a tick in progress can finish its writes instead of submitting them
-        # to a draining or closed Writer (backlog G-84, first step: the other
-        # worker families still lack a coordinated stop). Bounded so the whole
-        # close fits nex_keepalive.sh's graceful-stop window before SIGKILL.
+        # to a draining or closed Writer.
         if self.dynamic is not None:
             try:
                 from theory_x.stage2_dynamic import stop_dynamic
-                alive = stop_dynamic(self.dynamic, timeout=_DYNAMIC_STOP_TIMEOUT_S)
+                remaining = max(0.0, deadline - time.monotonic())
+                alive = stop_dynamic(self.dynamic, timeout=remaining)
                 if alive:
                     error_channel.record(
-                        f"dynamic loops still running at close after "
-                        f"{_DYNAMIC_STOP_TIMEOUT_S:.1f}s: {', '.join(alive)}",
+                        f"dynamic loops still running at close: {', '.join(alive)}",
                         source="gui.server",
                     )
             except Exception as e:
                 error_channel.record(
                     f"Dynamic stop failed: {e}", source="gui.server", exc=e
                 )
+
+        if self.fountain is not None:
+            try:
+                join = getattr(self.fountain, "join", None)
+                if callable(join):
+                    remaining = max(0.0, deadline - time.monotonic())
+                    if not join(timeout=remaining):
+                        error_channel.record(
+                            "Fountain loop still running at close deadline",
+                            source="gui.server",
+                        )
+            except Exception as e:
+                error_channel.record(
+                    f"Fountain join failed: {e}", source="gui.server", exc=e
+                )
+
         for w in self.writers.values():
             try:
                 w.close()
