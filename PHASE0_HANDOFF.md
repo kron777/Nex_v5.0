@@ -524,3 +524,6 @@ GeniusTagger is started asynchronously; _own_and_start() does not wait for its f
 ### 28 November 2026 — Rut belief membrane classification
 
 self_rut_notice is not in MembraneClassifier._INSIDE_SOURCES, so the generic BeliefRetriever classifies it OUTSIDE. QueryRouter's INSIDE self-inquiry path filters it out; OUTSIDE retrieval remains query-dependent. Draft PR #454 adds test-only characterization; exact-head CI pending. Whether the source was intended to be INSIDE is UNKNOWN. See INDEX §155.
+
+
+PR #453 exact-head workflow 46182191953 passed at 2d15c4d4c87881138c937c5600f1a281677d8391. Fixture tests validate the backfill timestamp and same-fire multi-version row behaviours; host occurrence and detector impact remain UNKNOWN.
