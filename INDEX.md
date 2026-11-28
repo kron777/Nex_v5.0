@@ -6094,3 +6094,43 @@ The feedback loop is source-observed, not runtime-observed. Repository source an
 **Source anchors:** theory_x/stage6_fountain/generator.py; theory_x/stage_tom/self_narrative.py; substrate/schema/dynamic.sql; nex_keepalive.sh; PR #457.
 
 **Authority boundary:** no runtime code, feature flag, prompt policy, execution path, database, schema, cognitive authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §164 — Existing sentence-to-capability bridge is bounded arithmetic/retrieval, not general code execution (28 November 2026)
+
+**Question studied:** does NEX already translate a human sentence into a machine-readable operation, and where are capability validation, approval and execution separated?
+
+### Source path
+
+1. run.py constructs ToolRegistry and ToolCaller and passes them into GUI AppState.
+2. The GUI chat route calls ToolCaller.should_use_tool(prompt), then build_tool_kwargs(), then ToolRegistry.execute() synchronously when a tool is selected.
+3. Successful ToolResult output is wrapped by build_tool_prompt() and injected into belief_text for the voice model to compose the response.
+4. The current registry contains exactly three capabilities: web_fetch, python_exec and beliefs_query.
+
+### Safety and representation boundary
+
+- The arithmetic caller recognises explicit sentence prefixes such as "calculate" and "what's", extracts only a bounded numeric expression, checks allowed characters and AST-node count, then supplies a print(expression) wrapper.
+- python_exec does not call eval() or exec(). It parses a small AST and interprets numeric literals, approved arithmetic operators, bounded powers, a narrow math constant/function allowlist and print(expression). Natural-language query text is explicitly rejected as executable source.
+- web_fetch is an HTTP GET reader restricted to an explicit domain allowlist, HTTP(S), no URL credentials and no redirects; response bytes and returned text are bounded.
+- beliefs_query retrieves and formats a small number of existing beliefs. It does not write to the belief graph.
+- ToolResult is a typed result dataclass (tool_name/input/output/success/error), but the caller passes plain kwargs dictionaries. No separate durable typed Operation record, approval record or post-action verification stage is present in this path.
+- The GUI route executes the selected tool immediately; there is no human approval step. For the three current read-only/pure capabilities this is a bounded low-impact design. It must not be generalized to state-changing tools, robotics, filesystem writes or external commitments without a distinct typed-operation, capability-validation, approval, execution and verification boundary.
+- Tool selection is regex/target based; it does not consult Mind Aspects or the Tibetan mind map. No Mind Aspect or descriptive map node is acting as an action gate here.
+
+### Test evidence
+
+- tests/test_tools.py covers the three-tool registry, arithmetic allowlist, rejected imports/file access/dunder import, natural-language-as-code rejection, tool selection, URL restrictions and a calculation sentence traced through caller -> registry -> prompt.
+- tests/test_gui.py::test_chat_calculation_uses_safe_tool_wire verifies that a chat sentence selects python_exec and that the numeric result 555 is injected into the voice prompt.
+- These are source/fixture tests, not proof of live host use or general action authority.
+
+### Interpretation and next step
+
+This is a genuine but narrow sentence-to-capability bridge: a human arithmetic sentence becomes a bounded numeric expression, is interpreted by a constrained machine evaluator, and the result returns to natural-language composition. It is not arbitrary Python execution, natural-language code generation, a general operation planner or an approval pipeline.
+
+The next study is to map the exact boundary between this read-only Stage-B capability set and any state-changing or embodied action path. Preserve the existing safety constraints; do not add capabilities or approval bypasses in Phase 0. If future tools can mutate state, require explicit typed operation data, independent capability validation, a separate approval authority, execution records and post-execution verification. Keep interpretive cognition separate from all of these.
+
+**Disposition:** limited natural-language-to-capability route confirmed and strongly constrained at source/test level. No defect ID for the current three-tool set. Host execution frequency and any external invocation remain UNKNOWN. G-83 remains OPEN.
+
+**Source anchors:** run.py; gui/server.py; theory_x/stage_capability/tool_caller.py; theory_x/stage_capability/tools.py; tests/test_tools.py; tests/test_gui.py.
+
+**Authority boundary:** no runtime code, tool registry, capability, approval policy, feature flag, schema, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
