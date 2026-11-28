@@ -241,6 +241,16 @@ def test_every_acceptance_criterion_has_an_explicit_coverage_record(tmp_path):
                      proposer_reference="model", source_reference="source:coverage-gap")
 
 
+def test_acceptance_criterion_coverage_must_name_at_least_one_seed_obligation(tmp_path):
+    alternatives = [_alternative("alternative-a", "alpha"),
+                    _alternative("alternative-b", "beta")]
+    alternatives[0]["acceptance_criterion_coverage"][0]["obligation_keys"] = []
+    store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
+    with pytest.raises(SeedProposalError, match="coverage.obligation_keys must not be empty"):
+        store.submit(_raw(), alternatives, proposer_kind="external_llm",
+                     proposer_reference="model", source_reference="source:empty-coverage")
+
+
 def test_duplicate_seed_graphs_are_not_misrepresented_as_competing_alternatives(tmp_path):
     first = _alternative("alternative-a", "alpha")
     second = dict(first)
