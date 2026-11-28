@@ -453,7 +453,25 @@ A novel obligation kind remains a visible frontier item; it is never silently ex
 
 Even `approved_for_catalogue` means only that a candidate is eligible for a separate code/catalogue change review. There is deliberately no activation API: `EXPANSION_RULES` remains the only active catalogue and changes only through an ordinary reviewed source change with tests and CI. Proposer/reviewer labels are caller-attributed, not identity-authenticated.
 
+The lifecycle is available through three provider-neutral CLI commands. Supply
+a JSON file containing exactly `request`, `candidate`, `proposer_kind`,
+`proposer_reference` and `source_reference`; an optional
+`supersedes_proposal_id` may identify a prior changes-requested/rejected
+proposal.
 
+```bash
+python -m rdo rule-propose --input rule-proposal.json
+python -m rdo rule-history
+python -m rdo rule-review --proposal-id ruleprop_<id> \
+  --decision approved_for_catalogue --reviewer founder \
+  --source-reference review:1 --rationale "Candidate merits separate source review" \
+  --evidence-reference evidence:positive --evidence-reference evidence:negative
+```
+
+`approved_for_catalogue` remains inert. It does not alter
+`EXPANSION_RULES`, execute proposal content, create a runtime rule or grant
+action authority. The CLI exposes no activation command. Regression coverage
+is in `rdo/tests/test_rule_proposal_cli.py`.
 
 ## Feedback-loop evidence updates
 
