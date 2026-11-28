@@ -13,7 +13,7 @@
 
 ## 2. Timing consequence
 
-The VoiceClient's per-request timeout (120 seconds) is ten times the total shutdown/request-drain budget (12 seconds). If an admitted chat request is still inside a VoiceClient call when shutdown begins and does not return within the remaining 12-second budget:
+The VoiceClient's per-request timeout (120 seconds) is ten times the total shutdown/request-drain budget (12 seconds). The inspected chat path can make the initial voice call plus one conditional anti-repeat retry and one conditional provenance retry sequentially. If both retries execute and each call stalls to its timeout, the theoretical cumulative voice-call timeout exposure is up to 360 seconds; this is a code-derived upper bound, not an observed latency. If an admitted chat request is still inside any VoiceClient call when shutdown begins and does not return within the remaining 12-second budget:
 
 1. `ShutdownGate.begin_shutdown()` reports an incomplete drain.
 2. `run.py` exits non-zero via `os._exit(1)`.
