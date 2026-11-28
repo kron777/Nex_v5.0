@@ -252,6 +252,8 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
                 if written < _DISTILL_PER_PASS_MAX:
                     payload = (row["payload"] or "").strip()
                     title = extract_sense_title(row["stream"], payload, max_items=1)
+                    if stop.is_set():
+                        break
                     if title is not None:
                         cutoff = int(row["timestamp"]) - _DISTILL_DEDUP_SECONDS
                         try:
