@@ -5932,3 +5932,49 @@ This is a measurement/reporting issue. It does not establish that the live HUD i
 **Source anchors:** substrate/init_db.py; theory_x/genius/panel.py; gui/server.py; scripts/genius_tag_cli.py; theory_x/genius/genius_provenance.py; theory_x/genius/genius_provenance_tag.py.
 
 **Authority boundary:** no runtime code, schema, HUD output, analytics script, weights, feature flag, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §159 — Two different SelfNarrative classes serve different prompt channels; one write interface is not consumed by its own narrative builder (28 November 2026)
+
+**Question studied:** is the SelfNarrative referenced by the Fountain prompt the same object that CoherenceGate and Metacognition write to?
+
+### Source trace
+
+1. **Persistent StageSelfNarrative**
+   - run.py imports theory_x.stage_self_narrative.self_narrative.SelfNarrative and constructs one instance with conversations writer/reader.
+   - That instance is passed to CoherenceGate, ProblemMemory, GoalManager, Metacognition and NovelAssociation, and stored as state.self_narrative.
+   - Metacognition uses this instance's _maybe_notice_rut() helper and the GUI chat path uses its format_for_prompt() method. Its persistent output is in conversations.db.narrative_log.
+
+2. **Fountain Stage-TOM SelfNarrative**
+   - FountainGenerator.__init__ independently imports theory_x.stage_tom.self_narrative.SelfNarrative and constructs a second instance only when NEX5_SELF_NARRATIVE=1.
+   - FountainGenerator._build_prompt() calls this second instance's get_narrative() and appends the returned living narrative before the static standing-points section.
+   - Its build_narrative() composes context from recent substantive fountain_events, recent tier-6 beliefs, active branches, latest hot_observer belief, aggregate self-model and momentum. This is a separate Fountain prompt channel, not the persistent narrative_log formatter.
+   - The two classes share a class name but have different modules, constructors, storage and consumers. They are not one shared instance.
+
+3. **Stage-TOM write_narrative interface**
+   - The Stage-TOM class docstring says CoherenceGate calls its write_narrative() method when a thought connects to an open problem.
+   - In the inspected run.py wiring, CoherenceGate receives the StageSelfNarrative instance from theory_x.stage_self_narrative, not the Stage-TOM instance created privately inside FountainGenerator.
+   - Stage-TOM write_narrative() only appends to its private in-memory _log. Its get_narrative() calls build_narrative(), which reads the databases and does not read _log.
+   - No normal-path caller to the Stage-TOM instance's write_narrative() was found in the inspected construction/prompt path. Its interface description is therefore not consistent with that wiring.
+
+### Consequence
+
+There are two distinct reflective narrative channels:
+- a persistent chat/metacognition channel using narrative_log and literal topic retrieval;
+- an optional Fountain prompt channel composed from recent fires, T6 beliefs, HOT observation, self-model and momentum.
+
+The same class name can obscure this separation. Searching for "SelfNarrative.tick()" or a generic class name is insufficient; trace module identity, object construction, injection and the exact consumer. The Stage-TOM instance's private write log is not part of the narrative returned by get_narrative() in the inspected code.
+
+### Evidence classification
+
+- Distinct imports, construction sites, injected object identity and consumers: source-observed.
+- Stage-TOM prompt injection gated by NEX5_SELF_NARRATIVE=1: source-observed; deployed flag value UNKNOWN.
+- Stage-TOM write_narrative call reachability in any external/manual path: UNKNOWN; no call found in inspected normal construction path.
+- Existing tests/test_self_narrative.py targets the StageSelfNarrative module; no dedicated test file for theory_x.stage_tom.self_narrative was found in the inspected tests tree.
+
+**Next bounded investigation:** complete a call-site census for the Stage-TOM SelfNarrative class and inspect the intended ownership of its write_narrative interface. If no caller exists, preserve it as an unverified/dead interface rather than wiring it speculatively. Do not unify the two classes or change either prompt channel without authority.
+
+**Disposition:** distinct dual narrative channels and Stage-TOM write-interface reachability gap recorded. Actual host activation of NEX5_SELF_NARRATIVE remains UNKNOWN. No defect ID yet. G-83 remains OPEN.
+
+**Source anchors:** run.py; theory_x/stage_self_narrative/self_narrative.py; theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; theory_x/stage_gate/coherence_gate.py; gui/server.py; tests/test_self_narrative.py.
+
+**Authority boundary:** no runtime code, prompt policy, narrative storage, feature flag, cognitive authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
