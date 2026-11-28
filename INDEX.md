@@ -2043,7 +2043,7 @@ The commands reuse the existing store and its catalogue fingerprint, schema vali
 
 **Authority boundary:** `approved_for_catalogue` remains inert. No activation, dynamic loading, generated-code execution, catalogue mutation, runtime action or authority grant is exposed. The only route into `EXPANSION_RULES` remains a separate reviewed source change with tests and CI.
 
-**Validation:** new `rdo/tests/test_rule_proposal_cli.py` covers command routing, review fields, filtered history, exact input-field and duplicate-key rejection before store access, and a real-ledger end-to-end check that approval leaves `EXPANSION_RULES` unchanged. Exact-head workflow run `46146066321` passed **3,068 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map warning for stale `p1_continuity` anchors is addressed separately in PR #434.
+**Validation:** new `rdo/tests/test_rule_proposal_cli.py` covers command routing, review fields, filtered history, exact input-field and duplicate-key rejection before store access, and a real-ledger end-to-end check that approval leaves `EXPANSION_RULES` unchanged. Exact-head workflow run `46146066321` passed **3,068 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map warning for stale `p1_continuity` anchors is addressed separately in PR #436.
 
 **Unchanged boundaries:** no frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, or cognitive/action authority is changed.
 
