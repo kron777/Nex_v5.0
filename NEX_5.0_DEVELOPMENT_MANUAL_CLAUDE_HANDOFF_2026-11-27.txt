@@ -2298,3 +2298,19 @@ The parent cannot see a builder's return value until successful return. Worker-o
 
 No builder code changed. No cognitive semantics, action authority, registry API, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
+---
+
+## 80. Nested builder failure-injection test inventory (28 November 2026)
+
+Targeted regression tests were verified for all five worker-owning builder families inspected:
+
+- Stage 1 Sense — `tests/test_sense.py::test_partial_thread_start_failure_rolls_back_without_polling`: second adapter start fails; both workers exit and no adapter polls before commit.
+- Stage 2 Dynamic — `tests/test_dynamic.py::TestBuildDynamicStartupRollback::test_partial_thread_start_failure_does_not_release_any_loop`: second start fails; started worker exits, failed worker remains unstarted, no loop body runs.
+- Stage 3 World Model — `tests/test_world_model.py::TestWorldModelBuilderStartupRollback::test_partial_thread_start_failure_rolls_back_without_running_loops`: same gated-start rollback invariant.
+- Stage 4 Membrane — `tests/test_membrane.py::TestMembraneBuilderStartupRollback::test_start_failure_after_thread_creation_stops_and_joins_worker`: actual thread starts, patched start then raises; worker is stopped and joined.
+- Stage 6 Fountain — `tests/test_fountain.py::TestFountainBuilderStartupRollback::test_start_failure_after_thread_creation_prevents_loop_activation`: actual thread starts, patched start then raises; gated loop does not activate and worker exits.
+
+These tests substantiate the nested-startup pattern in §79; they complement rather than replace GUI parent rollback tests. The remaining narrow test gap is `HoldingZoneResolver.start_loop()` when `Thread.start()` raises after creating the worker. Source ownership is sound: `build_state()` already owns `_resolver`, and the resolver publishes `self._thread` before start, so parent rollback can find it. A dedicated isolated regression would be useful if it can be added without expanding PR scope.
+
+No duplicate tests or builder code changes are included in this PR. This is source/test inspection; the latest exact-head CI run remains the authority for executed validation. No cognitive semantics, action authority, registry API, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
