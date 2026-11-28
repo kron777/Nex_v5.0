@@ -1,10 +1,13 @@
 import json
+import subprocess
+from pathlib import Path
 
 import pytest
 
 from rdo.model import CLASSIFICATIONS
 from rdo_adapters.objective_intake import (
-    ObjectiveInputError, RAW_OBJECTIVE_SCHEMA_VERSION, validate_raw_objective,
+    ObjectiveInputError, ObjectiveInputStore, RAW_OBJECTIVE_SCHEMA_VERSION,
+    submit_approved_seed_proposal, submit_objective, validate_raw_objective,
 )
 from rdo_adapters.seed_proposals import SeedProposalError, SeedProposalStore
 
@@ -240,3 +243,75 @@ def test_identical_seed_proposal_submission_is_idempotent(tmp_path):
     assert first["proposal_id"] == second["proposal_id"]
     assert second["replayed"] is True
     assert len(store.events()) == 1
+
+
+
+def _clean_repo(path: Path) -> Path:
+    path.mkdir()
+    (path / "src").mkdir()
+    (path / "src" / "app.py").write_text("def deploy():\\n    return 'staging'\\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    subprocess.run(["git", "-C", str(path), "config", "user.name", "RDO test"], check=True)
+    subprocess.run(["git", "-C", str(path), "config", "user.email", "rdo-test@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(path), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(path), "commit", "-q", "-m", "fixture snapshot"], check=True)
+    return path
+
+
+def _approved_proposal(workdir: Path) -> str:
+    store = SeedProposalStore(str(workdir / "seed_proposals.jsonl"))
+    proposal = _submit(store)
+    store.review(
+        proposal["proposal_id"], "approved", "reviewer", "review:seed-intake",
+        "The selected graph covers both acceptance criteria.",
+        ["review:coverage", "review:negative-case"],
+        selected_alternative_id="systems_first",
+    )
+    return proposal["proposal_id"]
+
+
+def test_seed_intake_runs_only_after_approval_and_preserves_cycle_lineage(tmp_path):
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    repo = _clean_repo(tmp_path / "repo")
+    proposal_id = _approved_proposal(workdir)
+
+    result = submit_approved_seed_proposal(proposal_id, repo_dir=str(repo), workdir=str(workdir))
+    cycle = result["cycle"]
+    assert result["status"] == "created"
+    assert cycle["objective_input"]["seed_proposal"]["proposal_id"] == proposal_id
+    assert cycle["objective_input"]["seed_proposal"]["selected_alternative_id"] == "systems_first"
+    history = ObjectiveInputStore(str(workdir / "objectives")).history("raw-idea-001")
+    assert len(history) == 1
+    assert history[0]["record"]["source"]["kind"] == "external_llm"
+
+    # Repeating an approved intake reuses the same immutable revision and cycle.
+    repeated = submit_approved_seed_proposal(proposal_id, repo_dir=str(repo), workdir=str(workdir))
+    assert repeated["cycle"]["id"] == cycle["id"]
+    assert len(ObjectiveInputStore(str(workdir / "objectives")).history("raw-idea-001")) == 1
+
+
+def test_external_llm_objective_cannot_bypass_seed_proposal_review(tmp_path):
+    raw = _raw()
+    alternative = _alternative()
+    objective = {
+        "schema_version": "rdo.objective.v1",
+        "objective_id": raw["objective_id"],
+        "revision": 1,
+        "supersedes_sha256": None,
+        "original_text": raw["original_text"],
+        "intent": raw["intent"],
+        "owner": raw["owner"],
+        "source": raw["source"],
+        "scope": raw["scope"],
+        "constraints": raw["constraints"],
+        "exclusions": raw["exclusions"],
+        "assumptions": raw["assumptions"] + alternative["assumptions"],
+        "acceptance_criteria": raw["acceptance_criteria"],
+        "seed_obligations": alternative["seed_obligations"],
+        "relationships": alternative["relationships"],
+        "reconciliation_signatures": alternative["reconciliation_signatures"],
+        "max_depth": raw["max_depth"],
+    }
+    with pytest.raises(ObjectiveInputError, match="explicitly approved seed proposal"):
+        submit_objective(objective, repo_dir=str(tmp_path), workdir=str(tmp_path / "work"))
