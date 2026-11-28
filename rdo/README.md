@@ -436,3 +436,9 @@ Measured dimensions and independently attributed stability reviews can be
 appended to an existing loop record without changing its topology or
 calculating a stability verdict. See [FEEDBACK_LOOP_EVIDENCE.md](FEEDBACK_LOOP_EVIDENCE.md)
 for the measurement/review commands, hash-chained event ledger and replay path.
+
+
+
+## Raw idea and seed proposal lifecycle
+
+Raw objectives can be captured without inventing seed obligations, then expanded into provider-neutral candidate seed graphs and explicitly reviewed before planning. See [SEED_PROPOSALS.md](SEED_PROPOSALS.md), the [raw objective schema](schemas/raw_objective.v1.schema.json), the [seed proposal schema](schemas/seed_proposal.v1.schema.json), and the [example](examples/seed_proposal.v1.example.json).
