@@ -899,6 +899,12 @@ The mind-map check still reports existing warnings for missing doctrine source f
 - Criterion verification is not overall human acceptance. The Watcher continues to report test verification as not authorized and runtime observation as host-only UNKNOWN unless independent host evidence exists.
 - No frozen S-01–S-25/M1.8 specification content was changed.
 
+### Stage-2 clarification — already implemented and regression-tested
+
+The earlier suggestion to rerun the Stage-2 belief-development slice as an open task is superseded by the current repository evidence. `rdo/STAGE2_EXTRAPOLATOR_MVP.md` documents the belief-decay objective and its reuse of the existing Extrapolator, reconciler and CycleStore. `rdo/tests/test_stage2_extrapolator_mvp.py` includes a fresh Python subprocess that reloads the persisted cycle and checks its counts, frontier and native-planning kind. It also checks that fixture reviews do not write reusable patterns without an authorised review. The #339 and #343 exact-head full-suite runs passed this test suite.
+
+This is isolated repository/test-store verification, not a live belief-database or host-runtime claim. Preserve the Stage-2 regression as a baseline; do not duplicate its implementation.
+
 ### Updated gap assessment
 
 **G-91 — objective-context evidence resolution (partially closed).** Typed context requirements existed in #340. PR #343 adds a structured, caller-attributed mapping and criterion-review workflow, and the independent Watcher now validates it. Remaining gaps: mappings are still human-supplied; evidence references are not dereferenced or independently authenticated; mappings do not automatically generate new obligations or feed a subsequent planning cycle; and no execution authority is implied.
@@ -915,6 +921,6 @@ The next safe capability is a provider-neutral candidate-seed and candidate-rule
 2. Build a traceable end-to-end single-objective case: original idea and externally supplied seed proposal → objective intake → recursive expansion → context mapping → criterion verification → Stage-7 handoff → independent Watcher verification. Keep planning review distinct from execution and acceptance.
 3. Design the candidate expansion-rule proposal/approval lifecycle for novel kinds, preserving disconfirming evidence and preventing automatic promotion.
 4. Integrate FeedbackLoopAssessment into CycleRecord with legacy-load compatibility, UNKNOWN-first defaults and measured-evidence validation; do not calculate ungrounded stability scores.
-5. Continue the Stage-2 belief-development and fresh-process persistence/resume audit against the current mainline.
+5. Preserve the already implemented Stage-2 belief-development and fresh-process CycleStore-resume tests as regression baseline; focus next on novel-kind rule proposals and the raw-idea-to-handoff boundary rather than rebuilding Stage 2.
 
 This update records implementation evidence and remaining capability boundaries; it does not amend the frozen specification/register.
