@@ -1,10 +1,3 @@
-NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
-Generated from the canonical INDEX.md manual.
-Mirror synchronized with documentation candidate PR #447.
-Evidence snapshot: main at 18c8f06171e1de35c3210831a49b63d0e2487af0; PR #447 is documentation-only and remains open.
-This file is a plain-text mirror for tools and reviewers who prefer .txt files.
-The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
-
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
 **Last verified against:** `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0` (28 November 2026); exact-head workflow 46153028417 (`pytest`) passed at 14:13 UTC
@@ -6181,3 +6174,63 @@ Autonomous fire-path tool use is NOT WIRED and NOT AUTHORIZED by the inspected e
 **Source anchors:** run.py; gui/server.py; theory_x/stage6_fountain/generator.py; theory_x/stage_capability/tool_caller.py; theory_x/stage_capability/tools.py; observation_reports/fire_path_tools_SCOPE.md; research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md; PR #369.
 
 **Authority boundary:** no tool caller, autonomous trigger, flag, capability, approval policy, database, schema, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §166 — Tool execution can precede and survive the chat gap-refusal path (28 November 2026)
+
+**Source snapshot:** main at 18c8f06171e1de35c3210831a49b63d0e2487af0. **Characterization:** draft PR #459, exact head db4a22d0078844992829613dbb9a4a90eb4a51e9, workflow 46186063413 passed **3,078 passed, 7 skipped, 86 subtests**; disposable sandbox probe and baseline check OK. This is isolated fixture evidence, not a live-host occurrence.
+
+### Source order and observed route consequence
+
+- gui/server.py selects and executes the Stage-B capability around lines 1912–1948. It calls ToolCaller.should_use_tool(prompt), builds kwargs and invokes ToolRegistry.execute().
+- A successful result is formatted by ToolCaller.build_tool_prompt() and appended to local belief_text. Trace event tool_prompt_injected is recorded at that staging point.
+- The later chat grounding gate computes belief_count at line 2048 by counting the literal tier marker "- [Tier". The tool-result block does not carry that marker.
+- For a non-probe, non-social Technical-register request, the route returns CHAT_GAP_REFUSAL when that count is below the configured minimum. This return occurs before chat_prompt_ready and before state.voice.speak(VoiceRequest(...)).
+- The response shape reports tool_used: None on the gap-refusal path. That field therefore does not prove that the earlier capability was not executed.
+
+PR #459 adds a route-level regression characterization using the actual arithmetic ToolCaller and ToolRegistry. It posts calculate 17 * 23 to the Technical register without probe bypass, captures one successful python_exec result (391), and verifies that the route then returns the configured graph-gap refusal without making a voice request. The existing positive tool-wire route test uses is_probe=True, so it did not cover this normal Technical-register path.
+
+### Contract distinction
+
+The gap check is a **response-grounding gate**, not an execution-approval gate. Its refusal can prevent the response from reaching the voice model without reversing an operation that already ran. This is not automatically a defect for the current bounded capability set; the intended relationship between retrieved belief evidence and capability-result evidence remains a design question.
+
+Do not solve this by silently increasing belief_count, treating arbitrary tool text as a belief, or reusing the chat gap gate as an operation permission check. If capability evidence is ever meant to satisfy a grounding requirement, represent it explicitly with source identity, provenance, validation and a defined trust class. Consequential or state-changing operations require a separate typed operation, capability validation, approval authority, execution record and post-execution verification. The three current Stage-B tools are allowlisted HTTP GET, bounded AST arithmetic and read-only belief retrieval; the HTTP GET still performs an external network read.
+
+### Trace-label qualification
+
+tool_prompt_injected currently means the successful result was staged into belief_text. On the gap-refusal path, chat_prompt_ready and the voice call are not reached. The event name should not be interpreted as proof that the voice model received or consumed that text. This is a trace-semantics observation, not a runtime change or separately established defect.
+
+**Disposition:** characterization passed; no defect ID assigned pending a decision on intended semantics. Host frequency, user-visible occurrence and operational impact remain UNKNOWN. No runtime source, capability, feature flag, prompt rule, database, authority or execution policy changed.
+
+**Source anchors:** gui/server.py:1912-1948,2048-2060,2514-2570; theory_x/stage_capability/tool_caller.py:68-113; theory_x/stage_capability/tools.py:61-265; tests/test_gui.py; PR #459; workflow 46186063413.
+
+## §167 — Cognitive interpretation, descriptive mind map and operation selection remain separate wires (28 November 2026)
+
+**Source snapshot:** NEX main at 18c8f06171e1de35c3210831a49b63d0e2487af0; Sentience 5.5 main at 1767acf1fdb321d046261eb3c3059084c85fc0c8. This is a scoped crosswalk of inspected paths, not a claim that every representation in either repository has been found.
+
+### NEX source facts
+
+- The Mind Map declares itself descriptive only: no node may gate, score, block or veto an action.
+- mind_map/mind_map.py::check_descriptive_only() checks that constraint, rejects action-authority fields and scans runtime roots for imports of mind_map or runtime reads of MIND_MAP.yaml. tests/test_mind_map_policy.py covers the descriptive constraint, forbidden authority fields, runtime-import/read rejection and the permitted external RDO read.
+- The chat capability selector is currently called as should_use_tool(prompt). Its input is the raw user sentence; it does not receive a Mind Aspect assessment, a mind-map node or a typed Sentence Code object on this call chain.
+- Existing faculties are separately assembled into response context elsewhere in gui/server.py. That is cognitive interpretation/context composition, not proof that those outputs are consumed by the Stage-B operation selector.
+- ToolCaller recognizes bounded language patterns and returns one of three existing capability names. ToolRegistry returns a ToolResult envelope with tool name, input, output, success and error. This is not yet a general operation IR with explicit semantic intent, preconditions, capability claims, approval state and verification result.
+- The separate RDO objective.v1 / obligation graph is an engineering-planning representation. The inspected GUI chat route does not call that RDO intake, and the Recursive Extrapolator is not the runtime executor for chat tools. Do not equate development work packages with runtime operations.
+
+The above establishes a narrow and functioning sentence-to-capability path, plus separate cognitive context paths. It does **not** establish that the existing Mind Aspects or a general Sentence Code representation are connected to the tool-selection call. Whether the existing Sentence Code representation has another disconnected producer/consumer elsewhere remains UNKNOWN; code-search indexing alone is not sufficient to declare it absent.
+
+### Sentience 5.5 comparison
+
+At the inspected source commit, Voice_Interaction_Node.submit_command() queues a raw string and _generate_response() places it into an LLM prompt. Separately, Action_Execution_Node.execute_action() accepts a pre-structured dictionary, while _perform_action() is explicitly a simulated placeholder returning a random success value. The inspected Integration_Node retains latest values by key and emits snapshot frames; its presence does not establish that voice input is compiled into the action dictionary or that the action path is connected to a verified real executor. These are useful design sketches, not an implementation to transplant.
+
+### Next wire to discover
+
+The next study should locate and trace the **existing** Sentence Code representation rather than inventing a replacement:
+
+1. Identify its actual owner, schema and construction point from source and callers. Preserve UNKNOWN where the code or intended contract cannot be located.
+2. Trace one ordinary human sentence through existing Mind Aspect interpretation and show which typed values, if any, reach Sentence Code.
+3. Trace the same typed representation to the Recursive Extrapolator and identify where it stops: proposal, plan, capability request or executable operation.
+4. Separate interpretation from type/schema validation, capability validation, approval, execution and result verification. Keep each transition independently observable.
+5. Use one read-only or pure operation fixture first. Do not connect a new autonomous caller, grant execution authority, add a parallel operation store or change runtime policy during Phase 0.
+
+**Disposition:** current chat selector does not consume the Mind Map or a demonstrated typed Sentence Code object; full end-to-end connection remains unproven. No defect ID assigned and no runtime change. Mind-map descriptiveness and the interpretive-cognition / operation / capability / approval / execution / verification separation remain intact.
