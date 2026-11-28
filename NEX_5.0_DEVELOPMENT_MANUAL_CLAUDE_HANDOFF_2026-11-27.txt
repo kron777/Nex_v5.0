@@ -1,7 +1,7 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with boot-time ownership candidate PR #420.
-Evidence snapshot: main at dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f; latest candidate exact-head CI pending.
+Mirror synchronized with GUI rollback candidate PR #446; includes the adaptive study pulse and post-CI registry follow-up.
+Evidence snapshot: main at dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f; source head f12a668869b6f06bf15efabf2d0e568a5ac8d877 passed exact-head CI run 46154796098. This documentation refresh is a later branch head and awaits its own workflow result.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
@@ -2124,8 +2124,28 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 **Bounded correction on branch `claude/build-state-transactional-rollback`:** Writer construction is now incremental so each successful Writer is immediately reachable. The build body is protected by a failure boundary that invokes a rollback helper. The helper signals published producers first, joins scheduler adapters and other owned threads against a shared monotonic deadline, then closes each underlying Writer once (including the TaggingBeliefWriter wrapper case). Cleanup failures are logged and do not replace the original construction exception. Successful construction order and the returned `AppState` shape are unchanged.
 
-**Regression coverage added:** `tests/test_gui_build_state_rollback.py` covers partial Writer-construction failure with original-exception preservation, scheduler-owned adapter mappings, producer-before-Writer ordering, decorator unwrapping/deduplication, and cleanup exceptions. This is source-level regression coverage only at this stage; exact-head CI has not yet run. No test-pass claim is made.
+**Regression coverage added:** `tests/test_gui_build_state_rollback.py` covers partial Writer-construction failure with original-exception preservation, scheduler-owned adapter mappings, producer-before-Writer ordering, decorator unwrapping/deduplication, and cleanup exceptions.
 
-**Known limitation / next verification:** producers that fail before their builder returns must be rolled back by that builder itself; the SenseScheduler and Stage 2/3 builders already have internal startup rollback paths. Verify the complete candidate head with the repository workflow, inspect any uncovered partial-construction seam, and extend tests before merge. No live host, database, robot, or runtime state was accessed.
+**Exact-head validation:** source commit `f12a668869b6f06bf15efabf2d0e568a5ac8d877`, workflow run [`46154796098`](https://github.com/kron777/Nex_v5.0/actions/runs/46154796098), job `141009003902`: **3,081 passed, 7 skipped, 86 subtests passed** in 234.45 seconds. The isolated test sandbox probe passed; the baseline check was OK. Mind-map verification reported 30 nodes, 0 unverified, 12 dark and 2 blocked. Existing warnings remain: missing `VIRTUE_SLATE.md`, missing `mental_factors_inventory_alobha_spec.txt`, and overdue `p13_finitude` unblock dated 2026-11-21. These were not changed by this candidate.
+
+**Study follow-up discovered during post-CI review:** `build_state()` registers `ProblemMemory`, `GoalManager` and `Metacognition` in the process-lifetime `theory_x` registry before all later construction and producer-start steps have succeeded. The registry module documents process-lifetime registration and exposes no unregister operation. The new rollback closes Writers and stops published producers, but does not reverse those registry side effects. This is a source-derived partial-construction concern; whether it creates an observable stale-node effect has not yet been established. Next study: trace every `all_nodes()` consumer and registration lifecycle, then decide whether registration should be deferred until the AppState construction commit point. Add a failure-injection regression before changing that behaviour. Do not infer impact or silently introduce an unregister policy.
+
+**Known limitation:** producers that fail before their builder returns must be rolled back by that builder itself; the SenseScheduler and Stage 2/3 builders have their own startup rollback paths. The source commit above passed exact-head CI; this subsequent documentation refresh creates a new branch head and must receive its own exact-head workflow result before merge. No live host, database, robot, or runtime state was accessed.
 
 **Boundaries:** no cognitive logic, Writer transaction semantics, schemas, feature flags, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or runtime state is changed. The Tibetan mind map remains descriptive and cannot gate, score, block or veto actions.
+
+---
+
+## 71. Adaptive study pulse after GUI rollback validation (28 November 2026)
+
+**Expected:** failed `build_state()` construction should stop every already-published producer, join its owned workers within the shared deadline, close each underlying Writer once, and preserve the original construction exception.
+
+**Observed:** the exact source head passed the full repository workflow (3,081 passed, 7 skipped, 86 subtests); sandbox isolation and baseline checks passed. The CI mind-map check retained three existing warning classes (two missing doctrine references and overdue `p13_finitude`).
+
+**Delta:** the candidate's local rollback contract is supported by repository tests, but this does not prove host shutdown timing or complete process-level cleanup. Post-CI source review exposed a separate earlier side effect: three objects enter the process-lifetime Theory X registry before construction has committed.
+
+**Confidence and limits:** CI-validated at exact source head for the tested rollback paths. Registry residue is a source-derived concern; consumer impact and intended retry semantics remain unknown. No host observation, operational rehearsal or cognitive-effect claim is made.
+
+**Next mode:** STUDY. Trace registry consumers and the full registration lifecycle before deciding whether to defer registration. Continue other independent, well-understood work only if it does not depend on this unresolved lifecycle contract.
+
+**Adaptive-method reminder:** a green test suite closes only the claims it actually tests. It does not cancel a study trigger discovered by source review after the run.
