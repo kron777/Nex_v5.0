@@ -146,7 +146,7 @@ def _normalise_proposal(raw: dict) -> dict:
                 raise ValueError(f"alternatives[{index}].steps[{step_index}] has invalid fields")
             child = _text(step["child_kind"], "child_kind", 64)
             if not _TOKEN.fullmatch(child) or child == target or child in seen_children:
-                raise ValueError("child kinds must be unique lowercase snake_case tokens per alternative")
+                raise ValueError("child kinds must be unique lowercase snake_case tokens and differ from the target kind")
             seen_children.add(child)
             classification = step["classification"]
             if not isinstance(classification, str) or classification not in CLASSIFICATIONS:
