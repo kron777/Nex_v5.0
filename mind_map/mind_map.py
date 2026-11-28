@@ -209,45 +209,39 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def _source_ref_lines(lines: list[str]) -> set[int]:
-    """Return one-based line numbers inside actual node source mappings only.
+    """Return source-ref line numbers from node mappings, excluding prose notes."""
+    document = yaml.compose("\n".join(lines))
+    if not isinstance(document, yaml.MappingNode):
+        return set()
 
-    Notes often contain explanatory code pointers. They are prose, not anchors,
-    and must never be drift-checked or rewritten by --reanchor.
-    """
+    def value_for(mapping, name):
+        if not isinstance(mapping, yaml.MappingNode):
+            return None
+        return next(
+            (value for key, value in mapping.value
+             if isinstance(key, yaml.ScalarNode) and key.value == name),
+            None,
+        )
+
+    nodes = value_for(document, "nodes")
+    if not isinstance(nodes, yaml.SequenceNode):
+        return set()
+
     selected: set[int] = set()
-    in_nodes = False
-    node_indent: int | None = None
-    source_indent: int | None = None
-    for lineno, line in enumerate(lines, 1):
-        stripped = line.lstrip()
-        indent = len(line) - len(stripped)
-        if indent == 0 and stripped == "nodes:":
-            in_nodes = True
-            node_indent = None
-            source_indent = None
+    for node in nodes.value:
+        source = value_for(node, "source")
+        if not isinstance(source, yaml.MappingNode):
             continue
-        if indent == 0 and re.match(r"^[A-Za-z_][\w-]*\s*:", stripped):
-            in_nodes = False
-            node_indent = None
-            source_indent = None
-            continue
-        if not in_nodes:
-            continue
-        if _NODE_ID_RE.match(line):
-            node_indent = indent
-            source_indent = None
-            continue
-        if (node_indent is not None and indent == node_indent + 2
-                and re.match(r"^source\s*:", stripped)):
-            source_indent = indent
-            selected.add(lineno)
-            continue
-        if source_indent is None:
-            continue
-        if stripped and indent <= source_indent and re.match(r"^[A-Za-z_][\w-]*\s*:", stripped):
-            source_indent = None
-            continue
-        selected.add(lineno)
+        refs = value_for(source, "refs")
+        if isinstance(refs, yaml.SequenceNode):
+            selected.update(
+                ref.start_mark.line + 1
+                for ref in refs.value
+                if isinstance(ref, yaml.ScalarNode)
+            )
+        ref = value_for(source, "ref")
+        if isinstance(ref, yaml.ScalarNode):
+            selected.add(ref.start_mark.line + 1)
     return selected
 
 def _blame_line_commits(map_path: Path, root: Path) -> dict[int, str]:def _blame_line_commits(map_path: Path, root: Path) -> dict[int, str]:
