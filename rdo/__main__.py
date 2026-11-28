@@ -184,6 +184,61 @@ def _rule_catalogue(args) -> int:
     return 0
 
 
+def _feedback_measure(args) -> int:
+    try:
+        cycles = CycleStore(args.dir)
+        cycle = cycles.load(args.cycle_id)
+        ledger = FeedbackLoopEvidenceStore(os.path.join(args.dir, "feedback_loop_evidence.jsonl"))
+        event = ledger.record_measurement(
+            cycle, args.loop_id, args.dimension, args.value, args.unit,
+            args.evidence_reference, args.confidence, args.provenance,
+            operating_envelope=args.operating_envelope,
+        )
+        cycles.save(cycle)
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps({"event": event, "cycle_id": cycle.id,
+                      "feedback_loop_evidence_events": cycle.feedback_loop_evidence_events},
+                     indent=2, default=str))
+    return 0
+
+
+def _feedback_review(args) -> int:
+    try:
+        cycles = CycleStore(args.dir)
+        cycle = cycles.load(args.cycle_id)
+        ledger = FeedbackLoopEvidenceStore(os.path.join(args.dir, "feedback_loop_evidence.jsonl"))
+        event = ledger.record_stability_review(
+            cycle, args.loop_id, args.stability_state, args.reviewer,
+            args.source_reference, args.assessment_evidence, args.confidence, args.note,
+        )
+        cycles.save(cycle)
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps({"event": event, "cycle_id": cycle.id,
+                      "feedback_loop_evidence_events": cycle.feedback_loop_evidence_events},
+                     indent=2, default=str))
+    return 0
+
+
+def _feedback_replay(args) -> int:
+    try:
+        cycles = CycleStore(args.dir)
+        cycle = cycles.load(args.cycle_id)
+        ledger = FeedbackLoopEvidenceStore(os.path.join(args.dir, "feedback_loop_evidence.jsonl"))
+        ledger.apply(cycle)
+        cycles.save(cycle)
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps({"cycle_id": cycle.id,
+                      "feedback_loop_evidence_events": cycle.feedback_loop_evidence_events},
+                     indent=2, default=str))
+    return 0
+
+
 def _intake(args) -> int:
     try:
         record = load_objective_file(args.input)
@@ -414,6 +469,36 @@ def main(argv=None) -> int:
     rc = sub.add_parser("rule-catalogue", help="show explicitly approved, versioned novel-kind rules")
     rc.add_argument("--dir", default="rdo/.cycles")
     rc.set_defaults(fn=_rule_catalogue)
+
+    fm = sub.add_parser("feedback-measure", help="append a measured feedback-loop dimension")
+    fm.add_argument("--cycle-id", required=True)
+    fm.add_argument("--loop-id", required=True)
+    fm.add_argument("--dimension", required=True, choices=MEASURED_DIMENSIONS)
+    fm.add_argument("--value", required=True, type=float)
+    fm.add_argument("--unit", required=True)
+    fm.add_argument("--evidence-reference", action="append", required=True)
+    fm.add_argument("--confidence", required=True)
+    fm.add_argument("--provenance", action="append", required=True)
+    fm.add_argument("--operating-envelope", choices=OPERATING_ENVELOPES, default="unknown")
+    fm.add_argument("--dir", default="rdo/.cycles")
+    fm.set_defaults(fn=_feedback_measure)
+
+    fr = sub.add_parser("feedback-review", help="append an independently attributed stability review")
+    fr.add_argument("--cycle-id", required=True)
+    fr.add_argument("--loop-id", required=True)
+    fr.add_argument("--stability-state", required=True, choices=STABILITY_STATES)
+    fr.add_argument("--reviewer", required=True)
+    fr.add_argument("--source-reference", required=True)
+    fr.add_argument("--assessment-evidence", action="append", required=True)
+    fr.add_argument("--confidence", required=True)
+    fr.add_argument("--note", default="")
+    fr.add_argument("--dir", default="rdo/.cycles")
+    fr.set_defaults(fn=_feedback_review)
+
+    fre = sub.add_parser("feedback-replay", help="replay append-only feedback evidence into a cycle snapshot")
+    fre.add_argument("--cycle-id", required=True)
+    fre.add_argument("--dir", default="rdo/.cycles")
+    fre.set_defaults(fn=_feedback_replay)
 
     intake = sub.add_parser("intake", help="validate and run a versioned external objective")
     intake.add_argument("--input", required=True, help="path to objective.v1 JSON")
