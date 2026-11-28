@@ -4433,3 +4433,33 @@ This does not prove that chat-driven ticking is wrong. The interface contract it
 **Source anchors:** run.py (construction, injection, DiversityLoop startup); gui/server.py (chat handler tick and alternate build_state construction); theory_x/__init__.py (SentienceNode tick contract and passive registry); theory_x/diversity/loop.py; theory_x/stage9_metacognition/metacognition.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
 
 **Evidence level:** source-observed boot construction, chat caller, background loop calls, and passive registry implementation. Exact user chat cadence and live alert accumulation remain UNKNOWN.
+
+
+## §117 — Re-consumed groove rows can renew the Row 9 hold (2026-11-28)
+
+### Derived source-level timeline
+
+The combination of G-83's repeat-read path and the Row 9 non-reentrant window implies a repeatable renewal sequence. Let A be one still-unacknowledged groove alert, or A/B/C three such alerts, all still inside the 600-second source lookback:
+
+1. At chat tick T0, _detect_groove() returns the eligible row(s). tick() writes one derived groove event per returned source row. If three events are now present in the rolling 1,800-second count, _maybe_engage_stillness() inserts a stillness row expiring at T0 + 60 seconds.
+2. At later chat ticks before expiry, the same source row(s) may be returned again and more derived groove events written. The active-row check prevents another stillness insert, but it occurs after these event writes.
+3. At a chat tick after the stillness row expires, if the same source alert(s) are still inside the 600-second lookback, _detect_groove() returns them again. The new derived groove event(s) are written before the stillness count. The count still includes at least three recent derived events, so a new 60-second stillness row can be inserted without a new detector episode.
+4. The sequence can repeat while a source alert remains eligible and chat turns continue. New alerts can extend the eligibility period. Once no eligible groove alerts are returned, tick() does not call _maybe_engage_stillness(), so this particular renewal path stops creating new holds.
+
+The threshold window is 1,800 seconds, longer than the 600-second alert lookback and the 60-second stillness duration. Re-consuming an unchanged source row replenishes the derived-event count before the next hold check. This means the repeated derived writes can both cross the threshold initially and keep it crossed when a prior stillness row expires.
+
+### Separate starvation effect
+
+The source query orders by detected_at DESC and LIMIT 3, with no cursor or acknowledgement in this consumer. If three or more unacknowledged rows remain eligible, the same newest three can be returned repeatedly. Older eligible rows remain behind them and, absent another removal path, can age out of the 600-second lookback without ever being selected. This is a deterministic query-order consequence under a static set of more than three eligible rows; no live accumulation has been asserted.
+
+### Evidence boundary and test proposal
+
+This is a source-derived renewal possibility, not a runtime incident. It depends on the chat caller being invoked while the same alert remains in the lookback. Exact chat cadence and live source-row chronology remain UNKNOWN.
+
+Add a focused characterization scenario to the G-83 matrix: one alert ID (then three IDs), repeated chat ticks at controlled times inside and outside 60-second expiry boundaries, and no new detector writes. Record the source IDs selected, derived event row count, stillness activation timestamps, and the first tick at which the hold cannot renew. Also test four eligible alerts to expose LIMIT 3 starvation. Use an isolated test database and controlled clock; do not touch live state. Assertions must distinguish repeated observation from new alert/episode identity.
+
+**Disposition:** Phase 0 causal consequence and regression-proposal refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** theory_x/stage9_metacognition/metacognition.py (_detect_groove, tick, _maybe_engage_stillness); gui/server.py (chat tick caller); tests/test_metacognition.py; tests/test_stillness.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** source-derived temporal sequence from inspected query ordering, write ordering, thresholds, and caller cadence; not test-verified and not runtime-observed.
