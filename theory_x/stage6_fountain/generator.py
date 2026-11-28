@@ -1698,7 +1698,13 @@ class FountainGenerator:
         )
         trace.remember("fountain_tick", _tick_record_id)
         try:
-            result = self._generate(dynamic_state, beliefs_reader, trace=trace, stop_event=stop_event)
+            if stop_event is None:
+                result = self._generate(dynamic_state, beliefs_reader, trace=trace)
+            else:
+                result = self._generate(
+                    dynamic_state, beliefs_reader, trace=trace,
+                    stop_event=stop_event,
+                )
         except Exception as exc:
             if trace is not None:
                 trace.record("output", "generation_error",
