@@ -322,10 +322,16 @@ class AffectState:
         # affect row, optional nudge audit and history append even if stop is
         # signalled mid-write. This preserves one coherent completed tick.
         if mood_nudge_to_record is not None:
-            self._cw.write(
-                "INSERT INTO mood_nudge_applied (ts, nudge) VALUES (?, ?)",
-                (now, mood_nudge_to_record),
-            )
+            try:
+                self._cw.write(
+                    "INSERT INTO mood_nudge_applied (ts, nudge) VALUES (?, ?)",
+                    (now, mood_nudge_to_record),
+                )
+            except Exception as _me:
+                errors.record(
+                    f"AffectState mood nudge write failed: {_me}",
+                    source=_LOG_SOURCE,
+                )
 
         self._cw.write(
             "INSERT OR REPLACE INTO affect_state "
