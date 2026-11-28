@@ -1089,3 +1089,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 **PR #457 expanded exact-head validation:** workflow 46184425657 passed at 1751a45a853c9ceff89653c006c8436c87d47b00: 3,080 passed, 7 skipped, 86 subtests; baseline/sandbox OK; mind-map 30 nodes, 0 unverified, 12 dark, 2 blocked. The constructor gate and prompt insertion tests both passed.
 
 **PR #458 paused-reader exact-head validation:** workflow 46184447225 passed at 58bf679c2a8e799dce5d02dd059adb4a5f7f692a: 3,078 passed, 7 skipped, 86 subtests; baseline/sandbox OK; mind-map 30 nodes, 0 unverified, 12 dark, 2 blocked. The paused=1 tier-six fixture was included in the Stage-TOM narrative. This confirms the SQL predicate behavior in a fixture, not live concurrency. See INDEX §§160–161.
+
+
+**§164 clarification — manual strikes:** StrikeProtocol is a separate human-triggered observation harness at POST /api/strikes/fire. It sends an explicit StrikeType/custom_input to the voice model, captures context and stores a separate StrikeRecord; it is not an external action executor or sentence-to-operation bridge. See tests/test_strikes.py and INDEX §164.
