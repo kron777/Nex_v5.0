@@ -327,6 +327,11 @@ class SeedProposalStore:
                         raise SeedProposalError("seed proposal revision must preserve the exact raw objective")
                     if superseded.get(supersedes_id):
                         raise SeedProposalError("seed proposal revision target is already superseded")
+                    prior_reviews = reviews[supersedes_id]
+                    if prior_reviews and prior_reviews[-1]["record"]["decision"] == "approved":
+                        raise SeedProposalError(
+                            "an approved seed proposal cannot be superseded in place; create a new raw revision"
+                        )
                     superseded[supersedes_id] = proposal_id
             else:
                 if proposal_id not in proposals:
@@ -431,6 +436,11 @@ class SeedProposalStore:
             prior = state["proposals"].get(supersedes_proposal_id)
             if prior is None or state["superseded"].get(supersedes_proposal_id):
                 raise SeedProposalError("supersedes_proposal_id must identify an active prior proposal")
+            prior_reviews = state["reviews"][supersedes_proposal_id]
+            if prior_reviews and prior_reviews[-1]["record"]["decision"] == "approved":
+                raise SeedProposalError(
+                    "an approved seed proposal cannot be superseded in place; create a new raw revision"
+                )
             if prior["raw_objective_sha256"] != raw_hash:
                 raise SeedProposalError("candidate revision must retain the exact raw objective digest")
         record = {
