@@ -156,6 +156,8 @@ def make_self_prediction(
         return {"error": "shutdown_requested"}
     db_path = db_path or _db_path()
     ensure_schema(db_path, conversations_writer)
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
 
     status = _read_status()
     if stop_event is not None and stop_event.is_set():
