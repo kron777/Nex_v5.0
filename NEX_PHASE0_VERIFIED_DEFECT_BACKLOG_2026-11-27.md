@@ -1060,3 +1060,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **PR #455 validation update:** exact-head workflow 46182908854 passed at b74798e87174cfa1f74c740066bcd9c0904a4341. Fixture tests verify the readiness penalty/OFF switch and that recent tag timestamps can surface old Fountain events in the recent-STRIKING block. This is not host runtime evidence.
+
+
+**28 November 2026 — §160 Stage-TOM reader/prompt seam:** Stage-TOM _recent_t6() has no source or time filter and can include self_rut_notice among bounded tier-6 candidates; build_narrative() still requires a substantive recent Fountain fire. FountainGenerator constructs and reads this composer only under NEX5_SELF_NARRATIVE=1, appending the result to prompt context before spectrum standing-points. Targeted caller review found normal write_narrative() calls use the separate persistent StageSelfNarrative injected by run.py; no normal-path caller to Stage-TOM's private log was found. PR #456 composer test and PR #457 prompt-gate tests are pending exact-head CI at this snapshot. No runtime or policy change. See INDEX §160.
