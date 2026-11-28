@@ -10,7 +10,7 @@ log = logging.getLogger("theory_x.diversity.reanimate")
 _pending_reanimation: Optional[dict] = None
 
 
-def wake_one(writer, reader) -> Optional[dict]:
+def wake_one(writer, reader, *, stop_event=None) -> Optional[dict]:
     """Pick one high-dormancy belief, mark it reanimated, return it for injection."""
     global _pending_reanimation
     rows = reader.read(
@@ -19,7 +19,7 @@ def wake_one(writer, reader) -> Optional[dict]:
         "WHERE d.reanimated_at IS NULL "
         "ORDER BY d.dormancy_score DESC LIMIT 1"
     )
-    if not rows:
+    if not rows or (stop_event is not None and stop_event.is_set()):
         return None
     row = dict(rows[0])
     writer.write(

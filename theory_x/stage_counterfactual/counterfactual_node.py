@@ -64,10 +64,19 @@ class CounterfactualNode:
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
-    def tick(self, context: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def tick(
+        self,
+        context: Optional[dict[str, Any]] = None,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> dict[str, Any]:
         """Process one open problem per tick (oldest last_touched_at first)."""
+        if stop_event is None:
+            stop_event = self._stop
+        if stop_event is not None and stop_event.is_set():
+            return self.state()
         try:
-            self._process_one()
+            self._process_one(stop_event=stop_event)
         except Exception as exc:
             errors.record(
                 f"counterfactual_node tick error: {exc}",
@@ -100,7 +109,7 @@ class CounterfactualNode:
             while not self._stop.is_set():
                 self._stop.wait(interval)
                 if not self._stop.is_set():
-                    self.tick()
+                    self.tick(stop_event=self._stop)
 
         self._thread = threading.Thread(
             target=_run,
@@ -119,25 +128,34 @@ class CounterfactualNode:
 
     # ── Core logic ────────────────────────────────────────────────────────────
 
-    def _process_one(self) -> None:
-        """Work the oldest-touched open problem."""
+    def _process_one(
+        self, *, stop_event: Optional[threading.Event] = None
+    ) -> None:
+        """Work the oldest-touched open problem, stopping between stages."""
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return
         rows = self._conversations_reader.read(
             "SELECT id, title, description, created_at, tags "
             "FROM open_problems "
             "WHERE state = 'open' ORDER BY last_touched_at ASC LIMIT 1"
         )
-        if not rows:
+        if _stopping() or not rows:
             return
         problem = dict(rows[0])
         problem_id = problem["id"]
         constraint = _constraint_from_problem(problem)
-        if not constraint:
+        if not constraint or _stopping():
             return
 
         candidates = self._time_fetch.fetch_from_beliefs(constraint, limit=10)
-        if not candidates:
+        if _stopping() or not candidates:
             return
         scored = self._refinement_engine.run(candidates)
+        if _stopping():
+            return
         buildable = [s for s in scored if s["buildable"]]
         if not buildable:
             return
@@ -146,6 +164,8 @@ class CounterfactualNode:
         source_node = f"counterfactual.{problem_id}"
         accepts_this_tick = 0
         for result in buildable:
+            if _stopping():
+                return
             candidate = result["candidate"]
             packet = ThoughtPacket(
                 content=candidate["content"],
@@ -161,10 +181,19 @@ class CounterfactualNode:
                     f"counterfactual_node gate.check error: {exc}",
                     source=_LOG_SOURCE, exc=exc,
                 )
+                if _stopping():
+                    return
                 continue
+            # Gate.check may synchronously write through CoherenceGate's
+            # resolver. Do not begin the subsequent belief insertion if stop
+            # arrived while that work was in progress.
+            if _stopping():
+                return
             if decision.outcome == GateOutcome.ACCEPT:
                 self._insert_belief(candidate["content"], problem_id)
                 accepts_this_tick += 1
+        if _stopping():
+            return
 
         self._problems_processed += 1
         if accepts_this_tick:

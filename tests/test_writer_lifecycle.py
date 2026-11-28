@@ -80,3 +80,108 @@ def test_writer_can_be_explicitly_restarted_after_clean_close(tmp_path):
         assert row_id == 1
     finally:
         writer.close()
+
+
+def test_submit_close_race_never_strands_an_accepted_request(tmp_path):
+    path = tmp_path / "writer-race.db"
+    _database(path)
+    writer = Writer(path, name="writer-submit-close-race")
+    barrier = threading.Barrier(3)
+    outcome = {}
+
+    def submit():
+        barrier.wait()
+        try:
+            future = writer.submit(WriteRequest(
+                sql="INSERT INTO items(value) VALUES ('raced')"
+            ))
+        except RuntimeError as exc:
+            outcome["rejected"] = str(exc)
+            return
+        outcome["accepted_result"] = future.result(timeout=3)
+
+    def close():
+        barrier.wait()
+        try:
+            writer.close(timeout=3)
+        except Exception as exc:  # captured for assertion in the test thread
+            outcome["close_error"] = repr(exc)
+
+    submitter = threading.Thread(target=submit, name="writer-race-submit")
+    closer = threading.Thread(target=close, name="writer-race-close")
+    submitter.start()
+    closer.start()
+    barrier.wait()
+    submitter.join(timeout=4)
+    closer.join(timeout=4)
+
+    assert not submitter.is_alive()
+    assert not closer.is_alive()
+    assert "close_error" not in outcome
+    assert ("accepted_result" in outcome) != ("rejected" in outcome)
+    assert writer._thread is None
+
+    reader = Reader(path)
+    rows = reader.read("SELECT value FROM items ORDER BY id")
+    if "accepted_result" in outcome:
+        assert outcome["accepted_result"] == 1
+        assert [row["value"] for row in rows] == ["raced"]
+    else:
+        assert "closed or not running" in outcome["rejected"]
+        assert rows == []
+
+
+def test_multiple_submitters_racing_close_all_resolve_or_reject(tmp_path):
+    path = tmp_path / "writer-multi-race.db"
+    _database(path)
+    writer = Writer(path, name="writer-multi-submit-close-race")
+    submitter_count = 8
+    barrier = threading.Barrier(submitter_count + 2)
+    accepted = []
+    rejected = []
+    close_errors = []
+
+    def submit(index):
+        barrier.wait()
+        try:
+            future = writer.submit(WriteRequest(
+                sql="INSERT INTO items(value) VALUES (?)",
+                params=(f"item-{index}",),
+            ))
+        except RuntimeError:
+            rejected.append(index)
+            return
+        future.result(timeout=5)
+        accepted.append(index)
+
+    def close():
+        barrier.wait()
+        try:
+            writer.close(timeout=5)
+        except Exception as exc:
+            close_errors.append(repr(exc))
+
+    submitters = [
+        threading.Thread(target=submit, args=(i,), name=f"writer-race-submit-{i}")
+        for i in range(submitter_count)
+    ]
+    closer = threading.Thread(target=close, name="writer-race-close-many")
+    for thread in submitters:
+        thread.start()
+    closer.start()
+    barrier.wait()
+    for thread in submitters:
+        thread.join(timeout=6)
+    closer.join(timeout=6)
+
+    assert all(not thread.is_alive() for thread in submitters)
+    assert not closer.is_alive()
+    assert close_errors == []
+    assert sorted(accepted + rejected) == list(range(submitter_count))
+    assert set(accepted).isdisjoint(rejected)
+    assert writer._thread is None
+
+    rows = Reader(path).read("SELECT value FROM items ORDER BY value")
+    assert [row["value"] for row in rows] == [
+        f"item-{index}" for index in sorted(accepted)
+    ]

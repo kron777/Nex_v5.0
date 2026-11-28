@@ -149,3 +149,49 @@ class TestTick(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TestSelfMaintainShutdown(unittest.TestCase):
+    def setUp(self):
+        self.tmp, self.w, self.r = _make_env()
+        from theory_x.stage_self_maintain.shadow import SelfMaintainShadow
+        self.shadow = SelfMaintainShadow(
+            self.w["dynamic"], self.r["beliefs"], self.r["dynamic"], self.r["sense"]
+        )
+        from theory_x.stage_self_maintain.shadow import _TABLE
+        self.w["dynamic"].write(_TABLE, ())
+        self.shadow._table_ready = True
+
+    def tearDown(self):
+        _cleanup(self.tmp, self.w)
+
+    def test_stop_after_active_count_read_prevents_setpoint_and_write(self):
+        import threading
+
+        entered = threading.Event()
+        release = threading.Event()
+        stop = threading.Event()
+        original = self.shadow._br.read_one
+        setpoint_calls = []
+
+        def blocked_read(sql, params=()):
+            if "tier <= 6 AND paused = 0" in sql:
+                entered.set()
+                release.wait(timeout=3.0)
+            return original(sql, params)
+
+        self.shadow._br.read_one = blocked_read
+        self.shadow._setpoint = lambda now, **kwargs: setpoint_calls.append(now)
+        worker = threading.Thread(
+            target=lambda: self.shadow.tick(stop_event=stop),
+            name="self-maintain-shutdown-test",
+        )
+        worker.start()
+        self.assertTrue(entered.wait(timeout=2.0))
+        stop.set()
+        release.set()
+        worker.join(timeout=2.0)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(setpoint_calls, [])
+        rows = self.r["dynamic"].read("SELECT id FROM self_maintain_shadow")
+        self.assertEqual(rows, [])

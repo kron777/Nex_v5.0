@@ -130,7 +130,7 @@ class CoOccurrenceDetector:
         # fresh emission after a restart is honest, not spam.
         self._last_branches: dict[str, tuple] = {}
 
-    def detect(self) -> list[Signal]:
+    def detect(self, *, stop_event=None) -> list[Signal]:
         now = time.time()
         rows = self._reader.read(
             "SELECT content, branch_id FROM beliefs "
@@ -139,12 +139,14 @@ class CoOccurrenceDetector:
             "LIMIT 500",
             (now - self._window,),
         )
-        if not rows:
+        if not rows or (stop_event is not None and stop_event.is_set()):
             return []
 
         branch_entities: dict[str, set] = defaultdict(set)
         entity_contexts: dict[str, list] = defaultdict(list)
         for r in rows:
+            if stop_event is not None and stop_event.is_set():
+                return []
             content = r["content"] or ""
             branch = r["branch_id"]
             # PHRASE-AWARE extraction: a contiguous run of capitalized words is
@@ -175,11 +177,17 @@ class CoOccurrenceDetector:
 
         entity_branches: dict[str, set] = defaultdict(set)
         for branch, entities in branch_entities.items():
+            if stop_event is not None and stop_event.is_set():
+                return []
             for ent in entities:
+                if stop_event is not None and stop_event.is_set():
+                    return []
                 entity_branches[ent].add(branch)
 
         signals = []
         for entity, branches in entity_branches.items():
+            if stop_event is not None and stop_event.is_set():
+                return []
             if len(branches) < self._min_branches:
                 continue
             fingerprint = tuple(sorted(branches))
@@ -226,7 +234,7 @@ class SilenceDetector:
         # instant it moves (a real new data point arrived).
         self._last_avg_gap: dict[str, float] = {}
 
-    def detect(self) -> list[Signal]:
+    def detect(self, *, stop_event=None) -> list[Signal]:
         now = time.time()
         rows = self._reader.read(
             "SELECT stream, timestamp FROM sense_events "
@@ -234,15 +242,19 @@ class SilenceDetector:
             "ORDER BY timestamp ASC",
             (now - 3600,),
         )
-        if not rows:
+        if not rows or (stop_event is not None and stop_event.is_set()):
             return []
 
         by_stream: dict[str, list] = defaultdict(list)
         for r in rows:
+            if stop_event is not None and stop_event.is_set():
+                return []
             by_stream[r["stream"]].append(r["timestamp"])
 
         signals = []
         for stream, timestamps in by_stream.items():
+            if stop_event is not None and stop_event.is_set():
+                return []
             if len(timestamps) < self._min_history:
                 continue
             gaps = [timestamps[i + 1] - timestamps[i]
@@ -290,14 +302,14 @@ class BurstDetector:
         # changes.
         self._last_fingerprint: tuple | None = None
 
-    def detect(self) -> list[Signal]:
+    def detect(self, *, stop_event=None) -> list[Signal]:
         now = time.time()
         rows = self._reader.read(
             "SELECT COUNT(*) AS n, GROUP_CONCAT(branch_id, ',') AS branches "
             "FROM beliefs WHERE tier = 6 AND created_at > ?",
             (now - self._window,),
         )
-        if not rows:
+        if not rows or (stop_event is not None and stop_event.is_set()):
             return []
         n = rows[0]["n"] or 0
         if n < self._threshold:

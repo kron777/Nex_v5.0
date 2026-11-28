@@ -174,6 +174,8 @@ def _set_last_fid(cx: Connection, fid: int) -> None:
 def decoder_tick(
     dynamic_writer: Writer | None = None,
     sense_reader: Reader | None = None,
+    *,
+    stop_event: threading.Event | None = None,
 ) -> dict:
     """Process pending fires inside the canonical dynamic Writer transaction.
 
@@ -189,6 +191,8 @@ def decoder_tick(
         reader = sense_reader or Reader(SENSE_DB)
 
         def _process(cx):
+            if stop_event is not None and stop_event.is_set():
+                return {"processed": 0, "words": 0}
             cx.row_factory = Row
             # The daemon cursor is a small dynamic-DB key/value table. Ensure
             # it exists inside the same canonical Writer transaction before
@@ -197,6 +201,8 @@ def decoder_tick(
                 "CREATE TABLE IF NOT EXISTS daemon_kv ("
                 "key TEXT PRIMARY KEY, value TEXT NOT NULL)"
             )
+            if stop_event is not None and stop_event.is_set():
+                return {"processed": 0, "words": 0}
             last_fid = _get_last_fid(cx)
             rows = cx.execute(
                 "SELECT id, ts, thought, hot_branch, tag FROM fountain_events "
@@ -204,13 +210,19 @@ def decoder_tick(
                 "ORDER BY id ASC LIMIT 200",
                 (last_fid,),
             ).fetchall()
-            if not rows:
+            if not rows or (stop_event is not None and stop_event.is_set()):
                 return {"processed": 0, "words": 0}
             total_words = 0
+            processed = 0
             for r in rows:
+                # Finish the current event atomically (including its words and
+                # cursor), then stop before admitting another event.
+                if stop_event is not None and stop_event.is_set():
+                    break
                 words = _tokenize(r["thought"])
                 if not words:
                     _set_last_fid(cx, r["id"])
+                    processed += 1
                     continue
                 aperture, active_count = _read_tree_snapshot(cx, r["ts"])
                 counts = _read_state_counts(cx, r["ts"])
@@ -232,7 +244,8 @@ def decoder_tick(
                     )
                     total_words += 1
                 _set_last_fid(cx, r["id"])
-            return {"processed": len(rows), "words": total_words}
+                processed += 1
+            return {"processed": processed, "words": total_words}
 
         return writer.transaction(_process)
     finally:
@@ -249,6 +262,7 @@ def decoder_loop(state, stop: threading.Event) -> None:
             result = decoder_tick(
                 dynamic_writer=state.writers["dynamic"],
                 sense_reader=state.readers["sense"],
+                stop_event=stop,
             )
             if result["processed"]:
                 log.info("decoder: %s fires, %s words logged",

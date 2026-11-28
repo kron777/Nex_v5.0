@@ -89,13 +89,13 @@ class EdgeGenerator:
         self._reader = reader
 
     def propose_edges_for_belief(
-        self, belief_id: int, max_edges: int = 5
+        self, belief_id: int, max_edges: int = 5, *, stop_event=None
     ) -> list[tuple[int, str, float]]:
         rows = self._reader.read(
             "SELECT id, content, source, branch_id FROM beliefs WHERE id = ?",
             (belief_id,),
         )
-        if not rows:
+        if not rows or (stop_event is not None and stop_event.is_set()):
             return []
         src = rows[0]
         src_content = src["content"] or ""
@@ -109,7 +109,7 @@ class EdgeGenerator:
             "ORDER BY created_at DESC LIMIT 100",
             (belief_id, cutoff),
         )
-        if not candidates:
+        if not candidates or (stop_event is not None and stop_event.is_set()):
             return []
 
         existing = self._reader.read(
@@ -126,6 +126,8 @@ class EdgeGenerator:
         proposals: list[tuple[float, int, str]] = []
 
         for cand in candidates:
+            if stop_event is not None and stop_event.is_set():
+                return []
             cid = cand["id"]
             if cid in already_connected:
                 continue
@@ -185,10 +187,13 @@ class EdgeGenerator:
         return [(cid, etype, round(w, 4)) for w, cid, etype in proposals[:max_edges]]
 
     def persist_edges(
-        self, source_id: int, edges: list[tuple[int, str, float]]
+        self, source_id: int, edges: list[tuple[int, str, float]], *, stop_event=None
     ) -> int:
         now = time.time()
+        persisted = 0
         for target_id, edge_type, weight in edges:
+            if stop_event is not None and stop_event.is_set():
+                break
             self._writer.write(
                 "INSERT OR IGNORE INTO belief_edges "
                 "(source_id, target_id, edge_type, weight, created_at) "
@@ -200,7 +205,8 @@ class EdgeGenerator:
                 # the raise even when INSERT OR IGNORE keeps an existing edge.
                 log_undo(self._writer, "contradiction_raised", (source_id, target_id),
                          cause_ref=f"edge_generator:{source_id}->{target_id}", at=now)
-        return len(edges)
+            persisted += 1
+        return persisted
 
 
 class EdgeGeneratorLoop:
@@ -231,12 +237,12 @@ class EdgeGeneratorLoop:
             return
         while not self._stop.is_set():
             try:
-                self._tick()
+                self._tick(stop_event=self._stop)
             except Exception as e:
                 log.warning("EdgeGeneratorLoop tick failed: %s", e)
             self._stop.wait(self.TICK_SECONDS)
 
-    def _tick(self) -> None:
+    def _tick(self, *, stop_event=None) -> None:
         beliefs = self._reader.read(
             "SELECT id FROM beliefs "
             "WHERE source IN ('fountain_insight', 'synergized') "
@@ -245,7 +251,7 @@ class EdgeGeneratorLoop:
             "ORDER BY created_at DESC LIMIT ?",
             (self.BATCH_SIZE,),
         )
-        if not beliefs:
+        if not beliefs or (stop_event is not None and stop_event.is_set()):
             log.debug("EdgeGeneratorLoop: no unedged beliefs this tick")
             return
 
@@ -254,13 +260,15 @@ class EdgeGeneratorLoop:
         persisted = 0
 
         for row in beliefs:
+            if stop_event is not None and stop_event.is_set():
+                break
             bid = row["id"]
             edges = self._generator.propose_edges_for_belief(
-                bid, max_edges=self.MAX_EDGES_PER_BELIEF
+                bid, max_edges=self.MAX_EDGES_PER_BELIEF, stop_event=stop_event
             )
             proposed += len(edges)
             if edges:
-                persisted += self._generator.persist_edges(bid, edges)
+                persisted += self._generator.persist_edges(bid, edges, stop_event=stop_event)
             processed += 1
 
         log.info(
