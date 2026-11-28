@@ -4314,3 +4314,65 @@ This is a characterization plan, not a permission to alter production semantics.
 **Source anchors:** `theory_x/stage9_metacognition/metacognition.py` (`_detect_groove`, `tick`, `_maybe_engage_stillness`); `tests/test_metacognition.py`; `tests/test_stillness.py`; `substrate/schema/conversations.sql`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
 
 **Evidence level:** source-observed query limit, per-row event write, stillness count/threshold, and mocked test contract. Distinct-episode semantics and runtime event chronology remain UNKNOWN.
+
+
+## §114 — Row 9 stillness scope, duplicate table names, and output-path boundary (2026-11-28)
+
+### The historical Row 9 design intent versus current source
+
+The older `theory_x/SYNTHESIS_PLAN_V2.md` §3 describes stillness as a response when groove alerts reach at least three within 30 minutes **on the same topic**. It says the activation should be substrate-resident and non-reentrant, and that Fountain should suppress re-serving beliefs whose topic matches the grooved topic until expiry. The plan is useful design provenance because the current crystallizer labels its guard “Row 9 extension”; it is not, by itself, authority to reinterpret or amend the frozen S-01–S-25/M1.8 register or Founder sign-off.
+
+Current main source differs in scope:
+
+- `Metacognition._maybe_engage_stillness()` counts all `meta_cognition_events` rows with `event_type='groove'` inside the 1,800-second window. It does not group by topic, source alert ID, or detector episode.
+- The Row 9 `conversations.stillness_log` schema has `started_at, duration_s, expires_at, trigger, groove_count`; it has no topic or source identity field.
+- `FountainCrystallizer.crystallize()` checks whether **any** unexpired row exists in the conversations database. It does not compare the incoming thought, focal item, belief, or topic with the triggering groove. An active row therefore holds all crystallization through this path, not only crystallization related to the grooved topic.
+- The stillness guard returns before the belief insert, the `fountain_crystallizations` link insert, and the speech queue enqueue code that follows a successful belief write.
+- In contrast, `FountainGenerator.generate()` has already generated and recorded the fire in the dynamic stream before it calls the crystallizer. It does not return early when `crystallize()` returns `None`; it logs “Fountain fired” and returns the thought. The stage-6 loop receives and logs that returned thought. Therefore the Row 9 guard is not a generation pause: it blocks belief crystallization and the normal TTS queue path while the generated fire remains in the dynamic record.
+
+### Two unrelated tables share the name `stillness_log`
+
+This name collision must stay explicit in every trace:
+
+| Database | Schema | Producer / consumer | Meaning |
+|---|---|---|---|
+| `conversations.db` | `started_at, duration_s, expires_at, trigger, groove_count` | Metacognition writes it; FountainCrystallizer reads it; GUI status endpoint reports it | Row 9 timed global crystallization hold |
+| `dynamic.db` | `ts, reason, retrieval_signature, consecutive_stillness_count, jaccard` | FountainGenerator writes it during duplicate-retrieval stillness/force-fire instrumentation | Fountain retrieval-duplication observation and cadence recovery |
+
+They are separate tables in separate SQLite databases with different schemas and different semantics. A generic search for `stillness_log` without database context is not a valid causal trace.
+
+### What the existing tests establish
+
+- `tests/test_stillness.py` verifies that an active conversations stillness row makes `FountainCrystallizer.crystallize()` return `None` and prevents belief writing; absent/expired rows allow the crystallizer to proceed.
+- Those tests do not establish topic matching, because the current row has no topic field and the guard query has no topic predicate.
+- They do not verify the full Generator consequence: the fire is already recorded, `generate()` returns the thought, and the normal speech queue is not populated because queue insertion sits later in the crystallizer after belief creation.
+- The tests for the dynamic stillness table cover a different mechanism and must not be cited as Row 9 coverage.
+
+### Existing finding linkage and authority boundary
+
+This evidence refines existing backlog item **G-83 (OPEN)**; it is not a newly invented defect ID. G-83 already covers repeated reads of unacknowledged alerts and event-row counting. Its expanded evidence now includes (a) no distinct-source/topic evidence for the threshold, (b) a per-topic design description in an older plan versus a global implementation, (c) a global crystallizer hold, and (d) the fact that generation/dynamic event capture continues while belief/TTS persistence is held.
+
+Before any behavioural change, compare this discrepancy with the actual Founder Sign-Off and frozen specification text. The older `SYNTHESIS_PLAN_V2.md` is historical provenance, not a new authorization. Preserve the known status of the frozen register and Master Roadmap; where the controlling Row 9 requirement or approval cannot be located, say UNKNOWN rather than filling the gap from this plan.
+
+### Updated source-to-effect chain
+
+```text
+FountainGenerator
+  ├─ generates thought; records dynamic fountain fire
+  └─ calls FountainCrystallizer
+       ├─ active conversations.stillness_log row?
+       │    └─ YES: return None (no belief / crystallization-link / speech-queue write)
+       └─ NO: quality checks → belief write → crystallization link → speech governor → TTS queue
+
+Metacognition
+  └─ global count of derived groove rows → conversations.stillness_log
+
+Separate dynamic.stillness_log
+  └─ records Fountain duplicate-retrieval stillness/force-fire observations
+```
+
+**Disposition:** Phase 0 source-to-effect and design-provenance refinement under G-83. Documentation only; no runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** `theory_x/SYNTHESIS_PLAN_V2.md` §3; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage6_fountain/crystallizer.py`; `theory_x/stage6_fountain/generator.py`; `theory_x/stage6_fountain/__init__.py`; `substrate/init_db.py` (separate dynamic and conversations migrations); `gui/server.py` stillness status endpoint; `tests/test_stillness.py`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed end-to-end generation/crystallization/queue order and two database-specific schemas; historical design-plan text; targeted test inspection. Founder Sign-Off correspondence and frozen requirement's Row 9 semantic definition remain UNKNOWN.
