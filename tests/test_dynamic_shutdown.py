@@ -78,7 +78,7 @@ def test_crystallizer_stops_before_starting_next_branch():
     stop = threading.Event()
     now = 10_000.0
     nodes = [
-        SimpleNamespace(branch_id="one", focus_increment=HIGH_FOCUS_LEVELS[0]),
+        SimpleNamespace(branch_id="one", focus_increment='e'),
         SimpleNamespace(branch_id="two", focus_increment=HIGH_FOCUS_LEVELS[0]),
     ]
     crystallizer = Crystallizer.__new__(Crystallizer)
