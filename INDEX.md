@@ -1149,7 +1149,7 @@ The request gate is now current-main code. Do not overstate it as proof of compl
 
 PR #381 is merged as `81ec438a7be7fe3cc81112cbb39c715b76ffe026`, carrying the test/research-only work originally proposed in #379 into current main. It adds source maps and deterministic characterization for chat-time affect faculty dependencies and the Stage-2 Bonsai attention state flowing into Fountain branch selection and Global Workspace framing. It also extends a scoped Sentience 5.5 comparison across Integration, Self-Model, Meta-Awareness, Cognitive-Control, Orchestrator, System-Integration and Control sources.
 
-The proposed tests exercise actual Stage-2 A–F events, the Bonsai focus admission threshold, Fountain's hottest-branch selection, the opt-in positive-temperature alternative, and Global Workspace candidate competition. Its negative control checks that internal telemetry alone does not create Bonsai focus, an F-step event or a workspace candidate.
+The tests exercise actual Stage-2 A–F events, the Bonsai focus admission threshold, Fountain's hottest-branch selection, the opt-in positive-temperature alternative, and Global Workspace candidate competition. Its negative control checks that internal telemetry alone does not create Bonsai focus, an F-step event or a workspace candidate.
 
 **Interpretation boundary:** this characterizes specific source pathways and deterministic test behaviour; it is not a broad demonstration of cognitive efficacy or consciousness. The Sentience comparison is explicitly limited to inspected files because repository-wide search indexing was incomplete.
 
@@ -1216,7 +1216,7 @@ The current `theory_x/stage_capability/` registry exposes exactly three tools:
 - `python_exec`: a deliberately restricted arithmetic AST interpreter; it does not execute arbitrary Python source.
 - `beliefs_query`: read-only retrieval from NEX's own belief graph.
 
-The chat route currently calls `ToolCaller.should_use_tool(prompt, [])`, then `build_tool_kwargs(...)`, then `ToolRegistry.execute(...)` synchronously in the same request path. The registry is a capability allowlist, but this path does not expose a general typed operation envelope or a separate approval-authority decision before execution. The current three tools are bounded read/calculation operations; `web_fetch` makes an outbound network GET but does not write to an external system. Do not describe this as a current arbitrary-action executor.
+The chat route currently calls `ToolCaller.should_use_tool(prompt, [])`, then `build_tool_kwargs(...)`, then `ToolRegistry.execute(...)` synchronously in the same request path. The registry is a capability allowlist, but this path does not expose a general typed operation envelope or a separate approval-authority decision before execution. The current three tools are bounded read/calculation operations; `web_fetch` makes an outbound network GET but does not write to an external system. Do not describe this as a current arbitrary-action executor. The chat trace records tool execution success/error metadata and prompt-injection length; those are observability records, not an independent verification of an external effect or a post-execution verifier.
 
 Two source-level gaps were identified:
 
