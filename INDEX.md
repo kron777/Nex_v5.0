@@ -1125,7 +1125,7 @@ No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 
 
 ## 16. Current-main reconciliation — lifecycle hardening and cognitive wire characterization (28 November 2026)
 
-**Verified base:** `main` at `3377197c4d216aedc7708a9d1ee758144bd0b09b`. This section supersedes the 27 November mainline/PR inventory in §11 for changes merged after that snapshot. It does not retroactively refresh older evidence artefacts or convert PR-only work into mainline capability.
+**Verified base:** `main` at `d7d204c24807eb3e46c37d70f2c1dcaae63830dc`. This section supersedes the 27 November mainline/PR inventory in §11 for changes merged after that snapshot. It does not retroactively refresh older evidence artefacts or convert PR-only work into mainline capability.
 
 ### 16.1 Graceful shutdown: merged lifecycle increments
 
