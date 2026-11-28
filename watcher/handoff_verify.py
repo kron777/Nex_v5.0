@@ -7,6 +7,7 @@ ledger is integrity-checked, not identity-authenticated.
 from __future__ import annotations
 
 import fcntl
+import datetime
 import hashlib
 import json
 import os
@@ -279,6 +280,125 @@ def _read_event_chain(path: str, manifest: dict) -> List[dict]:
                 raise HandoffVerificationError(f"scope review grants execution on line {number}")
             if decision == "approved" and not set(actions) & _ALLOWED_SCOPE_ACTIONS:
                 raise HandoffVerificationError(f"scope approval has no proposal-preparation action on line {number}")
+        elif kind == "context_mapping":
+            item_id = event.get("context_item_id")
+            assessment = manifest.get("objective_context_assessment")
+            items = assessment.get("items") if isinstance(assessment, dict) else None
+            if not isinstance(items, list):
+                raise HandoffVerificationError(f"objective-context items are invalid on line {number}")
+            obligations = manifest.get("obligations")
+            if not isinstance(obligations, list):
+                raise HandoffVerificationError(f"handoff obligations are invalid on line {number}")
+            matches = [item for item in items
+                       if isinstance(item, dict) and item.get("item_id") == item_id]
+            if not isinstance(item_id, str) or not item_id.strip() or len(matches) != 1:
+                raise HandoffVerificationError(f"context mapping references an unknown/ambiguous item on line {number}")
+            if event.get("decision") != "mapped":
+                raise HandoffVerificationError(f"invalid context mapping decision on line {number}")
+            mapping = event.get("mapping_record")
+            keys = event.get("mapped_obligation_keys")
+            references = event.get("evidence_references")
+            known_keys = {
+                item.get("key") for item in obligations
+                if isinstance(item, dict) and isinstance(item.get("key"), str)
+            }
+            if (not isinstance(keys, list) or not keys or len(keys) > 200
+                    or any(not isinstance(value, str) or not value.strip() for value in keys)
+                    or len(keys) != len(set(keys)) or set(keys) - known_keys):
+                raise HandoffVerificationError(f"context mapping obligation keys are invalid on line {number}")
+            if (not isinstance(references, list) or not references or len(references) > 200
+                    or any(not isinstance(value, str) or not value.strip() or len(value) > 1000
+                           for value in references)
+                    or len(references) != len(set(references))):
+                raise HandoffVerificationError(f"context mapping evidence references are invalid on line {number}")
+            source_item = matches[0]
+            if (not isinstance(mapping, dict)
+                    or mapping.get("item_id") != item_id
+                    or mapping.get("kind") != source_item.get("kind")
+                    or mapping.get("text") != source_item.get("text")
+                    or mapping.get("source_field") != source_item.get("source_field")
+                    or mapping.get("source_index") != source_item.get("source_index")
+                    or mapping.get("source_ref") != source_item.get("source_ref")
+                    or mapping.get("classification") != source_item.get("classification")
+                    or mapping.get("status") != "mapped"
+                    or mapping.get("mapped_obligation_keys") != keys
+                    or mapping.get("evidence") != references
+                    or mapping.get("review_required") is not False):
+                raise HandoffVerificationError(f"context mapping record is inconsistent on line {number}")
+        elif kind == "acceptance_verification":
+            criterion_id = event.get("criterion_id")
+            assessment = manifest.get("objective_context_assessment")
+            criteria = assessment.get("acceptance_verification") if isinstance(assessment, dict) else None
+            if not isinstance(criteria, list):
+                raise HandoffVerificationError(f"acceptance-verification criteria are invalid on line {number}")
+            obligations = manifest.get("obligations")
+            if not isinstance(obligations, list):
+                raise HandoffVerificationError(f"handoff obligations are invalid on line {number}")
+            matches = [item for item in criteria
+                       if isinstance(item, dict) and item.get("criterion_id") == criterion_id]
+            record = event.get("verification_record")
+            if not isinstance(criterion_id, str) or not criterion_id.strip() or len(matches) != 1:
+                raise HandoffVerificationError(f"acceptance verification references an unknown/ambiguous criterion on line {number}")
+            if not isinstance(record, dict):
+                raise HandoffVerificationError(f"acceptance verification record is invalid on line {number}")
+            criterion = matches[0]
+            status = record.get("status")
+            if (record.get("criterion_id") != criterion_id
+                    or record.get("source_ref") != criterion.get("source_ref")
+                    or record.get("criterion") != criterion.get("criterion")
+                    or status not in ("pending", "passed", "failed", "not_applicable")):
+                raise HandoffVerificationError(f"acceptance verification identity/status is invalid on line {number}")
+            keys = record.get("mapped_obligation_keys")
+            references = record.get("evidence_refs")
+            known_keys = {
+                item.get("key") for item in obligations
+                if isinstance(item, dict) and isinstance(item.get("key"), str)
+            }
+            if (not isinstance(keys, list) or len(keys) > 200
+                    or any(not isinstance(value, str) or not value.strip() for value in keys)
+                    or len(keys) != len(set(keys)) or set(keys) - known_keys):
+                raise HandoffVerificationError(f"acceptance verification obligation keys are invalid on line {number}")
+            if (not isinstance(references, list) or len(references) > 200
+                    or any(not isinstance(value, str) or not value.strip() or len(value) > 1000
+                           for value in references)
+                    or len(references) != len(set(references))):
+                raise HandoffVerificationError(f"acceptance verification evidence references are invalid on line {number}")
+            if status in ("pending", "passed", "failed"):
+                prior_mapping = next(
+                    (e for e in reversed(events)
+                     if e.get("event_kind") == "context_mapping"
+                     and e.get("context_item_id") == criterion_id),
+                    None,
+                )
+                if prior_mapping is None or prior_mapping.get("mapped_obligation_keys") != keys:
+                    raise HandoffVerificationError(f"acceptance verification lacks its matching prior context mapping on line {number}")
+                method = record.get("verification_method")
+                if not isinstance(method, str) or not method.strip():
+                    raise HandoffVerificationError(f"acceptance verification method is missing on line {number}")
+            if status in ("passed", "failed", "not_applicable"):
+                if not references:
+                    raise HandoffVerificationError(f"completed acceptance verification has no evidence on line {number}")
+                if (not isinstance(record.get("verifier"), str) or not record["verifier"].strip()
+                        or record.get("verifier") != event.get("reviewer")
+                        or not isinstance(record.get("confidence"), str) or not record["confidence"].strip()):
+                    raise HandoffVerificationError(f"completed acceptance verification attribution is invalid on line {number}")
+                timestamp = record.get("verified_at")
+                try:
+                    parsed = datetime.datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                except (AttributeError, TypeError, ValueError) as exc:
+                    raise HandoffVerificationError(f"acceptance verification timestamp is invalid on line {number}") from exc
+                if parsed.tzinfo is None or parsed.utcoffset() is None:
+                    raise HandoffVerificationError(f"acceptance verification timestamp lacks a timezone on line {number}")
+            if status == "pending" and any(
+                record.get(field) is not None for field in ("verifier", "confidence", "verified_at")
+            ):
+                raise HandoffVerificationError(f"pending acceptance verification cannot claim completion attribution on line {number}")
+            if record.get("note", "") != event.get("note", ""):
+                raise HandoffVerificationError(f"acceptance verification note mismatch on line {number}")
+            if record.get("review_required") is not (status == "pending"):
+                raise HandoffVerificationError(f"acceptance verification review_required flag is inconsistent on line {number}")
+            if not isinstance(record.get("note", ""), str):
+                raise HandoffVerificationError(f"acceptance verification note is invalid on line {number}")
         elif kind == "human_acceptance":
             if event.get("decision") not in ("accepted", "rejected", "changes_requested"):
                 raise HandoffVerificationError(f"invalid human acceptance on line {number}")

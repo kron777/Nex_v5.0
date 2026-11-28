@@ -63,6 +63,56 @@ Decision records are append-only JSON Lines, linked to the immutable manifest di
 
 The recorded reviewer and source reference are **caller-attributed, not identity-authenticated**. This local ledger preserves what was stated and the referenced approval source; it does not prove who operated the computer or independently authenticate the referenced approval.
 
+## Objective-context mapping and criterion verification
+
+The objective-context assessment in the manifest is an immutable planning snapshot.
+Its generated context requirements begin UNKNOWN/unmapped, and its acceptance
+verification records begin UNKNOWN. The existing append-only, manifest-digest-bound
+decision ledger now supports separate review events for these records without
+rewriting the original cycle or manifest.
+
+Map one context item to one or more obligations already present in the handoff:
+
+```bash
+python -m rdo handoff-context-map \
+  --handoff-id <handoff-id> \
+  --item-id <context-item-id> \
+  --mapped-obligation <canonical-obligation-key> \
+  --evidence-reference <mapping-review-reference> \
+  --reviewer "reviewer attribution" \
+  --source-reference "reference to the mapping decision"
+```
+
+The mapping is accepted only when the item exists in the manifest, every mapped
+obligation key exists in that handoff's graph, and separate mapping evidence is
+provided. It is caller-attributed, not identity-authenticated. Later mapping events
+supersede earlier ones in the history view; the original planning record remains
+unchanged.
+
+Record a criterion-level verification separately:
+
+```bash
+python -m rdo handoff-acceptance-verify \
+  --handoff-id <handoff-id> \
+  --criterion-id <criterion-id> \
+  --status pending \
+  --mapped-obligation <canonical-obligation-key> \
+  --verification-method "describe the planned check" \
+  --verifier "reviewer attribution" \
+  --source-reference "reference to the verification review"
+```
+
+For `passed` or `failed`, provide mapped obligation keys, a verification method,
+evidence references, verifier attribution, a confidence label and a timezone-aware
+`--verified-at` timestamp. `not_applicable` requires a recorded evidence reference,
+verifier, confidence and timestamp. These are per-criterion verification events;
+they are not the separate overall human-acceptance decision below.
+
+History exposes the latest context mapping per item and latest verification per
+criterion. A mapped item or passed criterion does not rewrite the immutable
+cycle/manifest or independently authorize execution, tests, runtime operations
+or deployment. Overall human acceptance remains a separate event.
+
 ## Human acceptance is a different decision
 
 After a delivery is made and reviewed by a human, acceptance can be recorded separately:

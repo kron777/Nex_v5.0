@@ -39,6 +39,7 @@ from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_f
                                            submit_objective)
 from rdo_adapters.handoff import (HandoffError, create_handoff, handoff_history,
                                   record_human_acceptance, record_scope_review,
+                                  record_context_mapping, record_acceptance_verification,
                                   verify_with_watcher)
 from .report import (demo_genius_tagger, run_catalogue, run_stage2_belief_decay,
                      run_stage3_graph_intelligence, run_stage4_belief_audit,
@@ -212,6 +213,38 @@ def _handoff_review(args) -> int:
     return 0
 
 
+def _handoff_context_map(args) -> int:
+    try:
+        event = record_context_mapping(
+            args.out, args.handoff_id, args.item_id,
+            args.mapped_obligation, args.evidence_reference,
+            args.reviewer, args.source_reference, note=args.note,
+        )
+    except (HandoffError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(event, indent=2, default=str))
+    return 0
+
+
+def _handoff_acceptance_verify(args) -> int:
+    try:
+        event = record_acceptance_verification(
+            args.out, args.handoff_id, args.criterion_id, args.status,
+            args.verifier, args.source_reference,
+            mapped_obligation_keys=args.mapped_obligation,
+            verification_method=args.verification_method,
+            evidence_references=args.evidence_reference,
+            confidence=args.confidence, verified_at=args.verified_at,
+            note=args.note,
+        )
+    except (HandoffError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(event, indent=2, default=str))
+    return 0
+
+
 def _handoff_acceptance(args) -> int:
     try:
         with open(args.evidence_references, "r", encoding="utf-8") as fh:
@@ -354,6 +387,32 @@ def main(argv=None) -> int:
     hr.add_argument("--note", default="")
     hr.add_argument("--out", default="rdo/.cycles")
     hr.set_defaults(fn=_handoff_review)
+
+    hm = sub.add_parser("handoff-context-map", help="record a reviewed mapping from objective context to graph obligations")
+    hm.add_argument("--handoff-id", required=True)
+    hm.add_argument("--item-id", required=True)
+    hm.add_argument("--mapped-obligation", action="append", required=True)
+    hm.add_argument("--evidence-reference", action="append", required=True)
+    hm.add_argument("--reviewer", required=True)
+    hm.add_argument("--source-reference", required=True)
+    hm.add_argument("--note", default="")
+    hm.add_argument("--out", default="rdo/.cycles")
+    hm.set_defaults(fn=_handoff_context_map)
+
+    hvf = sub.add_parser("handoff-acceptance-verify", help="record verification of one acceptance criterion")
+    hvf.add_argument("--handoff-id", required=True)
+    hvf.add_argument("--criterion-id", required=True)
+    hvf.add_argument("--status", required=True, choices=("pending", "passed", "failed", "not_applicable"))
+    hvf.add_argument("--mapped-obligation", action="append", default=[])
+    hvf.add_argument("--verification-method")
+    hvf.add_argument("--evidence-reference", action="append", default=[])
+    hvf.add_argument("--verifier", required=True)
+    hvf.add_argument("--source-reference", required=True)
+    hvf.add_argument("--confidence")
+    hvf.add_argument("--verified-at")
+    hvf.add_argument("--note", default="")
+    hvf.add_argument("--out", default="rdo/.cycles")
+    hvf.set_defaults(fn=_handoff_acceptance_verify)
 
     ha = sub.add_parser("handoff-acceptance", help="record a separate human acceptance decision")
     ha.add_argument("--handoff-id", required=True)

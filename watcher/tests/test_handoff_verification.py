@@ -436,3 +436,180 @@ def test_source_hash_fails_closed_if_internal_symlink_is_swapped(tmp_path, monke
     assert opened == ["docs/REQUIREMENTS.md"]
     assert target.read_text(encoding="utf-8") == "# Base requirements\n"
     assert outside.read_text(encoding="utf-8") == "secret outside source\n"
+
+
+def _context_review_manifest(repo: Path, base: str):
+    manifest, path = _manifest(repo, base)
+    item = {
+        "item_id": "acceptance:0",
+        "kind": "acceptance_criterion",
+        "text": "The scoped feature satisfies its acceptance criterion.",
+        "source_field": "acceptance_criteria",
+        "source_index": 0,
+        "source_ref": "objective_input:fixture:acceptance_criteria[0]",
+        "classification": "acceptance_criterion",
+        "status": "unmapped",
+        "mapped_obligation_keys": [],
+        "evidence": [],
+        "review_required": True,
+    }
+    manifest.pop("manifest_sha256", None)
+    manifest["obligations"] = [{"key": "doc_change"}]
+    manifest["objective_context_assessment"] = {
+        "items": [item],
+        "acceptance_verification": [{
+            "criterion_id": item["item_id"],
+            "source_ref": item["source_ref"],
+            "criterion": item["text"],
+        }],
+    }
+    manifest["manifest_sha256"] = _sha(manifest)
+    path.write_text(_canonical(manifest) + "\n", encoding="utf-8")
+    events_path = _events(repo, manifest)
+    return manifest, path, events_path, item
+
+
+def _append_review_event(events_path: Path, manifest: dict, event_fields: dict):
+    existing = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines()]
+    event = {
+        "schema_version": "rdo.handoff_event.v1",
+        "sequence": len(existing) + 1,
+        "handoff_id": manifest["handoff_id"],
+        "manifest_sha256": manifest["manifest_sha256"],
+        "previous_event_sha256": existing[-1]["event_sha256"] if existing else None,
+        "recorded_at": "2026-11-28T12:00:00Z",
+        "reviewer_identity_status": "caller_attributed_not_authenticated",
+        "reviewer": "fixture-reviewer",
+        "source_reference": "fixture-review-source",
+        "note": "",
+        **event_fields,
+    }
+    event["event_sha256"] = _sha(event)
+    with events_path.open("a", encoding="utf-8") as fh:
+        fh.write(_canonical(event) + "\n")
+    return event
+
+
+def test_watcher_accepts_digest_bound_context_mapping_and_criterion_verification_events(tmp_path):
+    repo, base = _repo(tmp_path)
+    manifest, manifest_path, events_path, item = _context_review_manifest(repo, base)
+    keys = ["doc_change"]
+    references = ["review:mapping"]
+    mapping_record = {
+        **item,
+        "status": "mapped",
+        "mapped_obligation_keys": keys,
+        "evidence": references,
+        "review_required": False,
+    }
+    _append_review_event(events_path, manifest, {
+        "event_kind": "context_mapping",
+        "context_item_id": item["item_id"],
+        "decision": "mapped",
+        "mapping_record": mapping_record,
+        "mapped_obligation_keys": keys,
+        "evidence_references": references,
+    })
+    verification_record = {
+        "criterion_id": item["item_id"],
+        "source_ref": item["source_ref"],
+        "criterion": item["text"],
+        "status": "pending",
+        "mapped_obligation_keys": keys,
+        "verification_method": "inspect the scoped proposal",
+        "evidence_refs": [],
+        "verified_at": None,
+        "verifier": None,
+        "confidence": None,
+        "note": "",
+        "review_required": True,
+    }
+    _append_review_event(events_path, manifest, {
+        "event_kind": "acceptance_verification",
+        "criterion_id": item["item_id"],
+        "verification_record": verification_record,
+    })
+
+    request_path = tmp_path / "request.json"
+    request_path.write_text(_canonical(_request(repo, manifest_path, events_path)), encoding="utf-8")
+    report = verify_handoff_request_for_test_direct(request_path)
+    assert report["exit_status"] == "scope_compliant"
+    assert report["evidence_dimensions"]["test_verified"] == "not_authorized"
+    assert report["evidence_dimensions"]["runtime_observed"] == "unknown_host_only"
+
+
+def test_watcher_rejects_acceptance_verification_without_prior_context_mapping(tmp_path):
+    repo, base = _repo(tmp_path)
+    manifest, manifest_path, events_path, item = _context_review_manifest(repo, base)
+    verification_record = {
+        "criterion_id": item["item_id"],
+        "source_ref": item["source_ref"],
+        "criterion": item["text"],
+        "status": "pending",
+        "mapped_obligation_keys": ["doc_change"],
+        "verification_method": "inspect the scoped proposal",
+        "evidence_refs": [],
+        "verified_at": None,
+        "verifier": None,
+        "confidence": None,
+        "note": "",
+        "review_required": True,
+    }
+    _append_review_event(events_path, manifest, {
+        "event_kind": "acceptance_verification",
+        "criterion_id": item["item_id"],
+        "verification_record": verification_record,
+    })
+
+    request_path = tmp_path / "request.json"
+    request_path.write_text(_canonical(_request(repo, manifest_path, events_path)), encoding="utf-8")
+    with pytest.raises(HandoffVerificationError, match="prior context mapping"):
+        verify_handoff_request_for_test_direct(request_path)
+
+
+def test_watcher_accepts_completed_criterion_verification_with_evidence_and_timezone(tmp_path):
+    repo, base = _repo(tmp_path)
+    manifest, manifest_path, events_path, item = _context_review_manifest(repo, base)
+    keys = ["doc_change"]
+    references = ["review:mapping"]
+    mapping_record = {
+        **item,
+        "status": "mapped",
+        "mapped_obligation_keys": keys,
+        "evidence": references,
+        "review_required": False,
+    }
+    _append_review_event(events_path, manifest, {
+        "event_kind": "context_mapping",
+        "context_item_id": item["item_id"],
+        "decision": "mapped",
+        "mapping_record": mapping_record,
+        "mapped_obligation_keys": keys,
+        "evidence_references": references,
+    })
+    verification_record = {
+        "criterion_id": item["item_id"],
+        "source_ref": item["source_ref"],
+        "criterion": item["text"],
+        "status": "passed",
+        "mapped_obligation_keys": keys,
+        "verification_method": "compare the scoped proposal with the criterion",
+        "evidence_refs": ["review:acceptance"],
+        "verified_at": "2026-11-28T12:00:00Z",
+        "verifier": "fixture-reviewer",
+        "confidence": "reviewed",
+        "note": "",
+        "review_required": False,
+    }
+    _append_review_event(events_path, manifest, {
+        "event_kind": "acceptance_verification",
+        "criterion_id": item["item_id"],
+        "verification_record": verification_record,
+    })
+
+    request_path = tmp_path / "request.json"
+    request_path.write_text(_canonical(_request(repo, manifest_path, events_path)), encoding="utf-8")
+    report = verify_handoff_request_for_test_direct(request_path)
+    assert report["exit_status"] == "scope_compliant"
+    assert report["human_acceptance"]["status"] == "not_recorded"
+    assert report["evidence_dimensions"]["test_verified"] == "not_authorized"
