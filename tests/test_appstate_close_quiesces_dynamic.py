@@ -21,7 +21,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from tests import _bootstrap  # noqa: F401
-from tests.test_fountain import _cleanup, _make_env
+from tests.test_fountain import _cleanup, _make_env, _mock_voice_client, _mock_dynamic_state
 
 
 def _state(writers, readers, dynamic=None):
@@ -111,12 +111,8 @@ class TestAppStateCloseQuiescesDynamic(unittest.TestCase):
         ):
             fountain = build_fountain(
                 self.writers, self.readers,
-                voice_client=__import__(
-                    "tests.test_fountain", fromlist=["_mock_voice_client"]
-                )._mock_voice_client(),
-                dynamic_state=__import__(
-                    "tests.test_fountain", fromlist=["_mock_dynamic_state"]
-                )._mock_dynamic_state(),
+                voice_client=_mock_voice_client(),
+                dynamic_state=_mock_dynamic_state(),
             )
             time.sleep(0.05)
             self.assertTrue(fountain.status()["loop_running"])
