@@ -68,7 +68,7 @@ An approved candidate is still only a selected proposal. Any later bridge must p
 
 ## Reuse opportunity for the next increment
 
-The validator currently enforces structural endpoint validity and distinct graph payloads; it does not classify cycles or derive a build sequence. The RDO already has cycle detection/classification in `rdo.tension._find_cycles` and Stage-3 graph intelligence in `rdo.graph`. The next review/bridge increment should reuse those mechanisms to characterize candidate graphs (distinguishing prerequisite cycles from feedback loops) rather than invent a second cycle engine. This analysis should inform review; it must not silently approve, reject or activate a candidate.
+The validator currently enforces structural endpoint validity and distinct graph payloads; it does not classify cycles or derive a build sequence. The RDO already has iterative cycle enumeration in `rdo.tension._find_cycles`, evidence-based classification in `_classify_cycle`, and system-level assessment in `assess_system`; `rdo.graph` supplies the strongly connected component machinery. The classifier distinguishes `prerequisite_cycle`, `feedback_loop` and `unknown`: prerequisite cycles block build ordering, while influence feedback loops are not automatically defects. The next review/bridge increment should adapt the validated proposal edges into the existing `Relationship` model and reuse these mechanisms rather than invent a second cycle engine. This analysis should inform review; it must not silently approve, reject or activate a candidate.
 
 
 ## Integration contract before bridging into objective.v1
