@@ -5179,3 +5179,20 @@ The optional Fountain rail calls only `Metacognition.format_for_prompt()`, which
 ### §133 retrieval-lineage refinement
 
 The `groove_alerts.sample_belief_ids` payload is not selected by `Metacognition._detect_groove()`; that query carries only alert ID/type/severity/pattern/time. The disabled, de-wired GrooveBreaker selects the column but its current inspected logic does not use the IDs. FountainGenerator's context retrieval queries beliefs and does not query `groove_alerts` or consume `sample_belief_ids`. Therefore no direct source-alert → source-belief-ID → next-retrieval priority wire was found. The active feedback routes traced here are the pattern-specific producer cooldown and the generic cached Metacognition prompt line; the GUI-only Stage-SelfNarrative branch separately carries the alert pattern as text. This is why the next investigation proposes joining alert sample IDs to the next Fountain retrieval manifest rather than assuming such a link already exists.
+
+
+## §134 — G-83 control-point classification: generation versus crystallization (28 November 2026)
+
+The final order-of-operations check changes how the feedback controls should be described:
+
+1. `FountainGenerator.generate()` builds the prompt and calls `VoiceClient.speak(VoiceRequest(prompt=prompt, ...))`. The model returns a thought.
+2. The generator performs output checks and logs the fire.
+3. Only afterwards does it call `FountainCrystallizer.crystallize(thought=...)`.
+4. The crystallizer first checks the active Row 9 stillness window and returns `None` if one exists. If not, its quality checks include the active `signal_cooldown` fragment match; a match returns a cooldown rejection.
+5. The generator then records the fire and returns the generated thought regardless of whether `crystallized_id` was produced. The optional carryover stamp records the boolean resolution outcome, but does not undo the already completed model call.
+
+**Consequence:** both Row 9 stillness and GrooveSpotter's targeted cooldown operate at the post-generation persistence/crystallization boundary. They can prevent a thought from becoming a new stored belief (and therefore from re-entering GrooveSpotter's future belief window), but they do not prevent the current Fountain model request or stop the current thought from being generated. Calling them generation brakes or attention gates would be inaccurate.
+
+The only direct Metacognition-to-Fountain influence on the next model request found in this trace is the optional textual prompt rail gated by `NEX5_METACOG_VOICE=1` (§131), which is default-off by source. The GUI chat path is separately user-request-triggered. Neither prompt cue is a typed operation or action authority.
+
+**Disposition:** source-observed ordering of model generation before crystallization controls; no claim of a live enabled flag or measured generation reduction. This refines §§114, 128 and 133. No runtime code, schema, feature flag, thresholds, frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
