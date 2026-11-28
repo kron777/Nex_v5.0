@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboticsentience.org/schemas/rdo.seed_proposal.v1.schema.json",
+  "title": "RDO provider-neutral seed proposal v1",
+  "description": "Raw objective plus competing candidate seed graphs. This document is inert until a separate human review event selects one alternative.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "raw_objective",
+    "alternatives",
+    "proposer_kind",
+    "proposer_reference",
+    "source_reference"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "rdo.seed_proposal.v1"
+    },
+    "raw_objective": {
+      "$ref": "raw_objective.v1.schema.json"
+    },
+    "alternatives": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/alternative"
+      }
+    },
+    "proposer_kind": {
+      "enum": [
+        "human",
+        "external_llm",
+        "imported"
+      ]
+    },
+    "proposer_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "source_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "supersedes_proposal_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^seedprop_[0-9a-f]{24}$"
+    }
+  },
+  "$defs": {
+    "seed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "title",
+        "kind",
+        "classification",
+        "rationale",
+        "impact",
+        "evidence_needs",
+        "assumptions",
+        "confidence"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "classification": {
+          "enum": [
+            "necessary",
+            "conditional",
+            "optional",
+            "future",
+            "hypothesis",
+            "unknown",
+            "anti_requirement"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "impact": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "evidence_needs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "confidence": {
+          "enum": [
+            "stated",
+            "inferred"
+          ]
+        }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "src",
+        "dst",
+        "kind",
+        "authority",
+        "reversible",
+        "note"
+      ],
+      "properties": {
+        "src": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dst": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "depends_on",
+            "produces_for",
+            "reuses",
+            "duplicates",
+            "influences"
+          ]
+        },
+        "authority": {
+          "enum": [
+            "none",
+            "bounded",
+            "strong"
+          ]
+        },
+        "reversible": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pattern",
+        "path",
+        "label"
+      ],
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "criterion",
+        "obligation_keys"
+      ],
+      "properties": {
+        "criterion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "obligation_keys": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "alternative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "interpretation",
+        "seed_obligations",
+        "relationships",
+        "reconciliation_signatures",
+        "assumptions",
+        "evidence_needs",
+        "acceptance_coverage",
+        "open_questions",
+        "disconfirming_cases",
+        "provenance"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "interpretation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "seed_obligations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/seed"
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/relationship"
+          }
+        },
+        "reconciliation_signatures": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/$defs/signature"
+            }
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence_needs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "acceptance_coverage": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/coverage"
+          }
+        },
+        "open_questions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "disconfirming_cases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "provenance": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}
