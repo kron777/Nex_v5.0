@@ -1169,7 +1169,7 @@ PR #381 exact-head full-suite workflow run 2350 passed: **2,979 passed, 7 skippe
 
 ### 16.5 Remaining research and development work
 
-1. Recheck #391's exact head SHA, all required CI jobs, baseline verification and merge state before updating this section again.
+1. Recheck #391 and #392 exact head SHAs, all required CI jobs, baseline verification and merge state before updating this section again.
 2. Rescan the complete shutdown path now that #378 is merged: signal receipt, request admission, detached route work, registered producers, direct database writers, Writers, clean-marker persistence, process exit and keepalive restart. Add regressions only for demonstrated gaps.
 3. Continue the host/server evidence work: inspect the actual deployment contract and determine whether the Flask threaded server is the only entry point. Do not infer host behaviour from repository tests.
 4. Continue the faculty producer→consumer audit from #381, distinguishing construction, boot wiring, flag enablement, consumption and measured behavioural effect.
@@ -1263,3 +1263,12 @@ The WorldPredictionLoop can perform a 10-second price fetch, a 10-second recent-
 PR #391 proposes passing stop events into both ticks and adding checkpoints after blocking network calls and between sequential write stages, with deterministic blocked-call tests.
 
 **Boundary:** #391 is open and exact-head CI is pending; its correction is not current-main behaviour yet. It does not cancel in-flight HTTP calls or change their 10/30-second timeouts, so either loop can still outlive the five-second join and cause the existing non-clean shutdown path. This is not an atomic stop/write handshake and does not prove every producer has been audited.
+
+
+### 16.12 PersonaResponderLoop stop-during-model-call path — open PR #392
+
+The tracked launcher sets `NEX5_PERSONA_RESPONDER=1`; `run.py` constructs the loop and registers it with AppState. The loop performs its first tick immediately on startup. Its `one_exchange()` path can block in `_ask_persona()` for up to 30 seconds, then write a reply to the sense Writer (or a rejected reply to the dynamic Writer) and optionally evolve interlocutor state in the conversations Writer. Before PR #392, the stop event interrupted only the interval wait and was not passed into the active exchange. The five-second producer join allowance is shorter than the model-call timeout.
+
+PR #392 proposes passing the existing stop event through `tick()`, `one_exchange()` and `_ask_persona()`, checking it before model work and after the response before starting Writer operations. It adds deterministic blocked-call tests and a source research note.
+
+**Boundary:** #392 is open and exact-head CI is pending; this is not current-main behaviour yet. It does not cancel an in-flight HTTP call or create an atomic stop/write handshake. A slow model call can still outlive the producer join and cause the existing non-clean shutdown path. The broader producer audit remains open.
