@@ -2211,3 +2211,19 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 **Boundaries:** source inspection only; no code behaviour changed. No live database, host process or robot runtime accessed. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
+---
+
+## 75. Theory X package-wide registry symbol scan (28 November 2026)
+
+**Scope and method:** fetched and inspected all **273 Python source files under `theory_x/`** from the active development branch. Scanned source lines for module-registry symbols and protocol references: `all_nodes()`, `_registered_nodes`, direct `register(...)` calls and `SentienceNode`. This is a source-tree scan of the Theory X package, not a complete repository-wide scan.
+
+**Observed:** no Theory X module calls the process registry's `all_nodes()` function or accesses `_registered_nodes`. No direct call to the process registry's `register()` function was found in the package. Several modules implement or document the `SentienceNode` protocol, but protocol conformance alone does not register an object. Two textual lookalikes are unrelated APIs: `BonsaiTree.all_nodes()` in `stage2_dynamic/bonsai.py` enumerates tree nodes, and `pipeline_hooks.register(dynamic_state)` registers a dynamic-state hook, not a Theory X process node.
+
+**What this narrows:** the previously suspected registry consumer is not located inside the 273-file `theory_x/` package. The process registry appears to be a passive append-only catalogue from the perspective of that package. This materially lowers the likelihood that stale entries are actively ticked/decayed by a Theory X internal loop. It does not prove the registry has no consumer elsewhere: `run.py`, `gui/server.py`, external tools, tests, plugins or future imports may observe it, and GitHub code-search responses remain marked incomplete. No runtime introspection was performed.
+
+**Registry writer picture so far:** explicit process-registry writes found in the inspected boot/factory code are in `gui/server.py` and `run.py`. The package scan found no internal writer or reader. Keep this as a scoped result, not a claim of complete repository inventory. The object protocol is therefore currently broader than the demonstrated registry integration: many classes implement the protocol, while the registry has no demonstrated package-internal consumer.
+
+**Next study:** scan non-`theory_x/` application, test and tooling sources for exact imports/aliases of `theory_x.register`, `theory_x.all_nodes`, and indirect snapshots. Then decide whether this registry is (a) intended for an external observer not present in the inspected package, (b) a dormant/legacy integration, or (c) a contract awaiting its first consumer. Do not remove or redesign it based only on this scoped absence. Preserve the process-lifetime registration semantics until its intended consumer and owner are known.
+
+**Boundaries:** read-only source scan; no code behaviour changed. The scan does not validate runtime imports, dynamic reflection, monkey-patching, or consumers outside the scanned package. No live host, database or robot runtime accessed. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
