@@ -87,6 +87,37 @@ def test_seed_propose_rejects_unknown_input_fields_before_store_access(tmp_path,
     assert "exactly the documented fields" in capsys.readouterr().err
 
 
+def test_seed_propose_rejects_duplicate_json_keys_before_store_access(tmp_path, monkeypatch, capsys):
+    class ForbiddenStore:
+        def __init__(self, path):
+            raise AssertionError("duplicate-key input must not open the proposal store")
+
+    monkeypatch.setattr(cli, "SeedProposalStore", ForbiddenStore)
+    inputs = [
+        (
+            "duplicate-top-level.json",
+            '{"raw_objective": {}, "raw_objective": {}, "alternatives": [], '
+            '"proposer_kind": "external_llm", "proposer_reference": "provider/model", '
+            '"source_reference": "source:1"}',
+            "raw_objective",
+        ),
+        (
+            "duplicate-nested.json",
+            '{"raw_objective": {"objective_id": "first", "objective_id": "second"}, '
+            '"alternatives": [], "proposer_kind": "external_llm", '
+            '"proposer_reference": "provider/model", "source_reference": "source:1"}',
+            "objective_id",
+        ),
+    ]
+    for filename, content, duplicate_key in inputs:
+        path = tmp_path / filename
+        path.write_text(content, encoding="utf-8")
+        assert cli.main([
+            "seed-propose", "--input", str(path), "--dir", str(tmp_path)
+        ]) == 2
+        assert f"duplicate JSON property: {duplicate_key}" in capsys.readouterr().err
+
+
 def test_seed_prepare_and_intake_cli_keep_read_only_and_persisted_paths_separate(tmp_path, monkeypatch, capsys):
     calls = []
     proposal_id = "seedprop_" + "c" * 24
