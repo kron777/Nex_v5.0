@@ -42,9 +42,11 @@ class BeliefSynergizer:
         self._errors = errors_channel or errors
         self._gate = coherence_gate
 
-    def synthesize(self) -> Optional[dict]:
+    def synthesize(self, *, stop_event=None) -> Optional[dict]:
+        if stop_event is not None and stop_event.is_set():
+            return None
         pair = self._select_pair()
-        if pair is None:
+        if pair is None or (stop_event is not None and stop_event.is_set()):
             return None
 
         belief_a, belief_b = pair
@@ -53,6 +55,8 @@ class BeliefSynergizer:
             belief_b=belief_b["content"],
         )
 
+        if stop_event is not None and stop_event.is_set():
+            return None
         try:
             req = VoiceRequest(
                 prompt=prompt,
@@ -61,6 +65,8 @@ class BeliefSynergizer:
                 temperature=0.9,
             )
             resp = self._voice.speak(req)
+            if stop_event is not None and stop_event.is_set():
+                return None
             text = resp.text.strip() if resp and resp.text else ""
         except Exception as exc:
             self._errors.record(
@@ -81,11 +87,15 @@ class BeliefSynergizer:
             self._log(belief_a["id"], belief_b["id"], None, None)
             return None
 
+        if stop_event is not None and stop_event.is_set():
+            return None
         if not self._quality_check(text):
             self._log(belief_a["id"], belief_b["id"], None, None)
             return None
 
         # Phase 22 — Coherence Gate (runs after quality gate, before INSERT)
+        if stop_event is not None and stop_event.is_set():
+            return None
         if self._gate is not None:
             from theory_x.stage_gate.coherence_gate import ThoughtPacket, GateOutcome
             packet = ThoughtPacket(
@@ -102,6 +112,9 @@ class BeliefSynergizer:
                 )
                 self._log(belief_a["id"], belief_b["id"], None, None)
                 return None
+
+        if stop_event is not None and stop_event.is_set():
+            return None
 
         # STRUCTURAL ATTRIBUTION GUARD (fix #1b): a synthesis of contested/
         # attributed lineage must not silently flatten into bare settled fact.
@@ -127,6 +140,8 @@ class BeliefSynergizer:
         # PHASE 19 fix 2026-05-09: branch_id propagated from belief_b (the fresh belief
         # in primary anchor×fresh path; the second belief in cross-branch fallback).
         # Was: bug where T6 syntheses all attributed to systems regardless of input branches.
+        if stop_event is not None and stop_event.is_set():
+            return None
         result_id = self._writer.write(
             "INSERT INTO beliefs "
             "(content, tier, confidence, created_at, source, branch_id, locked, tags) "
