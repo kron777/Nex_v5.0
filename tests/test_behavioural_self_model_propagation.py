@@ -92,12 +92,12 @@ class TestBehaviouralSelfModelPropagation(unittest.TestCase):
         self.assertTrue(all(row["tier"] == 6 for row in persisted))
         self.assertTrue(all(row["source"] == "behavioural_observation" for row in persisted))
 
-        # The source allowlist and the actual retrieval path must both admit it.
-        snapshot = self_model.snapshot()
-        self.assertTrue(any(
-            belief["source"] == "behavioural_observation"
-            for belief in snapshot["inside_beliefs"]
-        ))
+        # The membrane must classify the newly persisted source as INSIDE.
+        from theory_x.stage4_membrane.classifier import CLASSIFIER, MembraneSide
+        self.assertEqual(
+            CLASSIFIER.classify_belief(dict(persisted[0])),
+            MembraneSide.INSIDE,
+        )
 
         after = router.route(query, retriever, self_model)
         self.assertEqual(after["side"], "INSIDE")
