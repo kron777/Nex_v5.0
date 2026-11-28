@@ -245,3 +245,76 @@ This is the first practical experiment matching the requested “wire” method:
 - `Cognitive_Reasoning_Node.py`
 - `Cognitive_Control_Node.py`
 - `tests/test_check1_judgement_rationale.py` through `tests/test_check6_doctrine_anti_theatre.py`
+
+
+## 9. NEX cross-faculty interaction trace: attention, affect, drives and workspace
+
+This second pass follows interactions beyond the self-model pathway. It is intended to test the network model: a faculty's output may alter another faculty's selection, framing or state, but these effects occur through specific edges and gates.
+
+### 9.1 External sense → Stage 2 A–F pipeline → Bonsai focus
+
+Verified source path:
+
+`sense_events row → pipeline.step_A → step_B(_match_branches) → step_C(_magnitude_for) → step_D(membrane aperture) → step_E(valence) → step_F(tree.attend) → Bonsai focus/texture → DynamicState snapshot → Fountain branch selection`
+
+- `pipeline.py` implements the A–F sequence and logs intermediate B/D/E/F events.
+- `attention.py` derives branch matches from stream names and payload tokens, computes magnitude and uses direct stream-to-branch mappings.
+- `_magnitude_for()` returns zero for every `internal.*` stream. The source comment records why: internal telemetry had been pinning `systems` focus at its ceiling and starving other branches. This is an important *negative edge*: internal telemetry can feed the SelfModel representation, but it is intentionally excluded from Stage-2 attention steering.
+- `pipeline.step_F()` calls `tree.attend()` only when magnitude is at least 0.001. Thus the internal-stream zero magnitude does not update Bonsai focus through this path.
+- Fountain reads branch focus values for its own branch-selection mechanism; the workspace can also consume the hottest branch as a candidate.
+
+This is a clear example of why connecting every available wire is not correct. The same signal can be useful for self-monitoring but harmful when interpreted as attention-driving cognitive content.
+
+### 9.2 Affect → affect state → Chat representation and optional Fountain selection
+
+Verified source path:
+- `run.py` constructs `AffectState`, starts its background loop and passes it into the application state.
+- `AffectState._background_tick()` reads substrate-derived valence/arousal and flagged surprise events, integrates/decays values, writes the single-row `affect_state` state and appends `affect_history`.
+- `gui/server.py` appends `affect_state.format_for_prompt()` to Chat's context when the faculty is present.
+- Fountain's `_valence_reach()` reads valence/arousal and passes the resulting multiplier into `_curiosity_score()` only when `NEX5_VALENCE_DRIVE=1`. The source default is OFF. The multiplier is bounded, and the strongly negative anti-rut zone returns 1.0.
+- Fountain's separate compositional mood prompt injection is gated by `NEX5_MOOD=1`.
+
+Interpretation: affect has a Chat representation path, and it has a separate optional mechanical influence on Fountain selection. These should be measured independently. Prompt narration is not proof of selection influence.
+
+### 9.3 Competing drives and DriveEmergence are distinct wires
+
+- `run.py` constructs and starts `CompetingDrives`.
+- Fountain reads the persisted curiosity and exploration values to scale candidate scoring; it separately appends the CompetingDrives tension prompt block when available.
+- Fountain records the current CompetingDrives weights in its per-fire state snapshot and attaches activation records to the resulting Fountain event where possible.
+- Global Workspace's `drive` candidate is supplied from `DriveEmergence.format_for_prompt()`, not from CompetingDrives. The two are distinct mechanisms and must not be treated as one unified drive subsystem.
+- The source supports multiple influence types: numeric selection scaling, prompt contribution, event attribution and workspace framing. Their causal efficacy remains a separate measurement question.
+
+### 9.4 Two workspaces arbitrate different objects
+
+**Fountain Global Workspace:** `NEX5_GLOBAL_WORKSPACE` defaults to enabled in the inspected source. It compares available surprise, momentum, Bonsai-attention, stakes and DriveEmergence candidates, then prepends the winning framing line to the focus block. Other faculty blocks are still appended. It chooses the leading frame; it does not remove every non-winning faculty contribution.
+
+**Chat workspace:** `NEX5_CHAT_WORKSPACE` is a separate, opt-in path. It ranks already-assembled faculty blocks against a character budget, preserves exempt blocks and returns selected blocks in original assembly order. It is not the same operation as the Fountain's single-winner framing.
+
+### 9.5 Testable interaction hypothesis
+
+A bounded test should:
+1. Start from an isolated Stage-2 fixture with a known Bonsai tree and aperture.
+2. Inject one external sense event whose stream maps to a known branch.
+3. Record each A–F intermediate value and the resulting focus delta.
+4. Feed the resulting branch snapshot into Fountain's branch-selection seam and Global Workspace arbiter.
+5. Verify whether the branch candidate or winning frame changes under a controlled baseline comparison.
+6. Repeat with an `internal.*` event as a negative control; it must not alter Bonsai focus through the A–F pipeline.
+7. Keep affect and competing-drive perturbations separate so interaction effects can be attributed to one edge at a time.
+
+This is a proposed fixture experiment, not yet a test result. Do not use live databases, turn on feature flags, or alter production selection weights to perform it.
+
+### 9.6 Evidence and source anchors
+
+NEX main source snapshot: `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`.
+
+- `theory_x/stage2_dynamic/pipeline.py`
+- `theory_x/stage2_dynamic/attention.py`
+- `theory_x/stage2_dynamic/bonsai.py`
+- `theory_x/stage6_fountain/generator.py`
+- `theory_x/stage_tom/global_workspace.py`
+- `theory_x/stage_affect/affect_state.py`
+- `theory_x/stage_drives/competing_drives.py`
+- `gui/server.py`
+- `run.py`
+
+No runtime wire, flag, threshold, prompt policy, database schema or frozen specification was changed by this research pass.
