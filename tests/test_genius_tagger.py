@@ -339,6 +339,61 @@ class TestBackfillAndTagWindow(unittest.TestCase):
         self.assertEqual(len(rows), 1)
 
 
+    def test_backfill_stamps_old_fire_with_current_tagging_time(self):
+        now = time.time()
+        old_fire_ts = now - 10 * 86400
+        fire_id = _seed_fire(self.writers, "historical fountain thought", ts=old_fire_ts)
+        weights = self.tagger._load_weights()
+        self.tagger._backfill(weights, now)
+        time.sleep(0.05)
+
+        row = self.readers["conversations"].read_one(
+            "SELECT fountain_event_id, tagged_at FROM genius_tags "
+            "WHERE fountain_event_id = ?",
+            (fire_id,),
+        )
+        self.assertIsNotNone(row)
+        self.assertLess(old_fire_ts, now - 9 * 86400)
+        self.assertAlmostEqual(row["tagged_at"], now, delta=1.0)
+        # The rut observer's tagged_at >= now-90m predicate therefore includes
+        # this ten-day-old fountain event immediately after backfill.
+        self.assertGreaterEqual(row["tagged_at"], now - 5400)
+
+    def test_weights_refit_creates_second_recent_tag_row_for_same_fire(self):
+        now = time.time()
+        fire_id = _seed_fire(self.writers, "recent fountain thought", ts=now - 10)
+
+        self.tagger.tick()  # initial v2.0 backfill
+        time.sleep(0.05)
+        before = self.readers["conversations"].read(
+            "SELECT weights_version FROM genius_tags WHERE fountain_event_id = ?",
+            (fire_id,),
+        )
+        self.assertEqual([r["weights_version"] for r in before], ["v2.0"])
+
+        old_mtime = self.wp.stat().st_mtime
+        _write_weights_file(self.tmp, version="v2.1", threshold=0.5)
+        os.utime(self.wp, (old_mtime + 5, old_mtime + 5))
+        self.tagger.tick()  # reload v2.1; continuous 180s window retags recent fire
+        time.sleep(0.05)
+
+        rows = self.readers["conversations"].read(
+            "SELECT fountain_event_id, weights_version, tagged_at "
+            "FROM genius_tags WHERE fountain_event_id = ? ORDER BY weights_version",
+            (fire_id,),
+        )
+        self.assertEqual(
+            [r["weights_version"] for r in rows],
+            ["v2.0", "v2.1"],
+        )
+        rut_window_rows = self.readers["conversations"].read(
+            "SELECT fountain_event_id, class, weights_version FROM genius_tags "
+            "WHERE tagged_at >= ? AND fountain_event_id = ?",
+            (time.time() - 5400, fire_id),
+        )
+        self.assertEqual(len(rut_window_rows), 2)
+
+
 class TestTick(unittest.TestCase):
     def setUp(self):
         self.writers, self.readers, self.tmp = _make_env()
