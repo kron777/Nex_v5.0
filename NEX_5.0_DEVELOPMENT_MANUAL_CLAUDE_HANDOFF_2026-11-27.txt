@@ -3016,7 +3016,7 @@ A concrete sequence follows from the code:
 3. A genuinely different Thread B is captured. Its carry count resets to one, but the upsert leaves `resolved` untouched.
 4. A subsequent read of Thread B can report Thread A's resolution outcome.
 
-This is stale provenance: the outcome is stored on the singleton row, but the row's identity has moved to a new fragment. The same applies to a prior unresolved/stalled value. The existing test verifies resolution rendering for one thread and verifies a legacy schema migration initializes the field to NULL; it does not test the transition from a resolved thread to a distinct new thread.
+At the function boundary, this is stale provenance: the outcome is stored on the singleton row, but the row's identity has moved to a new fragment. Important call-site qualification: the inspected Fountain generator captures momentum around line 2812 and, when NEX5_CARRYOVER=1, stamps the current fire's outcome later around line 3150. In a normal successful full fire with that flag enabled, the later stamp should overwrite the inherited value before the next fire reads it. The inheritance remains observable for direct callers that do not stamp, when the feature is off and later enabled against an existing row, when capture succeeds but the later stamp is skipped/fails, or when capture rejects a short thought but the later stamp still applies to the previous row. The existing unit test verifies resolution rendering for one thread and a legacy schema migration; it does not test thread transitions or the full generator ordering.
 
 ### 3. Rendering inconsistency
 
@@ -3054,3 +3054,44 @@ The anti-rut design has a good core: similarity-based carry counting, a three-ca
 **Source anchors inspected at main:** `theory_x/stage_tom/momentum.py` blob `45d0249fe445871ebb2bfbcdb2da6e131a229e18`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `tests/test_momentum_writer.py` blob `fdbab169457a9ebe8c3c451c69b635e200127bd6`.
 
 **Host/runtime unknowns:** whether `NEX5_CARRYOVER` is enabled on any deployment; actual momentum row contents; frequency of distinct-thread transitions after a resolution stamp; live database state.
+
+## 88. Momentum call-site sequencing: capture, persistence and outcome stamping (28 November 2026)
+
+**Question studied:** does the momentum lifecycle finding survive inspection of the full Fountain call sequence, or is it corrected by a later stage?
+
+### Actual ordering in Fountain
+
+The inspected `generator.py` path performs these operations in this order:
+1. Optional HOT observation is written.
+2. If `NEX5_MOMENTUM` is enabled (default "1"), `capture_momentum()` stores the generated thought and selected carry branch.
+3. The Fountain event pair and downstream attribution/crystallization work proceed.
+4. If `NEX5_CARRYOVER=1` and the generator is not stopping, `stamp_resolution(bool(crystallized_id))` stamps the outcome onto the current momentum row.
+
+The narrative prompt assembly reads momentum earlier in the generation path, so it consumes the prior fire's state. The end-of-fire capture and optional outcome stamp prepare the state for a later fire.
+
+### Revised interpretation of section 87
+
+The stale-resolution issue is real at the `capture_momentum()` function boundary, because the upsert replaces the thread but omits `resolved`. However, a successful ordinary Fountain cycle with `NEX5_CARRYOVER=1` will normally call `stamp_resolution()` later in that same fire and overwrite the inherited result before the next fire reads it.
+
+Therefore it would be inaccurate to claim that every normal feature-enabled full cycle necessarily exposes stale resolution to the next prompt. The edge cases that still merit direct testing are:
+- direct use of `capture_momentum()` without a subsequent stamp;
+- a prior resolved row surviving while carryover is disabled, then the flag being enabled later;
+- capture succeeds but the later stamp is skipped by shutdown or fails;
+- capture rejects the new thought (for example, fewer than six words), but the later stamp still runs and may stamp the prior row with the current fire's outcome;
+- exception and writer-failure paths where capture/stamp do not complete as a pair.
+
+The short-thought case is especially important: `capture_momentum()` returns false before replacing the old row, while the generator does not inspect that return value before the later `stamp_resolution()` call. Thus the outcome stamp can refer to the old momentum thread rather than the current thought.
+
+### Revised recommendation
+
+Do not treat the function-level finding as proof of a routine production failure. Test the whole transaction boundary. A robust design would make the thread identity explicit and ensure that outcome stamping is conditional on a successful capture of the same thread identity in the current fire. At minimum, reset `resolved` when a distinct thread is stored and make the generator check capture success before stamping. If adding a thread identifier is too invasive, a local success boolean plus a stable fragment/version check may be sufficient; choose only after examining the writer contract and concurrency assumptions.
+
+Tests should exercise the generator ordering, not just isolated helpers: successful capture + stamp; failed/short capture + attempted stamp; shutdown between capture and stamp; stamp exception; feature flag off/on transition; and next-fire read. Assert that an outcome is never attached to a different fragment.
+
+### Research conclusion
+
+The right lesson is not "momentum is broken". The design already separates capture from later outcome evaluation, and the normal enabled path attempts to pair them. The weakness is that the pair is not explicitly bound by a thread identity or capture-success token. This is a lifecycle-integrity and edge-case problem, best solved with transaction-aware tests and explicit association—not by removing continuity or changing its thresholds. No runtime code, database schema, feature flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. No tests were run in this study.
+
+**Source anchors inspected at main:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/momentum.py` blob `45d0249fe445871ebb2bfbcdb2da6e131a229e18`; `tests/test_momentum_writer.py` blob `fdbab169457a9ebe8c3c451c69b635e200127bd6`.
+
+**Host/runtime unknowns:** actual `NEX5_MOMENTUM` and `NEX5_CARRYOVER` settings; stop timing and writer failure rates; actual short-thought rate; current deployed momentum row.
