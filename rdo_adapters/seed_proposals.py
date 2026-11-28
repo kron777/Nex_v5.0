@@ -127,7 +127,7 @@ def validate_raw_objective(raw: Any) -> dict:
         raise SeedProposalError("later raw objective revisions must cite the previous sha256 digest")
 
     source = _object(raw["source"], "raw_objective.source", {"kind", "reference"})
-    if source["kind"] not in _SOURCE_KINDS:
+    if not isinstance(source["kind"], str) or source["kind"] not in _SOURCE_KINDS:
         raise SeedProposalError("raw objective source.kind is unsupported")
     source = {"kind": source["kind"],
               "reference": _text(source["reference"], "source.reference", 512)}
@@ -187,7 +187,7 @@ def validate_raw_objective(raw: Any) -> dict:
     }
 
 
-def _validate_seed_list(value: Any, source_kind: str, label: str) -> List[dict]:
+def _validate_seed_list(value: Any, proposer_kind: str, label: str) -> List[dict]:
     if not isinstance(value, list) or not 1 <= len(value) <= MAX_SEEDS:
         raise SeedProposalError(f"{label} must contain 1-{MAX_SEEDS} seed obligations")
     result, keys = [], set()
@@ -201,12 +201,12 @@ def _validate_seed_list(value: Any, source_kind: str, label: str) -> List[dict]:
         if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", kind):
             raise SeedProposalError(f"{label}[{index}].kind must be lower_snake_case")
         classification = item["classification"]
-        if classification not in _CLASSIFICATIONS:
+        if not isinstance(classification, str) or classification not in _CLASSIFICATIONS:
             raise SeedProposalError(f"{label}[{index}] has an unsupported classification")
         confidence = item["confidence"]
-        if confidence not in ("stated", "inferred"):
+        if not isinstance(confidence, str) or confidence not in ("stated", "inferred"):
             raise SeedProposalError(f"{label}[{index}].confidence must be stated or inferred")
-        if source_kind == "external_llm" and confidence != "inferred":
+        if proposer_kind == "external_llm" and confidence != "inferred":
             raise SeedProposalError("external-LLM seed obligations must remain inferred")
         result.append({
             "key": key,
@@ -223,12 +223,12 @@ def _validate_seed_list(value: Any, source_kind: str, label: str) -> List[dict]:
     return result
 
 
-def _validate_alternative(value: Any, raw: dict, label: str) -> dict:
+def _validate_alternative(value: Any, raw: dict, label: str, proposer_kind: str) -> dict:
     item = _object(value, label, _ALTERNATIVE_FIELDS)
     alt_id = _text(item["alternative_id"], f"{label}.alternative_id", 64)
     if not _KEY.fullmatch(alt_id):
         raise SeedProposalError(f"{label}.alternative_id must use portable identifier characters")
-    seeds = _validate_seed_list(item["seed_obligations"], raw["source"]["kind"],
+    seeds = _validate_seed_list(item["seed_obligations"], proposer_kind,
                                 f"{label}.seed_obligations")
     keys = {seed["key"] for seed in seeds}
 
@@ -247,7 +247,7 @@ def _validate_alternative(value: Any, raw: dict, label: str) -> dict:
         note = edge["note"]
         if src not in keys or dst not in keys:
             raise SeedProposalError("candidate relationships must connect declared seed keys")
-        if kind not in _RELATIONSHIP_KINDS or authority not in _AUTHORITY_LEVELS:
+        if (not isinstance(kind, str) or kind not in _RELATIONSHIP_KINDS\n                or not isinstance(authority, str) or authority not in _AUTHORITY_LEVELS):
             raise SeedProposalError("candidate relationship kind or authority is unsupported")
         if reversible is not None and not isinstance(reversible, bool):
             raise SeedProposalError("relationship.reversible must be true, false, or null")
@@ -282,7 +282,7 @@ def _validate_alternative(value: Any, raw: dict, label: str) -> dict:
             })
 
     coverage = item["acceptance_criterion_coverage"]
-    if not isinstance(coverage, list) or len(coverage) > len(raw["acceptance_criteria"]):
+    if not isinstance(coverage, list) or len(coverage) != len(raw["acceptance_criteria"]):
         raise SeedProposalError(f"{label}.acceptance_criterion_coverage must be a bounded list")
     covered = set()
     checked_coverage = []
@@ -336,6 +336,13 @@ def _validate_proposal(raw_objective: Any, alternatives: Any, proposer_kind: str
     ids = [alt["alternative_id"] for alt in checked]
     if len(ids) != len(set(ids)):
         raise SeedProposalError("alternative_id values must be unique")
+    interpretations = [" ".join(alt["interpretation"].split()).casefold() for alt in checked]
+    if len(interpretations) != len(set(interpretations)):
+        raise SeedProposalError("competing alternatives must preserve distinct interpretations")
+    graph_digests = {_digest({"seed_obligations": alt["seed_obligations"],
+                              "relationships": alt["relationships"]}) for alt in checked}
+    if len(graph_digests) != len(checked):
+        raise SeedProposalError("competing alternatives must contain distinct seed graphs")
     if supersedes_proposal_id is not None and (
         not isinstance(supersedes_proposal_id, str)
         or not _PROPOSAL_ID.fullmatch(supersedes_proposal_id)
@@ -440,10 +447,10 @@ class SeedProposalStore:
                 decision = review["decision"]
                 selected = review["selected_alternative_id"]
                 alt_ids = {a["alternative_id"] for a in current["proposal"]["alternatives"]}
-                if decision not in _REVIEW_DECISIONS:
+                if not isinstance(decision, str) or decision not in _REVIEW_DECISIONS:
                     raise SeedProposalError("seed proposal review decision is invalid")
                 if decision == "approved":
-                    if selected not in alt_ids:
+                    if not isinstance(selected, str) or selected not in alt_ids:
                         raise SeedProposalError("approval must select one existing alternative explicitly")
                 elif selected is not None:
                     raise SeedProposalError("only approval may select an alternative")
@@ -593,7 +600,7 @@ class SeedProposalStore:
                selected_alternative_id: Optional[str] = None) -> dict:
         if not isinstance(proposal_id, str) or not _PROPOSAL_ID.fullmatch(proposal_id):
             raise SeedProposalError("proposal_id is invalid")
-        if decision not in _REVIEW_DECISIONS:
+        if not isinstance(decision, str) or decision not in _REVIEW_DECISIONS:
             raise SeedProposalError(f"decision must be one of {sorted(_REVIEW_DECISIONS)}")
         snapshot = self._snapshot(self._read_events())
         current = snapshot.get(proposal_id)
@@ -602,7 +609,7 @@ class SeedProposalStore:
         if current["latest_review"] is not None:
             raise SeedProposalError("seed proposal already has a review decision; submit a new revision")
         alt_ids = {a["alternative_id"] for a in current["proposal"]["alternatives"]}
-        if decision == "approved" and selected_alternative_id not in alt_ids:
+        if decision == "approved" and (not isinstance(selected_alternative_id, str) or selected_alternative_id not in alt_ids):
             raise SeedProposalError("approval must select one existing alternative explicitly")
         if decision != "approved" and selected_alternative_id is not None:
             raise SeedProposalError("only approval may select an alternative")
