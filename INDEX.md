@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `d580248ecf9436784a8772c50e733008baaf1b41`  
+**Last verified against:** `main` at `b5e78842f43ac93c2624697f686da0b600306177`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -1093,3 +1093,29 @@ These are candidates for further source tracing and controlled experiments. No e
 **G-94 is corrected in the PR branch, pending exact-head full-suite CI and review.** No pass count is claimed until that run completes. The changes do not alter self-binding content, faculty semantics, prompt text, selection weights, feature flags, database schema or history shape. No live service or database was accessed.
 
 This is a persistence-ownership correction that preserves the existing cognitive connections. It does not add a new faculty or claim that the recursive self-reading nudge produces a beneficial attention change. Gate 0 and Phase 1 authority remain unchanged.
+
+## 48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
+
+**Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is on draft-review candidate PR #360; exact-head CI is being rerun after correcting the self-assessment count for the new adapter.
+
+### What this increment adds
+
+The new provider-neutral `rdo_adapters.seed_proposals` boundary preserves the user's raw objective revision and allows multiple competing seed-graph interpretations to be submitted as candidates. Each proposal binds the exact canonical raw-objective snapshot and SHA-256 digest, and carries seed obligations, typed relationships, acceptance-criterion coverage (each criterion must map to at least one declared seed obligation), assumptions, constraints, exclusions, open questions, disconfirming cases and evidence needs.
+
+External-LLM-derived seed confidence must remain explicitly `inferred`; human-authored seed confidence may be `stated`. Approval requires an explicit review decision selecting exactly one existing alternative. A candidate is not an approved objective, and approval does not itself execute anything.
+
+### Integrity and authority boundaries
+
+- Proposal/review events are stored in an append-only, sequence-numbered, SHA-256-linked JSONL ledger with duplicate-key rejection, event/byte bounds, file locking, fsync, and symlink rejection for the ledger path.
+- Raw-objective revisions are linked to the exact previous digest; original wording and intent remain immutable across revisions.
+- Review decisions cannot be overwritten; a revised candidate must explicitly supersede a changes-requested or rejected proposal.
+- The only approval retrieval is an explicit `approved_selection()` call. It returns the selected existing alternative and exact raw-objective lineage.
+- This increment does **not** submit to `objective.v1`, run recursive expansion, create a Stage-7 handoff, execute generated code, load rules, activate policy, or change NEX runtime state.
+
+### Validation and next work
+
+The first exact-head CI exposed one stale self-assessment expectation: RDO correctly discovers a fourth boundary adapter after `seed_proposals.py` was added, while the existing test still expected three. The branch now updates that assertion and explicitly checks for `seed_proposals.py`. A second review found that a coverage record could name zero obligations; the validator now rejects empty obligation lists and a regression test covers it. The new exact-head full-suite CI is pending; no pass count is claimed.
+
+The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and reuses the existing `rdo.tension._find_cycles` / `rdo.graph` analysis to characterize candidate graphs. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
+
+No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
