@@ -792,8 +792,9 @@ class AppState:
                 seen_threads.add(id(thread))
                 threads.append(thread)
 
-        # Stage 2 dynamic and the World Model expose _stop/_threads.
-        for label, state in (("dynamic", self.dynamic), ("world_model", self.world_model)):
+        # Stage 2 dynamic, the World Model and the membrane expose _stop/_threads.
+        for label, state in (("dynamic", self.dynamic), ("world_model", self.world_model),
+                             ("membrane", self.membrane)):
             if state is None:
                 continue
             stop = getattr(state, "_stop", None)
@@ -819,6 +820,10 @@ class AppState:
             ("self_pred_loop", self.self_pred_loop, "stop"),
             ("edge_generator_loop", self.edge_generator_loop, "stop"),
             ("decoder_loop", self.decoder_loop, "stop"),
+            ("novel_association", self.novel_association, "stop"),
+            ("affect_state", self.affect_state, "stop"),
+            ("drive_emergence", self.drive_emergence, "stop"),
+            ("social_presence", self.social_presence, "stop"),
         )
         for label, worker, stop_name in managed:
             if worker is None:
