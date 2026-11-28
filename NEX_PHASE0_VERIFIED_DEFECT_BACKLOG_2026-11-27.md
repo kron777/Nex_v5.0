@@ -1051,3 +1051,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 §158 Genius reporting denominator qualification: panel overview, genius_tag_cli rate/top and genius_provenance.py aggregate tag rows across weights versions without unique fountain_event_id or current-version selection. The HUD current_version label comes from the latest row while its rate aggregates all rows. /api/fountain/recent uses first-wins per event, so displays differ. Actual duplicate distribution and live metrics remain UNKNOWN. See INDEX §158.
+
+
+**PR #454 validation update:** exact-head workflow 46182737858 passed at 7b9ae6c3f0debbc87882b8d8e8c8932f79cb5c5e. Its isolated tests verify the governor belief write and OFF boundary, current/next Fountain source-pool omission, generic retrieval eligibility, and OUTSIDE classification/INSIDE self-inquiry exclusion. This remains fixture evidence, not host retrieval observation.
