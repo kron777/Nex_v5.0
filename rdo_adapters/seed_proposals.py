@@ -10,13 +10,12 @@ import hashlib
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from watcher.evidence import utc_now
 
 from .objective_intake import (
-    ObjectiveInputError, RAW_OBJECTIVE_SCHEMA_VERSION, SCHEMA_VERSION,
-    _canonical_json, _digest, _object, _text, _text_list,
+    ObjectiveInputError, SCHEMA_VERSION, _digest, _object, _text, _text_list,
     validate_objective, validate_raw_objective,
 )
 
