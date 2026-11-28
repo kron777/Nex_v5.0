@@ -11,18 +11,22 @@ from gui.shutdown_gate import ShutdownGate, install_shutdown_gate
 
 def test_gate_timeout_reports_active_requests_and_closes_admission():
     gate = ShutdownGate()
-    assert gate.enter()
+    token = gate.enter("GET /manual")
+    assert token is not None
     report = gate.begin_shutdown(time.monotonic() + 0.01)
     assert report == {
         "success": False,
         "active_requests": 1,
+        "active": [report["active"][0]],
         "deadline_exceeded": True,
     }
     assert gate.is_closing
     assert gate.active_requests == 1
+    assert report["active"][0]["label"] == "GET /manual"
+    assert report["active"][0]["thread"] == threading.current_thread().name
     assert not gate.enter()
 
-    gate.leave()
+    gate.leave(token)
     assert gate.active_requests == 0
 
 
@@ -81,6 +85,7 @@ def test_flask_gate_rejects_new_requests_and_waits_for_admitted_request():
     assert shutdown_result == {
         "success": True,
         "active_requests": 0,
+        "active": [],
         "deadline_exceeded": False,
     }
     assert gate.active_requests == 0
