@@ -311,3 +311,12 @@ def test_mutated_approved_catalogue_is_rejected_by_digest_validation(tmp_path):
                       "specialized_deployment")
     with pytest.raises(ValueError, match="digest mismatch"):
         expand([seed], approved_catalogue=catalogue)
+
+
+
+def test_rule_step_must_make_progress_to_a_different_kind(tmp_path):
+    proposal = _proposal()
+    proposal["alternatives"][0]["steps"][0]["child_kind"] = proposal["target_kind"]
+    store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
+    with pytest.raises(ValueError, match="differ from the target kind"):
+        store.propose(proposal)
