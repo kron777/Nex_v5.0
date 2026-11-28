@@ -5142,3 +5142,30 @@ The cache TTL is `_CACHE_TTL = 60.0` seconds. Every GUI chat request calls `Meta
 ### §131 Fountain rail test result
 
 Draft PR #451 exact head `91739d131f21f3dd2c55d35ef2b23a07aa73c424` passed workflow `46176528182`: 3,078 passed, 7 skipped, 86 subtests (246.12s); baseline gate and disposable sandbox probe passed. The test verifies the `NEX5_METACOG_VOICE` off/on prompt-builder boundary and confirms Fountain reads the cached formatter without calling `Metacognition.tick()`. It does not test stale-cache age or host flag state. PR #451 remains test-only and draft pending review.
+
+
+## §133 — G-83 consolidated causal model and next investigation boundary (28 November 2026)
+
+The inspected source now supports this recurrent pathway, with explicit conditions:
+
+`Fountain generation` (mode interval; default 120s, chat mode 300s)  
+→ `VoiceClient` generates an internal thought  
+→ `FountainCrystallizer` stores a surviving thought as a `fountain_insight` belief  
+→ `DiversityLoop` scans every 60s; `GrooveSpotter` reads internal `fountain_insight`/`synergized` beliefs and emits a new alert only when a detector fingerprint changes  
+→ alert writes a targeted two-hour `signal_cooldown` for qualifying pattern types  
+→ on a later GUI chat request, `Metacognition.tick()` re-reads up to three unacknowledged alerts from the last 600s  
+→ each read writes a new `meta_cognition_events` groove row and a `narrative_log` row retaining the source alert ID  
+→ three derived groove rows in 1,800s can create a global 60-second Row 9 crystallization hold  
+→ the GUI may add generic reflection and topic-matched narrative to the chat prompt, subject to the thin-belief early-return gate  
+→ if `NEX5_METACOG_VOICE=1`, a later Fountain fire can also receive the last chat-refreshed Metacognition cache line  
+→ that Fountain output can return to the belief window and be observed by GrooveSpotter again.
+
+**What is established:** producer and consumer source paths; the producer's unchanged-pattern dedup; the 600-second consumer replay; source-ID loss in `meta_cognition_events`; narrative-side source-ID retention; aggregate Row 9 counting; both prompt surfaces; and fixture-level transport delivery. Exact-head CI passed for producer fingerprints (#448), consumer replay/narrative (#449), GUI chat transport (#450), and optional Fountain prompt gating (#451).
+
+**What is not established:** host feature-flag state; live Fountain/chat cadence; whether any optional digest/voice rail is active; whether the provider accepted a request; whether the model semantically used the reflection; intended acknowledgement/episode/session scope; automatic invocation of the 14-day decay method; or the founder-approved Row 9 counting unit.
+
+**Important distinctions:** the July producer stale-re-fire defect was fixed by fingerprints and is not the current consumer replay; pattern-specific two-hour cooldown is not the global Row 9 hold; generic prompt reflection is not a typed operation or action authority; the Tibetan mind map remains descriptive only.
+
+**Next bounded work:** (1) characterize the 60-second cache TTL and stale Fountain prompt reuse without changing policy; (2) finish the repository-wide acknowledgement/resolved_at writer census and locate the original episode/acknowledgement decision; (3) verify whether a production lifecycle caller invokes `Metacognition.decay()`; (4) after these, trace whether sample belief IDs from a groove alert intersect the next Fountain retrieval manifest. No behavioural experiment, schema change or Phase 1 work before Gate 0.
+
+**Disposition:** G-83 remains OPEN. Phase 0 continues. Gate 0 remains unestablished; Phase 1 remains unauthorized. No runtime code, schema, flag, cognitive policy, frozen S-01–S-25/M1.8, Master Roadmap or action authority changed.
