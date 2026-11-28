@@ -420,6 +420,14 @@ class SeedProposalStore:
                            for i, alt in enumerate(alternatives)]
                 if checked != alternatives:
                     raise SeedProposalError("persisted seed proposal alternative is not canonical")
+                alt_ids = [alt["alternative_id"] for alt in checked]
+                interpretations = [" ".join(alt["interpretation"].split()).casefold() for alt in checked]
+                graph_digests = {_digest({"seed_obligations": alt["seed_obligations"],
+                                          "relationships": alt["relationships"]}) for alt in checked}
+                if (len(alt_ids) != len(set(alt_ids))
+                        or len(interpretations) != len(set(interpretations))
+                        or len(graph_digests) != len(checked)):
+                    raise SeedProposalError("persisted alternatives are not distinct competing seed graphs")
                 identity_body = dict(record)
                 identity_body.pop("proposal_id", None)
                 identity_body.pop("created_at", None)
@@ -428,9 +436,10 @@ class SeedProposalStore:
                     raise SeedProposalError("duplicate or mismatched seed proposal identity")
                 predecessor_id = record["supersedes_proposal_id"]
                 if predecessor_id is not None:
+                    if not isinstance(predecessor_id, str) or not _PROPOSAL_ID.fullmatch(predecessor_id):
+                        raise SeedProposalError("seed proposal supersession lineage is invalid")
                     predecessor = proposals.get(predecessor_id)
-                    if (not isinstance(predecessor_id, str) or not _PROPOSAL_ID.fullmatch(predecessor_id)
-                            or predecessor is None
+                    if (predecessor is None
                             or predecessor["status"] not in ("changes_requested", "rejected")
                             or predecessor["proposal"]["raw_objective_sha256"] != raw_digest):
                         raise SeedProposalError("seed proposal supersession lineage is invalid")
