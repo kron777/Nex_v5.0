@@ -5224,3 +5224,8 @@ The boot/chat trace is now explicit:
 **Next step:** inspect AppState shutdown ownership and the complete production lifecycle surface for any scheduled cleanup path; then decide whether the remaining gap is only an uncalled method or a missing lifecycle owner. No scheduler, retention, schema or runtime behaviour change is authorised.
 
 **Authority boundary:** source characterization only. No frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
+
+
+### §134 downstream consequence refinement
+
+Because GrooveSpotter's source query reads only persisted `fountain_insight`/`synergized` belief rows, a thought rejected by crystallization does not enter the future GrooveSpotter scan window. The cooldown and stillness controls therefore limit the accumulation of new substrate beliefs and the future evidence available to the detector, while leaving the current model generation intact. They regulate what becomes durable input to the next cycle, not whether the current cycle generates text.
