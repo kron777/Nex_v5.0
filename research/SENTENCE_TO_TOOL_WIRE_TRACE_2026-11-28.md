@@ -1,14 +1,14 @@
 # NEX sentence-to-tool wire trace — 2026-11-28
 
 **Scope:** Stage B ToolCaller → ToolRegistry → arithmetic operation → response-context injection.  
-**Repository:** \`kron777/Nex_v5.0\`  
+**Repository:** `kron777/Nex_v5.0`  
 **Method:** source trace plus isolated tests; no live service or database access.
 
 ## 1. Existing wire
 
-The inspected path in \`gui/server.py\` is:
+The inspected path in `gui/server.py` is:
 
-\`\`\`text
+```text
 /api/chat human sentence
   -> AppState.tool_caller.should_use_tool(prompt, [])
   -> ToolCaller.build_tool_kwargs(prompt, tool_name)
@@ -17,7 +17,7 @@ The inspected path in \`gui/server.py\` is:
   -> ToolCaller.build_tool_prompt(prompt, result)
   -> appended to belief_text / response context
   -> voice response
-\`\`\`
+```
 
 This is an actual language-triggered capability route. It is not a general sentence compiler and does not synthesize arbitrary machine instructions. The current ToolCaller uses keyword patterns to select among web fetch, arithmetic and belief retrieval.
 
@@ -25,9 +25,9 @@ This is an actual language-triggered capability route. It is not a general sente
 
 Before this increment:
 
-- \`ToolCaller\` selected \`python_exec\` for calculation-like wording.
-- \`build_tool_kwargs()\` passed the original sentence as \`query\` and an empty \`code\`.
-- \`ToolRegistry._python_exec()\` replaced empty code with the query and passed it to \`python3 -c\`.
+- `ToolCaller` selected `python_exec` for calculation-like wording.
+- `build_tool_kwargs()` passed the original sentence as `query` and an empty `code`.
+- `ToolRegistry._python_exec()` replaced empty code with the query and passed it to `python3 -c`.
 - The import blacklist was regex-based and therefore not a reliable execution sandbox; Python expressions such as dynamic imports are not stopped by a blacklist that only searches for import statements.
 
 The sentence was therefore being treated as source code rather than being translated into a bounded operation.
@@ -39,9 +39,9 @@ The arithmetic route now:
 1. Selects the tool only when a recognised sentence prefix contains a numeric expression.
 2. Extracts the expression using a strict character allowlist and syntax parse.
 3. Passes an explicit arithmetic expression, never the natural-language sentence, to the registry.
-4. Interprets a small AST allowlist in-process; it does not call \`exec\`, \`eval\`, \`compile\`, or a subprocess.
-5. Allows numeric constants, bounded arithmetic, unary signs, a small allowlist of \`math\` constants/functions, and \`print(expression)\`.
-6. Rejects imports other than \`math\`, attribute traversal, file access, dynamic imports, assignments, loops, oversized expressions and excessive exponents.
+4. Interprets a small AST allowlist in-process; it does not call `exec`, `eval`, `compile`, or a subprocess.
+5. Allows numeric constants, bounded arithmetic, unary signs, a small allowlist of `math` constants/functions, and `print(expression)`.
+6. Rejects imports other than `math`, attribute traversal, file access, dynamic imports, assignments, loops, oversized expressions and excessive exponents.
 7. Rejects query-only invocation instead of silently treating the query as code.
 
 The output still follows the existing ToolResult → response-context path. No new node or execution authority was introduced.
@@ -49,7 +49,7 @@ The output still follows the existing ToolResult → response-context path. No n
 ## 4. Tests added
 
 - Safe arithmetic returns the expected numeric result.
-- \`math.pi\` and bounded \`math.sqrt\` work.
+- `math.pi` and bounded `math.sqrt` work.
 - OS/sys imports, dynamic imports, file access, assignments, loops and excessive exponents are rejected.
 - Query-only input is rejected by the registry.
 - A natural-language calculation sentence is traced through ToolCaller, ToolRegistry and response-context formatting.
