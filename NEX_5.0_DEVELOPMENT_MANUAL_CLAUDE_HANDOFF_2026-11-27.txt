@@ -295,7 +295,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 28 November 2026 — G-84 shutdown steps 1–2 merged and step 3 CI-green pending merge; remaining writer-deadline/clean-marker gap recorded. G-92/G-94, Bonsai/Global Workspace, Sentience wiring and PR #365 bridge candidate updated; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — G-84 steps 1–2 merged, step 3 CI-green pending merge, and writer-deadline/clean-marker defect recorded. RDO bridge candidate and ObjectiveInputStore concurrency prerequisite, G-92/G-94, Bonsai/Global Workspace and Sentience wiring updated; Gate 0 boundaries remain.*
 
 
 
@@ -928,7 +928,7 @@ This update records implementation evidence and remaining capability boundaries;
 
 ## 44. One-pen census, G-78 validation consequence and persistence corrections (28 November 2026)
 
-**Evidence snapshot:** `main` at `60cc178ba1f3c895651c86ad95345c98fd5a2198`. Source and fixture-test evidence only; host and runtime state remains **UNKNOWN**.
+**Evidence snapshot:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. The 112-site one-pen census is a historical pre-merge scan and must be rerun on current main before making a current-count or reachability claim. Source and fixture-test evidence only; host and runtime state remains **UNKNOWN**.
 
 ### One-pen census (G-61)
 
@@ -1142,13 +1142,13 @@ The stale self-assessment expectation was corrected in merged PR #360, and zero-
 
 A first read-only reviewed-selection bridge is now proposed in PR #365 (branch feat/rdo-reviewed-seed-intake-bridge-2026-11-28; exact-head full-suite CI run 46116751231 passed; pending merge). It requires explicit approval, prepares a validated objective.v1 payload, returns separate raw-objective and intake revision/digest lineage, retains approval-event and acceptance-coverage provenance, and reuses existing SCC/cycle classification with a conservative enumeration bound. It does not append either ledger, run recursive expansion or create a Stage-7 handoff.
 
-The next bounded increment is a durable cross-ledger provenance and append/recovery protocol. Two append-only ledgers cannot be assumed to update atomically; any future append must handle prepare/commit/recovery explicitly and must not silently run planning or execution. No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0 or Phase 1 authority is changed.
+Before any persistent bridge append, ObjectiveInputStore itself needs concurrency and path hardening. Its current append path reads history and then appends without an exclusive flock; history reads without a shared lock; the ledger path/directory are not rejected when symlinked; and first-file creation does not fsync the containing directory. Two concurrent writers can both accept the same next revision and leave a non-sequential chain. The PR #365 bridge is read-only and its proposed revision is a preview, not a reservation; any later append must re-read and validate the current head under lock.
 
-No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
+The next bounded sequence is: harden ObjectiveInputStore read/append locking, symlink rejection and directory durability; then implement a durable cross-ledger prepare/commit/recovery protocol. Two append-only ledgers cannot be assumed to update atomically. No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0 or Phase 1 authority, live NEX runtime, database or feature flag was changed.
 
 ## 49. Bonsai → Fountain branch pick → Global Workspace trace (28 November 2026)
 
-**Evidence snapshot:** NEX `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; the characterization run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests; the final manual-synchronization head also passed full-suite CI in run `46116263832`.
+**Evidence snapshot:** NEX `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; the characterization run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests. The previous manual/research head `39aa3ff07c8ca1f05583369a41d89754f6f884bf` passed full-suite CI run `46117575615`; the subsequent G-84/storage-risk manual update is undergoing exact-head CI.
 
 ### Network path
 
