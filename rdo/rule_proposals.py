@@ -209,6 +209,38 @@ def _event_digest(event: dict) -> str:
     })).hexdigest()
 
 
+def _source_frontier_for(proposal: dict, source_cycle, expected_digest: Optional[str] = None) -> Tuple[dict, str]:
+    if source_cycle is None:
+        raise ValueError("a persisted source cycle is required for frontier traceability")
+    if getattr(source_cycle, "id", None) != proposal["source_cycle_id"]:
+        raise ValueError("source cycle ID does not match the proposal")
+    frontier_items = getattr(source_cycle, "frontier", None)
+    if not isinstance(frontier_items, list):
+        raise ValueError("source cycle has no valid frontier list")
+    source_frontier = next((
+        item for item in frontier_items
+        if isinstance(item, dict)
+        and item.get("key") == proposal["source_frontier_key"]
+        and item.get("frontier_type") == "novel_kind_requires_rule_proposal"
+    ), None)
+    if source_frontier is None:
+        raise ValueError("source cycle has no matching novel-kind frontier item")
+    request = source_frontier.get("rule_proposal_request")
+    if not isinstance(request, dict):
+        raise ValueError("source frontier has no valid rule proposal request")
+    source = request.get("source_obligation")
+    if not isinstance(source, dict):
+        raise ValueError("source frontier has no valid source obligation")
+    if (request.get("target_kind") != proposal["target_kind"]
+            or any(source.get(field) != proposal["source_obligation"].get(field)
+                   for field in ("key", "title", "kind"))):
+        raise ValueError("proposal does not match the source frontier obligation")
+    digest = hashlib.sha256(_canonical(source_frontier)).hexdigest()
+    if expected_digest is not None and digest != expected_digest:
+        raise ValueError("source frontier digest changed since proposal creation")
+    return source_frontier, digest
+
+
 class RuleProposalStore:
     """Append-only hash-chained candidate/review ledger with an approved-only view."""
 
@@ -304,39 +336,13 @@ class RuleProposalStore:
 
     def propose(self, raw: dict, source_cycle=None) -> dict:
         proposal = _normalise_proposal(raw)
-        if source_cycle is None:
-            raise ValueError("a persisted source cycle is required for frontier traceability")
-        if getattr(source_cycle, "id", None) != proposal["source_cycle_id"]:
-            raise ValueError("source cycle ID does not match the proposal")
-        frontier_items = getattr(source_cycle, "frontier", None)
-        if not isinstance(frontier_items, list):
-            raise ValueError("source cycle has no valid frontier list")
-        source_frontier = next((
-            item for item in frontier_items
-            if isinstance(item, dict)
-            and item.get("key") == proposal["source_frontier_key"]
-            and item.get("frontier_type") == "novel_kind_requires_rule_proposal"
-        ), None)
-        if source_frontier is None:
-            raise ValueError("source cycle has no matching novel-kind frontier item")
-        request = source_frontier.get("rule_proposal_request")
-        if not isinstance(request, dict):
-            raise ValueError("source frontier has no valid rule proposal request")
-        source = request.get("source_obligation")
-        if not isinstance(source, dict):
-            raise ValueError("source frontier has no valid source obligation")
-        if (request.get("target_kind") != proposal["target_kind"]
-                or any(source.get(field) != proposal["source_obligation"].get(field)
-                       for field in ("key", "title", "kind"))):
-            raise ValueError("proposal does not match the source frontier obligation")
+        source_frontier, source_digest = _source_frontier_for(proposal, source_cycle)
         provenance_ref = (
             f"frontier:{proposal['source_cycle_id']}:{proposal['source_frontier_key']}"
         )
         if provenance_ref not in proposal["provenance"]:
             raise ValueError("proposal provenance must cite its exact source frontier")
-        proposal["source_frontier_sha256"] = hashlib.sha256(
-            _canonical(source_frontier)
-        ).hexdigest()
+        proposal["source_frontier_sha256"] = source_digest
         # Novel kinds only: built-in and terminal rules are not shadowed.
         from .extrapolator import EXPANSION_RULES, TERMINAL_KINDS
         target = proposal["target_kind"]
@@ -347,12 +353,20 @@ class RuleProposalStore:
             "proposal_id": proposal_id, "proposal": proposal,
         })
 
+    def get_proposal(self, proposal_id: str) -> dict:
+        proposal_id = _text(proposal_id, "proposal_id", 64)
+        for event in self.events():
+            if (event["event_kind"] == "proposal_created"
+                    and event["data"]["proposal_id"] == proposal_id):
+                return event["data"]["proposal"]
+        raise ValueError("rule proposal does not exist")
+
     def review(self, proposal_id: str, decision: str, reviewer: str,
                source_reference: str, evidence_references: List[str],
                selected_alternative: Optional[str] = None,
                positive_test_evidence: Optional[List[str]] = None,
                negative_test_evidence: Optional[List[str]] = None,
-               note: str = "") -> dict:
+               note: str = "", source_cycle=None) -> dict:
         proposal_id = _text(proposal_id, "proposal_id", 64)
         reviewer = _text(reviewer, "reviewer", 256)
         source_reference = _text(source_reference, "source_reference", 1000)
@@ -373,6 +387,9 @@ class RuleProposalStore:
                                 and e["data"]["proposal_id"] == proposal_id), None)
                 if created is None:
                     raise ValueError("rule proposal does not exist")
+                _source_frontier_for(
+                    created, source_cycle, expected_digest=created.get("source_frontier_sha256")
+                )
                 prior = [e["data"] for e in events
                          if e["event_kind"] == "proposal_reviewed"
                          and e["data"]["proposal_id"] == proposal_id]
