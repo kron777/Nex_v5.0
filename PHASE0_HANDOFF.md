@@ -361,3 +361,9 @@ Neither workflow has a result yet. No local tests were run. Both remain drafts; 
 ### 28 November 2026 — G-83 producer tests exact-head validation
 
 PR #448 producer fingerprint characterization passed exact-head GitHub Actions run 46173749707: 3,081 passed, 7 skipped, 86 subtests, 0 deselections; baseline OK. Mind-map check: 30 nodes, 0 unverified, 12 dark, 2 blocked; existing doctrine-reference and overdue P13 warnings remain. This verifies only the current per-instance fingerprint behavior in tests, not production restart cadence or semantic episode identity. PR #448 remains draft pending review. PR #449 consumer replay/Row 9 renewal run 46174148899 remains in progress. See INDEX §125; G-83 remains OPEN.
+
+### 28 November 2026 — G-83 consumer characterization result and chat-prompt boundary
+
+Draft PR #449 exact head `50c2e083de1dab3e40301b37dc14b614a0d08f23` passed full-suite workflow `46174148899`: 3,078 passed, 7 skipped, 86 subtests; baseline OK; disposable sandbox probe OK. Its controlled-clock test verifies five derived groove events and two Row 9 stillness activations from one unchanged unacknowledged source alert over five chat ticks. This is test-only evidence, not live runtime observation or approval to change behaviour.
+
+The source-to-sink follow-up confirms that run.py passes Stage-SelfNarrative into Metacognition; gui/server.py ticks Metacognition on the chat path and appends its generic groove self-observation line; the same tick writes pattern-specific narrative_log rows, which the later Stage-SelfNarrative prompt formatter only returns when the user's prompt prefix matches the narrative content by substring. The combined formatter/caller exposure remains a test candidate. G-83 remains OPEN: no acknowledgement/episode semantics, topic scope, Row 9 threshold/duration, or output policy is changed. See INDEX §126 and verified defect backlog G-83. Gate 0 remains unestablished; Phase 1 remains unauthorized.
