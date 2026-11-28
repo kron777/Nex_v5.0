@@ -3524,3 +3524,51 @@ Do not enable `NEX5_OWN_CONTENT_RENDER` in production on the strength of this so
 **Host/runtime unknowns:** effective `NEX5_OWN_CONTENT_RENDER`, `NEX5_ASSOC_RECALL`, `NEX5_EDGE_WEIGHTED_FOUNTAIN`, `NEX5_GLOBAL_WORKSPACE` and other relevant prompt flags; which own-content sources are selected in actual fires; whether their text is rendered by any other independent prompt block; current activation distribution; and whether a paired replay has a positive, neutral or harmful behavioural effect. No tests were run in this documentation pass.
 
 No runtime code, tests, schema, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
+
+
+
+## 97. Substrate retrieval activation: attention record, sidecar rendering and opt-in emission are distinct (28 November 2026)
+
+**Question studied:** does the activation touch written when Fountain retrieves its own thoughts feed back into ordinary retrieval or subsequent generation, or do they only create an auxiliary attention record?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source review and test-file inspection only. No live process, production database, host environment or feature flags were inspected.
+
+### First distinction: two mechanisms both called activation
+
+The ordinary world-model retriever uses `theory_x/stage3_world_model/activation.py::ActivationEngine`. It spreads scores from the current query's top keyword seeds through `belief_edges`, computes an epistemic-temperature summary and supplies normalized scores to `BeliefRetriever.retrieve()`. When scores exist, the retrieval blend is `keyword * 0.4 + spreading_activation * 0.6`; otherwise it falls back to keyword scoring. This is query-local graph spreading, not the persistent `belief_activation` table.
+
+The Fountain context builder separately calls `theory_x/substrate/activation.py::bump_activation()` for each selected context belief. That function writes/upserts `belief_activation`, adding 1.0 after lazy exponential decay (30-minute half-life, cap 10). Its module docstring defines this as how recently/frequently a belief was retrieved into a Fountain prompt. This is a persistent retrieval-history/recency signal; it is not the same calculation as query-local spreading activation.
+
+### Where the persistent activation is consumed
+
+The inspected production call sites in `theory_x/stage6_fountain/generator.py` show two distinct downstream paths:
+
+1. **Optional hot-belief emission:** when `NEX5_SUBSTRATE_EMIT=1`, the generator calls `get_top_activated(..., n=4)`, formats the four highest effective-activation belief contents into a `[substrate emit]` thought, marks the candidate as `fresh_model_generation: False`, and sets it as the thought output. This is a real output-selection route, but it is explicitly environment-gated and the source comment labels it default OFF. It is not evidence that the beliefs were inserted into a language-model prompt or that a new model-generated thought causally incorporated them.
+
+2. **Periodic parallel substrate fire:** on the main path, every fifth-fire schedule condition (`_total_fires % 5 == 1`) runs when the beliefs Writer exists. It calls `render_substrate_fire()`, reads the top activated belief, and persists the rendered output plus the top belief ID/activation value to the dynamic database's `substrate_fires` table. This is a separate sidecar/parallel output path. It is not guarded by `NEX5_SUBSTRATE_EMIT`; it is also not shown by the inspected call site to be inserted into the next Fountain prompt.
+
+`theory_x/substrate/renderer.py` confirms that the sidecar is template-rendered without an LLM: it reports the most activated belief, up to three connected beliefs, and the latest recent synergy result. The old open-arcs prompt block remains commented out with an explicit historical note about a repetition regression. Thus the renderer's output is a graph-native observation, not a fresh language-model synthesis.
+
+### What this does—and does not—establish
+
+The current source supports the following distinctions:
+
+- **Persistent activation write:** records that a belief was selected into Fountain context.
+- **Ordinary retrieval influence:** the separately named world-model spreading-activation engine contributes to query-local retrieval scoring; the inspected implementation does not read the persistent `belief_activation` table for that blend.
+- **Substrate sidecar:** the periodic renderer reads persistent activation and stores a graph-native parallel-fire output.
+- **Optional direct emission:** the explicit `NEX5_SUBSTRATE_EMIT=1` route can choose hot beliefs as Fountain output without a fresh model generation.
+- **Verbal prompt feedback:** none of the inspected persistent-activation consumers proves that the sidecar output is fed into a later Fountain prompt. Nor does an activation touch alone prove that a belief's text was rendered to the model.
+
+This sharpens §96: own-thought continuity has at least four separable channels—candidate selection, persistent activation history, optional substrate output, and direct prompt-text rendering. The system has real activation consumers; describing the table as a passive, write-only counter would be inaccurate. But describing it as ordinary retrieval control or default verbal self-feedback would also overstate the evidence.
+
+### Evidence limits and next bounded trace
+
+GitHub code search for the exact table and reader names returned no results and marked its API response incomplete; therefore this pass does **not** claim an exhaustive repository-wide consumer census. The source-verified call sites above are positive evidence, not proof that no additional readers exist. The downstream read path from `substrate_fires` into GUI/observability or any later prompt path remains to be checked against the complete consumer set.
+
+The next safe step is a repository-wide static consumer census using the complete tree/blob set or a local checkout, then a caller-to-prompt trace for any `substrate_fires` reader. If the user later authorizes a behavioural experiment, isolate default periodic sidecar output from `NEX5_SUBSTRATE_EMIT` and `NEX5_OWN_CONTENT_RENDER`; record exact prompt slots, output provenance, repeated-phrase/groove measures and downstream crystallization. Do not enable either opt-in flag in production on this source review.
+
+**Source anchors inspected:** `theory_x/substrate/activation.py` blob `16a8e4265b9280a04cbfe038b8e58d1c36698b25` (persistent activation write/read/ranking); `theory_x/stage3_world_model/activation.py` blob `509a021671c7f698fb740086dfffa170d2543b84` (query-local spreading activation); `theory_x/stage3_world_model/retrieval.py` blob `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3` (0.4 keyword / 0.6 spreading-activation blend); `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51` (activation touch, optional hot-belief emission and periodic parallel fire); `theory_x/substrate/renderer.py` blob `fce3bce13e48c4ac989b58db7b8241ca0f304fc1` (template sidecar); `tests/test_retrieval.py` blob `efd27b50c3cdc5ef64769fefcbb5529cc44ea90e` (no direct `belief_activation` or substrate-emission coverage found in this file).
+
+**Host/runtime unknowns:** effective `NEX5_SUBSTRATE_EMIT`; whether the periodic parallel-fire path is active in the deployed process; actual activation distribution and decay; whether `substrate_fires` is consumed elsewhere; whether any consumer inserts sidecar output into a later prompt; and the behavioural effect of optional direct emission. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, indexes, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
