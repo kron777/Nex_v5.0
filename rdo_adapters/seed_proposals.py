@@ -231,7 +231,8 @@ class SeedProposalStore:
             finally:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
-    def _append(self, event_kind: str, proposal_id: str, record: dict) -> dict:
+    def _append(self, event_kind: str, proposal_id: str, record: dict,
+                expected_tail: Optional[str] = None, check_expected: bool = False) -> dict:
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         if os.path.islink(self.path):
             raise SeedProposalError("seed proposal ledger must not be a symlink")
@@ -241,6 +242,9 @@ class SeedProposalStore:
                 if os.fstat(fh.fileno()).st_size > MAX_LEDGER_BYTES:
                     raise SeedProposalError("seed proposal ledger size limit exceeded")
                 events = self._read_unlocked(fh)
+                current_tail = events[-1]["event_sha256"] if events else None
+                if check_expected and current_tail != expected_tail:
+                    raise SeedProposalError("seed proposal ledger changed during the operation; retry against the latest state")
                 if len(events) >= MAX_LEDGER_EVENTS:
                     raise SeedProposalError("seed proposal ledger event limit exceeded")
                 event = {
@@ -460,7 +464,11 @@ class SeedProposalStore:
             if _proposal_identity(existing) != _proposal_identity(record):
                 raise SeedProposalError("seed proposal ID collision with different content")
             return {"proposal_id": proposal_id, "proposal": existing, "replayed": True}
-        event = self._append("proposal_submitted", proposal_id, record)
+        tail = state["events"][-1]["event_sha256"] if state["events"] else None
+        event = self._append(
+            "proposal_submitted", proposal_id, record,
+            expected_tail=tail, check_expected=True,
+        )
         return {"proposal_id": proposal_id, "proposal": record, "event": event, "replayed": False}
 
     def get_proposal(self, proposal_id: str) -> dict:
@@ -476,8 +484,10 @@ class SeedProposalStore:
                source_reference: str, rationale: str,
                evidence_references: List[str],
                selected_alternative_id: Optional[str] = None) -> dict:
-        proposal = self.get_proposal(proposal_id)
         state = self._state()
+        proposal = state["proposals"].get(proposal_id)
+        if proposal is None:
+            raise SeedProposalError("seed proposal does not exist")
         if state["superseded"].get(proposal_id):
             raise SeedProposalError("a superseded seed proposal cannot be reviewed")
         if not isinstance(decision, str) or decision not in _DECISIONS:
@@ -512,7 +522,11 @@ class SeedProposalStore:
             "evidence_references": evidence,
             "selected_alternative_id": selected_alternative_id,
         }
-        return self._append("proposal_reviewed", proposal_id, record)
+        tail = state["events"][-1]["event_sha256"] if state["events"] else None
+        return self._append(
+            "proposal_reviewed", proposal_id, record,
+            expected_tail=tail, check_expected=True,
+        )
 
     def approved_objective(self, proposal_id: str, revision: int = 1,
                            supersedes_sha256: Optional[str] = None) -> dict:
