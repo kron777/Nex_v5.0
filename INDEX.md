@@ -3280,3 +3280,54 @@ No runtime code, database schema, indexes, feature flags, tests, frozen S-01–S
 **Source anchors inspected at main:** theory_x/stage3_world_model/pipeline_hooks.py blob 6750bb427ed493a3310d9ea69d0e82207d0d38f1; theory_x/stage3_world_model/world_consolidation.py blob 192550c20c7b8e776dfa55f4f82d80fd4cc7ce69; theory_x/stage3_world_model/promotion.py blob 035f89c34d0bd9391bc531107f7689f14a529042; substrate/source_kind.py blob 11b052d529defefecd16caafae5b95a3b251c0f0; tests/test_promotion_atomicity.py blob 503cfb9f130391245a2b99746080cf3ae3c5cfd7; tests/test_source_kind.py blob d54ea4cb30b8d8315b1e3f34903f6088198c5374.
 
 **Host/runtime unknowns:** NEX5_TIER_CLIMB, NEX5_WORLD_CONSOLIDATE and related flags; actual PipelineHooks event/source mix; whether WorldConsolidator is armed; upstream lineage quality; number of distinct independent sources represented by historical corroboration counts; and live promotion rates by source kind.
+
+
+## 92. SelfNarrative belief injection: a second path can bypass retrieval eligibility (28 November 2026)
+
+**Question studied:** does the prompt's "What has consolidated deeply" section obey the same eligibility rules as ordinary belief retrieval?
+
+### Source behavior
+
+The ordinary BeliefRetriever explicitly filters for tier <= 6, paused = 0, and (locked = 1 OR confidence >= 0.15). Its docstring states those filters, and the SQL enforces them before scoring.
+
+The Stage-TOM SelfNarrative has a separate direct query in _recent_t6(). It selects content from beliefs where tier=6, orders by created_at DESC, and considers a bounded candidate set (n * 4) before returning at most n results. It does not filter paused, confidence, locked, or erosion_stage. build_narrative() then inserts up to two of those results under "What has consolidated deeply" whenever the narrative is built.
+
+This is a distinct prompt-injection path; it does not call BeliefRetriever and does not inherit its eligibility contract.
+
+### Consequence
+
+A Tier-6 belief that is paused by the Harmonizer can still be selected by _recent_t6() and inserted into SelfNarrative. Likewise, an unlocked Tier-6 belief below the ordinary retrieval confidence floor can be included. The direct query therefore has a wider eligibility set than ordinary retrieval.
+
+This is a source-level possibility, not evidence that a specific paused or low-confidence belief has actually appeared in a live prompt. The path is also conditional on SelfNarrative being enabled and on at least one substantive fire existing, because build_narrative() returns None when there are no fires.
+
+The mismatch matters because pausing is a deliberate state change in the contradiction-resolution lifecycle. If a belief is paused to prevent ordinary retrieval while a conflict is being resolved, a separate prompt path should not silently reintroduce it as a settled deep belief.
+
+### Reuse-first direction
+
+Do not duplicate a second definition of belief eligibility. Prefer one shared read-only eligibility predicate/query contract used by ordinary retrieval and narrative selection, with explicit exceptions documented where they are genuinely intended. Before changing the query, decide whether SelfNarrative is intended to include:
+- only beliefs eligible for ordinary retrieval;
+- paused beliefs as explicit unresolved tensions, labelled as such;
+- low-confidence candidates as hypotheses, clearly distinguished from established beliefs.
+
+If unresolved tensions should remain visible, they should be rendered in a separate, explicitly qualified section—not silently placed under "What has consolidated deeply."
+
+### Tests required
+
+Add direct tests for the active Stage-TOM module, not just the older separate Stage-SelfNarrative implementation:
+- paused Tier-6 belief is excluded from the "deeply consolidated" section, or appears only in a dedicated unresolved-tension section;
+- unlocked confidence 0.149 versus 0.150 boundary;
+- locked low-confidence behavior if ordinary retrieval eligibility is the intended shared contract;
+- Tier-6 creation-time ordering and the separate promotion-time semantic question from §90;
+- no substantive fires returns None and performs no prompt injection;
+- stable ordering and bounded candidate selection;
+- prompt provenance identifies whether each line came from ordinary retrieval, recent creation, promotion, or unresolved tension.
+
+The repository tree contains tests/test_self_narrative.py for the older Stage-SelfNarrative path, while the active Stage-TOM implementation is theory_x/stage_tom/self_narrative.py. Do not treat the older test module as coverage of this direct Stage-TOM query. This inspection did not establish a dedicated direct test module for the active path; indirect coverage may still exist.
+
+### Research conclusion
+
+NEX has two belief-to-prompt routes with different eligibility contracts. The ordinary retriever excludes paused beliefs and applies a confidence floor; Stage-TOM SelfNarrative's direct Tier-6 query does neither. The safest next step is to define a shared eligibility contract and explicitly model unresolved tensions, then test the active prompt path. No runtime code, database schema, indexes, feature flags, tests, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. This was source research and manual documentation only; no tests were run in this study.
+
+**Source anchors inspected at main:** theory_x/stage3_world_model/retrieval.py blob aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3; theory_x/stage_tom/self_narrative.py blob 5fbc617fadc177ade59b45acf118b77c43ef2e84; theory_x/stage3_world_model/harmonizer.py blob e72008ec21ad91e20cbdcfc73bacf14263e34382; tests/test_self_narrative.py (older Stage-SelfNarrative test path; blob SHA to be resolved if exact test evidence is later needed).
+
+**Host/runtime unknowns:** NEX5_SELF_NARRATIVE setting; whether this Stage-TOM narrative is used in the live generator; live Tier-6 paused/low-confidence population; whether any such rows have entered prompts; and actual Harmonizer resolution flags/outcomes.
