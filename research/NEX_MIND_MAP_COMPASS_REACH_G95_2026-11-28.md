@@ -9,6 +9,15 @@ After #362 (`b5e78842`) merged, the mind-map check (`python mind_map/mind_map.py
 
 ## 2. Re-verification of the six STALE nodes
 
+> **Correction (G-96, later on 2026-11-28).** The comparison below used the wrong baseline. It checked each range against `b5e78842~1`, the tree just before #362. It should have checked against `c6bc4e41`, the 2026-11-27 verification that wrote these anchors.
+>
+> Commits later that day had already moved several of the cited lines:
+> - `5d7f4e28`, `c42c2131` and `8570c05d` moved lines in `generator.py` by 2–4;
+> - `cc8ae436` moved the cited lines in `crystallizer.py` by 29;
+> - `8570c05d` added 9 lines to `self_binding.py`.
+>
+> So "byte-identical" below is true only against the later tree, and some anchors set here were a few lines off the intended code; mana's `self_binding.py:280-346` is one. Every anchor was re-derived from its own verification commit and corrected in the G-96 reconciliation; the affected nodes carry dated CORRECTION notes. The G-95 compass findings in §4 are unaffected.
+
 Each cited range was compared by content between `b5e78842~1` and `f5cf19c3`:
 
 | Node | Cited range(s) in the changed files | Result |
