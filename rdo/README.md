@@ -428,3 +428,12 @@ candidate-only rule-proposal request. See [RULE_PROPOSALS.md](RULE_PROPOSALS.md)
 for the candidate schema, competing decompositions, review/approval workflow,
 versioned catalogue and explicit per-cycle activation. PatternMemory does not
 promote rules; only a reviewed approval event can add one to the catalogue.
+
+
+
+## Feedback-loop evidence updates
+
+Measured dimensions and independently attributed stability reviews can be
+appended to an existing loop record without changing its topology or
+calculating a stability verdict. See [FEEDBACK_LOOP_EVIDENCE.md](FEEDBACK_LOOP_EVIDENCE.md)
+for the measurement/review commands, hash-chained event ledger and replay path.
