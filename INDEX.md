@@ -4912,3 +4912,10 @@ The next test should characterize the route-level distinction without changing p
 **Source anchors:** `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; PR #449 candidate head `8132db2a338727e580e3269ad148277db727b0d4`; workflow `46174972385`.
 
 **Evidence level:** source-observed branch/caller/prompt composition; combined unit-level formatter test pending CI; GUI route behaviour statically traced but not route-test-verified; no runtime observation.
+
+
+### Voice transport boundary refinement
+
+The final source edge is now inspected too. `VoiceClient.speak()` calls `build_system_prompt()`, then constructs the request payload with two messages: the generated system prompt and a user message whose `content` is exactly `req.prompt`. It passes that payload to `_request_fn(self.url, payload)`. Therefore, on a route that reaches `state.voice.speak()`, the assembled `voice_prompt` is handed to the model transport as the user-message content without an additional rewrite in `VoiceClient.speak()`. The separate `belief_count` argument is recorded in response deflection metadata; it does not add or remove prompt text in this method.
+
+This closes the static source chain from `belief_text` → `voice_prompt` → `VoiceRequest.prompt` → transport payload. It still does not prove the remote/local model server accepted the request, that a particular backend was active, or that the generated reply semantically used the reflective material. Those require runtime/request-level evidence. Source anchor: `voice/llm.py` blob `a41e04db8569393dc2ae2ebe622cf1e67ae3de66`.
