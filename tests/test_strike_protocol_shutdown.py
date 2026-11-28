@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+import threading
 
 import pytest
 
@@ -83,3 +84,44 @@ def test_delayed_belief_check_still_updates_when_its_delay_expires():
     assert catalogue.updated == [(1, 0)]
     assert protocol._threads == []
     protocol.stop()
+
+
+def test_appstate_reports_an_inflight_strike_request_that_exceeds_shutdown_budget():
+    class BlockingCatalogue(_Catalogue):
+        def __init__(self):
+            super().__init__()
+            self.started = threading.Event()
+            self.release = threading.Event()
+
+        def save(self, _record):
+            self.started.set()
+            self.release.wait()
+            self.saved += 1
+            return self.saved
+
+    catalogue = BlockingCatalogue()
+    protocol = StrikeProtocol(
+        voice=_Voice(),
+        dynamic_state=_Dynamic(),
+        beliefs_reader=_Reader(),
+        sense_writer=object(),
+        catalogue=catalogue,
+    )
+    request_thread = threading.Thread(
+        target=protocol.fire, args=(StrikeType.NOVEL,), name="in-flight-strike-request"
+    )
+    request_thread.start()
+    assert catalogue.started.wait(timeout=1.0)
+
+    state = AppState(
+        writers={}, readers={}, voice=None, strike_protocol=protocol,
+    )
+    report = state._quiesce_producers(timeout=0.01)
+    assert any("strike_protocol" in item or "in-flight-strike-request" in item
+               for item in report["alive"])
+
+    catalogue.release.set()
+    request_thread.join(timeout=1.0)
+    assert not request_thread.is_alive()
+    assert protocol._threads == []
+    assert catalogue.updated == []
