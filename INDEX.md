@@ -1040,7 +1040,7 @@ The current source contains several distinct interaction paths. They should be u
 
 ### Current disposition
 
-This trace is source-verified and hypothesis-generating. It identifies several existing connections and important non-connections; it does not yet establish runtime liveness, beneficial cognitive effect, or a unified integrated subject. No new node or runtime wire was added. A test-only characterization has now been added to `tests/test_dynamic.py`: an external `ai_research.arxiv` event must increase that branch's Bonsai focus and texture, while an `internal.proprioception` event is confirmed to match the systems branch but produce zero magnitude, no focus/texture change and no Stage-2 F-step event. This strengthens the previously weak internal-event assertion and adds a positive control. Exact-head CI is pending; no pass is claimed. The test currently establishes the Stage-2 pipeline → Bonsai edge only. Fountain branch selection and workspace framing remain the next separate test seam.
+This trace is source-verified and hypothesis-generating. It identifies several existing connections and important non-connections; it does not yet establish runtime liveness, beneficial cognitive effect, or a unified integrated subject. No new node or runtime wire was added. A test-only characterization has now been added to `tests/test_dynamic.py`: an external `ai_research.arxiv` event must increase that branch's Bonsai focus and texture, while an `internal.proprioception` event is confirmed to match the systems branch but produce zero magnitude, no focus/texture change and no Stage-2 F-step event. This strengthens the previously weak internal-event assertion and adds a positive control. Implementation/test head `611ad5f6aff4c1aea44574fb9defae8a80309def` passed exact-head workflows `46149016907` and `46149041938`, each reporting **3,076 tests passed, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The subsequent documentation-only synchronization is on the current PR branch and is receiving its own exact-head CI run before merge. The test currently establishes the Stage-2 pipeline → Bonsai edge only. Fountain branch selection and workspace framing remain the next separate test seam.
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, M0/M1 gate, mind-map policy, live runtime flag, service or database was changed.
 
@@ -2083,7 +2083,7 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 ---
 
-## 68. Consistent seed and rule proposal history snapshots — candidate PR #440 (28 November 2026)
+## 68. Consistent seed and rule proposal history snapshots — candidate PR #441 (28 November 2026)
 
 **Source-derived race:** the `rule-history` and `seed-history` CLIs previously called `proposals()` and `events()` separately. Each call acquired a valid shared ledger read, but a concurrent review append between those reads could produce a response whose proposal status and event list described different ledger revisions.
 
