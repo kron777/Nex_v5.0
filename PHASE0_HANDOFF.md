@@ -289,3 +289,16 @@ Every `warrant_validate` verdict from before PR #271 was computed on history-fre
 - PR #348 merged as `321a156e162a6554e27ae329522f253e8f6fe676`; exact-head CI run `46091039346`: 2,838 passed, 7 skipped, 45 subtests; baseline OK, no STALE warnings. AppState now quiesces dynamic loops before Writer close. G-84 remains open for the remaining producers and global shutdown deadline.
 - The 112-site census is pre-merge evidence at `a6d08405`; rerun it on current main before using the count as current.
 - Founder decisions G-80, G-78, G-76 and the non-substrate scope question under G-61 remain pending. Gate 0 remains pending; Phase 1 remains unauthorized.
+
+
+## 28 November 2026 — G-83 Row 9 source-to-effect refinement
+
+The current source trace refines existing G-83; no duplicate finding ID is created. Main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`. Manual §114 records the complete distinction.
+
+- Metacognition counts all derived `groove` event rows globally over 30 minutes; it does not count distinct alert IDs/episodes or group by topic. The 600-second source query returns at most three rows per tick.
+- The Row 9 `conversations.db` `stillness_log` has no topic/source field. The crystallizer blocks all belief crystallization while any row is active; it does not apply same-topic matching.
+- Fountain generation and dynamic fire recording occur before crystallization. Generator still returns/logs the thought after the crystallizer returns `None`; belief/link creation and the normal speech-queue enqueue path are skipped.
+- A second `dynamic.db` `stillness_log` is an unrelated duplicate-retrieval instrumentation table. Do not conflate it with Row 9.
+- `theory_x/SYNTHESIS_PLAN_V2.md` §3 describes same-topic triggering/suppression. This is historical design provenance, not authority to revise frozen S-01–S-25/M1.8 or Founder Sign-Off. The controlling Row 9 approval remains UNKNOWN unless located.
+
+The existing test suite's source assertions cover the mocked threshold and crystallizer hold, not distinct-source/topic identity or the full Generator-to-speech consequence. No tests were run; no live host/database/process/service was accessed; no runtime code, schema, flag, or behavior was changed. Gate 0 remains pending founder review; Phase 1 remains unauthorized.
