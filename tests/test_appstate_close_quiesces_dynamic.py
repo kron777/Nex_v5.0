@@ -87,7 +87,7 @@ class TestAppStateCloseQuiescesDynamic(unittest.TestCase):
         stuck.start()
         dynamic = SimpleNamespace(_stop=stuck_stop, _threads=[stuck])
         recorded = []
-        with mock.patch.object(srv, "_DYNAMIC_STOP_TIMEOUT_S", 0.3, create=True), \
+        with mock.patch.object(srv, "_PRODUCER_STOP_TIMEOUT_S", 0.3, create=True), \
              mock.patch.object(srv.error_channel, "record",
                                side_effect=lambda msg, **k: recorded.append(msg)):
             started = time.monotonic()

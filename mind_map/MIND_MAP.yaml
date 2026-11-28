@@ -1202,7 +1202,7 @@ nodes:
       retry_bridge_for_tensions() periodically re-attempts a synthesis bridge without forcing one.
       39 tests pass (test_held_tension.py, test_retry_bridge_for_tensions.py,
       test_harmonizer_active_count_fix.py, test_hud_tensions_episodes.py), all run in isolation
-      2026-11-09. A read-only HUD endpoint exists (gui/server.py:3443, api_harmonizer_tensions; pointer corrected 2026-11-28 from a drifted :3056); nothing live consumes it.
+      2026-11-09. A read-only HUD endpoint exists (gui/server.py:3490, api_harmonizer_tensions; pointer corrected 2026-11-28 from a drifted :3056); nothing live consumes it.
 
       SENTIENCE_PROGRAM.md's own summary row (line 36) still cited `stage_warrant`/`NEX5_WARRANT` --
       an unrelated belief-support-scoring module, not a dissonance mechanism -- as if it were the
@@ -1301,7 +1301,7 @@ nodes:
         - "tests/test_episodic_falsifier.py:42-54"
         - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
-        - "gui/server.py:3477-3492"
+        - "gui/server.py:3564-3578"
         - "nex_keepalive.sh:219-220"
         - "SENTIENCE_PROGRAM.md:148-157"
     last_verified: 2026-11-28
@@ -1317,7 +1317,7 @@ nodes:
       file without touching this one. Drift check is file-granularity, not line-granularity, so this
       kind of false positive is expected and worth re-verifying rather than assuming -- re-pinned
       last_verified having actually checked, not just to silence the warning.
-      gui/server.py:3477-3492 exposes a read-only HUD endpoint, so the module docstring's
+      gui/server.py:3524-3539 exposes a read-only HUD endpoint, so the module docstring's
       "not wired into gui/server.py" is itself half-stale: read-visible, write-dark.
 
       2026-11-27 source re-verification: nex_config.py still registers NEX5_EPISODIC at
@@ -1328,10 +1328,15 @@ nodes:
       and the 2026-11-09 falsifier tests remain isolated fixture evidence.
 
       2026-11-28 re-verification (gui/server.py changed by G-84 step 1): the endpoint is
-      api_episodic_episodes at gui/server.py:3477-3492 (previously cited as 3440-3454, which
+      api_episodic_episodes at gui/server.py:3524-3539 (previously cited as 3440-3454, which
       had drifted onto the tail of api_harmonizer_tensions). It still only SELECTs from
       episodes and calls no recording path: read-visible, write-dark. The other refs are
       unchanged since 2026-11-27.
+      Same day, G-84 step 2 added AppState._quiesce_producers() above it: the endpoint
+      moved by 47 lines to :3524-3539, byte-identical content; anchor updated.
+      Follow-up source check after the registered-producer shutdown expansion (Fountain,
+      HoldingZoneResolver, scheduler adapters and additional AppState workers): the endpoint
+      is now at gui/server.py:3564-3578. Its SELECT-only body remains unchanged.
 
       Falsifier run 2026-11-09, isolated test env (NEX5_DATA_DIR override, never the live DB/loop):
       tests/test_episodic_falsifier.py adds two checks against the real query_episodes()/

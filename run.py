@@ -754,6 +754,7 @@ def main() -> None:
         probe_runner=probe_runner,
         probes_reader=probes_reader,
         coherence_gate=coherence_gate,
+        resolver=_resolver,
         trigger_detector=_trigger_detector,
         throw_net_monitor=_throw_net_monitor,
         counterfactual_node=_counterfactual_node,

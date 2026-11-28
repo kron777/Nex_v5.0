@@ -61,6 +61,7 @@ class _AdapterThread:
             name=f"sense.{adapter.id}",
             daemon=True,
         )
+        self._thread = t
         t.start()
 
     def _should_run(self) -> bool:
@@ -115,6 +116,16 @@ class _AdapterThread:
 
     def stop(self) -> None:
         self._stop.set()
+
+    def join(self, timeout: float | None = None) -> bool:
+        """Join this adapter thread; return False only if it remains alive."""
+        thread = getattr(self, "_thread", None)
+        if thread is None:
+            return True
+        if thread is threading.current_thread():
+            return False
+        thread.join(timeout=max(0.0, timeout) if timeout is not None else None)
+        return not thread.is_alive()
 
     def status(self) -> dict[str, Any]:
         return {
@@ -194,6 +205,20 @@ class SenseScheduler:
     # -- shutdown ----------------------------------------------------------
 
     def shutdown(self) -> None:
+        """Request all adapter threads to stop; call join() to await exit."""
         for t in self._threads.values():
             t.stop()
-        logger.info("SenseScheduler: all adapter threads stopped")
+        logger.info("SenseScheduler: adapter stop requested")
+
+    def join(self, timeout: float | None = None) -> list[str]:
+        """Join all adapter threads against one shared timeout budget.
+
+        Returns adapter thread names that remain alive when the budget expires.
+        """
+        deadline = None if timeout is None else time.monotonic() + max(0.0, timeout)
+        alive = []
+        for adapter_id, worker in self._threads.items():
+            remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
+            if not worker.join(remaining):
+                alive.append(f"sense.{adapter_id}")
+        return alive

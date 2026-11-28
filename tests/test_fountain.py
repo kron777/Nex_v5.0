@@ -21,6 +21,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from tests import _bootstrap  # noqa: F401
@@ -234,6 +235,8 @@ class TestFountainState(unittest.TestCase):
         for key in ("last_thought", "last_fire_ts", "total_fires",
                     "readiness_score", "loop_running"):
             self.assertIn(key, status, f"missing key: {key}")
+        fs.stop()
+        self.assertTrue(fs.join(timeout=1.0))
 
     def test_status_loop_running_true(self):
         from theory_x.stage6_fountain import build_fountain
@@ -244,6 +247,28 @@ class TestFountainState(unittest.TestCase):
         )
         time.sleep(0.05)
         self.assertTrue(fs.status()["loop_running"])
+        fs.stop()
+        self.assertTrue(fs.join(timeout=1.0))
+        self.assertFalse(fs.status()["loop_running"])
+
+    def test_stop_interrupts_long_idle_wait_and_join_is_bounded(self):
+        import theory_x.stage6_fountain as fountain_module
+        from theory_x.stage6_fountain import build_fountain
+        with unittest.mock.patch.object(
+            fountain_module, "FOUNTAIN_CHECK_INTERVAL_SECONDS", 3600
+        ):
+            fs = build_fountain(
+                self.writers, self.readers,
+                _mock_voice_client(),
+                dynamic_state=_mock_dynamic_state(),
+            )
+            time.sleep(0.05)
+            self.assertTrue(fs.status()["loop_running"])
+            started = time.monotonic()
+            fs.stop()
+            self.assertTrue(fs.join(timeout=0.5))
+            self.assertLess(time.monotonic() - started, 0.5)
+            self.assertFalse(fs.status()["loop_running"])
 
 
 # ---- GUI endpoints ------------------------------------------------------------
