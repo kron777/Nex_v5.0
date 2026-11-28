@@ -215,6 +215,77 @@ class TestFountainGenerator(unittest.TestCase):
         self.assertIn("Beliefs held: 5", prompt)
 
 
+class TestRutMirrorGovernor(unittest.TestCase):
+    """Characterize the Fountain-side rut belief writer and its reader boundary."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        from theory_x.stage6_fountain.generator import FountainGenerator
+        self.gen = FountainGenerator(
+            sense_writer=self.writers["sense"],
+            dynamic_writer=self.writers["dynamic"],
+            voice_client=_mock_voice_client(),
+            dynamic_reader=self.readers["dynamic"],
+            beliefs_writer=self.writers["beliefs"],
+            beliefs_reader=self.readers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+        )
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def _seed_rut_tags(self):
+        now = time.time()
+        for i in range(4):
+            self.writers["conversations"].write(
+                "INSERT INTO genius_tags "
+                "(fountain_event_id, score, class, weights_version, tagged_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (i + 1, 0.1, "ordinary", "rut-reader-test", now - 60),
+            )
+        time.sleep(0.05)
+
+    def test_fountain_rut_belief_is_written_but_not_selected_by_fountain_slots(self):
+        self._seed_rut_tags()
+        with mock.patch.dict(os.environ, {"NEX5_GOVERNOR_OFF": "0"}):
+            first_context = self.gen._retrieve_context_beliefs(own_n=7, seed_n=2)
+        time.sleep(0.05)
+
+        rows = self.readers["beliefs"].read(
+            "SELECT id, content, source, tier, confidence, branch_id "
+            "FROM beliefs WHERE source='self_rut_notice'"
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["tier"], 6)
+        self.assertAlmostEqual(rows[0]["confidence"], 0.6)
+        self.assertFalse(any(r["source"] == "self_rut_notice" for r in first_context))
+
+        # A later Fountain selection still uses the explicit own/seed/HOT
+        # source pools, none of which includes self_rut_notice.
+        with mock.patch.dict(os.environ, {"NEX5_GOVERNOR_OFF": "0"}):
+            later_context = self.gen._retrieve_context_beliefs(own_n=7, seed_n=2)
+        self.assertFalse(any(r["source"] == "self_rut_notice" for r in later_context))
+
+        # The generic BeliefRetriever is a distinct query-dependent consumer.
+        from theory_x.stage3_world_model.retrieval import BeliefRetriever
+        retriever = BeliefRetriever(self.readers["beliefs"])
+        found = retriever.retrieve(
+            query="my recent thinking has circled the same few frames",
+            limit=5,
+        )
+        self.assertTrue(any(r["source"] == "self_rut_notice" for r in found))
+
+    def test_fountain_governor_off_suppresses_rut_belief_write(self):
+        self._seed_rut_tags()
+        with mock.patch.dict(os.environ, {"NEX5_GOVERNOR_OFF": "1"}):
+            self.gen._retrieve_context_beliefs(own_n=7, seed_n=2)
+        time.sleep(0.05)
+        rows = self.readers["beliefs"].read(
+            "SELECT id FROM beliefs WHERE source='self_rut_notice'"
+        )
+        self.assertEqual(len(rows), 0)
+
+
 # ---- FountainState ------------------------------------------------------------
 
 class TestFountainState(unittest.TestCase):
