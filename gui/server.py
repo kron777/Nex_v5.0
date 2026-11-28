@@ -682,10 +682,10 @@ TABLES_PER_DB: dict[str, tuple[str, ...]] = {
 }
 
 
-# AppState.close(): longest wait for the dynamic loops to finish their current
-# tick. nex_keepalive.sh sends SIGTERM and kills after 15 s; run.py spends 1.5 s
-# before close(), and the Writers drain afterwards.
-_DYNAMIC_STOP_TIMEOUT_S = 5.0
+# AppState.close(): one shared deadline for every held producer to finish its
+# current tick. nex_keepalive.sh sends SIGTERM and kills after 15 s; run.py
+# spends 1.5 s before close(), and the Writers drain afterwards.
+_PRODUCER_STOP_TIMEOUT_S = 5.0
 
 
 @dataclass
@@ -737,25 +737,25 @@ class AppState:
                 error_channel.record(
                     f"Scheduler shutdown failed: {e}", source="gui.server", exc=e
                 )
-        # Stop and join the Stage 2 dynamic loops BEFORE the Writers close, so
+        # Quiesce every producer this state holds BEFORE the Writers close, so
         # a tick in progress can finish its writes instead of submitting them
-        # to a draining or closed Writer (backlog G-84, first step: the other
-        # worker families still lack a coordinated stop). Bounded so the whole
-        # close fits nex_keepalive.sh's graceful-stop window before SIGKILL.
-        if self.dynamic is not None:
-            try:
-                from theory_x.stage2_dynamic import stop_dynamic
-                alive = stop_dynamic(self.dynamic, timeout=_DYNAMIC_STOP_TIMEOUT_S)
-                if alive:
-                    error_channel.record(
-                        f"dynamic loops still running at close after "
-                        f"{_DYNAMIC_STOP_TIMEOUT_S:.1f}s: {', '.join(alive)}",
-                        source="gui.server",
-                    )
-            except Exception as e:
+        # to a draining or closed Writer (backlog G-84). All are signalled
+        # first, then joined against one shared deadline that fits
+        # nex_keepalive.sh's graceful-stop window. Fountain has no stop signal
+        # yet and the producers run.py does not hand to AppState are not
+        # covered.
+        try:
+            alive = self._quiesce_producers(_PRODUCER_STOP_TIMEOUT_S)
+            if alive:
                 error_channel.record(
-                    f"Dynamic stop failed: {e}", source="gui.server", exc=e
+                    f"producers still running at close after "
+                    f"{_PRODUCER_STOP_TIMEOUT_S:.1f}s: {', '.join(alive)}",
+                    source="gui.server",
                 )
+        except Exception as e:
+            error_channel.record(
+                f"Producer stop failed: {e}", source="gui.server", exc=e
+            )
         for w in self.writers.values():
             try:
                 w.close()
@@ -763,6 +763,53 @@ class AppState:
                 error_channel.record(
                     f"Writer close failed: {e}", source="gui.server", exc=e
                 )
+
+    def _quiesce_producers(self, timeout: float) -> list:
+        """Signal every held producer to stop, then join their threads against
+        one deadline. Returns the names of threads still alive at the deadline.
+
+        Stage 2 dynamic and the World Model expose ``_stop``/``_threads``;
+        SignalLoop, DiversityLoop and ArcLoop expose ``stop()``/``_thread``;
+        SpeechQueueConsumer is itself the thread and exposes ``stop()``."""
+        import threading
+
+        threads = []
+
+        def _signal(fn, what):
+            try:
+                fn()
+            except Exception as e:            # one bad stop() must not skip the rest
+                error_channel.record(f"{what} stop failed: {e}", source="gui.server", exc=e)
+
+        for label, state in (("dynamic", self.dynamic), ("world_model", self.world_model)):
+            if state is None:
+                continue
+            stop = getattr(state, "_stop", None)
+            if stop is not None:
+                _signal(stop.set, label)
+            threads.extend(getattr(state, "_threads", ()) or ())
+        for label, loop in (("signal_loop", self.signal_loop),
+                            ("diversity_loop", self.diversity_loop),
+                            ("arc_loop", self.arc_loop),
+                            ("speech_consumer", self.speech_consumer)):
+            if loop is None:
+                continue
+            stop = getattr(loop, "stop", None)
+            if callable(stop):
+                _signal(stop, label)
+            t = loop if isinstance(loop, threading.Thread) else getattr(loop, "_thread", None)
+            if t is not None:
+                threads.append(t)
+        deadline = time.monotonic() + timeout
+        me = threading.current_thread()
+        alive = []
+        for t in threads:
+            if t.ident is None or t is me:    # never started / close() from inside it
+                continue
+            t.join(max(0.0, deadline - time.monotonic()))
+            if t.is_alive():
+                alive.append(t.name)
+        return alive
 
 
 def build_state(

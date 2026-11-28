@@ -285,6 +285,8 @@ def build_world_model(writers: dict, readers: dict,
 
     stop = threading.Event()
     state._stop = stop  # type: ignore[attr-defined]
+    # Kept so shutdown can join the loops after setting `stop` (G-84).
+    state._threads = []  # type: ignore[attr-defined]
 
     for fn, name in [
         (_decay_loop,        "world_model.decay"),
@@ -296,5 +298,6 @@ def build_world_model(writers: dict, readers: dict,
     ]:
         t = threading.Thread(target=fn, args=(state, stop), name=name, daemon=True)
         t.start()
+        state._threads.append(t)  # type: ignore[attr-defined]
 
     return state
