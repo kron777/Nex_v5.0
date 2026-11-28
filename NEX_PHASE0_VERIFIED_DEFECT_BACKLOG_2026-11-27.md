@@ -1092,3 +1092,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **§164 clarification — manual strikes:** StrikeProtocol is a separate human-triggered observation harness at POST /api/strikes/fire. It sends an explicit StrikeType/custom_input to the voice model, captures context and stores a separate StrikeRecord; it is not an external action executor or sentence-to-operation bridge. See tests/test_strikes.py and INDEX §164.
+
+
+**28 November 2026 — §165 autonomous fire-path boundary:** the chat ToolCaller/Registry is not referenced from the Fountain generator. The existing fire-path scope file explicitly remains a read-only investigation, not a pre-registration or authorization. Autonomous tool triggering would remove per-call human intent and requires a separate decision on trigger, per-tool arming, caps, audit and oversight. PR #369's safe AST interpreter does not authorize autonomous calls. No code or defect ID. See INDEX §165.
