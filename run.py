@@ -41,6 +41,7 @@ from theory_x.stage6_fountain.readiness import FOUNTAIN_CHECK_INTERVAL_SECONDS
 from theory_x.modes import build_mode_state
 from speech.voices import build_voice_state
 from gui.server import AppState, create_app, _SHUTDOWN_TOTAL_BUDGET_S
+from gui.shutdown_gate import ShutdownGate
 from voice.llm import VoiceClient
 
 
@@ -813,15 +814,24 @@ def main() -> None:
     # submit its writes, drain every Writer queue (persist), shut the
     # scheduler, then exit -- process death releases the model/GPU. Nothing
     # dies mid-write because Writer.close() drains its queue whole-request.
+    shutdown_gate = ShutdownGate()
+
     def _graceful_standby(signum, frame):
-        log.warning("SIGTERM received -> STANDBY: finishing writes, releasing GPU/VRAM")
-        # Start one monotonic deadline at signal receipt. The 1.5s in-flight
-        # fire window, producer joins and every Writer drain all consume it.
+        log.warning("Shutdown signal received -> STANDBY: draining requests and releasing GPU/VRAM")
+        # One monotonic deadline covers HTTP request drain, producers and Writers.
         deadline = _time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S
         try:
-            _time.sleep(min(1.5, max(0.0, deadline - _time.monotonic())))
-        except Exception:
-            pass
+            request_report = shutdown_gate.begin_shutdown(deadline)
+        except Exception as _e:
+            request_report = {
+                "success": False, "active_requests": -1, "exception": str(_e),
+            }
+        if not request_report.get("success", False):
+            log.error(
+                "STANDBY request drain incomplete; no clean-shutdown marker will be written: %s",
+                request_report,
+            )
+            os._exit(1)
         try:
             if _decoder_stop is not None:
                 _decoder_stop.set()
@@ -852,15 +862,16 @@ def main() -> None:
         log.info("STANDBY: producers stopped, Writers drained, clean marker persisted")
         os._exit(0)  # frees the VRAM held by torch/kokoro in this process
     signal.signal(signal.SIGTERM, _graceful_standby)
+    signal.signal(signal.SIGINT, _graceful_standby)
 
-    app = create_app(state)
+    app = create_app(state, shutdown_gate=shutdown_gate)
 
     host = os.environ.get("NEX5_HOST", "127.0.0.1")
     port = int(os.environ.get("NEX5_PORT", "8765"))
     log.info("NEX 5.0 ready — GUI at http://%s:%d", host, port)
     log.info("External feeds started — STOP button in GUI pauses them")
 
-    app.run(host=host, port=port, debug=False, use_reloader=False)
+    app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True)
 
 
 if __name__ == "__main__":
