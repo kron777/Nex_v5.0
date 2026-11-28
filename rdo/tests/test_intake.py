@@ -632,6 +632,17 @@ def test_intake_uses_only_explicitly_selected_approved_novel_rules_and_versions_
         negative_test_evidence=["tests/test_specialized_route.py::test_generic_route_unchanged"],
     )
 
+    unselected = submit_objective(
+        raw, repo_dir=str(repo), workdir=str(tmp_path / "unselected_cycles"),
+        rule_proposals_path=ledger,
+    )
+    assert not any(
+        key.startswith("specialized_route_seed.")
+        for key in [item["key"] for item in unselected["cycle"]["obligations"]]
+    )
+    assert unselected["cycle"]["rule_catalogue"] == {}
+    assert unselected["cycle"]["id"] == baseline["cycle"]["id"]
+
     selected = submit_objective(
         raw, repo_dir=str(repo), workdir=str(tmp_path / "selected_cycles"),
         rule_proposals_path=ledger, approved_rule_kinds=["specialized_route"],
