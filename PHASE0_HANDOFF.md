@@ -459,3 +459,7 @@ Doctrine §4 defines `tick()` and `decay(now)` but does not specify a universal 
 ### 28 November 2026 — registered-node lifecycle census
 
 The normal `run.py` boot registers nine Theory X nodes. Optional `gui/server.py::build_state(with_tools=True)` separately registers ProblemMemory, GoalManager and Metacognition. The registry stores/lists nodes but does not dispatch tick/decay. GoalManager and Metacognition have substantive unowned decay methods; NovelAssociation's 14-day log annotation is uncalled housekeeping but its prompt reader only looks back two hours. ProblemMemory's 30-day decay is covered by G-60; it is constructed but not registered in normal `run.py` (it can be registered in optional GUI build_state). See INDEX §137 and corrected G-60 backlog wording.
+
+### 28 November 2026 — DB-reaper test coverage boundary
+
+`tests/test_retention_reaper.py` proves the generic `reap_table()` batch-delete helper, but its target-list assertion checks only `drive_emergence_log` and `substrate_coherence`. It does not assert the `meta_cognition_events` target or exercise `reap()` against that table. The 30-day target is source-observed; systemd scheduling is configuration-observed; active timer/host execution remains UNKNOWN. See INDEX §142.
