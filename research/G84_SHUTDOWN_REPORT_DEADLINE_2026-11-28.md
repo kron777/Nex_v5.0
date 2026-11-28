@@ -45,3 +45,8 @@ A non-zero child exit may cause the keepalive to restart the child when the supe
 The 12-second budget is an initial engineering margin derived from the current 15-second supervisor kill window, not a frozen specification threshold. Revisit it if the supervisor timeout changes or host measurements show the margin is insufficient.
 
 No NEX processing policy, database schema, frozen S-01–S-25/M1.8 content, Master Roadmap, Gate 0 or Phase 1 authority is changed.
+
+
+## Follow-on update — request drain (2026-11-28, PR #378)
+
+The original fixed 1.5-second pre-close delay was later replaced by an observed Flask request drain. The same 12-second monotonic deadline now covers active HTTP requests, producer shutdown and Writer drain. New requests are rejected with HTTP 503 once shutdown begins; existing requests must leave before AppState closes. The former fixed-delay arithmetic is superseded by the active-request report. If request drain exceeds the deadline, the process exits non-zero without closing Writers under active requests or writing a clean marker.

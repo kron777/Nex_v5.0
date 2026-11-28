@@ -106,7 +106,18 @@ class TestRunPyGracefulShutdownOutcome(unittest.TestCase):
         self.assertIn(
             "deadline = _time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S", handler
         )
+        self.assertIn("nonlocal shutdown_started", handler)
+        self.assertLess(
+            handler.index("shutdown_started = True"),
+            handler.index("shutdown_gate.begin_shutdown(deadline)"),
+        )
+        self.assertIn("request_report = shutdown_gate.begin_shutdown(deadline)", handler)
+        self.assertLess(
+            handler.index("shutdown_gate.begin_shutdown(deadline)"),
+            handler.index("state.close(deadline=deadline)"),
+        )
         self.assertIn("report = state.close(deadline=deadline)", handler)
+        self.assertNotIn("_time.sleep(min(1.5", handler)
         self.assertIn('if not report.get("success", False):', handler)
         self.assertLess(
             handler.index("state.close(deadline=deadline)"),
@@ -117,6 +128,8 @@ class TestRunPyGracefulShutdownOutcome(unittest.TestCase):
             handler.index("os._exit(0)"),
         )
         self.assertIn("os._exit(1)", handler)
+        self.assertIn("signal.signal(signal.SIGINT, _graceful_standby)", source)
+        self.assertIn("create_app(state, shutdown_gate=shutdown_gate)", source)
         self.assertNotIn("mark_clean_shutdown", handler[:handler.index("state.close(deadline=deadline)")])
 
 
