@@ -3095,3 +3095,51 @@ The right lesson is not "momentum is broken". The design already separates captu
 **Source anchors inspected at main:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/momentum.py` blob `45d0249fe445871ebb2bfbcdb2da6e131a229e18`; `tests/test_momentum_writer.py` blob `fdbab169457a9ebe8c3c451c69b635e200127bd6`.
 
 **Host/runtime unknowns:** actual `NEX5_MOMENTUM` and `NEX5_CARRYOVER` settings; stop timing and writer failure rates; actual short-thought rate; current deployed momentum row.
+
+## 89. Self-model aggregation: bounded time window, unbounded row scan (28 November 2026)
+
+**Question studied:** is the prompt-injected self-model computationally bounded in both time and work, or only by a lookback window?
+
+### Source behavior
+
+The active Stage-TOM SelfNarrative calls `aggregate_self_model(beliefs_db)` during narrative construction. The aggregator:
+- uses a default 24-hour lookback;
+- queries all `beliefs` rows where `source='hot_observer'` and `created_at > cutoff`;
+- orders newest first but has no SQL `LIMIT`;
+- fetches the entire result set into memory;
+- returns no summary until at least five rows exist;
+- scans every fetched row to count template/grounded observations and per-branch rates.
+
+The HOT observer currently attempts one write every third eligible call, using process-local counter state. This reduces write volume but is not a hard work bound: restart behavior resets the counter, and the actual eligible fire rate is host/runtime-dependent.
+
+### What is bounded and what is not
+
+The 24-hour predicate is a semantic time window, not a strict maximum row count. If NEX runs at higher fire rates, or multiple producers write HOT observations, the aggregator's query and Python loop grow with the number of rows in that window. The prompt output itself is short (a few summary sentences), but the work required to produce it is proportional to the full row count.
+
+No evidence was found in the inspected aggregator source of a row cap, pagination, incremental roll-up or cached aggregate. The database index coverage for the exact `source + created_at` predicate was not established by this inspection and remains unknown.
+
+This is a potential scaling/latency concern, not proof of a current performance failure. At the documented design rate of one observation per three eligible calls, the expected daily row count may be modest; actual host rate is unknown.
+
+### Reuse-first design direction
+
+Before introducing a cache or summary table:
+1. Measure actual HOT rows per 24 hours, query latency, returned row count and aggregation time.
+2. Inspect the beliefs schema/indexes for the exact predicate.
+3. Add a deterministic row-count/latency benchmark at realistic and adversarial volumes.
+4. If a hard cap is needed, define the statistical semantics first. A simple newest-N limit changes the denominator and can bias branch comparisons; use explicit windowed sampling or incremental sufficient statistics only if they preserve the intended interpretation.
+5. Keep the natural-language summary bounded and provenance-aware: observation count, lookback, cutoff and any sampling method should be visible or auditable.
+6. Preserve the minimum-five-observations rule and ensure branch rates still require at least three classified observations.
+
+A possible first implementation may be a bounded read with an explicit sample/aggregation contract, but it should not be chosen until measurement shows whether the current 24-hour scan is actually costly.
+
+### Test coverage boundary
+
+The inspected tests include broad self-model and behavioural-propagation tests, but the repository tree did not expose a dedicated test module named for `self_model_aggregator`. This is not proof that no indirect coverage exists. Add direct tests for empty/under-five samples, exact 24-hour cutoff, high-volume windows, unknown/unclassified observation text, branch minimum counts, deterministic ordering and output provenance.
+
+### Research conclusion
+
+The self-model aggregator has a bounded temporal horizon and a bounded textual output, but no explicit row/work budget. The next responsible step is to measure row volume and query cost, then preserve statistical meaning if a cap is introduced. Do not mistake a time filter for a computational bound. No runtime code, schema, indexes, feature flags, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. No tests were run in this study.
+
+**Source anchors inspected at main:** `theory_x/stage_tom/self_model_aggregator.py` blob `f05a03e8450c05bc92975bb668feb4baa7220488`; `theory_x/stage_tom/self_narrative.py` blob `5fbc617fadc177ade59b45acf118b77c43ef2e84`; `theory_x/stage_tom/hot_observer.py` blob `67ca7e3662ec15a05072544500761822471d43fb`; `tests/test_behavioural_self_model_propagation.py` blob `991f1766d003d94d21fcc8bdf73214a1e8d2de15`; `tests/test_self_model.py` blob `70817f1ba5aa371ee7f008967b45c16f27d6380d`.
+
+**Host/runtime unknowns:** actual HOT observer write rate, 24-hour row volume, query plan/index use, aggregation latency, and whether multiple processes write HOT observations to the same beliefs database.
