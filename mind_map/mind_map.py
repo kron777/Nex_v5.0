@@ -219,13 +219,13 @@ def _source_ref_lines(lines: list[str]) -> set[int]:
     for lineno, line in enumerate(lines, 1):
         stripped = line.lstrip()
         indent = len(line) - len(stripped)
-        if re.match(r"^source\\s*:", stripped):
+        if re.match(r"^source\s*:", stripped):
             source_indent = indent
             selected.add(lineno)
             continue
         if source_indent is None:
             continue
-        if stripped and indent <= source_indent and re.match(r"^[A-Za-z_][\\w-]*\\s*:", stripped):
+        if stripped and indent <= source_indent and re.match(r"^[A-Za-z_][\w-]*\s*:", stripped):
             source_indent = None
             continue
         selected.add(lineno)
