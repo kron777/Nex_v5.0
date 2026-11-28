@@ -302,3 +302,8 @@ The current source trace refines existing G-83; no duplicate finding ID is creat
 - `theory_x/SYNTHESIS_PLAN_V2.md` §3 describes same-topic triggering/suppression. This is historical design provenance, not authority to revise frozen S-01–S-25/M1.8 or Founder Sign-Off. The controlling Row 9 approval remains UNKNOWN unless located.
 
 The existing test suite's source assertions cover the mocked threshold and crystallizer hold, not distinct-source/topic identity or the full Generator-to-speech consequence. No tests were run; no live host/database/process/service was accessed; no runtime code, schema, flag, or behavior was changed. Gate 0 remains pending founder review; Phase 1 remains unauthorized.
+
+
+### 28 November 2026 — G-83 implementation-history refinement
+
+The initial Row 9 history is now checked against both design and implementation commits. `SYNTHESIS_PLAN_V2.md` §3 was added at `36e7ed40661db58d83214b40aebde7a33fdb2519` (11:29:57 UTC, 11 May 2026) and describes a same-topic threshold/suppression. The Row 9 implementation landed at `c4b005f32e931047711ef6cdbe03e84a00183885` (13:21:14 UTC) with a global count of derived groove events and global crystallizer hold; its tests mock aggregate counts and do not carry topic/source identity. The current `DOCTRINE.md` summary is more general. No rationale for the difference was located in the inspected commit message or patch. This confirms a historical design-artifact divergence, not its authority or founder approval. G-83 stays OPEN; do not restore same-topic behaviour without locating controlling sign-off. See INDEX §§114–115. Gate 0 remains pending; Phase 1 remains unauthorized.
