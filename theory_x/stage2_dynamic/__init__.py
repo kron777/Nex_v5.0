@@ -118,7 +118,7 @@ def _save_distill_cursor(dynamic_writer: Writer, last_id: int) -> None:
         errors.record(f"distill_cursor save error: {exc}", source=_LOG_SOURCE, exc=exc)
 
 
-def _is_near_duplicate(beliefs_reader, title: str, cutoff: int) -> bool:
+def _is_near_duplicate(beliefs_reader, title: str, cutoff: int, *, stop_event=None) -> bool:
     """True if `title` is a near-duplicate of a distilled title already kept.
 
     Round 27. The exact-equality check above is not the binding constraint --
@@ -150,11 +150,15 @@ def _is_near_duplicate(beliefs_reader, title: str, cutoff: int) -> bool:
             "WHERE created_at > ? AND source = ? LIMIT ?",
             (cutoff, _DISTILL_SOURCE, _DEDUP_CANDIDATE_MAX),
         )
-        if not rows:
+        if not rows or (stop_event is not None and stop_event.is_set()):
             return False
         from theory_x.diversity.embeddings import embed, embed_belief, cosine
         vec = embed(title)
+        if stop_event is not None and stop_event.is_set():
+            return False
         for r in rows:
+            if stop_event is not None and stop_event.is_set():
+                return False
             # embed_belief is LRU-cached on belief id (2048 entries), so each
             # representative is encoded once, not once per incoming title.
             if cosine(vec, embed_belief(r["id"], r["content"])) >= _DEDUP_SIMILARITY:
@@ -224,7 +228,7 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
                 "SELECT id FROM sense_events WHERE timestamp >= ? ORDER BY id ASC LIMIT 1",
                 (cutoff_ts,),
             )
-            if row:
+            if row and not stop.is_set():
                 last_id = max(0, row["id"] - 1)
                 _save_distill_cursor(dynamic_writer, last_id)
         except Exception:
@@ -243,7 +247,8 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
             written = 0
             max_id_seen = last_id
             for row in rows:
-                max_id_seen = row["id"]  # always advance — cap limits writes, not cursor
+                if stop.is_set():
+                    break
                 if written < _DISTILL_PER_PASS_MAX:
                     payload = (row["payload"] or "").strip()
                     title = extract_sense_title(row["stream"], payload, max_items=1)
@@ -255,10 +260,14 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
                                 "AND source = ?",
                                 (title, cutoff, _DISTILL_SOURCE),
                             )
+                            if stop.is_set():
+                                break
                             if not existing and _is_near_duplicate(
-                                beliefs_reader, title, cutoff
+                                beliefs_reader, title, cutoff, stop_event=stop
                             ):
                                 existing = True   # suppress: near-dup of a kept title
+                            if stop.is_set():
+                                break
                             if not existing:
                                 branch_id = (
                                     row["stream"].split(".")[0]
@@ -275,9 +284,16 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
                                     pass  # UNIQUE constraint → skip
                         except Exception:
                             pass
+                # Advance only after this row's extraction/dedup/write unit has
+                # completed. If stop interrupts a unit, replay it next boot.
+                if stop.is_set():
+                    break
+                max_id_seen = row["id"]
             last_id = max_id_seen
 
             _save_distill_cursor(dynamic_writer, last_id)
+            if stop.is_set():
+                break
         except Exception as exc:
             errors.record(
                 f"sense_distillation_loop error: {exc}", source=_LOG_SOURCE, exc=exc
@@ -304,6 +320,8 @@ def _sense_poll_loop(state: DynamicState, stop: threading.Event) -> None:
             )
             hook = getattr(state, "_pipeline_hook", None)
             for row in rows:
+                if stop.is_set():
+                    break
                 run_pipeline(dict(row), tree, membrane, dynamic_writer, hook=hook)
                 last_id = row["id"]
                 state._pipeline_runs += 1
@@ -311,6 +329,8 @@ def _sense_poll_loop(state: DynamicState, stop: threading.Event) -> None:
                 if reads_since_save >= 50:
                     _save_cursor(dynamic_writer, last_id)
                     reads_since_save = 0
+                if stop.is_set():
+                    break
         except Exception as exc:
             errors.record(f"sense_poll_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
         stop.wait(2.5)
@@ -339,8 +359,14 @@ def _accumulator_loop(state: DynamicState, stop: threading.Event) -> None:
             # 30s tick alongside decay_pass itself.
             if _tick == 1 or _tick % _CADENCE_REFRESH_TICKS == 0:
                 state.tree.refresh_cadence()
+            if stop.is_set():
+                break
             state.tree.decay_pass()
+            if stop.is_set():
+                break
             state.membrane.decay_accumulator()
+            if stop.is_set():
+                break
             flushed = state.membrane.flush_accumulator()
             if flushed:
                 errors.record(
@@ -356,7 +382,9 @@ def _accumulator_loop(state: DynamicState, stop: threading.Event) -> None:
 def _crystallization_loop(state: DynamicState, stop: threading.Event) -> None:
     while not stop.is_set():
         try:
-            crystallized = state.crystallizer.check_all()
+            crystallized = state.crystallizer.check_all(stop_event=stop)
+            if stop.is_set():
+                break
             if crystallized:
                 errors.record(
                     f"crystallized branches: {crystallized}",
@@ -372,7 +400,9 @@ def _consolidation_loop(state: DynamicState, stop: threading.Event) -> None:
     sense_reader = state.readers["sense"]
     while not stop.is_set():
         try:
-            active = consolidation_pass(state.tree, sense_reader)
+            active = consolidation_pass(state.tree, sense_reader, stop_event=stop)
+            if stop.is_set():
+                break
             state._consolidation_active = active
         except Exception as exc:
             errors.record(f"consolidation_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
@@ -424,6 +454,8 @@ def _snapshot_loop(state: DynamicState, stop: threading.Event) -> None:
                     "SELECT tier, COUNT(*) as cnt FROM beliefs GROUP BY tier"
                 )
                 for row in tier_rows:
+                    if stop.is_set():
+                        break
                     dynamic_writer.write(
                         "INSERT INTO tier_snapshots (ts, tier, count) VALUES (?, ?, ?)",
                         (tier_ts, row["tier"], row["cnt"]),
@@ -441,14 +473,18 @@ def _emergent_drives_loop(state: DynamicState, stop: threading.Event) -> None:
             break
         try:
             proposals = state.drive_detector.scan_for_pressure(
-                state.readers["beliefs"], state
+                state.readers["beliefs"], state, stop_event=stop
             )
+            if stop.is_set():
+                break
             if proposals:
-                state.drive_detector.log_proposals(proposals)
+                state.drive_detector.log_proposals(proposals, stop_event=stop)
+            if stop.is_set():
+                break
             # Apply any previously approved proposals
             state.drive_detector.apply_approved(
                 state, state.writers["beliefs"], state.readers["dynamic"],
-                coherence_gate=state.coherence_gate,
+                coherence_gate=state.coherence_gate, stop_event=stop,
             )
         except Exception as exc:
             errors.record(f"emergent_drives_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
