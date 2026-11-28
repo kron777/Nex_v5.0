@@ -881,7 +881,7 @@ nodes:
     blocked: false
     falsifier: "Should fail loudly if two writers claim the same subject."
     falsifier_status: fail
-    source: { kind: composite, refs: ["nex_keepalive.sh:20-45", "substrate/writer.py:1-16", "substrate/writer.py:58-213", "substrate/writer.py:214-376", "substrate/db.py:135-196"] }
+    source: { kind: composite, refs: ["nex_keepalive.sh:20-45", "substrate/writer.py:1-16", "substrate/writer.py:58-213", "substrate/writer.py:214-375", "substrate/db.py:135-196"] }
     last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: 'anchor not pinned' was wrong -- NEX5_CONTINUITY_N is a real,
