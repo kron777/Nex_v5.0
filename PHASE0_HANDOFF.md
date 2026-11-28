@@ -514,3 +514,8 @@ PR #452 exact-head workflow 46181820624 passed at e3e1e037f0769e66e62b84fe982abf
 ### 28 November 2026 — Rut decision provenance
 
 Both rut observers query only genius_tags.class and do not carry contributing event IDs or weights_version into the output. The narrative row uses source_id=None; the belief row carries only the self_rut_notice source label and ordinary belief fields. Source rows remain independently queryable, but neither output has a frozen input manifest. This compounds §152's time/version ambiguity. See INDEX §153.
+
+
+### 28 November 2026 — Rut sample readiness
+
+GeniusTagger is started asynchronously; _own_and_start() does not wait for its first backfill to finish. Neither Metacognition nor the Fountain governor checks _backfill_done before reading genius_tags. A partial historical backfill can therefore be sampled while still being written; combined with §152 timestamp semantics, this may produce a premature decision. Host overlap remains UNKNOWN. See INDEX §154.
