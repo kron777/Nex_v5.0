@@ -261,7 +261,27 @@ def expand(seeds: List[Obligation],
                                        "expanded conservatively"})
         rules = EXPANSION_RULES.get(ob.kind)
         if not rules:
-            frontier.append({"key": ob.key, "reason": f"no expansion rule for kind '{ob.kind}'"})
+            frontier.append({
+                "key": ob.key,
+                "reason": f"no expansion rule for kind '{ob.kind}'",
+                "frontier_type": "novel_kind_requires_rule_proposal",
+                "rule_proposal_request": {
+                    "target_kind": ob.kind,
+                    "source_obligation": ob.to_dict(),
+                    "known_rule_kinds": sorted(EXPANSION_RULES),
+                    "terminal_kinds": sorted(TERMINAL_KINDS),
+                    "proposal_requirements": [
+                        "decomposition_steps",
+                        "applicability_and_scope",
+                        "preconditions_and_constraints",
+                        "exceptions_and_anti_requirements",
+                        "evidence_and_provenance",
+                        "disconfirming_cases",
+                        "positive_and_negative_tests",
+                    ],
+                    "activation_policy": "candidate_only_until_explicit_review",
+                },
+            })
             continue
 
         # ---- expand ----
