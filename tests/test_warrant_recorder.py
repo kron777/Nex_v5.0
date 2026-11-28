@@ -338,3 +338,38 @@ class TestGeneratorRetrievalLogGate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TestRecorderShutdown(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self.r._ready = True
+
+    def test_use_cycle_stops_after_blocked_first_source_read(self):
+        entered = threading.Event()
+        release = threading.Event()
+        stop = threading.Event()
+        original = self.r._dr.read
+        later_reads = []
+
+        def blocked_read(sql, params=()):
+            if "fountain_retrieval_log" in sql:
+                entered.set()
+                release.wait(timeout=3.0)
+                return []
+            later_reads.append(sql)
+            return original(sql, params)
+
+        self.r._dr.read = blocked_read
+        worker = threading.Thread(
+            target=lambda: self.r.use_cycle(now=_T0, stop_event=stop),
+            name="warrant-shutdown-test",
+        )
+        worker.start()
+        self.assertTrue(entered.wait(timeout=2.0))
+        stop.set()
+        release.set()
+        worker.join(timeout=2.0)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(later_reads, [])
+        self.assertEqual(self._q("SELECT belief_id, day FROM belief_use_day"), [])
