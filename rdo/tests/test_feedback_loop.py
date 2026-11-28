@@ -597,3 +597,33 @@ def test_feedback_evidence_ledger_validates_deterministic_event_identity(tmp_pat
 
     with pytest.raises(ValueError, match="event identity digest mismatch"):
         ledger.events(cycle.id)
+
+
+def test_feedback_evidence_append_refuses_to_exceed_byte_limit(tmp_path, monkeypatch):
+    import rdo.feedback_loop as feedback_module
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    monkeypatch.setattr(feedback_module, "_MAX_LEDGER_BYTES", 8)
+    cycle = _cycle_with_feedback_loop()
+    ledger = FeedbackLoopEvidenceStore(str(path))
+
+    with pytest.raises(ValueError, match="size limit"):
+        ledger.record_measurement(
+            cycle, "loop.alpha", "gain", 0.5, "ratio",
+            ["lab:gain"], "medium", ["experiment:gain"],
+        )
+    assert path.read_text(encoding="utf-8") == ""
+
+
+def test_feedback_evidence_ledger_rejects_symlink(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    target = tmp_path / "target.jsonl"
+    target.write_text("", encoding="utf-8")
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    path.symlink_to(target)
+    ledger = FeedbackLoopEvidenceStore(str(path))
+
+    with pytest.raises(ValueError, match="must not be a symlink"):
+        ledger.events()
