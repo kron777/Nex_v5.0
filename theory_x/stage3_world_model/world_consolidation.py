@@ -39,26 +39,34 @@ class WorldConsolidator:
         if v in ("1","on","true","yes"): return "1"
         if v in ("dry","report","test"): return "dry"
         return ""
-    def tick(self, context=None):
+    def tick(self, context=None, *, stop_event=None):
         mode = self._mode()
         if not mode: return {"name": self.name, "state": "off"}
+        if stop_event is not None and stop_event.is_set():
+            return {"name": self.name, "state": "stopped"}
         try:
-            return self._run(armed=(mode == "1"))
+            return self._run(armed=(mode == "1"), stop_event=stop_event)
         except BaseException as exc:
             _diag(f"FATAL in _run (isolated, NEX unaffected): {exc!r}")
             _diag(traceback.format_exc())
             try: errors.record(f"world_consolidation isolated crash: {exc}", source=_LOG_SOURCE, exc=exc)
             except Exception: pass
             return {"name": self.name, "state": "isolated-error", "error": str(exc)}
-    def _run(self, armed):
+    def _run(self, armed, *, stop_event=None):
         _diag(f"=== run start (armed={armed}) ===")
+        if stop_event is not None and stop_event.is_set():
+            return {"name": self.name, "state": "stopped"}
         _diag("step1: import embeddings")
         from theory_x.diversity.embeddings import embed, cosine
         _diag(f"step2: pull T7 window={_WINDOW}")
         rows = self._reader.read("SELECT id, content FROM beliefs WHERE tier = 7 AND erosion_stage != 'retired' AND locked = 0 ORDER BY created_at DESC LIMIT ?", (_WINDOW*2,)) or []
+        if stop_event is not None and stop_event.is_set():
+            return {"name": self.name, "state": "stopped"}
         _diag(f"  pulled {len(rows)} rows")
         items = []
         for r in rows:
+            if stop_event is not None and stop_event.is_set():
+                return {"name": self.name, "state": "stopped"}
             c = r["content"] or ""
             if _is_world(c): items.append((r["id"], c))
             if len(items) >= _WINDOW: break
@@ -68,8 +76,15 @@ class WorldConsolidator:
         _diag(f"step4: embed batches of {_BATCH}")
         vecs = {}
         for i in range(0, len(items), _BATCH):
+            if stop_event is not None and stop_event.is_set():
+                return {"name": self.name, "state": "stopped"}
             for bid, content in items[i:i+_BATCH]:
+                if stop_event is not None and stop_event.is_set():
+                    return {"name": self.name, "state": "stopped"}
                 try: vecs[bid] = embed(content)
+                except Exception as exc: _diag(f"  embed fail id={bid}: {exc!r}")
+                if stop_event is not None and stop_event.is_set():
+                    return {"name": self.name, "state": "stopped"}
                 except Exception as exc: _diag(f"  embed fail id={bid}: {exc!r}")
             gc.collect()
             _diag(f"  batch {i//_BATCH+1} done ({len(vecs)} total)")
@@ -78,9 +93,13 @@ class WorldConsolidator:
         _diag("step5: cluster")
         unclustered = set(ids); clusters = []
         for seed in ids:
+            if stop_event is not None and stop_event.is_set():
+                return {"name": self.name, "state": "stopped"}
             if seed not in unclustered: continue
             cluster = [seed]; unclustered.discard(seed)
             for other in list(unclustered):
+                if stop_event is not None and stop_event.is_set():
+                    return {"name": self.name, "state": "stopped"}
                 try:
                     if cosine(vecs[seed], vecs[other]) >= _SIM_THRESHOLD:
                         cluster.append(other); unclustered.discard(other)
@@ -89,20 +108,28 @@ class WorldConsolidator:
         _diag(f"  {len(clusters)} clusters")
         report = []; promoted = 0
         for cluster in clusters:
+            if stop_event is not None and stop_event.is_set():
+                break
             sample = contents.get(cluster[0], "")[:55]
             report.append({"size": len(cluster), "theme": sample})
             _diag(f"  cluster[{len(cluster)}]: {sample}")
             if not armed: continue
             for bid in cluster:
+                if stop_event is not None and stop_event.is_set():
+                    break
                 if promoted >= _MAX_PROMOTE_PER_RUN: break
                 try:
                     dup = self._reader.read("SELECT 1 FROM beliefs WHERE content = ? AND tier < 7 LIMIT 1", (contents.get(bid,""),))
+                    if stop_event is not None and stop_event.is_set():
+                        break
                     if dup: _diag(f"  skip id={bid}: dup shallower"); continue
                 except Exception as exc:
                     _diag(f"  dup-check fail id={bid}: {exc!r} — skip"); continue
                 if not _is_world(contents.get(bid, "")):
                     _diag(f"  skip non-world id={bid}")
                     continue
+                if stop_event is not None and stop_event.is_set():
+                    break
                 _diag(f"  about to corroborate id={bid}")
                 try:
                     if self._promoter.corroborate(bid): promoted += 1; _diag(f"  PROMOTED id={bid}")
