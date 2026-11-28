@@ -582,3 +582,6 @@ The tracked launch command sets NEX5_SELF_NARRATIVE=1 and NEX5_GOVERNOR_OFF=1 to
 ### 28 November 2026 — Fountain prompt-to-event feedback
 
 On the normal path, Fountain composes Stage-TOM narrative context, calls the voice model, then persists the returned thought in sense_events and fountain_events. A later Stage-TOM read can reuse that thought in a subsequent prompt. This is a conditional text/database feedback loop, not sentence parsing into executable code or a typed operation. Quiescent and eligible RECONCILE routes bypass the normal prompt path; tracked launcher sets NEX5_RECONCILE=1. Host execution and semantic influence remain UNKNOWN. No runtime change. See INDEX §163.
+
+
+PR #456 corrected exact-head workflow 46184315945 passed: 3,078 passed, 7 skipped, 86 subtests; baseline/sandbox OK. The first failure was a test assertion expecting full text despite the 80-character source truncation; the test now matches the source contract. PR #457 initial head passed; constructor-gate follow-up awaits CI. See INDEX §160.
