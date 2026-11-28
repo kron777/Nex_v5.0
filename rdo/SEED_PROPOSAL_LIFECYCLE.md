@@ -1,6 +1,6 @@
 # RDO candidate seed proposal lifecycle
 
-**Status:** first bounded G-92 increment; advisory proposal/review only.  
+**Status:** implemented G-92 proposal/review lifecycle plus the separate reviewed-selection bridge. Proposal approval remains advisory; `seed-prepare` is read-only and `seed-intake` explicitly persists objective lineage and runs advisory planning.  
 **Implementation:** `rdo_adapters/seed_proposals.py`.  
 **Tests:** `rdo/tests/test_seed_proposals.py`.
 
@@ -16,9 +16,9 @@ The lifecycle preserves the source request before interpretation. A proposal car
 
 Each acceptance criterion must map to at least one declared seed obligation. External-LLM-derived obligations must remain marked `inferred`; human-authored obligations may be marked `stated`.
 
-## Python API
+## CLI and Python API
 
-There is no CLI command or GUI for this first increment. Use the provider-neutral store directly:
+The provider-neutral store is exposed through `seed-propose`, `seed-review`, `seed-history` and `seed-selection`. The reviewed-selection bridge adds `seed-prepare` and `seed-intake`. The Python API remains available for integrations:
 
 ```python
 from rdo_adapters.seed_proposals import SeedProposalStore
@@ -57,21 +57,21 @@ Appends are serialized with `flock`, validated against the entire prospective le
 
 ## Deliberate non-authority
 
-This proposal store does **not**:
+This proposal store itself does **not**:
 - create or update an `objective.v1` intake record;
 - run recursive expansion, graph analysis, planning or prioritisation;
 - create a Stage-7 handoff;
 - execute candidate code, load rules or activate policy;
 - write NEX runtime databases, change feature flags, or start/stop services.
 
-An approved candidate is still only a selected proposal. Any later bridge must preserve the exact raw-objective hash and proposal/alternative identity, reconcile the proposed obligations against the existing NEX/RDO architecture, retain competing interpretations and evidence gaps, and require the relevant separate human/authority gates.
+An approved candidate is still only a selected proposal until the separate reviewed-selection bridge is explicitly invoked. That bridge preserves the exact raw-objective hash and proposal/alternative identity, maps the selected graph into objective.v1, retains competing interpretations and evidence gaps in lineage, and keeps the relevant human/authority gates separate.
 
-## Reuse opportunity for the next increment
+## Reused graph-analysis mechanisms
 
-The validator currently enforces structural endpoint validity and distinct graph payloads; it does not classify cycles or derive a build sequence. The RDO already has iterative cycle enumeration in `rdo.tension._find_cycles`, evidence-based classification in `_classify_cycle`, and system-level assessment in `assess_system`; `rdo.graph` supplies the strongly connected component machinery. The classifier distinguishes `prerequisite_cycle`, `feedback_loop` and `unknown`: prerequisite cycles block build ordering, while influence feedback loops are not automatically defects. The next review/bridge increment should adapt the validated proposal edges into the existing `Relationship` model and reuse these mechanisms rather than invent a second cycle engine. This analysis should inform review; it must not silently approve, reject or activate a candidate.
+The reviewed-selection bridge adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.graph.tarjan_sccs`, `rdo.tension._find_cycles`, `_classify_cycle` and `assess_system`. The classifier distinguishes `prerequisite_cycle`, `feedback_loop` and `unknown`: prerequisite cycles are build-order blockers, while influence feedback loops are not automatically defects. Enumeration is bounded per cyclic SCC (7 nodes / 18 internal cycle edges); if any cyclic SCC exceeds either bound, detailed classifications and system assessments remain UNKNOWN. This analysis informs the explicit review/intake path; it does not silently approve, reject or activate a candidate.
 
 
-## Integration contract before bridging into objective.v1
+## Integration contract and resolved bridge into objective.v1
 
 The existing objective intake already accepts nearly the same source/context fields and the same seed-obligation/relationship structures. A naive dictionary copy is nevertheless unsafe because the two ledgers have distinct identities and provenance:
 
@@ -85,9 +85,9 @@ The original bridge design question was how to carry a stable, machine-readable 
 The mapping preserves the raw objective's exact wording, intent, owner/source, scope, constraints, exclusions, assumptions, acceptance criteria and depth. The read-only preparation operation returns a candidate after explicit selection. A separate explicit intake operation persists it and runs advisory planning; neither operation automatically creates a Stage-7 handoff or authorizes execution. Regression coverage now checks both digest chains, approval-event integrity, replay and downstream lineage.
 
 
-## First reviewed-selection bridge increment
+## Reviewed-selection bridge
 
-The first bridge-preparation implementation is documented in REVIEWED_SEED_BRIDGE.md. It accepts only an explicit approval, prepares and validates an objective.v1 payload, returns the approval event and dual-ledger lineage, and reuses the existing SCC/cycle classifier. It deliberately does not append the intake ledger or call submit_objective(); no recursive expansion, planning cycle or Stage-7 handoff is started. The bridge's cycle enumeration is bounded per cyclic SCC; larger components remain UNKNOWN rather than being exhaustively enumerated.
+The bridge has two separate operations, documented in REVIEWED_SEED_BRIDGE.md. `prepare_reviewed_selection()` is read-only and returns a validated objective.v1 candidate plus approval-event and dual-chain lineage. `submit_reviewed_selection()` is the separate explicit persistence/planning operation: it writes the objective and lineage together in the objective ledger and runs advisory RDO planning. Neither operation automatically creates a Stage-7 handoff or authorizes execution.
 
 
 ## Durable reviewed intake and lineage propagation
