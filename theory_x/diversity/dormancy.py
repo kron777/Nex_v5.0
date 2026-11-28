@@ -15,18 +15,25 @@ class DormancyScanner:
         self._writer = beliefs_writer
         self._reader = beliefs_reader
 
-    def scan_incremental(self) -> int:
-        """Update dormancy scores for a batch of beliefs. Returns count updated."""
+    def scan_incremental(
+        self, *, stop_event: threading.Event | None = None
+    ) -> int:
+        """Update a batch of dormancy scores with cooperative stop checkpoints."""
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return 0
         rows = self._reader.read(
             "SELECT id, created_at, last_referenced_at FROM beliefs "
             "WHERE source IN ('fountain_insight', 'synergized', 'behavioural_observation') "
             "ORDER BY created_at ASC LIMIT 50"
         )
-        if len(rows) < MIN_BELIEFS_FOR_SCAN:
+        if _stopping() or len(rows) < MIN_BELIEFS_FOR_SCAN:
             return 0
 
         avg_gap = self._average_gap()
-        if avg_gap <= 0:
+        if _stopping() or avg_gap <= 0:
             return 0
 
         threshold = DORMANCY_MULTIPLIER * avg_gap
@@ -34,11 +41,15 @@ class DormancyScanner:
         updated = 0
 
         for row in rows:
+            if _stopping():
+                break
             last_active = row["last_referenced_at"] or row["created_at"]
             silence = now - last_active
             if silence < threshold:
                 continue
             dormancy_score = min(1.0, silence / (threshold * 5.0))
+            if _stopping():
+                break
             self._writer.write(
                 "INSERT INTO dormant_beliefs "
                 "(belief_id, last_active_at, dormancy_score, flagged_at) "
