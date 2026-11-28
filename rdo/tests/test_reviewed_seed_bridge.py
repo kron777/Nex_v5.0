@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from rdo_adapters.objective_intake import ObjectiveInputStore, resume_objective
+from rdo_adapters.objective_intake import ObjectiveInputError, ObjectiveInputStore, resume_objective
 from rdo_adapters.reviewed_seed_bridge import (
     ReviewedSeedBridgeError,
     prepare_reviewed_selection,
@@ -345,6 +345,10 @@ def test_approved_seed_lineage_survives_objective_cycle_resume_and_stage7(tmp_pa
     resumed = resume_objective(workdir, "bridge-objective", 1)
     assert resumed["proposal_lineage"] == lineage
     assert resumed["cycles"][0]["objective_lineage"] == lineage
+    conflicting_lineage = dict(lineage)
+    conflicting_lineage["proposal_source_reference"] = "different-source"
+    with pytest.raises(ObjectiveInputError, match="different proposal lineage"):
+        objective_store.append(resumed["objective"], lineage=conflicting_lineage)
 
     replay = submit_reviewed_selection(
         store, proposal_id, objective_store, repo_dir=str(repo), workdir=workdir
