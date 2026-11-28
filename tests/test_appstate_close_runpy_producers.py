@@ -106,6 +106,11 @@ class TestRunPyGracefulShutdownOutcome(unittest.TestCase):
         self.assertIn(
             "deadline = _time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S", handler
         )
+        self.assertIn("nonlocal shutdown_started", handler)
+        self.assertLess(
+            handler.index("shutdown_started = True"),
+            handler.index("shutdown_gate.begin_shutdown(deadline)"),
+        )
         self.assertIn("request_report = shutdown_gate.begin_shutdown(deadline)", handler)
         self.assertLess(
             handler.index("shutdown_gate.begin_shutdown(deadline)"),
