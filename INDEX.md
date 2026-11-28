@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `60cc178ba1f3c895651c86ad95345c98fd5a2198`  
+**Last verified against:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — records merged DAG integrity and policy-scan fixes, #223–#226 bounded one-pen migrations, #236/#238 SelfPredictionLoop handle integration, #253 Warrant cursor closure, and current G-69/G-70/G-73–G-75 status; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — records current RDO/Watcher progress, G-91–G-94, G-61/G-84/G-85 persistence and lifecycle evidence, and the self-binding shared-Writer correction proposed in PR #362; Gate 0 boundaries remain.*
 
 
 
@@ -992,3 +992,32 @@ Gate 0 remains pending and Phase 1 is not authorised. G-69/#259 stays on HOLD. G
 Design the raw-idea → candidate-seed alternatives → explicit human review → objective.v1 intake → recursive expansion → Stage-7 handoff lineage. Bind each candidate to the exact raw objective revision; preserve competing interpretations, assumptions, evidence needs, acceptance-criterion coverage, disconfirming cases and provenance. Do not run planning from an unreviewed external-LLM seed proposal, and do not make the candidate-rule ledger an active rule loader.
 
 No frozen S-01–S-25/M1.8 specification content, NEX runtime, protected experiment, deployment path, Gate 0 or Phase 1 authority was changed.
+
+
+## 47. Self-binding shared-Writer correction — G-94 (28 November 2026)
+
+**Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is proposed on draft PR #362; exact-head CI is pending.
+
+### Source-traced defect
+
+The recursive self-reading and periodic self-view snapshot both had access to the canonical AppState `dynamic` Writer, but omitted it when invoking self-binding:
+
+- Fountain called `recursive_self.format_for_prompt()` without a Writer. That function called `perturbation()`, which called `_bound_state()`; the helper already supported `dynamic_writer`, but the live call chain did not pass it.
+- SelfMindView's `_snapshot()` called `self_binding.bind()` without passing its existing `self._dw`.
+- With no injected Writer, `self_binding.bind()` and its schema helper open their own `Writer` for `dynamic.db`.
+
+This contradicted the one-canonical-Writer-per-database invariant in §4. It was not a database-schema defect or evidence of corruption; it was a source-level ownership violation on two runtime call paths.
+
+### Bounded correction on PR #362
+
+- Fountain now passes `self._dynamic_writer` through `recursive_self.format_for_prompt(dynamic_writer=...)` → `perturbation(dynamic_writer=...)` → `_bound_state(dynamic_writer=...)` → `self_binding.bind(dynamic_writer=...)`.
+- SelfMindView now passes its existing `self._dw` into `self_binding.bind()`.
+- The optional self-owned Writer fallback remains available for standalone/CLI use; runtime call sites use the shared Writer.
+- Regression coverage now asserts that the recursive prompt path carries the injected Writer, and that SelfMindView snapshotting succeeds while opening a second `self_binding.Writer` is forced to fail.
+- The existing direct injected-Writer test in `tests/test_self_state_history.py` remains in place.
+
+### Validation and boundary
+
+**G-94 is corrected in the PR branch, pending exact-head full-suite CI and review.** No pass count is claimed until that run completes. The changes do not alter self-binding content, faculty semantics, prompt text, selection weights, feature flags, database schema or history shape. No live service or database was accessed.
+
+This is a persistence-ownership correction that preserves the existing cognitive connections. It does not add a new faculty or claim that the recursive self-reading nudge produces a beneficial attention change. Gate 0 and Phase 1 authority remain unchanged.
