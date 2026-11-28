@@ -2,7 +2,7 @@
 import threading
 from unittest.mock import MagicMock, patch
 
-from theory_x.coincidence import decoder_loop as decoder
+import theory_x.coincidence.decoder_loop as decoder
 
 
 class _Cursor:
