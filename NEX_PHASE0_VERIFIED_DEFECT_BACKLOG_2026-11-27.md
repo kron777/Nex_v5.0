@@ -1013,3 +1013,5 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **28 November 2026 — Rut-mirror write/read asymmetry:** the fixed `rut_notice` note is retrieved through the GUI only when the first 100 characters of the user prompt are a literal substring of the note, because `gui/server.py` passes `prompt[:100]` and SelfNarrative uses case-insensitive SQL `LIKE`, not semantic retrieval. An unrelated prompt prefix therefore returns no rut note even if one exists. Rut-note-specific exact/unrelated retrieval tests are in draft PR #452; exact-head CI pending. No retrieval or prompt policy change. See INDEX §149.
+
+**§148 source clarification:** `run.py` separately starts GeniusTagger's 60-second loop to populate `conversations.db.genius_tags`, the rut helper's input. That producer's source wiring does not dispatch `SelfNarrative.tick()`; host execution/freshness remain UNKNOWN.
