@@ -1048,3 +1048,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 §157 consumer contract qualification: readiness (1h/5 rows/40% target), prompt block (24h/5-minute tag-age cutoff), governor (90m/4 rows/<=5%), Metacognition rut (90m/4 rows/<=5% plus DB throttle) and optional continuity (all-time top scores) independently query genius_tags. They have separate flags, no shared sample manifest, and differing version/event deduplication. This may be intended specialization; no unified contract is documented in inspected source. PRs #452/#453 CI passed; #454/#455 pending. See INDEX §157.
+
+
+§158 Genius reporting denominator qualification: panel overview, genius_tag_cli rate/top and genius_provenance.py aggregate tag rows across weights versions without unique fountain_event_id or current-version selection. The HUD current_version label comes from the latest row while its rate aggregates all rows. /api/fountain/recent uses first-wins per event, so displays differ. Actual duplicate distribution and live metrics remain UNKNOWN. See INDEX §158.
