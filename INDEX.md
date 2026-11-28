@@ -1206,3 +1206,23 @@ A source-to-launch comparison of current-main `gui/server.py`, the `theory_x/sta
 - The launcher may inherit additional environment from its parent service manager. Since the installed unit and effective process environment have not been inspected, the tracked launch line is not proof that these flags are OFF on the live host.
 
 This is an important distinction between a tested source dependency, a call site, a tracked launch setting and effective runtime enablement. Keep the #379 tests classified as deterministic source/function characterization until the exact deployment environment is observed. Do not change launch flags as part of this audit.
+
+
+### 16.8 Capability execution boundary — current-main source trace and open defects
+
+The current `theory_x/stage_capability/` registry exposes exactly three tools:
+
+- `web_fetch`: bounded HTTP GET against an initial hostname allowlist, returning at most 2,000 characters of extracted text.
+- `python_exec`: a deliberately restricted arithmetic AST interpreter; it does not execute arbitrary Python source.
+- `beliefs_query`: read-only retrieval from NEX's own belief graph.
+
+The chat route currently calls `ToolCaller.should_use_tool(prompt, [])`, then `build_tool_kwargs(...)`, then `ToolRegistry.execute(...)` synchronously in the same request path. The registry is a capability allowlist, but this path does not expose a general typed operation envelope or a separate approval-authority decision before execution. The current three tools are bounded read/calculation operations; `web_fetch` makes an outbound network GET but does not write to an external system. Do not describe this as a current arbitrary-action executor.
+
+Two source-level gaps were identified:
+
+1. **Redirect validation:** current-main `web_fetch` validates only the initial URL, then uses `urllib.request.urlopen()`, whose default redirect handler can follow a 3xx response without reapplying the allowlist. PR #383 proposes rejecting redirects and tightening URL parsing; it is open and its exact-head CI is pending at this snapshot. Do not describe the fix as merged.
+2. **Tool-selection/fetch-target mismatch:** `ToolCaller.should_use_tool()` selects `web_fetch` for generic current/factual wording, including a fallback conditioned on `not beliefs`. The chat route passes a literal empty list for that argument, so the fallback cannot distinguish a query with relevant retrieved beliefs. But `web_fetch` can only fetch an explicit URL or construct a CoinGecko URL for its small supported crypto-symbol map; a generic factual/current question without a URL or supported symbol returns `no URL to fetch`. Existing tests characterize selection but do not cover this full selection→kwargs→registry outcome. This is a bounded functional gap for the next increment; do not silently add an external search provider or infer that the tool performs general web search.
+
+The fetched page text is wrapped as a tool result and inserted into the voice prompt. The inspected call site does not establish a dedicated untrusted-content delimiter or a tested prompt-injection boundary. PR #383's redirect correction does not solve prompt injection or DNS rebinding; these remain explicit follow-up research.
+
+**Authority separation for future capabilities:** keep interpretive Mind Aspects separate from typed operation representation, capability validation, approval authority, execution and post-execution verification. The descriptive Tibetan mind map is not an action-control policy. Before adding consequential write/action tools, establish these stages explicitly; do not let a cognitive faculty score or veto an operation merely because of its descriptive position.
