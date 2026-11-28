@@ -2142,3 +2142,26 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 **Next mode:** STUDY. Trace registry consumers and the full registration lifecycle before deciding whether to defer registration. Continue other independent, well-understood work only if it does not depend on this unresolved lifecycle contract.
 
 **Adaptive-method reminder:** a green test suite closes only the claims it actually tests. It does not cancel a study trigger discovered by source review after the run.
+
+
+## 72. Theory X registry lifecycle study — GUI AppState ownership boundary (28 November 2026)
+
+**Question:** does a failed or closed GUI AppState leave registry references behind, and what is the demonstrated impact?
+
+**Source facts:** `theory_x/__init__.py` describes the registry as process-lifetime storage. `register(node)` validates the runtime-checkable `SentienceNode` protocol and appends directly to the module-level `_registered_nodes` list. It does not deduplicate. `all_nodes()` returns a new list containing the same registered object references. The module exposes no unregister, replacement, or scope API.
+
+**GUI lifecycle facts:** `gui.server.build_state()` registers `ProblemMemory`, `GoalManager` and `Metacognition` while constructing the AppState, before the function reaches its successful return. The GUI `AppState.close()` quiesces its owned producers and closes its Writers, but does not remove these nodes from the process registry. Therefore a failed build after registration, or a closed AppState, can leave those object references retained in the process-lifetime registry. These nodes were built with the AppState's Readers/Writers, so the retained objects can also retain references to those closed resource wrappers. This is a concrete lifetime mismatch in source; it is not yet evidence of a user-visible malfunction.
+
+**Other registration paths observed:** `gui.server` registers module-level FocalSet and ExecutiveControl nodes at import/setup time, and registers membrane self-model/behavioural nodes after AppState construction. `run.py` independently registers SelfNarrative, HoldingZoneResolver, GoalManager, Metacognition, NovelAssociation and several other runtime nodes. This reinforces that the registry currently mixes process-scoped and AppState/runtime-scoped objects; it is not safe to assume every entry has the same owner or shutdown boundary.
+
+**Consumer-scan limit:** direct inspection of `theory_x/__init__.py`, `gui/server.py` and `run.py` found no call to `all_nodes()`. Repository code-search requests for `all_nodes` and `_registered_nodes` returned no matches, but GitHub reported the code-search result as incomplete; this is not proof that no consumer exists. Consumer inventory remains open. Do not state that the registry is unused.
+
+**Impact assessment:** duplicate accumulation is possible if `build_state()` is called more than once in one process, because `register()` always appends. A closed or failed AppState can leave stale references until process exit. Whether any consumer iterates those stale nodes, invokes their methods, or whether repeated GUI construction is an intended supported operation remains unverified. No live process or runtime registry was inspected.
+
+**Design options to evaluate, not yet selected:** (A) stage per-AppState nodes locally and publish them only at the successful construction commit point, while defining how normal AppState.close() removes or retires them; (B) introduce explicit registry scopes/handles with deterministic close semantics; or (C) keep the registry strictly process-lifetime and prohibit AppState-owned objects from entering it. A bare `unregister(node)` is not automatically safe: it must define identity, duplicate registrations, ownership, concurrency, and what happens if a consumer already holds a snapshot from `all_nodes()`. Do not implement any option until consumer and ownership contracts are traced.
+
+**Next study tasks:** (1) enumerate every registry writer and any consumer through a complete repository source scan; (2) establish whether GUI AppState may be rebuilt or multiple instances coexist in one process; (3) inspect node `tick/decay/state` behaviour after their backing Writers are closed; (4) write lifecycle invariants and failure-injection tests for failure before/after registration and normal close; (5) only then choose the smallest registry lifecycle correction. Keep process-global FocalSet/ExecutiveControl distinct from per-AppState nodes.
+
+**Mode:** STUDY remains active for this boundary. The earlier exact-head CI result validates only the rollback tests on source commit `f12a668869b6f06bf15efabf2d0e568a5ac8d877`; the documentation-refresh head requires its own workflow result. No code behaviour is changed by this study entry.
+
+**Boundaries:** no cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed. The mind map remains descriptive only.
