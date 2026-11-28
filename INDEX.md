@@ -1390,3 +1390,15 @@ This change does not alter the successful Dynamic loop cadence or processing sem
 The merged change validates adapter IDs before worker creation, prepares all workers before starting them, holds them behind a shared start gate until all starts succeed, and rolls back a partial start by stopping and joining the prepared workers before re-raising. Regression tests cover duplicate IDs and an injected second-start failure with no polling before startup commit.
 
 **Integration boundary:** PR #414 is merged. This does not resolve the wider boot-before-AppState ownership gap, nor does it prove all other builders roll back partial startup. PR #415 separately addresses Dynamic builder rollback and remains under exact-head CI at the time of this entry.
+
+
+
+## 57. Dynamic builder startup transaction — merged and exact-head validated (28 November 2026)
+
+**Merged PR:** [#415](https://github.com/kron777/Nex_v5.0/pull/415), merge commit `93bc7a820565e577ddae155004b69dc0bcd50207`. Tested PR head: `8889eba914cbffe1767efb200f70626e71f9c945`.
+
+**Exact-head CI:** workflow run `46137634653` (run 2528), pytest job `140956406918`, completed successfully. Full baseline result: **3,000 passed, 7 skipped, 86 subtests passed**, 0 failures. Sandbox probe passed. Mind-map verification: 30 nodes, 0 unverified, 12 dark, 2 blocked. CI validates the tested PR head, not live host operation.
+
+The merged builder publishes the DynamicState stop event and worker list before starting loops, gates loop-body entry until every thread has started, and on partial failure requests stop, releases the gate for wrappers to exit without running, joins started workers against one bounded rollback budget, logs any survivor, and re-raises the original exception. A deterministic second-start failure test verifies that no loop body is entered and the first worker is joined.
+
+**Integration boundary:** PR #415 is merged. This closes the Dynamic builder's partial-thread-start ownership gap in the tested path. It does not establish process-wide boot ownership before AppState, nor does it prove the analogous World Model, Membrane, Fountain or other builders are transactional. Those remain separate, evidence-led increments.
