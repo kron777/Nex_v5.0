@@ -90,7 +90,7 @@ def _validate_alternative(raw: dict, value: Any, index: int) -> dict:
         "id", "label", "interpretation", "seed_obligations", "relationships",
         "reconciliation_signatures", "assumptions", "evidence_needs",
         "acceptance_coverage", "open_questions", "disconfirming_cases", "provenance",
-    })
+    }, optional={"candidate_objective_sha256"})
     alt_id = _text(alt["id"], f"{name}.id", max_length=64)
     if not _ALT_ID.fullmatch(alt_id):
         raise SeedProposalError(f"{name}.id must use portable identifier characters")
@@ -145,6 +145,10 @@ def _validate_alternative(raw: dict, value: Any, index: int) -> dict:
     if seen_criteria != criteria:
         raise SeedProposalError(f"{name}.acceptance_coverage does not cover every acceptance criterion")
 
+    candidate_digest = _digest(candidate)
+    supplied_digest = alt.get("candidate_objective_sha256")
+    if supplied_digest is not None and supplied_digest != candidate_digest:
+        raise SeedProposalError(f"{name}.candidate_objective_sha256 does not match the validated objective")
     return {
         "id": alt_id,
         "label": label,
@@ -158,7 +162,7 @@ def _validate_alternative(raw: dict, value: Any, index: int) -> dict:
         "open_questions": open_questions,
         "disconfirming_cases": disconfirming_cases,
         "provenance": provenance,
-        "candidate_objective_sha256": _digest(candidate),
+        "candidate_objective_sha256": candidate_digest,
     }
 
 
@@ -197,8 +201,8 @@ class SeedProposalStore:
                 raise SeedProposalError(f"seed proposal ledger event shape is invalid on line {number}")
             if event["schema_version"] != EVENT_SCHEMA or event["event_kind"] not in _EVENT_KINDS:
                 raise SeedProposalError(f"unsupported seed proposal event on line {number}")
-            if (isinstance(event["sequence"], bool) or event["sequence"] != number
-                    or event["previous_event_sha256"] != previous):
+            if (isinstance(event["sequence"], bool) or not isinstance(event["sequence"], int)
+                    or event["sequence"] != number or event["previous_event_sha256"] != previous):
                 raise SeedProposalError(f"seed proposal event chain is invalid on line {number}")
             if (not isinstance(event["proposal_id"], str)
                     or not _PROPOSAL_ID.fullmatch(event["proposal_id"])
@@ -274,6 +278,12 @@ class SeedProposalStore:
             if event["event_kind"] == "proposal_submitted":
                 if proposal_id in proposals:
                     raise SeedProposalError("duplicate seed proposal ID in ledger")
+                if set(record) != {
+                    "proposal_id", "raw_objective", "raw_objective_sha256", "alternatives",
+                    "proposer_kind", "proposer_reference", "source_reference",
+                    "supersedes_proposal_id", "created_at",
+                } or record.get("proposal_id") != proposal_id:
+                    raise SeedProposalError("seed proposal record shape or identity is invalid")
                 raw = validate_raw_objective(record["raw_objective"])
                 raw_hash = _digest(raw)
                 if record.get("raw_objective_sha256") != raw_hash:
@@ -326,7 +336,7 @@ class SeedProposalStore:
                     "evidence_references", "selected_alternative_id",
                 })
                 decision = review["decision"]
-                if decision not in _DECISIONS:
+                if not isinstance(decision, str) or decision not in _DECISIONS:
                     raise SeedProposalError("invalid seed proposal review decision")
                 for key in ("reviewer", "source_reference", "rationale"):
                     if not isinstance(review[key], str) or not review[key].strip():
@@ -335,7 +345,7 @@ class SeedProposalStore:
                 selected = review["selected_alternative_id"]
                 alternatives = {alt["id"] for alt in proposals[proposal_id]["alternatives"]}
                 if decision == "approved":
-                    if selected not in alternatives:
+                    if not isinstance(selected, str) or selected not in alternatives:
                         raise SeedProposalError("approval must select one declared seed alternative")
                     prior_reviews = reviews[proposal_id]
                     if prior_reviews and prior_reviews[-1]["record"]["decision"] in {"approved", "rejected"}:
@@ -390,7 +400,7 @@ class SeedProposalStore:
         ]
         if len({item["id"] for item in normalized}) != len(normalized):
             raise SeedProposalError("seed alternative IDs must be unique")
-        if proposer_kind not in {"human", "external_llm", "imported"}:
+        if not isinstance(proposer_kind, str) or proposer_kind not in {"human", "external_llm", "imported"}:
             raise SeedProposalError("proposer_kind must be human, external_llm or imported")
         proposer_reference = _text(proposer_reference, "proposer_reference", max_length=512)
         source_reference = _text(source_reference, "source_reference", max_length=512)
@@ -414,6 +424,8 @@ class SeedProposalStore:
         elif raw["supersedes_raw_sha256"] is not None:
             raise SeedProposalError("raw revision 1 must not supersede another raw record")
         if supersedes_proposal_id is not None:
+            if not isinstance(supersedes_proposal_id, str) or not _PROPOSAL_ID.fullmatch(supersedes_proposal_id):
+                raise SeedProposalError("invalid supersedes_proposal_id")
             prior = state["proposals"].get(supersedes_proposal_id)
             if prior is None or state["superseded"].get(supersedes_proposal_id):
                 raise SeedProposalError("supersedes_proposal_id must identify an active prior proposal")
@@ -434,7 +446,7 @@ class SeedProposalStore:
         record["proposal_id"] = proposal_id
         existing = state["proposals"].get(proposal_id)
         if existing is not None:
-            if existing != record:
+            if _proposal_identity(existing) != _proposal_identity(record):
                 raise SeedProposalError("seed proposal ID collision with different content")
             return {"proposal_id": proposal_id, "proposal": existing, "replayed": True}
         event = self._append("proposal_submitted", proposal_id, record)
@@ -457,7 +469,7 @@ class SeedProposalStore:
         state = self._state()
         if state["superseded"].get(proposal_id):
             raise SeedProposalError("a superseded seed proposal cannot be reviewed")
-        if decision not in _DECISIONS:
+        if not isinstance(decision, str) or decision not in _DECISIONS:
             raise SeedProposalError(f"decision must be one of {sorted(_DECISIONS)}")
         reviewer = _text(reviewer, "reviewer", max_length=256)
         source_reference = _text(source_reference, "source_reference", max_length=512)
@@ -465,7 +477,7 @@ class SeedProposalStore:
         evidence = _references(evidence_references, "evidence_references")
         alternatives = {alt["id"] for alt in proposal["alternatives"]}
         if decision == "approved":
-            if selected_alternative_id not in alternatives:
+            if not isinstance(selected_alternative_id, str) or selected_alternative_id not in alternatives:
                 raise SeedProposalError("approval must explicitly select one alternative")
             prior_reviews = state["reviews"][proposal_id]
             if prior_reviews and prior_reviews[-1]["record"]["decision"] in {"approved", "rejected"}:
