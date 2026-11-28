@@ -448,4 +448,5 @@ class TestStageTomSelfNarrativePausedBeliefReader(unittest.TestCase):
 
         narrative = build_narrative(paths["dynamic"], paths["beliefs"])
         self.assertIsNotNone(narrative)
-        self.assertIn(note, narrative)
+        # _recent_t6() renders at most the first 80 characters per belief.
+        self.assertIn(note[:80], narrative)
