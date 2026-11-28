@@ -231,8 +231,35 @@ class RuleProposalStore:
                 raise ValueError(f"rule proposal ledger chain is broken at line {number}")
             if event.get("event_sha256") != _event_digest(event):
                 raise ValueError(f"rule proposal ledger digest mismatch at line {number}")
-            if event.get("event_kind") not in {"proposal_created", "proposal_reviewed"}:
+            event_kind = event.get("event_kind")
+            data = event.get("data")
+            if event_kind not in {"proposal_created", "proposal_reviewed"}:
                 raise ValueError(f"unsupported rule proposal event kind on line {number}")
+            if not isinstance(data, dict):
+                raise ValueError(f"invalid rule proposal event payload on line {number}")
+            if event_kind == "proposal_created":
+                if (set(data) != {"proposal_id", "proposal"}
+                        or not isinstance(data.get("proposal_id"), str)
+                        or not isinstance(data.get("proposal"), dict)):
+                    raise ValueError(f"invalid proposal-created event on line {number}")
+            else:
+                expected = {
+                    "proposal_id", "decision", "selected_alternative", "reviewer",
+                    "source_reference", "evidence_references", "positive_test_evidence",
+                    "negative_test_evidence", "catalogue_version", "note",
+                }
+                if (set(data) != expected or not isinstance(data.get("proposal_id"), str)
+                        or data.get("decision") not in {"approved", "rejected", "changes_requested"}
+                        or not isinstance(data.get("reviewer"), str)
+                        or not isinstance(data.get("source_reference"), str)
+                        or not isinstance(data.get("evidence_references"), list)
+                        or not isinstance(data.get("positive_test_evidence"), list)
+                        or not isinstance(data.get("negative_test_evidence"), list)
+                        or (data.get("catalogue_version") is not None
+                            and (isinstance(data.get("catalogue_version"), bool)
+                                 or not isinstance(data.get("catalogue_version"), int)
+                                 or data.get("catalogue_version") < 1))):
+                    raise ValueError(f"invalid proposal-review event on line {number}")
             events.append(event)
             previous = event["event_sha256"]
         return events
