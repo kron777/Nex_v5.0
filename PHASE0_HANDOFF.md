@@ -412,3 +412,7 @@ Producer/consumer distinction: commit `543e4ce957f2e3ad8e3ebf9fb25cd1bf977fed1a`
 Session-scope refinement: `meta_cognition_events` schema has nullable `session_id`, but `Metacognition.tick(context)` ignores context and `_write_event()` does not populate the field; GUI calls `tick()` without context and Row 9 has no session predicate. Current source is database-global, not session-scoped. Intended scope UNKNOWN. See INDEX §129.
 Authority classification: the optional Fountain Metacognition line is textual prompt context only; it is not a typed operation, capability grant, approval signal, execution command or verification result. It does not make the Tibetan mind map or any Mind Aspect an action gate/veto. See INDEX §131.
 Cache timing: `_CACHE_TTL=60s`; every chat tick can write events/narratives and count Row 9, but refreshes `_cached_recent` only when empty or older than 60s. `format_for_prompt()` reads the cached snapshot; Fountain reads the same snapshot without refreshing. Actual chat cadence UNKNOWN. See INDEX §131.
+
+### 28 November 2026 — G-83 Fountain rail exact-head CI
+
+Draft PR #451 exact head `91739d131f21f3dd2c55d35ef2b23a07aa73c424`, workflow `46176528182`, passed 3,078 tests, 7 skipped, 86 subtests; baseline and sandbox checks passed. The fixture verifies the optional flag and that Fountain reads the cache without ticking Metacognition. Stale-cache age and host flag state remain UNKNOWN. See INDEX §131.
