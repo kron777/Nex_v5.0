@@ -10,6 +10,7 @@
 
 - Add a protocol stop Event, a lock-protected owned-thread registry, and an idempotent `stop()` operation.
 - Replace the fixed 60-second sleep with `Event.wait(60)`: normal timing is unchanged, while shutdown can cancel pending checks immediately.
+- Replace the six 10-second SILENCE observation sleeps with interruptible Event waits. If shutdown interrupts the 60-second observation, the record explicitly says it was incomplete rather than claiming a completed 60 seconds.
 - Register delayed workers before starting them and remove them from the registry in `finally`.
 - Track the synchronous `fire()` caller thread for the duration of its catalogue write, so AppState can detect and join an in-flight request rather than declaring a clean drain while it is still writing.
 - Reject new `fire()` calls after stop begins. A fire already in progress may finish its synchronous work, but it cannot schedule a new delayed check after stop.
@@ -20,7 +21,7 @@ If an in-flight catalogue operation exceeds the shared shutdown deadline, it rem
 
 ## Evidence and tests
 
-- `tests/test_strike_protocol_shutdown.py` proves multiple delayed catalogue workers are stopped/joined, future fires are rejected, normal delayed updates still occur when the wait expires, and an in-flight fire exceeding the budget is reported.
+- `tests/test_strike_protocol_shutdown.py` proves multiple delayed catalogue workers are stopped/joined, future fires are rejected, normal delayed updates still occur when the wait expires, in-flight fires exceeding the budget are reported, and an interrupted SILENCE observation is recorded as incomplete.
 - `tests/test_strikes.py` now stops and joins protocol workers during test cleanup, avoiding delayed writes into removed temporary directories.
 - AppState's managed-producer path collects multi-thread services from a stable snapshot, avoiding list-mutation skips while workers remove themselves.
 
