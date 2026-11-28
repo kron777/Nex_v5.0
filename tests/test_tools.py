@@ -6,7 +6,7 @@ rule that natural-language input must never become executable Python source.
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from tests import _bootstrap  # noqa: F401
 
@@ -80,6 +80,55 @@ class TestToolRegistry(unittest.TestCase):
         result = self.reg.execute("web_fetch", url="https://evil.com/steal")
         self.assertFalse(result.success)
         self.assertIn("allowlist", result.error)
+
+    def test_web_fetch_accepts_allowlisted_hostname_with_port_and_disables_redirects(self):
+        import urllib.request
+
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = b"<p>allowed response</p>"
+        opener = MagicMock()
+        opener.open.return_value = response
+        captured = {}
+
+        def build_opener(*handlers):
+            captured["handlers"] = handlers
+            return opener
+
+        with patch("urllib.request.build_opener", side_effect=build_opener):
+            result = self.reg.execute(
+                "web_fetch", url="https://www.openai.com:443/research"
+            )
+
+        self.assertTrue(result.success, result.error)
+        self.assertIn("allowed response", result.output)
+        opener.open.assert_called_once()
+        redirect_class = next(
+            handler for handler in captured["handlers"]
+            if isinstance(handler, type)
+            and issubclass(handler, urllib.request.HTTPRedirectHandler)
+        )
+        redirect_handler = redirect_class()
+        self.assertIsNone(
+            redirect_handler.redirect_request(
+                None, None, 302, "Found", {}, "http://127.0.0.1/private"
+            )
+        )
+
+    def test_web_fetch_rejects_credentials_and_non_http_schemes(self):
+        with patch("urllib.request.build_opener") as build_opener:
+            credentials = self.reg.execute(
+                "web_fetch", url="https://user:secret@openai.com/private"
+            )
+            unsupported = self.reg.execute(
+                "web_fetch", url="ftp://openai.com/research"
+            )
+
+        self.assertFalse(credentials.success)
+        self.assertIn("credentials", credentials.error)
+        self.assertFalse(unsupported.success)
+        self.assertIn("scheme", unsupported.error)
+        build_opener.assert_not_called()
 
     def test_web_fetch_no_url_no_query(self):
         result = self.reg.execute("web_fetch")
