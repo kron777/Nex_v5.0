@@ -272,7 +272,9 @@ class FeedbackLoopEvidenceStore:
                 raise ValueError(f"feedback-loop evidence digest mismatch at line {number}")
             kind = event.get("event_kind")
             data = event.get("data")
-            if kind not in {"measurement_recorded", "stability_reviewed"} or not isinstance(data, dict):
+            if (not isinstance(kind, str)
+                    or kind not in {"measurement_recorded", "stability_reviewed"}
+                    or not isinstance(data, dict)):
                 raise ValueError(f"unsupported feedback-loop event at line {number}")
             expected_keys = measurement_keys if kind == "measurement_recorded" else review_keys
             if set(data) != expected_keys:
@@ -287,7 +289,8 @@ class FeedbackLoopEvidenceStore:
             if data["event_id"] in event_ids:
                 raise ValueError(f"duplicate feedback-loop event ID at line {number}")
             event_ids.add(data["event_id"])
-            if not re.fullmatch(r"[0-9a-f]{64}", data.get("topology_sha256", "")):
+            if (not isinstance(data.get("topology_sha256"), str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", data["topology_sha256"])):
                 raise ValueError(f"feedback-loop topology digest is invalid at line {number}")
             if data["event_id"] != _expected_event_id(kind, data):
                 raise ValueError(f"feedback-loop event identity digest mismatch at line {number}")
@@ -337,7 +340,7 @@ class FeedbackLoopEvidenceStore:
                     event, sort_keys=True, ensure_ascii=False, allow_nan=False
                 ) + "\n"
                 fh.seek(0, os.SEEK_END)
-                if fh.tell() + len(encoded.encode("utf-8")) > _MAX_LEDGER_BYTES:
+                if os.fstat(fh.fileno()).st_size + len(encoded.encode("utf-8")) > _MAX_LEDGER_BYTES:
                     raise ValueError("feedback-loop evidence ledger exceeds size limit")
                 fh.write(encoded)
                 fh.flush()
