@@ -190,6 +190,7 @@ class EdgeGenerator:
         self, source_id: int, edges: list[tuple[int, str, float]], *, stop_event=None
     ) -> int:
         now = time.time()
+        persisted = 0
         for target_id, edge_type, weight in edges:
             if stop_event is not None and stop_event.is_set():
                 break
@@ -204,7 +205,8 @@ class EdgeGenerator:
                 # the raise even when INSERT OR IGNORE keeps an existing edge.
                 log_undo(self._writer, "contradiction_raised", (source_id, target_id),
                          cause_ref=f"edge_generator:{source_id}->{target_id}", at=now)
-        return len(edges)
+            persisted += 1
+        return persisted
 
 
 class EdgeGeneratorLoop:
