@@ -1,5 +1,6 @@
 """CLI coverage for the candidate-only seed proposal lifecycle."""
 import json
+import os
 
 from rdo import __main__ as cli
 
@@ -84,3 +85,50 @@ def test_seed_propose_rejects_unknown_input_fields_before_store_access(tmp_path,
     path.write_text(json.dumps({"unexpected": True}), encoding="utf-8")
     assert cli.main(["seed-propose", "--input", str(path), "--dir", str(tmp_path)]) == 2
     assert "exactly the documented fields" in capsys.readouterr().err
+
+
+def test_seed_prepare_and_intake_cli_keep_read_only_and_persisted_paths_separate(tmp_path, monkeypatch, capsys):
+    calls = []
+    proposal_id = "seedprop_" + "c" * 24
+
+    class FakeProposalStore:
+        def __init__(self, path):
+            calls.append(("proposal_store", path))
+
+    class FakeObjectiveStore:
+        def __init__(self, path):
+            self.directory = path
+            calls.append(("objective_store", path))
+
+    monkeypatch.setattr(cli, "SeedProposalStore", FakeProposalStore)
+    monkeypatch.setattr(cli, "ObjectiveInputStore", FakeObjectiveStore)
+    monkeypatch.setattr(
+        cli, "prepare_reviewed_selection",
+        lambda proposal, pid, objective: (
+            calls.append(("prepare", pid, objective.directory))
+            or {"status": "prepared_for_intake_review", "persisted": False}
+        ),
+    )
+    monkeypatch.setattr(
+        cli, "submit_reviewed_selection",
+        lambda proposal, pid, objective, repo_dir, workdir: (
+            calls.append(("intake", pid, objective.directory, repo_dir, workdir))
+            or {"status": "created", "proposal_id": pid}
+        ),
+    )
+    out = str(tmp_path / "cycles")
+    assert cli.main(["seed-prepare", "--proposal-id", proposal_id, "--dir", out]) == 0
+    prepared = json.loads(capsys.readouterr().out)
+    assert prepared["persisted"] is False
+    assert any(call[0] == "prepare" for call in calls)
+
+    assert cli.main([
+        "seed-intake", "--proposal-id", proposal_id, "--repo", str(tmp_path),
+        "--dir", out,
+    ]) == 0
+    intake = json.loads(capsys.readouterr().out)
+    assert intake["status"] == "created"
+    intake_call = next(call for call in calls if call[0] == "intake")
+    assert intake_call[1:] == (
+        proposal_id, os.path.join(out, "objectives"), str(tmp_path), out
+    )

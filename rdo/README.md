@@ -480,3 +480,31 @@ The proposal and review ledger is append-only and hash-chained. Approval selects
 one existing alternative but does not create an `objective.v1` record, start an
 RDO cycle, create a Stage-7 handoff, execute code, or activate rules. Reviewer
 and proposer labels remain caller-attributed, not identity-authenticated.
+
+
+## Reviewed seed intake and provenance (G-92)
+
+The reviewed-selection bridge exposes two separate operations. The read-only
+`prepare_reviewed_selection()` validates an explicit approval and prepares
+`objective.v1` plus its dual-chain lineage. The explicit
+`submit_reviewed_selection()` operation stores the objective and lineage in
+one objective-ledger append, then runs the advisory RDO planning cycle. It
+preserves provenance through CycleStore and the Stage-7 manifest; it does not
+automatically create a handoff or authorize execution. See
+[REVIEWED_SEED_BRIDGE.md](REVIEWED_SEED_BRIDGE.md) for persistence, replay,
+integrity and authority boundaries.
+
+
+The final bridge steps are explicit:
+
+```bash
+# Read-only: inspect the validated objective.v1 candidate and provenance.
+python -m rdo seed-prepare --proposal-id seedprop_<id>
+
+# Explicit persistence and advisory RDO planning; still no Stage-7 handoff/execution.
+python -m rdo seed-intake --proposal-id seedprop_<id> --repo .
+```
+
+`seed-prepare` never appends or plans. `seed-intake` appends the objective and
+verified proposal lineage together, then runs the existing advisory RDO planner.
+A Stage-7 handoff remains a separate explicit command.

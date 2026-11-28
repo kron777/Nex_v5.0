@@ -115,6 +115,12 @@ def _validate_manifest(manifest: Any) -> dict:
         raise HandoffError("manifest digest mismatch; immutable handoff record was changed")
     if not isinstance(manifest["authority"], dict) or not isinstance(manifest["evidence_dimensions"], dict):
         raise HandoffError("manifest authority and evidence_dimensions must be objects")
+    proposal_lineage = manifest.get("proposal_lineage")
+    if proposal_lineage is not None and (
+        not isinstance(proposal_lineage, dict)
+        or proposal_lineage.get("schema_version") != "rdo.reviewed_seed_bridge.v2"
+    ):
+        raise HandoffError("manifest proposal lineage is invalid")
     if manifest["authority"].get("execution_authority") != "none":
         raise HandoffError("handoff cannot contain execution authority")
     if manifest["evidence_dimensions"].get("test_verified") != "not_authorized":
@@ -219,6 +225,10 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
     if not isinstance(input_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", input_digest):
         raise HandoffError("cycle has no valid immutable objective-input digest")
     objective = _read_objective(workdir, objective_id, revision, input_digest)
+    stored_input = ObjectiveInputStore(os.path.join(workdir, "objectives")).history(objective_id)[revision - 1]
+    proposal_lineage = dict(stored_input.get("lineage") or {})
+    if cycle.objective_lineage != proposal_lineage:
+        raise HandoffError("cycle proposal lineage does not match the immutable objective-input ledger")
 
     repository_revision = _repository_revision(repo_dir)
     if repository_revision != metadata.get("repository_revision"):
@@ -262,6 +272,8 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
         "repository_revision": repository_revision,
         "work_package_key": work_package_key,
     }
+    if proposal_lineage:
+        identity["proposal_lineage_sha256"] = _digest(proposal_lineage)
     handoff_id = "handoff_" + hashlib.sha256(_canonical(identity).encode("utf-8")).hexdigest()[:24]
 
     evidence_requirements = {}
@@ -362,6 +374,8 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
             "reviewer_identity": "caller_attributed_not_authenticated",
         },
     }
+    if proposal_lineage:
+        manifest["proposal_lineage"] = proposal_lineage
     manifest["manifest_sha256"] = _digest(manifest)
     path = _manifest_path(workdir, handoff_id)
     created = _write_manifest_exclusive(path, manifest)
