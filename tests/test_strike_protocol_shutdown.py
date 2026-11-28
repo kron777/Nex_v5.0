@@ -162,3 +162,36 @@ def test_appstate_interrupts_silence_observation_without_claiming_sixty_seconds(
     assert "60-second observation was not completed" in results[0].response_text
     assert "60s of quiet" not in results[0].response_text
     assert protocol._threads == []
+
+
+def test_reentrant_shutdown_from_fire_cannot_report_a_clean_drain():
+    class ReentrantCatalogue(_Catalogue):
+        def __init__(self):
+            super().__init__()
+            self.state = None
+            self.report = None
+
+        def save(self, _record):
+            self.report = self.state._quiesce_producers(timeout=1.0)
+            self.saved += 1
+            return self.saved
+
+    catalogue = ReentrantCatalogue()
+    protocol = StrikeProtocol(
+        voice=_Voice(),
+        dynamic_state=_Dynamic(),
+        beliefs_reader=_Reader(),
+        sense_writer=object(),
+        catalogue=catalogue,
+    )
+    state = AppState(
+        writers={}, readers={}, voice=None, strike_protocol=protocol,
+    )
+    catalogue.state = state
+
+    protocol.fire(StrikeType.NOVEL)
+
+    assert catalogue.report is not None
+    assert threading.current_thread().name in catalogue.report["alive"]
+    assert catalogue.report["errors"] == []
+    assert protocol._threads == []
