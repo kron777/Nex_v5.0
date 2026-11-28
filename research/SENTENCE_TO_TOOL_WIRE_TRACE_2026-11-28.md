@@ -4,7 +4,7 @@
 **Repository:** `kron777/Nex_v5.0`  
 **Method:** source trace plus isolated tests; no live service or database access.
 
-**Implementation status at main snapshot `5ba30077`:** the bounded correction described below is a candidate in PR #369, not yet merged. Current main still contains the legacy query-to-code fallback, regex import blacklist and subprocess execution. The pre-rebase PR head `786c5743` passed full-suite run `46118580628` on the earlier base `bbce6317`; the candidate must be rebased onto this main snapshot and revalidated before it can be called implemented.
+**Historical implementation status at main snapshot `5ba30077` (before PR #369 merge):** the bounded correction below was still a candidate at that snapshot; the legacy query-to-code fallback, regex import blacklist and subprocess execution were then present. This paragraph is historical, not the current-main status. PR #369 subsequently merged on 28 November 2026; see §9 for exact post-merge evidence.
 
 ## 0. Governing objective and architectural boundary
 
@@ -20,7 +20,7 @@ The inspected path in `gui/server.py` is:
 
 ```text
 /api/chat human sentence
-  -> AppState.tool_caller.should_use_tool(prompt, [])
+  -> AppState.tool_caller.should_use_tool(prompt)
   -> ToolCaller.build_tool_kwargs(prompt, tool_name)
   -> AppState.tool_registry.execute(tool_name, **kwargs)
   -> ToolResult
@@ -31,7 +31,7 @@ The inspected path in `gui/server.py` is:
 
 This is an actual language-triggered capability route. It is not a general sentence compiler and does not synthesize arbitrary machine instructions. The current ToolCaller uses keyword patterns to select among web fetch, arithmetic and belief retrieval.
 
-A second connection detail remains open: the inspected chat call invokes \`should_use_tool(prompt, [])\` with an empty belief list, even after the membrane route has assembled \`belief_text\`. Therefore the ToolCaller cannot distinguish a query already supported by retrieved beliefs from one with no belief support; its no-beliefs factual fallback is effectively given an empty list on this path. This is recorded as a separate context-propagation edge, not changed in this increment.
+The original note's empty-belief-list concern is withdrawn: current main's ToolCaller.should_use_tool() accepts only the raw query, and gui/server.py calls it with one argument. The ToolCaller selects from the user's sentence; retrieved belief_text is assembled separately and later injected into the response context. No belief-list parameter or no-beliefs fallback exists in the current API. Whether tool selection should use retrieved context is a design question, not an established defect.
 
 ## 2. Defect found at the execution boundary
 
@@ -44,9 +44,9 @@ Before this increment:
 
 The sentence was therefore being treated as source code rather than being translated into a bounded operation.
 
-## 3. Bounded correction candidate — PR #369 (not yet on main)
+## 3. Bounded correction implemented by PR #369 (merged 28 November 2026)
 
-The PR #369 candidate changes the arithmetic route to:
+PR #369 implemented the following bounded correction:
 
 1. Selects the tool only when a recognised sentence prefix contains a numeric expression.
 2. Extracts the expression using a strict character allowlist and syntax parse.
@@ -59,7 +59,7 @@ The PR #369 candidate changes the arithmetic route to:
 
 The output still follows the existing ToolResult → response-context path. No new node or execution authority was introduced.
 
-## 4. Tests in PR #369 candidate branch
+## 4. Tests added and merged in PR #369
 
 - Safe arithmetic returns the expected numeric result.
 - `math.pi` and bounded `math.sqrt` work.
@@ -69,7 +69,7 @@ The output still follows the existing ToolResult → response-context path. No n
 - A sentence containing a dynamic-import payload is not selected as a calculation operation.
 - Oversized expressions are rejected before AST parsing, parser recursion failures become non-selection, and the sentence-level AST node budget is enforced.
 
-The previous PR head passed full-suite CI run `46118580628`; that run predates the rebase and the added parser-boundary tests. Exact-head CI must be rerun.
+Exact-head workflow `46119302748` passed on `f9bd490eebab6c82f1a3704f7527291ff5489869`: 2,930 passed, 7 skipped, 62 subtests; baseline and disposable sandbox checks passed; mind-map check reported 30 nodes, 0 unverified, 14 dark and 2 blocked. Main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0` subsequently passed workflow `46153028417` (`pytest`) at 14:13 UTC.
 
 ## 5. Adjacent RDO path — related, but not yet connected
 
@@ -104,3 +104,14 @@ These are valuable architectural sketches of voice intake, structured action env
 ## 8. Governance
 
 No cognitive node, prompt policy, salience threshold, database schema, feature flag, frozen S-01–S-25 register, M1.8 content, or M0/M1 gate order was changed. The change narrows the existing arithmetic tool boundary and adds isolated tests only.
+
+
+## 9. Post-merge status and correction — 28 November 2026
+
+PR #369 merged at 07:21:56 UTC (merge commit 194c75c313e695b60f61d1f02b16f99434e2847d). Its exact head passed workflow 46119302748 before merge: 2,930 passed, 7 skipped, 62 subtests; baseline and disposable sandbox checks passed. The later main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0 passed pytest workflow 46153028417 at 14:13 UTC.
+
+Current main now contains the bounded in-process arithmetic AST interpreter described in §3. The legacy query-to-code fallback, regex import blacklist and subprocess execution described in §2 are historical pre-merge behavior, not current behavior.
+
+Correction to §1: the current ToolCaller API takes one query argument; the GUI calls should_use_tool(prompt), not should_use_tool(prompt, []). The previous empty-belief-list/no-beliefs-fallback claim was inaccurate for current main and is withdrawn. Tool selection is based on the raw user sentence; belief context is assembled separately for response composition.
+
+The autonomous Fountain/fire-path tool caller remains unbuilt. Current theory_x/stage6_fountain/generator.py contains no ToolCaller, ToolRegistry, python_exec, web_fetch or beliefs_query references. The separate observation_reports/fire_path_tools_SCOPE.md remains a read-only scope note; it is not approval to arm tools from autonomous fires.
