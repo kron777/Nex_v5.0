@@ -282,6 +282,10 @@ class TestRutMirrorGovernor(unittest.TestCase):
             CLASSIFIER.classify_belief(dict(rows[0])),
             MembraneSide.OUTSIDE,
         )
+        self.assertEqual(
+            CLASSIFIER.classify_query("what do you notice about your thinking"),
+            MembraneSide.INSIDE,
+        )
         inside = retriever.retrieve(
             query="my recent thinking has circled the same few frames",
             limit=1000,
