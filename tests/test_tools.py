@@ -151,6 +151,22 @@ class TestToolCaller(unittest.TestCase):
         kwargs = self.caller.build_tool_kwargs("btc price", "web_fetch")
         self.assertIn("query", kwargs)
 
+
+    def test_calculation_sentence_traces_through_registry(self):
+        query = "calculate 15 * 37"
+        tool_name = self.caller.should_use_tool(query, beliefs=[])
+        self.assertEqual(tool_name, "python_exec")
+        kwargs = self.caller.build_tool_kwargs(query, tool_name)
+        result = self.reg.execute(tool_name, **kwargs)
+        self.assertTrue(result.success, result.error)
+        self.assertEqual(result.output, "555")
+        prompt = self.caller.build_tool_prompt(query, result)
+        self.assertIn("555", prompt)
+
+    def test_code_injection_sentence_is_not_selected_as_a_tool(self):
+        query = "calculate __import__('os').system('echo unsafe')"
+        self.assertIsNone(self.caller.should_use_tool(query, beliefs=[]))
+
     def test_build_tool_kwargs_python_exec(self):
         kwargs = self.caller.build_tool_kwargs("calculate 2+2", "python_exec")
         self.assertEqual(kwargs, {"code": "print(2+2)"})
