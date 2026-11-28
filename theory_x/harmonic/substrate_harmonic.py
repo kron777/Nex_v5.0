@@ -92,19 +92,29 @@ class SubstrateHarmonic:
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
-    def tick(self, context: Optional[dict[str, Any]] = None) -> dict[str, Any]:
-        """Read streams, score pairs, write one substrate_coherence row.
-
-        Never raises. All errors recorded to central error channel.
-        """
+    def tick(
+        self,
+        context: Optional[dict[str, Any]] = None,
+        *,
+        stop_event: threading.Event | None = None,
+    ) -> dict[str, Any]:
+        """Read streams and persist one row, stopping before the write."""
+        if stop_event is not None and stop_event.is_set():
+            return self.state()
         ts_now = time.time()
         try:
-            streams = self._read_all_streams(ts_now)
+            streams = self._read_all_streams(ts_now, stop_event=stop_event)
+            if streams is None or (stop_event is not None and stop_event.is_set()):
+                return self.state()
             pair_scores = self._score_all_pairs(streams, ts_now)
+            if stop_event is not None and stop_event.is_set():
+                return self.state()
             total = self._aggregate(pair_scores)
             walk_state, walk_anchor = self._derive_walk_state(streams)
             drive_conflict = streams.get("drive_conflict_json")
 
+            if stop_event is not None and stop_event.is_set():
+                return self.state()
             self._writer.write(
                 "INSERT INTO substrate_coherence "
                 "(ts, total, pair_scores, walk_state, walk_anchor_id, "
@@ -150,7 +160,7 @@ class SubstrateHarmonic:
             while not self._stop.is_set():
                 self._stop.wait(interval_seconds)
                 if not self._stop.is_set():
-                    self.tick()
+                    self.tick(stop_event=self._stop)
 
         self._thread = threading.Thread(
             target=_run,
@@ -169,18 +179,37 @@ class SubstrateHarmonic:
 
     # ── Stream extractors ─────────────────────────────────────────────────────
 
-    def _read_all_streams(self, ts_now: float) -> dict[str, Any]:
-        """Read all nine streams. Each extractor is independently
-        try/except'd so one failure does not break the others."""
+    def _read_all_streams(
+        self,
+        ts_now: float,
+        *,
+        stop_event: threading.Event | None = None,
+    ) -> dict[str, Any] | None:
+        """Read streams sequentially so shutdown can stop between Readers."""
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
         streams: dict[str, Any] = {}
-        streams["drives"] = self._read_drives_current(ts_now)
-        streams["drive_conflict_json"] = self._read_drive_conflict(ts_now)
-        streams["groove_severity"] = self._read_groove_severity(ts_now)
-        streams["sv_last_ts"], streams["sv_last_anchor"] = self._read_sv_last(ts_now)
-        streams["fountain_share_sv"] = self._read_fountain_sv_share(ts_now)
-        streams["gate_reject_rate"] = self._read_gate_reject_rate(ts_now)
-        streams["throw_net_rate"] = self._read_throw_net_rate(ts_now)
-        streams["stillness_active"] = self._read_stillness_active(ts_now)
+        readers = (
+            ("drives", self._read_drives_current),
+            ("drive_conflict_json", self._read_drive_conflict),
+            ("groove_severity", self._read_groove_severity),
+            ("sv_last", self._read_sv_last),
+            ("fountain_share_sv", self._read_fountain_sv_share),
+            ("gate_reject_rate", self._read_gate_reject_rate),
+            ("throw_net_rate", self._read_throw_net_rate),
+            ("stillness_active", self._read_stillness_active),
+        )
+        for name, reader in readers:
+            if _stopping():
+                return None
+            value = reader(ts_now)
+            if _stopping():
+                return None
+            if name == "sv_last":
+                streams["sv_last_ts"], streams["sv_last_anchor"] = value
+            else:
+                streams[name] = value
         return streams
 
     def _read_drives_current(self, ts_now: float) -> dict[str, float]:
