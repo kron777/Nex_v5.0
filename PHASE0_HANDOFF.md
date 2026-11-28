@@ -447,3 +447,7 @@ Four persistent cleanup methods are present: Metacognition 14d, GoalManager 60d,
 ### 28 November 2026 — Metacognition external retention backstop
 
 `nex_db_reaper.py` includes `conversations.db:meta_cognition_events:created_at` under a 30-day default retention and physically deletes old rows in batches. A versioned user-systemd timer schedules it nightly around 04:00, but the README says repository unit files are reference copies; active units live in `~/.config/systemd/user/`. Installation is documented; actual timer/service activation and last-run state remain UNKNOWN. This deletion is not the 14-day `decay()` resolution transition and the reaper does not target `goals`, `open_problems` or `novel_association_log`. See INDEX §138.
+
+### 28 November 2026 — external cleanup census
+
+The DB reaper covers `meta_cognition_events` only, not `goals`, `open_problems` or `novel_association_log`. `scripts/problem_persistence.py` is read-only; Stage Gate retention covers only `gate_decisions` and empty `throw_net_sessions`; signal reaper covers only `signals`. No other cleanup timer was found among inspected versioned units. This is a bounded repository census, not proof about arbitrary host cron or user units. See INDEX §139.
