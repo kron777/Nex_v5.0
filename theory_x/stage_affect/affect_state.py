@@ -202,7 +202,7 @@ class AffectState:
         stop_event = stop_event or threading.Event()
         while not stop_event.is_set():
             try:
-                self._background_tick()
+                self._background_tick(stop_event=stop_event)
             except Exception as exc:
                 errors.record(
                     f"affect_state tick error: {exc}",
@@ -211,14 +211,30 @@ class AffectState:
             if stop_event.wait(self._interval):
                 break
 
-    def _background_tick(self) -> None:
-        """Read substrate inputs, integrate/decay, write affect_state row."""
+    def _background_tick(
+        self, *, stop_event: Optional[threading.Event] = None
+    ) -> None:
+        """Read substrate inputs, integrate/decay, write one affect-state update.
+
+        Stop is cooperative during preparation. Once the persistence sequence
+        begins, finish the current logical update so its audit/history rows are
+        not intentionally split by shutdown.
+        """
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return
         now = time.time()
 
-        valence_delta   = self._compute_valence_delta()
+        valence_delta = self._compute_valence_delta()
+        if _stopping():
+            return
+
         # Build B two-channel coupling (NEX5_EXPECT_MOOD, OFF by default): mood may
         # be nudged by event_valence, hard-capped per tick. One-way only.
         from theory_x.stage_world import expectations as _ex
+        mood_nudge_to_record = None
         if _ex.mood_on():
             try:
                 # Hard gate: no effect until organic valence has both signs.
@@ -226,16 +242,22 @@ class AffectState:
                     _nudge = _ex.mood_nudge(self._last_updated, now)
                     valence_delta += _nudge
                     if _nudge:
-                        self._cw.write("INSERT INTO mood_nudge_applied (ts, nudge) "
-                                       "VALUES (?, ?)", (now, _nudge))
+                        mood_nudge_to_record = _nudge
             except Exception as _me:
                 errors.record(f"AffectState mood nudge read failed: {_me}",
                               source=_LOG_SOURCE)
-        arousal_delta   = self._compute_arousal_delta()
+        if _stopping():
+            return
+
+        arousal_delta = self._compute_arousal_delta()
+        if _stopping():
+            return
         stability_target = self._compute_stability()
+        if _stopping():
+            return
 
         # §6 surprise coupling: read flagged events since last tick (outside lock)
-        surprise_bump        = 0.0
+        surprise_bump = 0.0
         surprise_event_count = 0
         if self._dr is not None:
             try:
@@ -254,32 +276,38 @@ class AffectState:
                     f"AffectState surprise read failed (non-fatal): {_se}",
                     source=_LOG_SOURCE,
                 )
+        if _stopping():
+            return
 
         with self._lock:
+            # This is the last preparation checkpoint. Once state integration
+            # starts, complete the corresponding persistence sequence below.
+            if _stopping():
+                return
             v = self._valence
             a = self._arousal
             s = self._stability
 
             # Integrate then decay
-            v_new  = _integrate(v, valence_delta, -1.0, 1.0) * (1.0 - _DECAY_RATE)
-            a_new  = _integrate(a, arousal_delta,  0.0, 1.0) * (1.0 - _DECAY_RATE)
+            v_new = _integrate(v, valence_delta, -1.0, 1.0) * (1.0 - _DECAY_RATE)
+            a_new = _integrate(a, arousal_delta, 0.0, 1.0) * (1.0 - _DECAY_RATE)
             # §6: surprise bump applied after baseline decay
             if surprise_bump > 0.0:
                 a_new = min(1.0, a_new + surprise_bump)
             # Stability: nudge toward coherence target each tick
             s_delta = stability_target - s
-            s_new   = _integrate(s, s_delta, 0.0, 1.0) * (1.0 - _STABILITY_DECAY_RATE)
+            s_new = _integrate(s, s_delta, 0.0, 1.0) * (1.0 - _STABILITY_DECAY_RATE)
 
             mood = _mood_from_valence(v_new)
 
-            self._valence      = v_new
-            self._arousal      = a_new
-            self._stability    = s_new
-            self._mood_label   = mood
+            self._valence = v_new
+            self._arousal = a_new
+            self._stability = s_new
+            self._mood_label = mood
             self._last_updated = now
-            self._components   = {
-                "valence_delta":    valence_delta,
-                "arousal_delta":    arousal_delta,
+            self._components = {
+                "valence_delta": valence_delta,
+                "arousal_delta": arousal_delta,
                 "stability_target": stability_target,
             }
 
@@ -289,6 +317,21 @@ class AffectState:
                 f"(from {surprise_event_count} events)",
                 source=_LOG_SOURCE, level="INFO",
             )
+
+        # Commit unit: once in-memory integration begins, finish the paired
+        # affect row, optional nudge audit and history append even if stop is
+        # signalled mid-write. This preserves one coherent completed tick.
+        if mood_nudge_to_record is not None:
+            try:
+                self._cw.write(
+                    "INSERT INTO mood_nudge_applied (ts, nudge) VALUES (?, ?)",
+                    (now, mood_nudge_to_record),
+                )
+            except Exception as _me:
+                errors.record(
+                    f"AffectState mood nudge write failed: {_me}",
+                    source=_LOG_SOURCE,
+                )
 
         self._cw.write(
             "INSERT OR REPLACE INTO affect_state "
@@ -315,13 +358,13 @@ class AffectState:
         try:
             with open(_AFFECT_LOG, "a") as _f:
                 _f.write(json.dumps({
-                    "ts":               now,
-                    "valence":          v_new,
-                    "arousal":          a_new,
-                    "stability":        s_new,
-                    "mood_label":       mood,
-                    "valence_delta":    valence_delta,
-                    "arousal_delta":    arousal_delta,
+                    "ts": now,
+                    "valence": v_new,
+                    "arousal": a_new,
+                    "stability": s_new,
+                    "mood_label": mood,
+                    "valence_delta": valence_delta,
+                    "arousal_delta": arousal_delta,
                     "stability_target": stability_target,
                 }) + "\n")
         except Exception:
