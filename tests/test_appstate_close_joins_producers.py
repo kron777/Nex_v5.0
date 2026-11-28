@@ -24,7 +24,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from tests import _bootstrap  # noqa: F401
-from tests.test_fountain import _cleanup, _make_env
+from tests.test_fountain import _cleanup, _make_env, _mock_voice_client, _mock_dynamic_state
 
 
 def _state(writers, readers, **producers):
@@ -156,6 +156,77 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
                diversity_loop=_LoopLike(later)).close()
         self.assertIs(later.wrote, True)
         self.assertTrue(self._landed("after_the_bad_one"))
+
+    def test_fountain_and_resolver_are_stopped_and_joined(self):
+        import theory_x.stage6_fountain as fountain_module
+        from theory_x.stage6_fountain import build_fountain
+        from theory_x.stage_gate.holding_zone import HoldingZone
+        from theory_x.stage_gate.resolver import HoldingZoneResolver
+
+        with mock.patch.object(
+            fountain_module, "FOUNTAIN_CHECK_INTERVAL_SECONDS", 3600
+        ):
+            fountain = build_fountain(
+                self.writers, self.readers,
+                voice_client=_mock_voice_client(),
+                dynamic_state=_mock_dynamic_state(),
+            )
+        zone = HoldingZone(self.writers["beliefs"], self.readers["beliefs"])
+        resolver = HoldingZoneResolver(zone, beliefs_writer=self.writers["beliefs"])
+        resolver.start_loop(interval_seconds=3600)
+
+        state = _state(
+            self.writers, self.readers, fountain=fountain, resolver=resolver
+        )
+        state.close()
+
+        self.assertFalse(fountain._thread.is_alive())
+        self.assertFalse(resolver._thread.is_alive())
+        with self.assertRaises(Exception):
+            self.writers["dynamic"].write("SELECT 1")
+        with self.assertRaises(Exception):
+            self.writers["beliefs"].write("SELECT 1")
+
+    def test_fountain_finishes_inflight_write_before_writer_close(self):
+        import theory_x.stage6_fountain as fountain_module
+        from theory_x.stage6_fountain import build_fountain
+        from theory_x.stage6_fountain.generator import FountainGenerator
+
+        entered = threading.Event()
+        release = threading.Event()
+        wrote = threading.Event()
+
+        def in_flight_tick(_generator, *_args, **_kwargs):
+            entered.set()
+            release.wait(2.0)
+            self.writers["dynamic"].write(
+                "INSERT INTO daemon_kv (key, value, updated_at) VALUES (?, ?, ?)",
+                ("g84-fountain-final-tick", "done", time.time()),
+            )
+            wrote.set()
+            return None
+
+        with mock.patch.object(FountainGenerator, "generate", new=in_flight_tick), \
+             mock.patch.object(fountain_module, "FOUNTAIN_CHECK_INTERVAL_SECONDS", 0.01):
+            fountain = build_fountain(
+                self.writers, self.readers,
+                voice_client=_mock_voice_client(),
+                dynamic_state=_mock_dynamic_state(),
+            )
+        self.assertTrue(entered.wait(1.0), "Fountain did not enter its tick")
+
+        state = _state(self.writers, self.readers, fountain=fountain)
+        closer = threading.Thread(target=state.close, name="test_appstate_close")
+        closer.start()
+        self.assertTrue(fountain._stop.wait(1.0), "close did not request Fountain stop")
+        self.assertTrue(closer.is_alive(), "close did not wait for the in-flight Fountain tick")
+        release.set()
+        closer.join(timeout=1.0)
+
+        self.assertFalse(closer.is_alive(), "close exceeded its bounded join")
+        self.assertTrue(wrote.is_set(), "in-flight Fountain write was not completed")
+        self.assertTrue(self._landed("g84-fountain-final-tick"))
+        self.assertFalse(fountain._thread.is_alive())
 
     def test_unstarted_or_missing_producers_are_skipped(self):
         never_started = SimpleNamespace(stop=lambda: None, _thread=None)
