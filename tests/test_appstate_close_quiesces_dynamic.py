@@ -101,6 +101,37 @@ class TestAppStateCloseQuiescesDynamic(unittest.TestCase):
             self.writers["dynamic"].write(
                 "INSERT INTO daemon_kv (key, value, updated_at) VALUES ('late', 'x', 0)")
 
+
+    def test_fountain_is_stopped_and_joined_before_writers_close(self):
+        import theory_x.stage6_fountain as fountain_module
+        from theory_x.stage6_fountain import build_fountain
+
+        with mock.patch.object(
+            fountain_module, "FOUNTAIN_CHECK_INTERVAL_SECONDS", 3600
+        ):
+            fountain = build_fountain(
+                self.writers, self.readers,
+                voice_client=__import__(
+                    "tests.test_fountain", fromlist=["_mock_voice_client"]
+                )._mock_voice_client(),
+                dynamic_state=__import__(
+                    "tests.test_fountain", fromlist=["_mock_dynamic_state"]
+                )._mock_dynamic_state(),
+            )
+            time.sleep(0.05)
+            self.assertTrue(fountain.status()["loop_running"])
+
+            state = _state(self.writers, self.readers)
+            state.fountain = fountain
+            state.close()
+
+        self.assertTrue(fountain.join(timeout=0))
+        self.assertFalse(fountain.status()["loop_running"])
+        with self.assertRaises(Exception):
+            self.writers["dynamic"].write(
+                "INSERT INTO daemon_kv (key, value, updated_at) VALUES ('late-fountain', 'x', 0)"
+            )
+
     def test_close_without_dynamic_is_unchanged(self):
         _state(self.writers, self.readers).close()
         with self.assertRaises(Exception):
