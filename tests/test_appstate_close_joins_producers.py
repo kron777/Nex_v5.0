@@ -12,8 +12,10 @@ writes. Pinned here, on isolated temporary databases:
   several stuck producers cannot multiply the shutdown time;
 - build_world_model() keeps its loop threads, so they can be joined.
 
-Fountain has no stop signal yet (its loop is the fire path) and is out of
-scope for this step.
+Fountain and HoldingZoneResolver are now included through explicit stop and
+join handles. Scheduler adapter threads are also joined against the same
+remaining deadline. Workers created only in run.py and not handed to AppState
+(e.g. the decoder and several optional loops) remain outside this increment.
 """
 from __future__ import annotations
 
