@@ -54,7 +54,7 @@ The output still follows the existing ToolResult → response-context path. No n
 - `math.pi` and bounded `math.sqrt` work.
 - OS/sys imports, dynamic imports, file access, assignments, loops and excessive exponents are rejected.
 - Query-only input is rejected by the registry.
-- A natural-language calculation sentence is traced through ToolCaller, ToolRegistry and response-context formatting.
+- A natural-language calculation sentence is traced through ToolCaller, ToolRegistry and response-context formatting, then through the Flask `/api/chat` route into the actual voice request prompt.
 - A sentence containing a dynamic-import payload is not selected as a calculation operation.
 
 ## 5. Limits and next wire
