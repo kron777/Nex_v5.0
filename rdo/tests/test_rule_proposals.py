@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from rdo.extrapolator import EXPANSION_RULES, Obligation, expand
-from rdo.model import MISSING
+from rdo.extrapolator import EXPANSION_RULES, expand
+from rdo.model import MISSING, Obligation
 from rdo.rule_proposals import RuleProposalError, RuleProposalStore
 
 
