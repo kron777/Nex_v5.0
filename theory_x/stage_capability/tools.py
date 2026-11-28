@@ -168,11 +168,24 @@ class ToolRegistry:
             return ToolResult("web_fetch", query, "", False, "no URL to fetch")
 
         try:
-            parsed = urllib.parse.urlparse(target_url)
-            domain = parsed.netloc.lstrip("www.")
-            if not any(domain == d or domain.endswith("." + d) for d in _ALLOWED_DOMAINS):
+            parsed = urllib.parse.urlsplit(target_url)
+            if parsed.scheme.lower() not in {"http", "https"}:
+                return ToolResult(
+                    "web_fetch", target_url, "", False,
+                    "URL scheme must be http or https",
+                )
+            if parsed.username is not None or parsed.password is not None:
+                return ToolResult(
+                    "web_fetch", target_url, "", False,
+                    "URL credentials are not permitted",
+                )
+            domain = (parsed.hostname or "").lower().rstrip(".")
+            if not domain or not any(
+                domain == allowed or domain.endswith("." + allowed)
+                for allowed in _ALLOWED_DOMAINS
+            ):
                 return ToolResult("web_fetch", target_url, "", False,
-                                  f"domain not in allowlist: {domain}")
+                                  f"domain not in allowlist: {domain or '(missing host)'}")
         except Exception as exc:
             return ToolResult("web_fetch", target_url, "", False, str(exc))
 
@@ -181,7 +194,16 @@ class ToolRegistry:
             req = urllib.request.Request(
                 target_url, headers={"User-Agent": "NEX/5.0 research bot"}
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            # urllib's default redirect handler follows 3xx responses before
+            # this allowlist can inspect the destination. Disable redirects so
+            # an allowlisted origin cannot redirect the fetch to an unapproved
+            # host or private network address.
+            class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, req, fp, code, msg, headers, newurl):
+                    return None
+
+            opener = urllib.request.build_opener(_NoRedirectHandler)
+            with opener.open(req, timeout=10) as resp:
                 raw = resp.read(8192).decode("utf-8", errors="replace")
             page_text = re.sub(r"<[^>]+>", " ", raw)
             page_text = re.sub(r"\s+", " ", page_text).strip()
@@ -253,7 +275,7 @@ def _build_coingecko_url(query: str) -> str:
         "sol": "solana", "solana": "solana",
     }
     for key, coin_id in coin_map.items():
-        if key in q:
+        if re.search(r"\b" + re.escape(key) + r"\b", q):
             return (f"https://api.coingecko.com/api/v3/simple/price"
                     f"?ids={coin_id}&vs_currencies=usd")
     return ""
