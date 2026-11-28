@@ -901,6 +901,8 @@ class Harmonizer:
                 continue
             if not (self._still_eligible(a_id) and self._still_eligible(b_id)):
                 continue  # no longer a live tension; leave it be
+            if stop_event is not None and stop_event.is_set():
+                break
             result = self.resolve(a_id, b_id)
             if result != "error":
                 acted += 1
@@ -974,6 +976,8 @@ class Harmonizer:
                 if union == 0:
                     continue
                 overlap = len(ta & tb) / union
+                if stop_event is not None and stop_event.is_set():
+                    return written
                 if overlap >= 0.4:
                     self._promoter.write_edge(a["id"], b["id"], "cross_domain", round(overlap, 3))
                     existing.add((a["id"], b["id"]))
