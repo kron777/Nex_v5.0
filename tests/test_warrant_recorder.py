@@ -339,7 +339,7 @@ class TestGeneratorRetrievalLogGate(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
-class TestRecorderShutdown(unittest.TestCase):
+class TestRecorderShutdown(TestRecorder):
     def setUp(self):
         super().setUp()
         self.r._ensure()
