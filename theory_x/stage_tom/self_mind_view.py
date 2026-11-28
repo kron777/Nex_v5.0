@@ -80,7 +80,17 @@ class SelfMindView:
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
-    def tick(self, context: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def tick(
+        self,
+        context: Optional[dict[str, Any]] = None,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> dict[str, Any]:
+        if stop_event is None:
+            stop_event = self._stop
+        if stop_event is not None and stop_event.is_set():
+            return self.state()
+
         now = time.time()
         if now - self._last_tick_at < self._TICK_INTERVAL_S:
             return {"name": self.name, "skipped": True, "tick_count": self._tick_count}
@@ -88,8 +98,9 @@ class SelfMindView:
 
         snap_id = 0
         try:
-            snap_id = self._snapshot()
-            self._total_snapshots += 1
+            snap_id = self._snapshot(stop_event=stop_event)
+            if snap_id:
+                self._total_snapshots += 1
         except Exception as exc:
             errors.record(
                 f"self_mind_view snapshot error: {exc}",
@@ -124,7 +135,7 @@ class SelfMindView:
             while not self._stop.is_set():
                 self._stop.wait(interval)
                 if not self._stop.is_set():
-                    self.tick()
+                    self.tick(stop_event=self._stop)
 
         self._thread = threading.Thread(
             target=_run, name="self_mind_view", daemon=True,
@@ -351,17 +362,29 @@ class SelfMindView:
 
     # ── Snapshot ──────────────────────────────────────────────────────────────
 
-    def _snapshot(self) -> int:
-        """Compute current_state(), write one row to self_mind_snapshots."""
-        state = self.current_state()
+    def _snapshot(
+        self, *, stop_event: Optional[threading.Event] = None
+    ) -> int:
+        """Compute current_state(), bind the self-state, then write one snapshot."""
+        if stop_event is not None and stop_event.is_set():
+            return 0
+        state = self.current_state(stop_event=stop_event)
+        if state is None or (stop_event is not None and stop_event.is_set()):
+            return 0
+
         # bridge: capture the qualitative felt self ("I am...", hum bound in) to
         # store alongside the quantitative ledger — turns the snapshot into narrative.
         _bound_self = ""
         try:
             from theory_x.stage_tom import self_binding as _sb  # type: ignore
-            _bound_self = _sb.bind(dynamic_writer=self._dw).get("synthesis", "") or ""
+            bound = _sb.bind(dynamic_writer=self._dw, stop_event=stop_event)
+            if bound.get("aborted") or (stop_event is not None and stop_event.is_set()):
+                return 0
+            _bound_self = bound.get("synthesis", "") or ""
         except Exception:
             _bound_self = ""
+        if stop_event is not None and stop_event.is_set():
+            return 0
         b = state["beliefs"]
         i = state["intentions"]
         k = state["knowledge"]
@@ -379,6 +402,8 @@ class SelfMindView:
             content_parts.append(a["current_drive_theme"])
         combined = " ".join(content_parts)
         tags = json.dumps(_generate_tags(combined))
+        if stop_event is not None and stop_event.is_set():
+            return 0
 
         row_id = self._dw.write(
             "INSERT INTO self_mind_snapshots ("
@@ -420,15 +445,35 @@ class SelfMindView:
 
     # ── Live read API ─────────────────────────────────────────────────────────
 
-    def current_state(self) -> dict:
+    def current_state(
+        self, *, stop_event: Optional[threading.Event] = None
+    ) -> Optional[dict]:
         """Full self-view, computed live. Never written to disk by this call."""
+        if stop_event is not None and stop_event.is_set():
+            return None
+        taken_at = time.time()
+        beliefs = self._aspect_beliefs()
+        if stop_event is not None and stop_event.is_set():
+            return None
+        intentions = self._aspect_intentions()
+        if stop_event is not None and stop_event.is_set():
+            return None
+        knowledge = self._aspect_knowledge()
+        if stop_event is not None and stop_event.is_set():
+            return None
+        uncertainty = self._aspect_uncertainty()
+        if stop_event is not None and stop_event.is_set():
+            return None
+        attention = self._aspect_attention()
+        if stop_event is not None and stop_event.is_set():
+            return None
         return {
-            "taken_at": time.time(),
-            "beliefs": self._aspect_beliefs(),
-            "intentions": self._aspect_intentions(),
-            "knowledge": self._aspect_knowledge(),
-            "uncertainty": self._aspect_uncertainty(),
-            "attention": self._aspect_attention(),
+            "taken_at": taken_at,
+            "beliefs": beliefs,
+            "intentions": intentions,
+            "knowledge": knowledge,
+            "uncertainty": uncertainty,
+            "attention": attention,
         }
 
     def current_summary(self) -> str:
