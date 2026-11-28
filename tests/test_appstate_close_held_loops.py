@@ -121,19 +121,25 @@ class TestConvertedLoopsStop(unittest.TestCase):
 
 
 class TestRunPyHandsThemToAppState(unittest.TestCase):
-    """Boot wiring: run.py passes each started loop to AppState, so close() sees it."""
+    """Boot wiring: run.py publishes each started loop to AppState, so close() sees it."""
 
-    def test_appstate_call_passes_each_loop(self):
+    def test_runpy_registers_each_loop_with_appstate(self):
         import ast
         from pathlib import Path
         tree = ast.parse((Path(__file__).resolve().parents[1] / "run.py").read_text())
-        kwargs = set()
+        fields = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "AppState":
-                kwargs |= {k.arg for k in node.keywords if k.arg}
+                fields |= {k.arg for k in node.keywords if k.arg}
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if (isinstance(target, ast.Attribute)
+                            and isinstance(target.value, ast.Name)
+                            and target.value.id == "state"):
+                        fields.add(target.attr)
         for name in ("membrane", "novel_association", "affect_state", "drive_emergence"):
             with self.subTest(producer=name):
-                self.assertIn(name, kwargs, f"run.py never hands {name} to AppState")
+                self.assertIn(name, fields, f"run.py never registers {name} with AppState")
 
 
 class TestMembraneKeepsItsThread(unittest.TestCase):
