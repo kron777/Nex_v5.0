@@ -5996,7 +5996,7 @@ The same class name can obscure this separation. Searching for "SelfNarrative.ti
 ### Characterization tests
 
 - **PR #456** adds a test that inserts a tier-6 self_rut_notice plus a substantive Fountain fire and verifies build_narrative() can include the note; it also verifies the Stage-TOM private _log sentinel is not returned by get_narrative(). Its first exact-head run failed because the test expected the full note while the composer intentionally truncates T6 content to 80 characters. The assertion was corrected to the 80-character prefix. Corrected head 7996f5d091ffc0a45f77484bd4b3c7d6e6cb391b passed workflow 46184315945: 3,078 passed, 7 skipped, 86 subtests; baseline and sandbox checks OK; mind-map check 30 nodes / 0 unverified / 12 dark / 2 blocked, with existing warnings.
-- **PR #457** adds prompt-builder tests for the enabled/disabled NEX5_SELF_NARRATIVE boundary. Initial head 75a042e07aa69ce8f41fd72082de157dfd3f6772 passed workflow 46183886214: 3,079 passed, 7 skipped, 86 subtests; baseline and sandbox OK. A follow-up adds constructor-gate coverage (reader constructed only when enabled) on head 1751a45a853c9ceff89653c006c8436c87d47b00; its exact-head CI is in progress.
+- **PR #457** adds prompt-builder tests for the enabled/disabled NEX5_SELF_NARRATIVE boundary. Initial head 75a042e07aa69ce8f41fd72082de157dfd3f6772 passed workflow 46183886214: 3,079 passed, 7 skipped, 86 subtests; baseline and sandbox OK. The expanded head adds constructor-gate coverage (reader constructed only when enabled) and passed workflow 46184425657 at 1751a45a853c9ceff89653c006c8436c87d47b00: 3,080 passed, 7 skipped, 86 subtests; baseline and sandbox OK; mind-map 30 nodes / 0 unverified / 12 dark / 2 blocked, existing warnings unchanged.
 - These fixture tests establish source-level composition and prompt-string assembly only. They do not establish host flag values, live Fountain execution, model-provider acceptance or semantic influence on generated output.
 
 ### Evidence boundary and next step
@@ -6024,7 +6024,7 @@ The source path is now traced through belief retrieval, narrative composition an
 
 ### Characterization
 
-- **PR #458** adds a test-only fixture with one substantive Fountain fire and one tier-6 self_rut_notice belief inserted with paused=1. It asserts whether the current Stage-TOM narrative includes that row; the assertion respects the 80-character T6 rendering limit. The fixture models the paused interval as a stable row for predicate characterization, not as evidence of normal steady-state persistence or live Fountain/Harmonizer overlap. Exact-head CI was in progress at this snapshot.
+- **PR #458** adds a test-only fixture with one substantive Fountain fire and one tier-6 self_rut_notice belief inserted with paused=1. It asserts whether the current Stage-TOM narrative includes that row; the assertion respects the 80-character T6 rendering limit. The fixture models the paused interval as a stable row for predicate characterization, not as evidence of normal steady-state persistence or live Fountain/Harmonizer overlap. Exact-head workflow 46184447225 passed at 58bf679c2a8e799dce5d02dd059adb4a5f7f692a: 3,078 passed, 7 skipped, 86 subtests; baseline and sandbox OK; mind-map 30 nodes / 0 unverified / 12 dark / 2 blocked, existing warnings unchanged.
 - The test does not change pause state, retrieval, prompt policy or runtime behavior and does not establish host incidence.
 
 ### Disposition and next step
