@@ -479,3 +479,8 @@ Pattern-specific `narrative_log` entries are inserted on every source-alert re-r
 ### 28 November 2026 — chat-gap side-effect boundary
 
 The real GUI route calls Metacognition.tick()/formatters before the thin-belief early return. A Technical request can be refused before VoiceClient transport while still re-consuming the alert and writing event/narrative state. Repeated blocked requests may contribute to Row 9 without any model call. PR #450 verifies route ordering/transport, not the three-event threshold from blocked requests. See INDEX §127.
+
+
+### 28 November 2026 — SelfNarrative rut-mirror tick ownership
+
+The `SelfNarrative.tick()` method contains a conditional rut-notice writer, but its normal-path dispatch is not established. `run.py` constructs/registers the node without a dedicated loop; the Theory X registry stores/returns nodes but does not dispatch; the inspected GUI chat path calls only `format_for_prompt()`; Metacognition writes groove narratives directly without calling `SelfNarrative.tick()`. The existing empty-fixture tick test does not exercise the rut threshold or prove a caller. Live flag/cadence/execution remain UNKNOWN. No scheduler or runtime change is authorised. See INDEX §148.
