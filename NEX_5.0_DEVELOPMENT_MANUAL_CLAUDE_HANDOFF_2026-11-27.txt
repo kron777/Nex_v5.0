@@ -4470,3 +4470,40 @@ Add a focused characterization scenario to the G-83 matrix: one alert ID (then t
 **Source anchors:** theory_x/stage9_metacognition/metacognition.py (_detect_groove, tick, _maybe_engage_stillness); gui/server.py (chat tick caller); tests/test_metacognition.py; tests/test_stillness.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
 
 **Evidence level:** source-derived temporal sequence from inspected query ordering, write ordering, thresholds, and caller cadence; not test-verified and not runtime-observed.
+
+
+## §118 — Sentience 5.5 StillnessNode prior art versus NEX Row 9 (2026-11-28)
+
+### Original prior-art behaviour
+
+The referenced file exists in the user's separate repository: kron777/Sentience_5.5, main snapshot 1767acf1fdb321d046261eb3c3059084c85fc0c8, Stillness_Node.py blob f290b17451974614d74881ea7e491b2ec4e9a252.
+
+Its relevant design is deliberately simple:
+
+- one process-wide is_still boolean and one stillness_until timestamp;
+- enter_stillness(duration, trigger) returns immediately if already still, otherwise marks the global node still, awaits the duration, clears the state and writes a stillness_events row;
+- the persisted row contains start_time, end_time, duration and trigger only;
+- neither the live state nor the persisted event carries a topic, groove-alert ID, episode fingerprint or belief identity;
+- it is trigger-driven through an HTTP handler; the module itself does not decide that a particular topic has become repetitive.
+
+The file's role text says deterministic cognitive pauses/system-wide quiescence and no emotion, bias or interpretation. Its actual implementation exposes a global timed state/status and an event log; it does not itself contain a topic-aware suppression algorithm.
+
+### Three layers of semantics must not be collapsed
+
+1. **Sentience 5.5 prior art:** a global non-reentrant timed pause state, triggered externally, without topic or alert identity.
+2. **NEX synthesis-plan extension:** at least three groove alerts on the same topic in 30 minutes; a substrate-resident non-reentrant activation; Fountain suppresses beliefs matching that topic.
+3. **Current NEX implementation:** globally counts derived groove event rows, creates a topic-free conversations stillness row, and globally blocks crystallization while any such row is active. Fountain still generates/records the fire; the crystallizer returns before belief/link/TTS-queue persistence.
+
+The current implementation is structurally closer to the prior art's global non-reentrant state than to the plan's same-topic refinement. However, it is not a full system-wide pause: the observed gate is at the crystallizer boundary, not at thought generation or all system activity.
+
+### What can and cannot be concluded
+
+The prior-art file helps explain the source shape and why a global state was an available starting point. It does not prove why the same-topic NEX plan was not carried into implementation. The implementation commit cites the Row 9 extension and StillnessNode prior art; its patch does not record an explicit decision to defer the topic refinement. The exact intended NEX semantics remain authority-sensitive and must be checked against Founder Sign-Off/frozen specifications before any behavioural change.
+
+This research also yields a reusable porting lesson: when adapting prior art, write down the inherited behaviour, the NEX-specific semantic delta, and the tests that prove the delta. A copied non-reentrant state machine is not equivalent to a later topic-aware design just because both are called “stillness”.
+
+**Disposition:** Phase 0 comparative design-provenance refinement under G-83; documentation only. No changes were made to Sentience_5.5 or NEX runtime. No tests run. No live host/database/process/service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** Sentience_5.5/Stillness_Node.py at 1767acf1fdb321d046261eb3c3059084c85fc0c8; NEX theory_x/SYNTHESIS_PLAN_V2.md §3; theory_x/DOCTRINE.md Row 9; NEX implementation commit c4b005f32e931047711ef6cdbe03e84a00183885; current NEX snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** directly inspected original prior-art source; compared with the NEX design-plan text, doctrine summary, implementation patch and current runtime source. Reason for omitting the topic-specific refinement and controlling Founder authority remain UNKNOWN.
