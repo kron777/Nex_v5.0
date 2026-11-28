@@ -208,7 +208,31 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True)
 
 
-def _blame_line_commits(map_path: Path, root: Path) -> dict[int, str]:
+def _source_ref_lines(lines: list[str]) -> set[int]:
+    """Return one-based line numbers inside actual node source mappings only.
+
+    Notes often contain explanatory code pointers. They are prose, not anchors,
+    and must never be drift-checked or rewritten by --reanchor.
+    """
+    selected: set[int] = set()
+    source_indent: int | None = None
+    for lineno, line in enumerate(lines, 1):
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        if re.match(r"^source\\s*:", stripped):
+            source_indent = indent
+            selected.add(lineno)
+            continue
+        if source_indent is None:
+            continue
+        if stripped and indent <= source_indent and re.match(r"^[A-Za-z_][\\w-]*\\s*:", stripped):
+            source_indent = None
+            continue
+        selected.add(lineno)
+    return selected
+
+
+def _blame_line_commits(map_path: Path, root: Path) -> dict[int, str]:def _blame_line_commits(map_path: Path, root: Path) -> dict[int, str]:
     """Map each YAML line number to the commit that last wrote it."""
     try:
         rel = map_path.resolve().relative_to(root.resolve()).as_posix()
@@ -282,7 +306,10 @@ def anchor_drift(map_path: Path = MAP, root: Path = ROOT) -> list[dict]:
     old_cache: dict[tuple[str, str], list[str] | None] = {}
     cur_cache: dict[str, list[str] | None] = {}
     out: list[dict] = []
+    source_lines = _source_ref_lines(text)
     for lineno, line in enumerate(text, 1):
+        if lineno not in source_lines:
+            continue
         for m in _QUOTED_REF_RE.finditer(line):
             ref = REF_RE.match(m.group("ref"))
             if not ref or not ref.group("a"):
