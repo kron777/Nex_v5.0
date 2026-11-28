@@ -5395,3 +5395,36 @@ However, its `test_targets_include_the_two_logs` assertion checks only `drive_em
 This does not invalidate the 30-day source-level backstop; it narrows the test evidence for its specific target. Do not add or alter tests in this documentation-only study unless a separate bounded test-only change is authorised and justified.
 
 **Authority boundary:** no reaper target, retention value, service/timer, test, database or runtime behaviour changed. See §138 for the retention semantics.
+
+
+## §142 — G-83 narrative retention: pattern-specific reflections outlive source-event eligibility (28 November 2026)
+
+**Question studied:** when a GrooveSpotter alert falls out of Metacognition's 600-second source query, what happens to the pattern-specific narrative rows created by repeated consumption?
+
+### Source facts
+
+- `substrate/init_db.py` creates `narrative_log(id, content, trigger, source_id, created_at)`. It has no expiry/retention column and no foreign key to `groove_alerts` (the tables live in different databases in any case).
+- `SelfNarrative.write_narrative()` performs a plain INSERT for each call; there is no deduplication by `source_id`, trigger or content.
+- `Metacognition._detect_groove()` calls `write_narrative()` on every eligible re-read of an unacknowledged source alert, passing the same GrooveSpotter alert ID as `source_id`.
+- PR #449 exact-head tests verify five narrative rows can be written with the same source alert ID from five chat ticks.
+- `SelfNarrative.format_for_prompt()` selects the newest `_DEFAULT_N=5` rows. When a topic is supplied, it filters only by case-insensitive substring match against `content`; it has no `created_at` cutoff, no `trigger` restriction and no source-ID deduplication. The GUI passes `prompt[:100]` as the topic.
+- `SelfNarrative.decay()` is a no-op.
+- The external `nex_db_reaper.py` target list includes `meta_cognition_events` at 30 days but does not include `narrative_log` or `groove_alerts`. The 30-day reaper therefore does not bound these narrative rows.
+- The source alert itself falls out of Metacognition's consumer query after 600 seconds, but that does not delete the source row or its narrative rows.
+
+### Consequence
+
+A single alert re-consumed on several chat turns can occupy all five narrative prompt slots with repeated versions of the same pattern. After the alert has aged out of the ten-minute Metacognition query—and even after its corresponding `meta_cognition_events` rows are physically deleted by a successful 30-day reaper run—the matching `narrative_log` text can still be returned by a later chat prompt if the user's first 100 characters match the stored narrative.
+
+This is a distinct persistence path from the generic Metacognition cache:
+- Metacognition cache: in-memory, refreshed by chat ticks at a 60-second TTL.
+- `meta_cognition_events`: unresolved event rows, 14-day callable decay, 30-day external DB reaper if active.
+- `narrative_log`: persistent pattern-specific text, no formatter age cutoff, no cleanup path located.
+
+The user-level reaper timer's presence in the repository does not prove that it is installed or active. However, even if it is active, it does not currently bound `narrative_log`.
+
+**Next bounded investigation:** complete the external cleanup/writer census for `narrative_log` and `groove_alerts`; locate the intended narrative retention policy; characterize duplicate source-ID occupancy of the five prompt slots; and determine whether the pattern-specific narrative is meant to be durable autobiography or a short-lived reflective cue. Do not add pruning, deduplication or acknowledgement changes without the controlling design/approval.
+
+**Disposition:** source-observed repeated narrative insertion and no-age-cutoff prompt reader; exact-head fixture verifies same-source duplicate rows. No narrative cleanup path was located in the inspected SelfNarrative/reaper sources. Active host timer state and intended retention semantics remain UNKNOWN. G-83 remains OPEN; no new defect ID or behaviour change is introduced.
+
+**Source anchors:** `substrate/init_db.py` blob `494d0a86d2fc42053fd3005d6a6b4e19c376d262`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `nex_db_reaper.py` blob `5cfb609a8ad8a5f9bd0ab83729d8b42220700658`; PR #449 exact head `8132db2a338727e580e3269ad148277db727b0d4`.
