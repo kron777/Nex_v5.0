@@ -97,27 +97,35 @@ class SpeechQueueConsumer(threading.Thread):
         while not self._stop.is_set():
             try:
                 if self._paused:
-                    time.sleep(self.config.poll_interval_sec)
+                    if self._stop.wait(self.config.poll_interval_sec):
+                        return
                     continue
 
                 from nex_config import local_now
                 now_hour = local_now().hour
                 if self.config.in_quiet_hours(now_hour):
-                    time.sleep(self.config.poll_interval_sec * 5)
+                    if self._stop.wait(self.config.poll_interval_sec * 5):
+                        return
                     continue
 
                 rows = self._pending()
+                if self._stop.is_set():
+                    return
                 if not rows:
-                    time.sleep(self.config.poll_interval_sec)
+                    if self._stop.wait(self.config.poll_interval_sec):
+                        return
                     continue
 
-                self._speak_one(rows[0])
+                self._speak_one(rows[0], stop_event=self._stop)
 
             except Exception as e:
                 log.error("consumer loop error: %s", e)
-                time.sleep(self.config.poll_interval_sec)
+                if self._stop.wait(self.config.poll_interval_sec):
+                    return
 
-    def _speak_one(self, row) -> None:
+    def _speak_one(self, row, *, stop_event: Optional[threading.Event] = None) -> None:
+        if stop_event is not None and stop_event.is_set():
+            return
         qid = row["id"]
         content = row["content"]
         trace = None
@@ -144,6 +152,16 @@ class SpeechQueueConsumer(threading.Thread):
             except Exception:
                 return None
 
+        def _requeue_if_stopping(parent: Optional[str] = None) -> bool:
+            if stop_event is None or not stop_event.is_set():
+                return False
+            self.writer.write(
+                "UPDATE speech_queue SET status='pending' WHERE id=? AND status='speaking'",
+                (qid,),
+            )
+            trace_event("synthesis_abandoned_shutdown", parent=parent)
+            return True
+
         dequeue_event = trace_event("dequeued")
         # Use voice from VoiceState if available, else fall back to row voice or config
         voice = None
@@ -154,6 +172,8 @@ class SpeechQueueConsumer(threading.Thread):
                 pass
         if not voice:
             voice = row.get("voice") or self.config.voice
+        if stop_event is not None and stop_event.is_set():
+            return
         if not _is_speakable(content):
             try:
                 self.writer.write(
@@ -180,12 +200,16 @@ class SpeechQueueConsumer(threading.Thread):
             raise
         synthesis_started = trace_event("synthesis_started", parent=dequeue_event)
         failure_parent = trace_parent
+        if _requeue_if_stopping(synthesis_started):
+            return
         try:
             try:
                 audio, sr = self.backend.synth(content, voice=voice)
                 synthesis_completed = trace_event(
                     "synthesis_completed", parent=synthesis_started
                 )
+                if _requeue_if_stopping(synthesis_completed):
+                    return
             except Exception as e:
                 failure_parent = trace_event(
                     "synthesis_failed", parent=synthesis_started,
