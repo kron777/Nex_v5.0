@@ -404,3 +404,17 @@ append and fsync them before publishing the updated in-memory pattern. A failed
 append therefore does not advance the in-memory learning state. This is a
 single-writer failure-safety guarantee; concurrent multi-process PatternMemory
 transactions are not yet serialized and must not be assumed safe.
+
+
+## Novel-kind proposal boundary
+
+When the Extrapolator encounters an obligation kind with no active expansion rule,
+it still leaves that obligation in the frontier rather than inventing children.
+The frontier entry now carries a `rule_proposal_request` containing the complete
+source obligation, the known rule kinds, terminal kinds, and the review dimensions
+needed for a candidate decomposition.
+
+This is a provider-neutral handoff to a human or external LLM, not an automatically
+generated or activated rule. Candidate rules remain inert until an explicit review
+and approval lifecycle is implemented. Repeated pattern frequency alone does not
+activate a rule.
