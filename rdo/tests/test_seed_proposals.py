@@ -183,6 +183,7 @@ def test_raw_objective_revision_hash_chain_is_enforced(tmp_path):
     raw2 = _raw(revision=2, supersedes="0" * 64)
     with pytest.raises(SeedProposalError, match="revision chain"):
         _submit(store, raw2)
+    assert len(store.events()) == 1
 
 
 def test_candidate_rejects_unknown_executable_fields_and_unbound_relationships(tmp_path):
@@ -289,3 +290,18 @@ def test_ledger_append_refuses_to_exceed_byte_limit(tmp_path, monkeypatch):
     with pytest.raises(SeedProposalError, match="byte limit"):
         _submit(store)
     assert path.read_text(encoding="utf-8") == ""
+
+
+def test_invalid_raw_revision_is_rejected_before_it_can_poison_the_ledger(tmp_path):
+    store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
+    _submit(store)
+    before = store.events()
+    invalid = _raw(revision=2, supersedes="0" * 64)
+    with pytest.raises(SeedProposalError, match="revision chain"):
+        store.submit(
+            invalid, [_alternative("alternative-c", "gamma"),
+                      _alternative("alternative-d", "delta")],
+            proposer_kind="external_llm", proposer_reference="model",
+            source_reference="source:invalid-revision",
+        )
+    assert store.events() == before
