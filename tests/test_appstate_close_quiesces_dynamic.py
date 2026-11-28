@@ -135,16 +135,8 @@ class TestAppStateCloseQuiescesDynamic(unittest.TestCase):
         entered = threading.Event()
         release = threading.Event()
         wrote = threading.Event()
-        with mock.patch.object(
-            fountain_module, "FOUNTAIN_CHECK_INTERVAL_SECONDS", 0.01
-        ):
-            fountain = build_fountain(
-                self.writers, self.readers,
-                voice_client=_mock_voice_client(),
-                dynamic_state=_mock_dynamic_state(),
-            )
 
-        def in_flight_tick(*_args, **_kwargs):
+        def in_flight_tick(_generator, *_args, **_kwargs):
             entered.set()
             release.wait(2.0)
             self.writers["dynamic"].write(
@@ -154,7 +146,14 @@ class TestAppStateCloseQuiescesDynamic(unittest.TestCase):
             wrote.set()
             return None
 
-        fountain.generator.generate = in_flight_tick
+        from theory_x.stage6_fountain.generator import FountainGenerator
+        with mock.patch.object(FountainGenerator, "generate", new=in_flight_tick), \
+             mock.patch.object(fountain_module, "FOUNTAIN_CHECK_INTERVAL_SECONDS", 0.01):
+            fountain = build_fountain(
+                self.writers, self.readers,
+                voice_client=_mock_voice_client(),
+                dynamic_state=_mock_dynamic_state(),
+            )
         self.assertTrue(entered.wait(1.0), "Fountain did not enter its tick")
         state = _state(self.writers, self.readers)
         state.fountain = fountain
