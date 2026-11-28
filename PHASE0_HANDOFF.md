@@ -375,7 +375,7 @@ Voice transport refinement: `voice/llm.py` builds a two-message payload and pass
 
 ### 28 November 2026 — G-83 route-to-transport test candidate
 
-Draft PR #450 (`b33022cfaf47cc34dc8eec316cd583c15e6d880e`) adds a GUI route fixture using real Metacognition and Stage-SelfNarrative objects with mocked voice transport. It asserts Technical's insufficient-belief return occurs before transport and Philosophical carries both reflective strings into the transport user message. Workflow `46175227754` is pending/in progress. Test-only; no live model/provider or cognitive behaviour change. See INDEX §127.
+Draft PR #450 (`b33022cfaf47cc34dc8eec316cd583c15e6d880e`) adds a GUI route fixture using real Metacognition and Stage-SelfNarrative objects with mocked voice transport. It asserts Technical's insufficient-belief return occurs before transport and Philosophical carries both reflective strings into the transport user message. Workflow `46175227754` passed 3,078 tests, 7 skipped, 86 subtests; baseline and sandbox checks passed. Test-only; no live model/provider or cognitive behaviour change. See INDEX §127.
 
 ### 28 November 2026 — G-83 upstream producer provenance
 
