@@ -194,8 +194,8 @@ def _normalise_proposal(raw: dict) -> dict:
     ):
         result[field] = _text_list(
             raw[field], field,
-            required=field in {"applicability", "provenance", "disconfirming_cases",
-                               "positive_tests", "negative_tests"},
+            required=field in {"applicability", "evidence_needs", "provenance",
+                               "disconfirming_cases", "positive_tests", "negative_tests"},
         )
     return result
 
