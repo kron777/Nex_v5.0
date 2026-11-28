@@ -73,5 +73,5 @@ def test_bind_finishes_current_state_history_pair_if_stop_arrives_mid_commit():
     ):
         result = self_binding.bind(writer, stop_event=stop)
 
-    assert result["aborted"] is not True
+    assert result.get("aborted") is not True
     assert writer.write.call_count == 2
