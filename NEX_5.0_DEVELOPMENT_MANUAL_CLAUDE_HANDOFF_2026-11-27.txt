@@ -1128,7 +1128,7 @@ No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 
 
 ## 49. Bonsai → Fountain branch pick → Global Workspace trace (28 November 2026)
 
-**Evidence snapshot:** NEX `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; exact-head CI run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests; baseline OK.
+**Evidence snapshot:** NEX `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; the characterization run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests; the final manual-synchronization head also passed full-suite CI in run `46116263832`.
 
 ### Network path
 
