@@ -1175,3 +1175,20 @@ At this audit, PR #379's exact-head `tests` workflow was still **in progress**. 
 6. Keep S-01–S-25/M1.8, the Master Roadmap, Gate 0 and Phase 1 authority unchanged. No open PR, passing test suite or technical mergeability authorizes a phase transition.
 
 This section is a dated source/PR snapshot. Refresh it after subsequent merges rather than silently treating it as live status.
+
+
+### 16.6 Repository-side supervisor contract — source verified, host unit unverified
+
+The current-main `nex_keepalive.sh` source provides a concrete application/supervisor boundary:
+
+- It resolves the checkout directory from the script's own location and starts `.venv/bin/python3 run.py`; it does not bind the code checkout to one fixed home/Desktop path.
+- The NEX HTTP listener is supervised on port 8765. The script uses a separate power-switch port 8766.
+- The launcher keeps a single-instance `flock` lock, scopes child termination to the PID it launched, and sends SIGTERM for deliberate shutdown.
+- `graceful_stop_child()` polls the child for up to approximately 15 seconds (30 × 0.5 seconds), then escalates to SIGKILL if the child remains alive. It subsequently runs `fuser -k` against the NEX port and clears PID/identity bookkeeping.
+- The 12-second application shutdown budget introduced by #370 therefore leaves an intended three-second margin before the supervisor's approximately 15-second SIGKILL escalation. This is source arithmetic, not a measured host timing guarantee.
+- The launcher sets a large explicit environment for its child, including many NEX feature flags and `MOLTBOOK_DRY_RUN=1`. This is the tracked launch command, not proof that the user's currently running process was started from this exact checkout or environment.
+- The script writes its operational state under `/home/rr/.nex`; this is a host-specific assumption even though checkout resolution is portable. The launcher also contains logic for externally owned systemd power-switch and keepalive services.
+
+**Not verified:** the installed user/system systemd unit contents, effective unit environment, service manager timeout/kill settings, actual running PID/command line, live environment, active WSGI entry point, reverse-proxy topology, host thread inventory, and whether the currently running process uses this exact checkout. Those require authorized host evidence; repository source alone cannot establish them.
+
+This narrows the host-evidence task: compare the installed unit and effective process state with this tracked supervisor contract. Do not state that the 12-second/15-second relationship is operationally proven until that comparison and a controlled host shutdown observation exist.
