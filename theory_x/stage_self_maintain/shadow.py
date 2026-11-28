@@ -78,16 +78,25 @@ class SelfMaintainShadow:
         self._stop = threading.Event()
 
     # ---------------------------------------------------------------- setpoint
-    def _setpoint(self, now: float) -> tuple[Optional[float], str]:
+    def _setpoint(
+        self, now: float, *, stop_event: Optional[threading.Event] = None
+    ) -> tuple[Optional[float], str]:
         own = self._dr.read(
             "SELECT active_count FROM self_maintain_shadow WHERE ts >= ?", (now - WINDOW_S,))
+        if stop_event is not None and stop_event.is_set():
+            return None, "stopped"
         if len(own) >= MIN_HISTORY_HOURS:
             return float(statistics.median(r["active_count"] for r in own)), "own_log"
         hourly: dict[int, int] = {}
-        for r in self._sr.read(
-                "SELECT timestamp, payload FROM sense_events "
-                "WHERE stream = 'internal.interoception' AND timestamp >= ? ORDER BY timestamp",
-                (now - WINDOW_S,)):
+        rows = self._sr.read(
+            "SELECT timestamp, payload FROM sense_events "
+            "WHERE stream = 'internal.interoception' AND timestamp >= ? ORDER BY timestamp",
+            (now - WINDOW_S,))
+        if stop_event is not None and stop_event.is_set():
+            return None, "stopped"
+        for r in rows:
+            if stop_event is not None and stop_event.is_set():
+                return None, "stopped"
             try:
                 tiers = json.loads(r["payload"])["tier_counts"]
                 hourly[int(r["timestamp"]) // 3600] = sum(
@@ -96,29 +105,53 @@ class SelfMaintainShadow:
                 continue
         if len(hourly) < MIN_HISTORY_HOURS:
             return None, "insufficient"
-        paused_le6 = self._br.read_one(
-            "SELECT COUNT(*) AS n FROM beliefs WHERE tier <= 6 AND paused = 1")["n"]
+        paused_row = self._br.read_one(
+            "SELECT COUNT(*) AS n FROM beliefs WHERE tier <= 6 AND paused = 1")
+        if stop_event is not None and stop_event.is_set():
+            return None, "stopped"
+        paused_le6 = paused_row["n"]
         return float(statistics.median(hourly.values())) - paused_le6, "interoception"
 
     # -------------------------------------------------------------------- tick
-    def tick(self, now: Optional[float] = None) -> Optional[dict]:
+    def tick(
+        self,
+        now: Optional[float] = None,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Optional[dict]:
+        if stop_event is not None and stop_event.is_set():
+            return None
         now = time.time() if now is None else now
-        if not self._table_ready:           # before _setpoint, which reads this table
+        if not self._table_ready:
             self._w.write(_TABLE, ())
             self._table_ready = True
-        active = self._br.read_one(
-            "SELECT COUNT(*) AS n FROM beliefs WHERE tier <= 6 AND paused = 0")["n"]
-        setpoint, source = self._setpoint(now)
+            if stop_event is not None and stop_event.is_set():
+                return None
+
+        active_row = self._br.read_one(
+            "SELECT COUNT(*) AS n FROM beliefs WHERE tier <= 6 AND paused = 0")
+        if stop_event is not None and stop_event.is_set():
+            return None
+        active = active_row["n"]
+        if stop_event is None:
+            setpoint, source = self._setpoint(now)
+        else:
+            setpoint, source = self._setpoint(now, stop_event=stop_event)
+        if stop_event is not None and stop_event.is_set():
+            return None
         n_pause = would_pause_count(active, setpoint)
         cands = []
         if n_pause > 0:
             marks = ",".join("?" * len(PROTECTED_SOURCES))
-            cands = [dict(r) for r in self._br.read(
+            rows = self._br.read(
                 "SELECT id, confidence, branch_id, source FROM beliefs "
                 "WHERE tier = 6 AND paused = 0 AND locked = 0 AND created_at <= ? "
                 f"AND (source IS NULL OR source NOT IN ({marks})) "
                 "ORDER BY confidence ASC, created_at ASC LIMIT ?",
-                (now - MIN_AGE_S, *sorted(PROTECTED_SOURCES), n_pause))]
+                (now - MIN_AGE_S, *sorted(PROTECTED_SOURCES), n_pause))
+            if stop_event is not None and stop_event.is_set():
+                return None
+            cands = [dict(r) for r in rows]
         ids = [c["id"] for c in cands]
         in_dormant = pending = 0
         if ids:
@@ -126,7 +159,18 @@ class SelfMaintainShadow:
             row = self._br.read_one(
                 f"SELECT COUNT(*) AS n, SUM(reanimated_at IS NULL) AS p FROM dormant_beliefs "
                 f"WHERE belief_id IN ({marks})", tuple(ids))
+            if stop_event is not None and stop_event.is_set():
+                return None
             in_dormant, pending = int(row["n"] or 0), int(row["p"] or 0)
+
+        paused_row = self._br.read_one(
+            "SELECT COUNT(*) AS n FROM beliefs WHERE paused = 1")
+        if stop_event is not None and stop_event.is_set():
+            return None
+        created_row = self._br.read_one(
+            "SELECT COUNT(*) AS n FROM beliefs WHERE created_at >= ?", (now - 3600,))
+        if stop_event is not None and stop_event.is_set():
+            return None
         rec = {
             "ts": now, "active_count": active, "setpoint": setpoint, "setpoint_source": source,
             "deviation": None if setpoint is None else active - setpoint,
@@ -136,11 +180,12 @@ class SelfMaintainShadow:
             "candidate_branch_mix": json.dumps(Counter(c["branch_id"] or "?" for c in cands)),
             "candidate_source_mix": json.dumps(Counter(c["source"] or "?" for c in cands)),
             "n_in_dormant": in_dormant, "n_in_dormant_pending": pending,
-            "paused_total": self._br.read_one("SELECT COUNT(*) AS n FROM beliefs WHERE paused = 1")["n"],
-            "created_last_hour": self._br.read_one(
-                "SELECT COUNT(*) AS n FROM beliefs WHERE created_at >= ?", (now - 3600,))["n"],
+            "paused_total": paused_row["n"],
+            "created_last_hour": created_row["n"],
             "gain": GAIN, "cap": CAP, "version": VERSION,
         }
+        if stop_event is not None and stop_event.is_set():
+            return None
         cols = ", ".join(rec)
         self._w.write(
             f"INSERT INTO self_maintain_shadow ({cols}) VALUES ({', '.join('?' * len(rec))})",
@@ -157,7 +202,7 @@ class SelfMaintainShadow:
                 return
             while not self._stop.is_set():
                 try:
-                    self.tick()
+                    self.tick(stop_event=self._stop)
                 except Exception as e:      # never break NEX for a log row
                     log.warning("SELF-MAINTAIN SHADOW tick failed: %r", e)
                 if self._stop.wait(TICK_S):
