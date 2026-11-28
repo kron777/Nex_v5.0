@@ -2256,3 +2256,19 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 **Limits:** this census covers tracked Python files in the current branch only. Non-Python launchers and external callers are outside the repository scan. No live boot, failure injection, host process or robot runtime was exercised. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
+---
+
+## 78. Preserve the primary construction failure across BaseException cleanup failures (28 November 2026)
+
+**Study trigger:** review of the rollback helper against the enclosing `build_state()` exception boundary found an inconsistency. The factory catches `BaseException` to guarantee rollback before re-raising the construction failure, but the helper caught only `Exception` from producer signalling, scheduler join, worker join and Writer close. A cleanup callback raising `KeyboardInterrupt` or `SystemExit` could therefore escape the helper and replace the original construction failure.
+
+**Change:** `_rollback_partial_app_state()` now catches `BaseException` around each of those four best-effort cleanup operations and logs the cleanup failure. The helper then returns, allowing the outer bare `raise` to preserve the original construction exception. The cleanup remains bounded by the existing shared monotonic deadline; no shutdown budget or ordering changed.
+
+**Regression:** `tests/test_gui_build_state_rollback.py::test_cleanup_errors_do_not_escape_rollback_helper` now injects `KeyboardInterrupt` from producer stop and `SystemExit` from Writer close. This verifies that process-control exceptions raised by cleanup do not escape the rollback helper. Existing ordinary-error coverage and ordering tests remain.
+
+**Rationale and limit:** swallowing a new process-control exception is appropriate only inside this rollback path because another exception is already being unwound and the construction failure is the primary diagnostic. This does not change normal `AppState.close()` semantics or globally suppress interrupts. Attribute access/introspection outside the guarded cleanup calls is not claimed to be exception-proof.
+
+**Validation:** code and regression test updated on PR #446. Exact-head CI for the resulting branch commit must be checked before claiming validation. Prior successful exact-head suite remains the previous docs-only head `b8c2cee06769ec3b74601885b1b6b87dddda9b82`; it does not validate this code change.
+
+**Boundaries:** narrow rollback hardening only. No cognitive semantics, registry API, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
