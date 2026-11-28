@@ -3978,3 +3978,36 @@ This is a **source-level repeat-on-turn candidate**, not yet a confirmed runtime
 **Source anchors:** `theory_x/stage9_metacognition/metacognition.py` (current main blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`); `theory_x/diversity/groove.py` (current main blob from this pass); `gui/server.py` and `theory_x/__init__.py` (per-chat tick contract); `tests/test_metacognition.py` blob `e2604f7baf113999b89e8c66c8bdf4fae22f5a8d`; `tests/test_stillness.py` blob `9a855ee570dcc2e1f0b7b1da6c61cfd072de8ea7`; `543e4ce957f2e3ad8e3ebf9fb25cd1bf977fed1a` (GrooveSpotter fingerprint dedup).
 
 **Evidence level:** source-observed caller cadence and read/write path; test-coverage inspection; no runtime measurement and no test execution in this pass. Repository-wide acknowledgement writer census incomplete.
+
+
+## 107. Groove alert re-consumption can manufacture the sustained-groove count (28 November 2026)
+
+**Question studied:** does the current Metacognition path consume a GrooveSpotter alert once, or can repeated chat turns convert the same still-unacknowledged source row into multiple durable events and thereby satisfy Row 9's threshold?
+
+### Source trace
+
+- DiversityLoop._run() calls GrooveSpotter.detect_all() on its background loop, then waits 60 seconds. GrooveSpotter inserts a groove_alerts row when a new detector fingerprint appears. Its in-memory fingerprints suppress unchanged detector output within that process; they are not an acknowledgement or consumption record for Metacognition.
+- Metacognition.tick() is called on the INSIDE chat path once per chat turn. Each tick calls _detect_groove(now).
+- _detect_groove() selects up to three rows newer than 600 seconds with acknowledged_at IS NULL. It returns their IDs but does not update acknowledged_at, persist a last-consumed ID, or deduplicate against prior meta_cognition_events.
+- For every returned row, tick() calls _write_event(). _write_event() inserts a new meta_cognition_events row and does not persist the source groove_id; the source ID is used only in the optional narrative call.
+- If any groove rows are returned, tick() calls _maybe_engage_stillness(). That method counts all event_type='groove' rows in the preceding 1,800 seconds. It counts derived event rows, not distinct source alert IDs or detector episodes.
+
+### Consequence and confidence
+
+The same source alert can therefore be re-read and re-written on successive chat turns while it remains within the 600-second lookback and unacknowledged. Three such turns can create three groove event rows from one source alert; the Row 9 threshold can then be reached without three distinct alerts. This is a deterministic source-level pathway under those conditions, not merely a hypothetical race.
+
+This does not establish that the pathway has occurred in the live runtime, how often it occurs, or whether another uninspected component acknowledges alerts. The 14 November investigation reported 0 acknowledged rows among 1,198 sampled groove_alerts and said the column appeared unwritten, but its repository-wide writer census was not demonstrated. The current source inspection confirms the known producer and consumer paths; the complete tracked-repository acknowledgement writer census remains open.
+
+### Existing coverage and bounded next evidence
+
+- Existing tests prove one unacknowledged alert creates a groove event and an acknowledged alert is ignored. They do not call tick() repeatedly against the same alert ID.
+- Existing Row 9 tests exercise the count threshold with mocked groove-event counts; they do not establish that three distinct source alert IDs are required.
+- Add test proposals only at this stage: (1) repeated ticks against one unchanged alert ID; (2) three distinct alert IDs; (3) a source alert becoming acknowledged between ticks; and (4) multiple alert rows returned in one tick. Assert source IDs and derived event counts separately.
+- Before a fix, resolve the intended semantic unit: one event per source alert, per distinct detector episode/fingerprint, or per chat-turn observation. If once-only consumption is intended, choose an explicit durable/idempotent mechanism and review its cross-database implications; do not casually add a beliefs/conversations cross-database transaction or mutate source acknowledgement state without authority review.
+- Complete the tracked-source writer census for groove_alerts.acknowledged_at, then inspect historical database evidence if an appropriately retained snapshot is available. Do not access or alter the live database as part of this source study.
+
+**Disposition:** Phase 0 source/test-contract finding. Documentation only; no runtime code, tests, schema, flags, or behaviour changed. No tests run. No Gate 0 claim. No live host, database, process, or service accessed.
+
+**Source anchors:** theory_x/diversity/loop.py (60-second detector cadence); theory_x/diversity/groove.py (in-memory detector fingerprints and alert inserts); theory_x/stage9_metacognition/metacognition.py (tick(), _detect_groove(), _write_event(), _maybe_engage_stillness()); gui/server.py (INSIDE chat call site); tests/test_metacognition.py; tests/test_stillness.py; journal/INVESTIGATION_2026-11-14_groove_facts.txt (historical 0/1,198 acknowledgement observation).
+
+**Evidence level:** source-observed caller cadence and write/read/count path; test-coverage inspection; historical database aggregate reported in a journal; live event chronology and complete acknowledgement writer census UNKNOWN.
