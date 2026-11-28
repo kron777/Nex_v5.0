@@ -2050,19 +2050,29 @@ The commands reuse the existing store and its catalogue fingerprint, schema vali
 
 **Authority boundary:** `approved_for_catalogue` remains inert. No activation, dynamic loading, generated-code execution, catalogue mutation, runtime action or authority grant is exposed. The only route into `EXPANSION_RULES` remains a separate reviewed source change with tests and CI.
 
-**Validation:** new `rdo/tests/test_rule_proposal_cli.py` covers command routing, review fields, filtered history, exact input-field and duplicate-key rejection before store access, and a real-ledger end-to-end check that approval leaves `EXPANSION_RULES` unchanged. Exact-head workflow run `46146066321` passed **3,068 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map warning for stale `p1_continuity` anchors is addressed separately in the final mind-map evidence refresh PR #437.
+**Validation:** new `rdo/tests/test_rule_proposal_cli.py` covers command routing, review fields, filtered history, exact input-field and duplicate-key rejection before store access, and a real-ledger end-to-end check that approval leaves `EXPANSION_RULES` unchanged. Exact-head workflow run `46146066321` passed **3,068 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map warning for stale `p1_continuity` anchors is addressed by merged PR #437.
 
 **Unchanged boundaries:** no frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, or cognitive/action authority is changed.
 
 ---
 
-## 66. Objective intake first-revision directory durability — candidate PR #438 (28 November 2026)
+## 65. P1 continuity evidence refresh after Writer rollback — merged PR #437 (28 November 2026)
 
-**Source-derived gap:** `ObjectiveInputStore.append()` fsynced each appended revision file but did not fsync the containing directory after creating the first `<objective_id>.jsonl` entry. A file fsync protects file contents; it does not by itself guarantee that the newly created directory entry survives a crash or power loss.
+**Merged:** `af52387c3a0d3bc6f041b6d4d9413c74944adc68`. The `p1_continuity` node's source anchors now cite `substrate/writer.py:58-213` and `:214-375`, with `last_verified: 2026-11-28`. The note records the merged PR #424 partial-start rollback and its exact-head tests while preserving the existing preventive-vs-detective distinction and FAIL falsifier: rollback protection does not detect two writers claiming the same subject.
+
+Exact-head workflow run `46146816088` passed **3,068 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. Mind-map verification reports 30 nodes, 0 unverified, 12 dark and 2 blocked. The stale `p1_continuity` warning is cleared. Remaining warnings are two missing doctrine reference files (`VIRTUE_SLATE.md`, `mental_factors_inventory_alobha_spec.txt`) and the overdue `p13_finitude` unblock dated 2026-11-21; they remain visible and unmodified.
+
+No live dual-writer or host/robot rehearsal is claimed. The mind map remains descriptive and has no action-control authority.
+
+---
+
+## 66. Objective intake first-revision directory durability — merged PR #438 (28 November 2026)
+
+**Merged:** PR #438, merge commit `6de891fe128e144bc4428eb6a78b4f45c09decf7`. `ObjectiveInputStore.append()` now fsyncs the containing directory after the first `<objective_id>.jsonl` entry is created. A file fsync protects file contents; the additional directory fsync includes the new directory entry in the durability boundary.
 
 **Bounded correction:** while holding the per-objective exclusive lock, detect first creation; append and fsync the revision file; then fsync the containing directory. Later revisions retain the existing file-only fsync behavior. The immutable revision schema, SHA-256 chain, lineage checks, locking and replay semantics are unchanged.
 
-**Regression coverage:** `rdo/tests/test_objective_intake_durability.py` verifies first creation fsyncs the file then the parent directory, while a later revision fsyncs only the existing file. README records the durability boundary. Exact-head CI is pending; no pass is claimed.
+**Regression coverage:** `rdo/tests/test_objective_intake_durability.py` verifies first creation fsyncs the file then the parent directory, while a later revision fsyncs only the existing file. README records the durability boundary. Exact-head workflow run `46147315394` passed **3,070 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. That branch's mind-map check still emitted the stale p1 warning because its base preceded merged PR #437; the current mainline has the refreshed evidence recorded in §65.
 
 **Boundaries:** no objective schema, approval, planning, Stage-7, execution, runtime state, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed. No live database or host process was accessed.
 
