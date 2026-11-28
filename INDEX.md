@@ -5405,9 +5405,9 @@ This does not invalidate the 30-day source-level backstop; it narrows the test e
 - `substrate/init_db.py` creates `narrative_log(id, content, trigger, source_id, created_at)`. It has no expiry/retention column and no foreign key to `groove_alerts` (the tables live in different databases in any case).
 - `SelfNarrative.write_narrative()` performs a plain INSERT for each call; there is no deduplication by `source_id`, trigger or content.
 - `Metacognition._detect_groove()` calls `write_narrative()` on every eligible re-read of an unacknowledged source alert, passing the same GrooveSpotter alert ID as `source_id`.
-- PR #449 exact-head tests verify five narrative rows can be written with the same source alert ID from five chat ticks.
+- PR #449 exact-head test `test_repeated_alert_reaches_generic_prompt_and_topic_filtered_narrative` verifies five `narrative_log` rows from five controlled chat ticks all carry the same source alert ID, and that `format_for_prompt()` returns all five on a matching topic but returns empty for an unrelated topic. This is fixture-level proof of duplicate prompt-slot occupancy, not a live host observation.
 - `SelfNarrative.format_for_prompt()` selects the newest `_DEFAULT_N=5` rows. When a topic is supplied, it filters only by case-insensitive substring match against `content`; it has no `created_at` cutoff, no `trigger` restriction and no source-ID deduplication. The GUI passes `prompt[:100]` as the topic. It selects only `content` and `created_at`, so the stored `trigger` and `source_id` are not passed into the prompt.
-- `SelfNarrative.decay()` is a no-op.
+- `SelfNarrative.decay()` is a no-op. `tests/test_self_narrative.py` verifies the no-op, topic matching and five-row cap; it does not test or establish an age-based expiry policy.
 - The external `nex_db_reaper.py` target list includes `meta_cognition_events` at 30 days but does not include `narrative_log` or `groove_alerts`. The 30-day reaper therefore does not bound these narrative rows.
 - The source alert itself falls out of Metacognition's consumer query after 600 seconds, but that does not delete the source row or its narrative rows. The 600-second value is `_GROOVE_LOOKBACK`; `_detect_groove()` reads only `detected_at > now - 600` and `acknowledged_at IS NULL`.
 
