@@ -349,17 +349,3 @@ def submit_reviewed_selection(
             "append. RDO planning is advisory; no Stage-7 handoff or execution was created."
         ),
     }
-    return {
-        "status": "prepared_for_intake_review",
-        "objective": objective,
-        "objective_input_sha256": objective_digest,
-        "lineage": lineage,
-        "graph_analysis": graph,
-        "persisted": False,
-        "planning_started": False,
-        "stage7_handoff_created": False,
-        "note": (
-            "Read-only preparation. The objective.v1 payload and lineage envelope "
-            "are returned for review; neither ledger is appended and no RDO cycle runs."
-        ),
-    }
