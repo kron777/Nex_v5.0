@@ -157,5 +157,5 @@ class TestToolCaller(unittest.TestCase):
         self.assertNotIn("query", kwargs)
 
 
-if __runner__:
+if __name__ == "__main__":
     unittest.main()
