@@ -142,6 +142,8 @@ class EmergentDriveDetector:
                 f"curiosity={p['proposed_curiosity']:.3f}",
                 source=_LOG_SOURCE, level="INFO",
             )
+            if stop_event is not None and stop_event.is_set():
+                return
             try:
                 self._dynamic_writer.write(
                     "INSERT INTO drive_proposals "
@@ -210,6 +212,8 @@ class EmergentDriveDetector:
             else:
                 gate_decision = None
 
+            if stop_event is not None and stop_event.is_set():
+                break
             if coherence_gate is None or (gate_decision is not None and gate_decision.outcome.value == "ACCEPT"):
                 try:
                     beliefs_writer.write(
