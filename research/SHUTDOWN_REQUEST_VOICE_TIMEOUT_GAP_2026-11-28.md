@@ -9,7 +9,7 @@
 - `run.py` begins one monotonic deadline when SIGTERM/SIGINT is received. It first calls `shutdown_gate.begin_shutdown(deadline)`. If request drain is unsuccessful, it logs the active request report and calls `os._exit(1)` before stopping the decoder, calling `AppState.close()` or writing the clean-shutdown marker.
 - `gui/shutdown_gate.py` waits for admitted Flask requests until that same deadline. It rejects new requests with HTTP 503 after closing begins. It has no cancellation hook into the work performed by an admitted route.
 - `voice/llm.py` implements the default VoiceClient request with `requests.post(..., timeout=120)`.
-- The chat route calls `state.voice.speak()` for the initial response and may call it again for one anti-repeat retry and one provenance retry when their respective admin-scoped conditions are met. These are sequential calls in the same admitted HTTP request. The inspected path has no SIGTERM-triggered cancellation of an in-flight VoiceClient request.
+- The chat route calls `state.voice.speak()` for the initial response and may call it again for one anti-repeat retry and one provenance retry when `NEX5_CHAT_MEMORY=1` / `NEX5_PROVENANCE=1` and an admin session are present. These are sequential calls in the same admitted HTTP request. The tracked `nex_keepalive.sh` launch line does not explicitly set either flag; the installed service manager may inject them, but that environment has not been inspected. The inspected path has no SIGTERM-triggered cancellation of an in-flight VoiceClient request.
 
 ## 2. Timing consequence
 
@@ -26,7 +26,7 @@ This is intentionally fail-closed with respect to the clean marker, but it is no
 ## 3. What remains unknown
 
 - Actual latency distribution of the configured local voice model on the deployed host.
-- How often the anti-repeat/provenance retry paths run and their additional wall-clock cost.
+- Whether the installed service manager enables `NEX5_CHAT_MEMORY` or `NEX5_PROVENANCE`, and how often the conditional retries run when an admin session is active.
 - Whether the normal in-flight request usually completes within the 12-second drain budget.
 - Whether a timed-out active request leaves queued Writer operations or partially completed multi-step work.
 - Whether the live service manager and process use the exact repository configuration inspected here.
