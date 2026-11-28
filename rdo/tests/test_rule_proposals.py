@@ -282,3 +282,35 @@ def test_invalid_prospective_event_is_rejected_before_persistence(tmp_path, monk
     ledger = tmp_path / "rule_proposals.jsonl"
     assert ledger.exists()
     assert ledger.read_text(encoding="utf-8") == ""
+
+
+def test_history_derives_proposals_and_events_from_one_ledger_snapshot(tmp_path, monkeypatch):
+    store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
+    submitted = _submit(store)
+    proposal_id = submitted["proposal"]["proposal_id"]
+    store.review(
+        proposal_id,
+        "changes_requested",
+        reviewer="reviewer",
+        source_reference="review:history-snapshot",
+        rationale="Request one bounded clarification before reconsideration.",
+        evidence_references=["review:positive", "review:negative"],
+    )
+
+    original_read = store._read_events
+    read_count = 0
+
+    def counted_read():
+        nonlocal read_count
+        read_count += 1
+        return original_read()
+
+    monkeypatch.setattr(store, "_read_events", counted_read)
+    history = store.history(proposal_id)
+
+    assert read_count == 1
+    assert history["proposal_count"] == 1
+    assert history["proposals"][0]["status"] == "changes_requested"
+    assert [event["event_kind"] for event in history["events"]] == [
+        "proposal_submitted", "review_decision"
+    ]
