@@ -254,7 +254,7 @@ class RuleProposalStore:
         note = note if isinstance(note, str) and len(note) <= 2000 else None
         if note is None:
             raise ValueError("note must be text of at most 2000 characters")
-        if decision not in {"approved", "rejected", "changes_requested"}:
+        if not isinstance(decision, str) or decision not in {"approved", "rejected", "changes_requested"}:
             raise ValueError("decision must be approved, rejected or changes_requested")
 
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
@@ -283,6 +283,10 @@ class RuleProposalStore:
                         raise ValueError("selected alternative is not part of this proposal")
                     positive = _text_list(positive_test_evidence, "positive_test_evidence", required=True)
                     negative = _text_list(negative_test_evidence, "negative_test_evidence", required=True)
+                    if set(positive) != set(created["positive_tests"]):
+                        raise ValueError("approval must review every declared positive test")
+                    if set(negative) != set(created["negative_tests"]):
+                        raise ValueError("approval must review every declared negative test")
                     # Do not silently replace an existing built-in or approved kind.
                     from .extrapolator import EXPANSION_RULES, TERMINAL_KINDS
                     if created["target_kind"] in EXPANSION_RULES or created["target_kind"] in TERMINAL_KINDS:
