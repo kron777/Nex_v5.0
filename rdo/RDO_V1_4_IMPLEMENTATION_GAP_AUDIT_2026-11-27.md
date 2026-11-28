@@ -218,6 +218,13 @@ FeedbackLoopAssessment remains an UNKNOWN-first evidence model rather than a sta
 2. Complete one traceable single-objective path through seed intake, expansion, context review, criterion verification, Stage-7 handoff and independent Watcher verification.
 3. Design the candidate-rule proposal and approval lifecycle for novel kinds.
 4. Persist FeedbackLoopAssessment with UNKNOWN-first semantics and measured evidence only.
-5. Continue Stage-2 belief-development and fresh-process persistence/resume research.
+5. Preserve the already implemented Stage-2 belief-development and fresh-process CycleStore-resume tests as a regression baseline; focus next on novel-kind rule proposals and the raw-idea-to-handoff boundary.
 
 No frozen S-01–S-25/M1.8 specification content or NEX runtime/deployment path was changed by these slices.
+
+
+### Stage-2 status correction — completed baseline
+
+The earlier next-step wording to run the Stage-2 belief-development slice and fresh-process persistence/resume is stale. The repository already contains `rdo/STAGE2_EXTRAPOLATOR_MVP.md` and `rdo/tests/test_stage2_extrapolator_mvp.py`. The test exercises the belief-decay objective through the existing Extrapolator/reconciler/CycleStore and launches a fresh Python subprocess to reload the persisted cycle, checking discovered counts, deferred frontier and native-planning kind. It also guards against writing reusable patterns from deterministic fixture reviews without authorised review provenance.
+
+The #339 and #343 exact-head full-suite runs passed this test. This is isolated repository/test-store verification only; it is not live belief-database or host-runtime evidence. Keep it as a regression baseline and do not rebuild Stage 2.
