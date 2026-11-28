@@ -342,7 +342,7 @@ if __name__ == "__main__":
 class TestRecorderShutdown(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        self.r._ready = True
+        self.r._ensure()
 
     def test_use_cycle_stops_after_blocked_first_source_read(self):
         entered = threading.Event()
