@@ -248,3 +248,202 @@ def test_cycle_detector_handles_deep_cycle_without_recursion():
     assert len(cycles[0]) == count + 1
     assert cycles[0][0] == cycles[0][-1]
     assert set(cycles[0][:-1]) == set(nodes)
+
+
+
+def _cycle_with_feedback_loop():
+    from rdo.model import CycleRecord
+
+    loop = FeedbackLoopAssessment(
+        loop_id="loop.alpha",
+        members=["node_a", "node_b"],
+        relationships=["node_a->node_b", "node_b->node_a"],
+    )
+    cycle = CycleRecord(
+        id="cycle-feedback-001",
+        objective="feedback loop evidence test",
+        tension=[{
+            "dimensions": {
+                "feedback_loop_assessments": [loop.to_dict()],
+            }
+        }],
+    )
+    return cycle
+
+
+def _loop_record(cycle):
+    return cycle.tension[0]["dimensions"]["feedback_loop_assessments"][0]
+
+
+def test_measured_dimensions_require_finite_numeric_values_and_traceable_metadata():
+    with pytest.raises(ValueError, match="finite numeric"):
+        FeedbackLoopAssessment(
+            loop_id="loop.bad", members=["a"], relationships=["a->b"],
+            gain=InterfaceEvidence(
+                status="measured", value="high", unit="ratio",
+                evidence=["lab:gain"], confidence="medium",
+            ),
+        )
+    with pytest.raises(ValueError, match="gain.unit"):
+        FeedbackLoopAssessment(
+            loop_id="loop.bad", members=["a"], relationships=["a->b"],
+            gain=InterfaceEvidence(
+                status="measured", value=0.8, unit="",
+                evidence=["lab:gain"], confidence="medium",
+            ),
+        )
+    with pytest.raises(ValueError, match="gain.evidence"):
+        FeedbackLoopAssessment(
+            loop_id="loop.bad", members=["a"], relationships=["a->b"],
+            gain=InterfaceEvidence(
+                status="measured", value=0.8, unit="ratio",
+                evidence=[], confidence="medium",
+            ),
+        )
+
+
+def test_measurement_event_updates_dimension_without_changing_topology_or_stability(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+    from rdo.memory import CycleStore
+
+    cycle = _cycle_with_feedback_loop()
+    original_topology = {
+        "loop_id": _loop_record(cycle)["loop_id"],
+        "members": list(_loop_record(cycle)["members"]),
+        "relationships": list(_loop_record(cycle)["relationships"]),
+    }
+    ledger = FeedbackLoopEvidenceStore(str(tmp_path / "feedback_loop_evidence.jsonl"))
+    event = ledger.record_measurement(
+        cycle, "loop.alpha", "gain", 0.72, "ratio",
+        ["lab:gain-run-004"], "medium", ["experiment:run-004"],
+        operating_envelope="stress",
+    )
+
+    loop = _loop_record(cycle)
+    assert loop["gain"]["status"] == "measured"
+    assert loop["gain"]["value"] == 0.72
+    assert loop["gain"]["unit"] == "ratio"
+    assert loop["stability_state"] == "unknown"
+    assert loop["assessment_status"] == "unknown"
+    assert {
+        "loop_id": loop["loop_id"],
+        "members": loop["members"],
+        "relationships": loop["relationships"],
+    } == original_topology
+    assert event["event_kind"] == "measurement_recorded"
+    assert cycle.feedback_loop_evidence_events[0]["operating_envelope"] == "stress"
+
+    cycles = CycleStore(str(tmp_path / "cycles"))
+    cycles.save(cycle)
+    restored = cycles.load(cycle.id)
+    ledger.apply(restored)
+    assert _loop_record(restored)["gain"]["value"] == 0.72
+    assert restored.feedback_loop_evidence_events == cycle.feedback_loop_evidence_events
+
+
+def test_stability_state_changes_only_after_explicit_evidence_review(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    cycle = _cycle_with_feedback_loop()
+    ledger = FeedbackLoopEvidenceStore(str(tmp_path / "feedback_loop_evidence.jsonl"))
+    ledger.record_stability_review(
+        cycle, "loop.alpha", "conditionally_stable",
+        "independent reviewer", "review:stability-assessment-12",
+        ["test:closed-loop-response", "trace:operating-envelope"],
+        "medium", note="Stable only inside the measured envelope.",
+    )
+
+    loop = _loop_record(cycle)
+    assert loop["stability_state"] == "conditionally_stable"
+    assert loop["assessment_status"] == "evidence_recorded"
+    assert loop["provenance"] == [
+        "reviewer:independent reviewer",
+        "source:review:stability-assessment-12",
+    ]
+    assert loop["assessment_evidence"] == [
+        "test:closed-loop-response", "trace:operating-envelope"
+    ]
+
+
+def test_new_measurement_invalidates_older_stability_review_until_re_reviewed(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    cycle = _cycle_with_feedback_loop()
+    ledger = FeedbackLoopEvidenceStore(str(tmp_path / "feedback_loop_evidence.jsonl"))
+    ledger.record_stability_review(
+        cycle, "loop.alpha", "stable", "reviewer", "review:stable",
+        ["test:stable-response"], "high",
+    )
+    assert _loop_record(cycle)["stability_state"] == "stable"
+
+    ledger.record_measurement(
+        cycle, "loop.alpha", "delay", 120.0, "ms",
+        ["trace:delay-120ms"], "high", ["experiment:delay-run"],
+        operating_envelope="busy",
+    )
+    loop = _loop_record(cycle)
+    assert loop["delay"]["value"] == 120.0
+    assert loop["stability_state"] == "unknown"
+    assert loop["assessment_status"] == "unknown"
+    assert loop["assessment_evidence"] == []
+    assert loop["provenance"] == []
+
+
+def test_feedback_review_requires_reviewer_source_and_assessment_evidence(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    cycle = _cycle_with_feedback_loop()
+    ledger = FeedbackLoopEvidenceStore(str(tmp_path / "feedback_loop_evidence.jsonl"))
+    with pytest.raises(ValueError, match="reviewer"):
+        ledger.record_stability_review(
+            cycle, "loop.alpha", "stable", "", "review:stable",
+            ["test:stable-response"], "high",
+        )
+    with pytest.raises(ValueError, match="assessment_evidence"):
+        ledger.record_stability_review(
+            cycle, "loop.alpha", "stable", "reviewer", "review:stable",
+            [], "high",
+        )
+    assert _loop_record(cycle)["stability_state"] == "unknown"
+    assert cycle.feedback_loop_evidence_events == []
+
+
+def test_feedback_evidence_cannot_be_replayed_against_changed_loop_topology(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    cycle = _cycle_with_feedback_loop()
+    ledger = FeedbackLoopEvidenceStore(str(tmp_path / "feedback_loop_evidence.jsonl"))
+    ledger.record_measurement(
+        cycle, "loop.alpha", "gain", 0.5, "ratio",
+        ["lab:gain"], "medium", ["experiment:gain"],
+    )
+    _loop_record(cycle)["members"] = ["node_a", "node_c"]
+    with pytest.raises(ValueError, match="topology changed"):
+        ledger.apply(cycle)
+
+
+def test_feedback_evidence_ledger_detects_tampering_and_replay_is_durable(tmp_path):
+    from rdo.feedback_loop import FeedbackLoopEvidenceStore
+
+    path = tmp_path / "feedback_loop_evidence.jsonl"
+    cycle = _cycle_with_feedback_loop()
+    ledger = FeedbackLoopEvidenceStore(str(path))
+    ledger.record_measurement(
+        cycle, "loop.alpha", "oscillation", 3, "cycles",
+        ["trace:oscillation-count"], "high", ["experiment:oscillation"],
+    )
+    lines = path.read_text(encoding="utf-8").splitlines()
+    event = json.loads(lines[0])
+    event["data"]["value"] = 999
+    lines[0] = json.dumps(event)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="digest mismatch"):
+        ledger.events(cycle.id)
+
+
+def test_cycle_record_legacy_construction_defaults_feedback_event_history():
+    from rdo.model import CycleRecord
+
+    legacy = CycleRecord(id="legacy-feedback-cycle", objective="legacy")
+    assert legacy.feedback_loop_evidence_events == []
