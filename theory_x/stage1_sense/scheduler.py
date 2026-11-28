@@ -189,11 +189,9 @@ class SenseScheduler:
 
         # Start all prepared workers while the gate is closed. No adapter can
         # poll until every Thread.start() has succeeded.
-        started = []
         try:
             for worker in self._threads.values():
                 worker.start()
-                started.append(worker)
         except BaseException:
             for worker in self._threads.values():
                 worker.stop()
