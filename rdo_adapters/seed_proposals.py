@@ -583,6 +583,9 @@ class SeedProposalStore:
                 }
                 event = dict(base)
                 event["event_sha256"] = _digest(base)
+                # Validate the prospective event against the entire ledger while
+                # still holding the lock; never persist an event that poisons replay.
+                self._snapshot(events + [event])
                 encoded = _canonical(event) + "\n"
                 fh.seek(0, os.SEEK_END)
                 if fh.tell() + len(encoded.encode("utf-8")) > MAX_LEDGER_BYTES:
