@@ -699,6 +699,11 @@ def resume_objective(workdir: str, objective_id: str, revision: int) -> dict:
         if (metadata.get("objective_id") == objective_id
                 and metadata.get("revision") == revision
                 and metadata.get("sha256") == stored["sha256"]):
+            expected_lineage = dict(stored.get("lineage") or {})
+            if cycle.objective_lineage != expected_lineage:
+                raise ObjectiveInputError(
+                    "CycleStore proposal lineage does not match the objective revision ledger"
+                )
             cycles.append(cycle.to_dict())
     if not cycles:
         raise ObjectiveInputError("the objective revision is stored, but no completed RDO cycle was found")
