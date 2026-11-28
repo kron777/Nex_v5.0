@@ -235,6 +235,74 @@ class TestQueryRouter(unittest.TestCase):
         self.assertEqual(result["side"], "OUTSIDE")
         self.assertIsNone(result["register_hint"])
 
+    def test_belief_tool_can_repeat_membrane_retrieval_ids(self):
+        """Characterize overlap between INSIDE RAG and the unfiltered tool query."""
+        from theory_x.stage3_world_model.retrieval import BeliefRetriever
+        from theory_x.stage_capability.tools import ToolRegistry
+        from theory_x.stage_capability.tool_caller import ToolCaller
+        from theory_x.stage4_membrane.router import QueryRouter
+        from theory_x.stage4_membrane.self_model import SelfModel
+
+        query = "what does nex think about qzxvorn harmonic lattice?"
+        content = (
+            "NEX thinks about qzxvorn harmonic lattice through recursive coupling."
+        )
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs "
+            "(content, tier, confidence, created_at, source, branch_id, locked, paused) "
+            "VALUES (?, ?, ?, ?, ?, ?, 0, 0)",
+            (content, 4, 0.98, int(time.time()), "identity", "systems"),
+        )
+        seeded = self.readers["beliefs"].read_one(
+            "SELECT id FROM beliefs WHERE content = ?", (content,)
+        )
+        self.assertIsNotNone(seeded)
+        seeded_id = seeded["id"]
+
+        retriever = BeliefRetriever(self.readers["beliefs"])
+        self_model = SelfModel(self.readers["sense"], self.readers["beliefs"])
+        route = QueryRouter().route(query, retriever, self_model)
+        self.assertEqual(route["side"], "INSIDE")
+
+        registry = ToolRegistry(beliefs_reader=self.readers["beliefs"])
+        caller = ToolCaller(registry)
+        self.assertEqual(caller.should_use_tool(query), "beliefs_query")
+        tool_result = registry.execute(
+            "beliefs_query", **caller.build_tool_kwargs(query, "beliefs_query")
+        )
+        self.assertTrue(tool_result.success, tool_result.error)
+
+        # The normal membrane route uses side_filter="INSIDE"; the auxiliary
+        # Stage-B beliefs_query uses no side filter. Both are independent reads.
+        inside_ids = {
+            item["id"] for item in retriever.retrieve(
+                query=query, branch_hints=["systems"], limit=5,
+                side_filter="INSIDE",
+            )
+        }
+        unfiltered_ids = {
+            item["id"] for item in retriever.retrieve(query=query, limit=5)
+        }
+        self.assertIn(seeded_id, inside_ids)
+        self.assertIn(seeded_id, unfiltered_ids)
+        self.assertTrue(inside_ids & unfiltered_ids)
+
+        # Each formatted list contributes a tier-labelled line to belief_text.
+        # The chat gate counts those lines, not distinct IDs, so the same
+        # underlying belief can be represented twice in the combined context.
+        from theory_x.stage3_world_model.retrieval import format_beliefs_for_prompt
+        inside_text = format_beliefs_for_prompt(
+            retriever.retrieve(
+                query=query, branch_hints=["systems"], limit=5,
+                side_filter="INSIDE",
+            )
+        )
+        combined_text = inside_text + "\\n" + caller.build_tool_prompt(query, tool_result)
+        combined_tier_lines = combined_text.count("- [Tier")
+        unique_returned_ids = inside_ids | unfiltered_ids
+        self.assertGreater(combined_tier_lines, len(unique_returned_ids))
+        self.assertIn(content, combined_text)
+
 
 # ---- Side filter in retrieval ------------------------------------------------
 
