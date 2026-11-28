@@ -210,11 +210,13 @@ class EdgeGenerator:
         *,
         stop_event: threading.Event | None = None,
     ) -> int:
+        if stop_event is not None and stop_event.is_set():
+            return 0
         now = time.time()
         persisted = 0
+        # One source-belief proposal batch is the commit unit (at most five
+        # edges). Once persistence begins, finish the batch and its undo logs.
         for target_id, edge_type, weight in edges:
-            if stop_event is not None and stop_event.is_set():
-                break
             self._writer.write(
                 "INSERT OR IGNORE INTO belief_edges "
                 "(source_id, target_id, edge_type, weight, created_at) "
