@@ -5303,3 +5303,20 @@ The reaper target list does not include `goals`, `open_problems` or `novel_assoc
 **Next bounded step:** inspect the active host's user systemd timer/service status and last-run logs when host access is available; do not infer activation from the versioned unit files. Then continue tracing external cleanup paths for GoalManager, ProblemMemory and NovelAssociation.
 
 **Source anchors:** `nex_db_reaper.py` blob `5cfb609a8ad8a5f9bd0ab83729d8b42220700658`; `deploy/systemd/nex5-db-reaper.service` blob `d2930bf0737c4c021c94d1f8317ba61900fd11ee`; `deploy/systemd/nex5-db-reaper.timer` blob `9b454faea87fefa147825ebdbd516218eac2b7ae`; `deploy/systemd/README.md` blob `4866fbfda8a09bfad0bdbaf8e90de1d7b41cbdd5`.
+
+
+## §139 — External cleanup census: no second retention path located for goals, problems or novel associations (28 November 2026)
+
+A bounded scan of the repository's external maintenance entrypoints was performed after finding the nightly DB reaper.
+
+- `nex_db_reaper.py` targets `meta_cognition_events` but does not target `goals`, `open_problems` or `novel_association_log`.
+- `scripts/problem_persistence.py` is explicitly read-only; it measures problem-injection persistence and does not close, cancel or delete problem rows.
+- `theory_x/stage_gate/retention.py` prunes only `gate_decisions` and empty `throw_net_sessions`; it is not a GoalManager/ProblemMemory cleanup path.
+- `theory_x/signals/reaper.py` prunes only `signals`.
+- The inspected versioned systemd units comprise the DB reaper service/timer; the other tool timers found are vitals and r77 monitoring, not cleanup for these three tables. `nex_keepalive.sh` contains no reference to these decay methods or tables.
+
+**Disposition:** no second external retention mechanism was located for GoalManager's `goals`, ProblemMemory's `open_problems` or NovelAssociation's `novel_association_log` in the inspected maintenance entrypoints. This remains a bounded source census, not proof about arbitrary user-installed cron jobs or uninspected host scripts. Their actual stale cleanup therefore remains unverified at runtime.
+
+**Next bounded step:** when host access is available, inspect user crontab and user systemd timers/services alongside the active DB-reaper status. In parallel, source-trace all in-repository invocations of the three decay methods beyond the inspected production boot/chat paths. Do not schedule new cleanup until the policy and external ownership are established.
+
+**Authority boundary:** no cleanup code, data, retention horizons, timers, schema, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
