@@ -1075,3 +1075,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 **§160 launcher cross-flag qualification:** tracked nex_keepalive.sh sets NEX5_SELF_NARRATIVE=1 and NEX5_GOVERNOR_OFF=1 together. The Fountain governor self_rut_notice writer is gated off by the latter, while Stage-TOM narrative composition is enabled by the former. This disables that specific producer in the tracked launch profile but does not prevent old stored rows or other tier-6 beliefs from being read. Host launcher selection and persisted rows remain UNKNOWN. See INDEX §160/§162.
+
+
+**28 November 2026 — §163 Fountain text-feedback loop:** normal Fountain path composes Stage-TOM context, calls the voice model, then persists the resulting thought in sense_events/fountain_events; later Stage-TOM reads recent fountain_events thought text into a future prompt. This is a source-level natural-language feedback loop, not AST/typed-operation/code synthesis. It is conditional: every-fifth-fire quiescent and eligible RECONCILE routes can bypass _build_prompt; tracked launcher sets NEX5_RECONCILE=1. Host cadence and semantic effect UNKNOWN. No runtime change or defect ID. See INDEX §163.
