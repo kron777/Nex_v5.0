@@ -1982,7 +1982,7 @@ The current `rdo/__main__.py` exposes six provider-neutral seed lifecycle comman
 - `seed-prepare`: read-only mapping of the approved selection into a validated `objective.v1` candidate with graph diagnostics and lineage.
 - `seed-intake`: explicitly persist the approved objective and proposal lineage, then run advisory RDO planning.
 
-The source is `rdo_adapters/reviewed_seed_bridge.py`; the CLI is documented in `rdo/README.md` and `rdo/REVIEWED_SEED_BRIDGE.md`. Regression coverage includes `rdo/tests/test_seed_proposal_cli.py` and `rdo/tests/test_reviewed_seed_bridge.py`.
+The source is `rdo_adapters/reviewed_seed_bridge.py`; the CLI is documented in `rdo/README.md` and `rdo/REVIEWED_SEED_BRIDGE.md`. Regression coverage includes `rdo/tests/test_seed_proposal_cli.py` and `rdo/tests/test_reviewed_seed_bridge.py`. The cross-layer lineage regression also verifies Stage-7 handoff provenance and non-execution authority.
 
 ### Integrity and authority boundaries
 
@@ -1995,6 +1995,6 @@ The source is `rdo_adapters/reviewed_seed_bridge.py`; the CLI is documented in `
 
 ### Updated G-92 disposition
 
-**G-92 is partially closed, not complete.** Both candidate lifecycle layers now exist: seed alternatives can be proposed/reviewed and explicitly bridged into objective.v1 intake; novel-kind rule proposals can be recorded/reviewed without activation. The remaining gap is the integrated raw-idea-to-handoff path: seed alternatives still require an external human/provider to formulate them; planning remains advisory; objective-context mapping and criterion verification require their separate evidence/review path; and the reviewed cycle does not automatically become a Stage-7 handoff. A rule approved for catalogue consideration still requires a separate ordinary source change, tests and CI before it can enter the active catalogue. No provider is inferred, no rule is automatically promoted, and no execution authority is created.
+**G-92 is partially closed, not complete.** Both candidate lifecycle layers now exist: seed alternatives can be proposed/reviewed and explicitly bridged into objective.v1 intake; novel-kind rule proposals can be recorded/reviewed without activation. The explicit approved-seed → objective.v1 → persisted cycle → resume → Stage-7 handoff lineage path is already covered by rdo/tests/test_reviewed_seed_bridge.py::test_approved_seed_lineage_survives_objective_cycle_resume_and_stage7. The handoff is a separate explicit operation, not an automatic side effect of intake. The remaining gap is upstream raw-idea-to-seed formulation: seed alternatives still require an external human/provider; there is no integrated provider or autonomous raw-idea compiler. Planning remains advisory, and objective-context mapping and criterion verification retain their separate evidence/review path. A rule approved for catalogue consideration still requires a separate ordinary source change, tests and CI before it can enter the active catalogue. No provider is inferred, no rule is automatically promoted, and no execution authority is created.
 
 This update corrects the development status only. It does not create a new rule, activate a candidate, create a Stage-7 handoff, authorize execution, or change frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 or Phase 1 authority.
