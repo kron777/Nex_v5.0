@@ -210,7 +210,7 @@ Recommended next research/development: a provider-neutral proposal contract for 
 
 ### G-93 — feedback-loop assessment persistence (open)
 
-FeedbackLoopAssessment remains an UNKNOWN-first evidence model rather than a stability calculator. It is not yet persisted in CycleRecord or connected to orchestration. A future integration should validate measurement evidence, observation windows and provenance, preserve legacy-cycle loading, and avoid invented gain/damping/stability thresholds.
+`assess_system` already creates a `FeedbackLoopAssessment` for each detected influence cycle, serializes it into `TensionAssessment.dimensions.feedback_loop_assessments`, and persists it inside `CycleRecord.tension`. The topology and UNKNOWN-first placeholders are therefore present. The missing capability is a traceable update path for measured dimensions and independently reviewed stability evidence; no CLI/API path currently accepts those updates. The model does not calculate stability, gain, damping or thresholds. A future evidence-bound update path should preserve original topology, validate measurement evidence, observation windows and provenance, preserve legacy-cycle loading, and leave stability UNKNOWN unless a separately reviewed assessment is supported.
 
 ### Next sequence
 
