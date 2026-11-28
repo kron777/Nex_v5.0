@@ -150,6 +150,8 @@ class TestRunPyEarlyBootOwnership(unittest.TestCase):
         self.assertEqual(source.count("AppState("), 1)
         self.assertLess(source.index("atexit.register(state.close)"),
                         source.index("build_scheduler("))
+        self.assertGreater(source.index("signal.signal(signal.SIGTERM, _graceful_standby)"),
+                           source.index("app = create_app(state, shutdown_gate=shutdown_gate)"))
         state_line = min(
             node.lineno for node in ast.walk(main)
             if isinstance(node, ast.Call)
