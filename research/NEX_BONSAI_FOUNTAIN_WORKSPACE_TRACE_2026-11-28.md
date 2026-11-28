@@ -1,7 +1,7 @@
 # NEX Bonsai-to-Fountain and Global Workspace trace
 
 **Date:** 28 November 2026  
-**Base:** `kron777/Nex_v5.0` main at `3377197` (post-G-84 producer and StrikeProtocol shutdown integration)  
+**Base:** `kron777/Nex_v5.0` main at `3377197` (post-G-84 producer, StrikeProtocol and Flask request-drain integration)  
 **Branch:** `test/affect-faculty-interactions-current-main-2026-11-28`  
 **Status:** test-only characterization ported onto current main; exact-head CI pending.
 
