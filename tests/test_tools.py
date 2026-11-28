@@ -164,47 +164,47 @@ class TestToolCaller(unittest.TestCase):
         self.caller = ToolCaller(self.reg)
 
     def test_price_query_returns_web_fetch(self):
-        tool = self.caller.should_use_tool("what is the bitcoin price?", [])
+        tool = self.caller.should_use_tool("what is the bitcoin price?")
         self.assertEqual(tool, "web_fetch")
 
     def test_math_query_returns_python_exec(self):
-        tool = self.caller.should_use_tool("calculate 15 * 37", [])
+        tool = self.caller.should_use_tool("calculate 15 * 37")
         self.assertEqual(tool, "python_exec")
 
     def test_math_query_does_not_execute_unparsed_sentence(self):
-        self.assertIsNone(self.caller.should_use_tool("calculate the number of cats", []))
-        self.assertIsNone(self.caller.should_use_tool("math is interesting", []))
+        self.assertIsNone(self.caller.should_use_tool("calculate the number of cats"))
+        self.assertIsNone(self.caller.should_use_tool("math is interesting"))
 
     def test_belief_query_returns_beliefs_query(self):
-        tool = self.caller.should_use_tool("what do I believe about consciousness?", [])
+        tool = self.caller.should_use_tool("what do I believe about consciousness?")
         self.assertEqual(tool, "beliefs_query")
 
     def test_generic_current_query_without_fetch_target_does_not_select_web_fetch(self):
-        tool = self.caller.should_use_tool("what is happening right now in AI?", [])
+        tool = self.caller.should_use_tool("what is happening right now in AI?")
         self.assertIsNone(tool)
 
     def test_generic_factual_query_without_fetch_target_does_not_select_web_fetch(self):
-        tool = self.caller.should_use_tool("what is the Cambrian explosion?", beliefs=[])
+        tool = self.caller.should_use_tool("what is the Cambrian explosion?")
         self.assertIsNone(tool)
 
     def test_explicit_url_selects_web_fetch(self):
-        tool = self.caller.should_use_tool("summarize https://openai.com/research", [])
+        tool = self.caller.should_use_tool("summarize https://openai.com/research")
         self.assertEqual(tool, "web_fetch")
 
     def test_unsupported_price_target_does_not_select_web_fetch(self):
-        tool = self.caller.should_use_tool("what is the price of silver?", [])
+        tool = self.caller.should_use_tool("what is the price of silver?")
         self.assertIsNone(tool)
 
     def test_current_supported_crypto_query_selects_web_fetch(self):
-        tool = self.caller.should_use_tool("what is the current bitcoin price?", [])
+        tool = self.caller.should_use_tool("what is the current bitcoin price?")
         self.assertEqual(tool, "web_fetch")
 
-    def test_factual_with_beliefs_returns_none(self):
-        tool = self.caller.should_use_tool("tell me something", beliefs=["a belief"])
+    def test_non_actionable_text_returns_none(self):
+        tool = self.caller.should_use_tool("tell me something")
         self.assertIsNone(tool)
 
     def test_plain_query_returns_none(self):
-        tool = self.caller.should_use_tool("hello", beliefs=["some belief"])
+        tool = self.caller.should_use_tool("hello")
         self.assertIsNone(tool)
 
     def test_build_tool_prompt_non_empty(self):
@@ -221,7 +221,7 @@ class TestToolCaller(unittest.TestCase):
 
     def test_calculation_sentence_traces_through_registry(self):
         query = "calculate 15 * 37"
-        tool_name = self.caller.should_use_tool(query, beliefs=[])
+        tool_name = self.caller.should_use_tool(query)
         self.assertEqual(tool_name, "python_exec")
         kwargs = self.caller.build_tool_kwargs(query, tool_name)
         result = self.reg.execute(tool_name, **kwargs)
@@ -232,7 +232,7 @@ class TestToolCaller(unittest.TestCase):
 
     def test_code_injection_sentence_is_not_selected_as_a_tool(self):
         query = "calculate __import__('os').system('echo unsafe')"
-        self.assertIsNone(self.caller.should_use_tool(query, beliefs=[]))
+        self.assertIsNone(self.caller.should_use_tool(query))
 
     def test_build_tool_kwargs_python_exec(self):
         kwargs = self.caller.build_tool_kwargs("calculate 2+2", "python_exec")
@@ -242,7 +242,7 @@ class TestToolCaller(unittest.TestCase):
 
     def test_whats_prefix_selects_bounded_arithmetic(self):
         self.assertEqual(
-            self.caller.should_use_tool("what's 2 + 2", beliefs=[]),
+            self.caller.should_use_tool("what's 2 + 2"),
             "python_exec",
         )
 
@@ -251,7 +251,7 @@ class TestToolCaller(unittest.TestCase):
         with patch(
             "theory_x.stage_capability.tool_caller.ast.parse"
         ) as parse:
-            self.assertIsNone(self.caller.should_use_tool(query, beliefs=[]))
+            self.assertIsNone(self.caller.should_use_tool(query))
             parse.assert_not_called()
 
     def test_recursive_ast_parse_failure_is_a_non_selection(self):
@@ -260,12 +260,12 @@ class TestToolCaller(unittest.TestCase):
             side_effect=RecursionError("synthetic parser depth"),
         ):
             self.assertIsNone(
-                self.caller.should_use_tool("calculate 2 + 2", beliefs=[])
+                self.caller.should_use_tool("calculate 2 + 2")
             )
 
     def test_expression_ast_node_budget_is_enforced(self):
         query = "calculate " + "+".join(["1"] * 40)
-        self.assertIsNone(self.caller.should_use_tool(query, beliefs=[]))
+        self.assertIsNone(self.caller.should_use_tool(query))
 
 
 if __name__ == "__main__":
