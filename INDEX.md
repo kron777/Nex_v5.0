@@ -2664,3 +2664,63 @@ NEX already has depth, fan-out-by-rule, terminal, reuse, convergence and SCC-enu
 **Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `rdo/extrapolator.py` blob `330e1aaec7504fdc1315b1b88b9c304942318c17`; `rdo/schemas/objective.v1.schema.json` blob `118ff013bfdb1193c4630ab5a3d07b2c05d0dc5b`; `rdo_adapters/seed_proposals.py` blob `4bebbba632cedef1bd74127dd0a152dfb45badb5`; `rdo/graph.py` blob `65d5443c2fa874e4408c563bccc8e5b88793699d`; `rdo/tests/test_stage2_extrapolator_mvp.py` blob `4f3642d7f90485ff3ab22d05e9f09c22a0989465`; `rdo/tests/test_reviewed_seed_bridge.py` blob `fef4fe2363f29cef3d8fc7a700e099095584ace5`.
 
 **Unchanged boundaries:** no expansion rules, max depth, graph algorithms, proposal limits, runtime data, flags, database, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority is changed. No tests were executed; existing test source was inspected only.
+
+## 82. Durable frontier persistence versus true planning continuation — reload is not resume (28 November 2026)
+
+**Question studied:** when RDO documentation and tests say a cycle can be resumed, does loading a saved cycle actually continue its unfinished recursive expansion?
+
+### What persistence demonstrably does
+
+The CycleStore in **rdo/memory.py** writes a complete CycleRecord.to_dict() payload to a per-cycle JSON file. Its write path uses a temporary file, flush + fsync, atomic os.replace, and a directory fsync. load(cycle_id) reconstructs a CycleRecord from that JSON. The record retains obligations, relationships, counts and the full frontier, including stop reasons.
+
+The Stage-2 tests establish useful durability properties:
+- a saved cycle reloads with an equal to_dict() representation;
+- a fresh interpreter can load the persisted record;
+- unresolved and max-depth frontier entries survive save/reload unchanged;
+- counts and frontier classifications survive persistence.
+
+These are real persistence and recovery-of-record guarantees. They should not be discounted.
+
+### What the current code does not demonstrate
+
+The word *resume* is broader than the implementation evidence. In the inspected source:
+- CycleStore exposes save(), load() and list_ids(); it does not expose a continuation method.
+- load() deserializes a record. It does not reconstruct the Extrapolator's BFS queue, a queue cursor, pending rule outputs, or a partially completed expansion transaction.
+- run_cycle() accepts a new set of seed Obligation objects and calls expand(seeds, reconciler, max_depth=...). It does not accept a prior CycleRecord as a resumable execution state.
+- expand() creates fresh local obligations, relationships, frontier and queue collections on each call. Its returned frontier is a record of where that run stopped, not a persisted continuation cursor.
+- A frontier entry generally identifies a key and a reason; it does not by itself preserve all scheduler state required to restart at the exact point of interruption.
+
+Therefore, the source and tests prove **durable cycle reload**, not **automatic continuation of an interrupted recursive planning run**. A caller could potentially reconstruct selected obligations from a loaded record and submit a new planning cycle with new parameters, but that is a new/reconstructed run and would need explicit handling of prior relationships, reconciliation evidence, rule-catalogue version, repository snapshot and duplicate accounting. It must not be described as exact resume without tests proving those semantics.
+
+### Why this distinction matters
+
+A saved frontier can be complete as an *audit record* while still being insufficient as an *execution cursor*. Confusing the two can create false confidence that no work is lost after a process interruption. It can also cause duplicated expansion, stale reconciliation, changed rule interpretation or loss of deterministic ordering if a future continuation mechanism is improvised.
+
+The correct status vocabulary should distinguish at least:
+- **record_reloaded**: the durable cycle and its frontier were reconstructed;
+- **continuation_prepared**: a validated continuation state was assembled from a prior cycle and pinned inputs;
+- **continuation_executed**: additional expansion actually ran from that state;
+- **continuation_verified**: resulting obligations/edges were reconciled against the prior record without silent loss or duplication.
+
+These are proposed descriptive states, not existing NEX enums or flags.
+
+### Reuse-first design for a future continuation capability
+
+Before adding a new scheduler or persistence subsystem:
+1. Define whether continuation means *retry unresolved frontier*, *increase depth*, or *resume an interrupted in-flight expansion*. These are different operations.
+2. Reuse the immutable prior cycle as the parent evidence record. Give the continuation its own cycle/run identity and explicit parent-cycle reference rather than silently overwriting history.
+3. Persist a versioned continuation descriptor: source cycle ID and digest, repository/source snapshot, expansion-catalogue digest, max-depth and resource-budget settings, deterministic queue order/cursor, pending obligation identities and relationship state.
+4. Revalidate reconciliation against the current source snapshot. Do not carry forward a prior REUSE_EXISTING assertion as authority; the current Extrapolator already invalidates caller-supplied reuse claims and requires fresh semantic review.
+5. Make replay idempotent and convergence explicit. Detect key-kind and build/anti-requirement conflicts exactly as the existing _merge() does.
+6. Preserve the original frontier and record which entries were continued, superseded, intentionally closed or remain unresolved. Never convert an unknown frontier into completion by omission.
+7. Test process termination at queue boundaries, duplicate replay, repository drift, catalogue drift, reconciliation changes, depth extension, budget exhaustion and fresh-process continuation.
+
+This continuation study also sharpens the previous section's proposed total-work budget: a deterministic node/edge budget is only useful if the frontier carries enough versioned state to continue safely, or if the system explicitly declares that a later run is a fresh reconstruction rather than a resume.
+
+### Research conclusion
+
+NEX has robust cycle-record persistence and tests for reload across process boundaries. The inspected implementation does not yet show a first-class resumable BFS execution state or a continuation API. Treat "resume" in current documentation as **reload/recover the recorded cycle**, unless a separate, tested continuation path is identified. This is a precise capability boundary, not a criticism of the existing atomic persistence mechanism.
+
+**Source anchors inspected at main 18c8f06171e1de35c3210831a49b63d0e2487af0:** rdo/memory.py blob ff0abb6d6ebdd91c4567362e238363d41ddb57e1; rdo/model.py blob 11bb372469145d828d8163905b50afa63effc3ec; rdo/orchestrator.py blob e9dad9a11e8e09444b4ee2e7d77f60d580f7b104; rdo/extrapolator.py blob 330e1aaec7504fdc1315b1b88b9c304942318c17; rdo/tests/test_stage2_extrapolator_mvp.py blob 4f3642d7f90485ff3ab22d05e9f09c22a0989465.
+
+**Unchanged boundaries:** no CycleStore format, continuation API, queue algorithm, expansion rule, budget, runtime data, database, flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority is changed. This is a source-and-test study only; no tests were executed in this turn.
