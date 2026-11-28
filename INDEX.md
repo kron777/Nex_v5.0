@@ -5017,3 +5017,22 @@ The event stream has two additional readers beyond the ordinary chat formatter a
 2. **Manual M1 reflection script — dark unless NEX5_METACOG_REFLECT=1 and explicitly invoked with --live.** tools/metacog_digest.py reads every meta_cognition_events row in its lookback regardless of severity, plus high-surprise events, without source-ID deduplication. It makes one VoiceClient reflection call and stores a metacog_summaries row. Its tests verify flag-off no-op and that repeated manual runs create additional summaries. Static searches of gui/server.py, run.py and nex_keepalive.sh find no import or invocation; it is not part of the live periodic/chat path.
 
 These are optional, distinct second-order consumers, not evidence that reflective LLM calls are currently running. The ordinary Metacognition generic line and topic-filtered narrative path remain the only confirmed chat-path readers. Do not conflate the built-in template/count digest with the separate manually invoked LLM reflection script.
+
+
+## §130 — Metacognition decay lifecycle: implementation exists, production dispatch not located (28 November 2026)
+
+**Question studied:** how do unresolved Metacognition events age out, and who calls the decay method?
+
+- `Metacognition.decay(now)` marks unresolved `meta_cognition_events` older than `_STALE_DAYS=14` as resolved and invalidates the recent-event cache.
+- Unit tests in `tests/test_metacognition.py` directly call `decay()` and verify stale resolution, fresh-event preservation and cache invalidation.
+- The production chat handler calls `state.metacognition.tick()`; it does not call `decay()`.
+- `run.py` constructs and registers Metacognition but contains no call to `decay()`.
+- `theory_x/__init__.py` defines the SentienceNode protocol and a registry. Its `all_nodes()` returns the registered list; it contains no dispatcher that invokes `tick()` or `decay()`. The inspected `run.py` and `gui/server.py` contain no `all_nodes()` call or generic node-decay dispatch.
+
+**Disposition:** the decay method is implemented and unit-tested, but no production invocation was located in the inspected boot/chat/registry paths. Treat automatic 14-day resolution as unverified, not as an established runtime behaviour. If no other caller exists, unresolved rows may remain eligible for `get_recent()` and continue occupying reflective slots after their intended stale horizon; this does not affect Row 9's separate 30-minute count, which filters by `created_at`.
+
+**Next bounded investigation:** complete a repository-wide call-site census for `Metacognition.decay`, generic `.decay(now)` dispatch and writes to `meta_cognition_events.resolved_at`. Then establish whether a lifecycle caller exists in the active host. Do not add a scheduler or alter retention until ownership and cadence are established.
+
+**Authority boundary:** no code, schedule, decay horizon, event resolution policy, schema, flags, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed. This is a source-path gap, not yet a new verified defect ID.
+
+**Source anchors:** `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/__init__.py` blob `661dc737f54c88f763588606867ae1b9cd7e6654`; `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; tests `tests/test_metacognition.py`.
