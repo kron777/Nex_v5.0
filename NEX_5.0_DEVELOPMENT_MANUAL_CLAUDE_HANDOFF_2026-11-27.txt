@@ -295,7 +295,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 28 November 2026 — G-92/G-94 merged evidence, Bonsai → Fountain/Global Workspace trace, Sentience top-level wiring cross-check and PR #365 read-only bridge candidate recorded; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — G-84 shutdown steps 1–2 merged and step 3 CI-green pending merge; remaining writer-deadline/clean-marker gap recorded. G-92/G-94, Bonsai/Global Workspace, Sentience wiring and PR #365 bridge candidate updated; Gate 0 boundaries remain.*
 
 
 
@@ -842,7 +842,7 @@ PR #275's mind-map freshness update, PR #276's RDO generated-cycle exclusion and
 - G-81: Fountain's total-fire counter and ClockRunner's notified-fire counter count different event populations.
 - G-82 is folded into G-73: the same oldest 50 dormancy rows are reselected on each scan, starving later rows; ClockRunner and DiversityLoop own separate scanners. `wake_one()` also lacks final eligibility filters. Old PR #102/#145 proposals are not current-main fixes.
 - G-83: Metacognition can re-emit the same unacknowledged groove alert on successive Chat turns, while stillness counts event rows.
-- G-84: shutdown still does not quiesce or join all producers before closing Writers; PR #280 fixes the Writer late-submit/timeout race, but the application-level producer shutdown gap remains.
+- G-84: partially resolved by PRs #348 and #354 (dynamic and registered producer quiescence); PR #361 adds the remaining run.py-only producers and is CI-green pending merge. Still open: no process-wide deadline across Writer drains, clean marker is written before drain, Writer timeouts are swallowed by AppState.close(), and other thread starts/host shutdown remain unverified.
 - G-85: SignalToProblem's primary signal-to-problem tick remains a direct-write, split-commit path across two databases. PR #279 migrated the separate hourly prose-statistics rebuild to the shared Writer/Reader; the primary G-61 persistence gap remains open.
 - G-86: SignalReaper's preservation allowlist has drifted from SignalToProblem's current promotable types.
 - G-87: Moltbook dry-run suppresses non-GET requests but still reads remotely and can persist simulated sends as real `posted`/`sent` states.
@@ -954,6 +954,24 @@ A read-only host re-run needs founder authorisation.
 - **PR #348 — G-84 step 1: `AppState.close()` quiesces the dynamic loops before the Writers close.** Merged as `321a156e162a6554e27ae329522f253e8f6fe676`.
   - It also re-verifies the mind-map nodes that cite `gui/server.py` and corrects their already-drifted line anchors.
   - Exact head `fa4ea8d40c3beccd816bb12d0279db35d973e784`, run `46091039346`: 2,838 passed, 7 skipped, 45 subtests; baseline OK; no STALE warnings.
+- **PR #354 — G-84 step 2: shared producer quiescence and scheduler joins.** Merged as `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`.
+  - Stops all registered Stage 2, World Model, Fountain, resolver, signal, diversity, arc, speech, ThrowNet, counterfactual, predictive-substrate and SelfMindView producers before joining them against one shared monotonic deadline; scheduler adapters use the remaining budget.
+  - Exact head `a2140577c21f7d4b54bcd60722f237a787aeca92`, run `46102788846`: full-suite CI completed successfully.
+
+### G-84 step 3 candidate — PR #361 (CI green; pending merge)
+
+- Exact head `817c787244787d841c5dc9baa527e204a6af68e4`, run `46116200382`: exact-head full-suite CI completed successfully.
+- Registers the run.py-created EdgeGeneratorLoop, WorldPredictionLoop, SelfPredictionLoop and decoder thread wrapper with AppState; retains the self-prediction thread handle and uses interruptible Event.wait().
+- This closes the specifically identified run.py-only registration gap for those four producers, not every thread in the process.
+
+### G-84 remaining source-level gap (28 November 2026)
+
+- The SIGTERM handler writes the clean-shutdown marker before its 1.5-second delay and before AppState.close() begins. A later timeout or forced kill can therefore leave a false clean marker.
+- AppState.close() catches Writer close exceptions/timeouts and records them but returns no aggregate success/failure report. The handler logs "dbs flushed" and exits with status zero whenever close() returns.
+- Writer.close() defaults to a 10-second join per Writer. The keepalive's forced-kill window is 15 seconds; the handler's 1.5-second delay plus the 5-second producer-join budget leaves 8.5 seconds for Writer drains. There is no shared remaining-time budget across Writers.
+- Other thread starts outside the registered run.py producers and host-level shutdown behaviour remain unverified. No live shutdown test has been run.
+
+G-84 remains OPEN. The next correction must start one deadline at SIGTERM receipt, pass its remaining budget through producer and Writer quiescence, return an aggregate shutdown report, and write the clean marker only after every required worker and Writer has stopped/drained successfully. A failed shutdown must not be reported as clean.
 
 ### Founder decisions required (no action taken)
 
