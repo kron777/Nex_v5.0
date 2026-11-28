@@ -5978,3 +5978,32 @@ The same class name can obscure this separation. Searching for "SelfNarrative.ti
 **Source anchors:** run.py; theory_x/stage_self_narrative/self_narrative.py; theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; theory_x/stage_gate/coherence_gate.py; gui/server.py; tests/test_self_narrative.py.
 
 **Authority boundary:** no runtime code, prompt policy, narrative storage, feature flag, cognitive authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §160 — Stage-TOM SelfNarrative: generic T6 retrieval and the actual Fountain prompt seam (28 November 2026)
+
+**Question studied:** under what conditions can a self_rut_notice belief enter the optional Stage-TOM narrative, and does the narrative actually reach the Fountain prompt?
+
+### Source findings
+
+- theory_x/stage_tom/self_narrative.py::_recent_t6() selects the newest tier-6 beliefs whose content does not begin with "["; it does not restrict source, impose a time window, or apply a paused/retired eligibility filter in this query. It reads up to 12 candidate rows and returns at most three after its text filter. A self_rut_notice belief is therefore eligible, but not guaranteed to survive the bounded candidate set and filters.
+- build_narrative() also requires at least one substantive recent Fountain fire. If _real_fires() returns no fire, the function returns None even if a tier-6 rut belief exists. The narrative is a composition of multiple database readers, not a direct mirror of the StageSelfNarrative narrative_log.
+- FountainGenerator.__init__() constructs the Stage-TOM SelfNarrative only when NEX5_SELF_NARRATIVE=1. _build_prompt() independently checks the same flag and a non-null instance, calls get_narrative(), and appends its result before the spectrum standing-points section. This is prompt context, not a capability check, approval, action gate or execution mechanism.
+- The Stage-TOM instance's write_narrative() appends only to its private _log; get_narrative() calls build_narrative() and does not read that list.
+- Targeted normal-path caller review found the generic write_narrative() calls in CoherenceGate, ProblemMemory, GoalManager, Metacognition and NovelAssociation operate on the persistent StageSelfNarrative object injected by run.py. The Stage-TOM class is separately constructed inside FountainGenerator; no normal-path caller to its private write_narrative() was found in the inspected construction and consumer paths. This is not proof that no external/manual caller exists.
+
+### Characterization tests
+
+- **PR #456** adds a test that inserts a tier-6 self_rut_notice plus a substantive Fountain fire and verifies build_narrative() can include the note; it also verifies the Stage-TOM private _log sentinel is not returned by get_narrative(). Exact-head CI status was still in progress at this snapshot.
+- **PR #457** adds prompt-builder tests for the enabled/disabled NEX5_SELF_NARRATIVE boundary. Exact-head CI was queued/in progress at this snapshot.
+- These fixture tests establish source-level composition and prompt-string assembly only. They do not establish host flag values, live Fountain execution, model-provider acceptance or semantic influence on generated output.
+
+### Evidence boundary and next step
+
+The source path is now traced through belief retrieval, narrative composition and optional prompt insertion. The remaining runtime question is whether the host has the flag enabled and whether this path executes in real Fountain fires; repository evidence cannot answer that. Do not enable the flag, unify the two SelfNarrative classes, wire the Stage-TOM private log, or alter retrieval/prompt policy during Phase 0. Preserve the two channels and their distinct consumers unless authoritative direction changes.
+
+**Disposition:** Stage-TOM's generic tier-6 reader can consume the Fountain governor's self_rut_notice belief under bounded retrieval conditions; its optional Fountain prompt seam is source-wired. The private write_narrative() interface remains without a demonstrated normal-path caller. Host activation and semantic effect remain UNKNOWN. G-83 remains OPEN.
+
+**Source anchors:** theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; run.py; theory_x/stage_gate/coherence_gate.py; theory_x/stage7_sustained/problem_memory.py; theory_x/stage8_goal_manager/goal_manager.py; theory_x/stage9_metacognition/metacognition.py; theory_x/stage10_imagination/novel_association.py; PRs #456 and #457.
+
+**Authority boundary:** no runtime code, feature flag, database, schema, prompt policy, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
