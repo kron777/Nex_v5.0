@@ -1378,3 +1378,15 @@ PR #415 was opened against current `main`; exact-head CI had not yet been report
 This change does not alter the successful Dynamic loop cadence or processing semantics. It does not solve boot-level ownership before AppState. World Model, Membrane and Fountain have similar internal-start patterns, but their cleanup contracts differ and remain separate investigations. No shared thread utility or bulk refactor is justified yet.
 
 **Unchanged boundaries:** no frozen S-01–S-25/M1.8 content, Master Roadmap, Gate 0/Phase 1 authority, mind-map role, cognitive/action authority separation, NEX runtime flags, databases or live host state changed by this increment.
+
+
+
+## 53. SenseScheduler startup transaction — merged and exact-head validated (28 November 2026)
+
+**Merged PR:** [#414](https://github.com/kron777/Nex_v5.0/pull/414), merge commit `c54a82f7add75553ad256c31d0f5e9ca04066d07`. The tested PR head was `ab8a1908be1ee17026a80ab934c6318b87847a9e`; its code was unchanged by the intervening documentation-only commits on `main).
+
+**Exact-head CI:** workflow run `46137289839` (run 2526), job `140955316633`, completed successfully. Full baseline result: **3,001 passed, 7 skipped, 86 subtests passed**, 0 failures. Sandbox probe passed. Mind-map verification: 30 nodes, 0 unverified, 12 dark, 2 blocked. Existing warnings remain: two cited doctrine files missing and p13_finitude unblock past due. CI validates the exact PR head and its test environment, not live host operation.
+
+The merged change validates adapter IDs before worker creation, prepares all workers before starting them, holds them behind a shared start gate until all starts succeed, and rolls back a partial start by stopping and joining the prepared workers before re-raising. Regression tests cover duplicate IDs and an injected second-start failure with no polling before startup commit.
+
+**Integration boundary:** PR #414 is merged. This does not resolve the wider boot-before-AppState ownership gap, nor does it prove all other builders roll back partial startup. PR #415 separately addresses Dynamic builder rollback and remains under exact-head CI at the time of this entry.
