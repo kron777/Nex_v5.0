@@ -717,6 +717,11 @@ class AppState:
     probes_reader: Optional[Reader] = None
     coherence_gate: Optional[object] = None        # Phase 22
     resolver: Optional[object] = None              # G-84 managed HoldingZoneResolver
+    # G-84 managed producers that run.py creates outside the Stage builders.
+    world_pred_loop: Optional[object] = None       # WorldPredictionLoop (NEX5_WORLD_PRED)
+    self_pred_loop: Optional[object] = None        # SelfPredictionLoop (NEX5_SELF_PRED)
+    edge_generator_loop: Optional[object] = None   # EdgeGeneratorLoop
+    decoder_loop: Optional[object] = None          # coincidence decoder: stop() + _thread
     trigger_detector: Optional[object] = None      # Phase 25a TN-1
     throw_net_monitor: Optional[object] = None     # Phase 25a TN-5
     counterfactual_node: Optional[object] = None   # Phase 25b CN
@@ -810,6 +815,10 @@ class AppState:
             ("counterfactual_node", self.counterfactual_node, "stop"),
             ("predictive_substrate", self.predictive_substrate, "stop"),
             ("self_mind_view", self.self_mind_view, "stop"),
+            ("world_pred_loop", self.world_pred_loop, "stop"),
+            ("self_pred_loop", self.self_pred_loop, "stop"),
+            ("edge_generator_loop", self.edge_generator_loop, "stop"),
+            ("decoder_loop", self.decoder_loop, "stop"),
         )
         for label, worker, stop_name in managed:
             if worker is None:

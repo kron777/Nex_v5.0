@@ -1056,6 +1056,8 @@ class SelfPredictionLoop:
         # recall on the rare 'nofire', higher favours precision.
         self.operating_p = float(os.environ.get("NEX5_SELFPRED_OPERATING_P", operating_p))
         self._alive = False
+        self._thread = None
+        self._stop_event = None
         self._conversations_writer = conversations_writer
         self._beliefs_writer = beliefs_writer
         self._conversations_reader = conversations_reader
@@ -1161,11 +1163,19 @@ class SelfPredictionLoop:
     def start_loop(self):
         import threading
         self._alive = True
+        # An Event, not time.sleep(interval): stop() must interrupt the wait
+        # (900 s by default) so shutdown can join the thread (G-84).
+        self._stop_event = threading.Event()
+        stop_event = self._stop_event
+
         def _run():
-            while self._alive:
+            while self._alive and not stop_event.is_set():
                 self.tick()
-                time.sleep(self.interval)
-        threading.Thread(target=_run, daemon=True).start()
+                if stop_event.wait(self.interval):
+                    break
+        self._thread = threading.Thread(target=_run, daemon=True,
+                                        name="SelfPredictionLoop")
+        self._thread.start()
         logger.info(
             "SelfPredictionLoop ready — self+coin firing prediction, "
             "interval=%ds horizon=%ds", self.interval, self.horizon
@@ -1173,6 +1183,9 @@ class SelfPredictionLoop:
 
     def stop(self):
         self._alive = False
+        stop_event = getattr(self, "_stop_event", None)
+        if stop_event is not None:
+            stop_event.set()
 
 
 if __name__ == "__main__":
