@@ -427,3 +427,12 @@ A novel obligation kind remains a visible frontier item; it is never silently ex
 `rdo_adapters.rule_proposals.RuleProposalStore` records candidate proposals and explicit caller-attributed review decisions in an append-only, hash-chained JSONL ledger. Candidates must retain applicability, preconditions, constraints, exceptions, anti-requirements, assumptions, alternative interpretations, evidence references, disconfirming cases, and positive/negative test plans. The store does not execute proposal content or import generated code.
 
 Even `approved_for_catalogue` means only that a candidate is eligible for a separate code/catalogue change review. There is deliberately no activation API: `EXPANSION_RULES` remains the only active catalogue and changes only through an ordinary reviewed source change with tests and CI. Proposer/reviewer labels are caller-attributed, not identity-authenticated.
+
+
+
+## Feedback-loop evidence updates
+
+Measured dimensions and independently attributed stability reviews can be
+appended to an existing loop record without changing its topology or
+calculating a stability verdict. See [FEEDBACK_LOOP_EVIDENCE.md](FEEDBACK_LOOP_EVIDENCE.md)
+for the measurement/review commands, hash-chained event ledger and replay path.
