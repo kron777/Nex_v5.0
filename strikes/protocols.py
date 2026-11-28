@@ -177,8 +177,14 @@ class StrikeProtocol:
         # Record fountain_events count BEFORE the 60s wait
         before_count = self._fountain_event_count()
 
+        interrupted = False
+        elapsed = 0
+        started = time.monotonic()
         for tick in range(6):
-            time.sleep(10)
+            if self._stop_event.wait(10):
+                interrupted = True
+                elapsed = int(time.monotonic() - started)
+                break
             elapsed = int((tick + 1) * 10)
             error_channel.record(
                 f"SILENCE strike: {elapsed}s elapsed, observing...",
@@ -202,10 +208,16 @@ class StrikeProtocol:
             except Exception:
                 pass
 
-        summary = (
-            "SILENCE strike: 60s of quiet. "
-            "No input was sent. Observing internal generation."
-        )
+        if interrupted:
+            summary = (
+                f"SILENCE strike interrupted by shutdown after {elapsed}s; "
+                "the 60-second observation was not completed."
+            )
+        else:
+            summary = (
+                "SILENCE strike: 60s of quiet. "
+                "No input was sent. Observing internal generation."
+            )
         if fountain_fired and new_thought:
             summary += f"\nFountain fired during silence: {new_thought}"
         elif fountain_fired:
@@ -222,7 +234,7 @@ class StrikeProtocol:
             beliefs_after=beliefs_before,
             hottest_branch=hottest_branch,
             readiness_score=readiness_score,
-            notes="",
+            notes="interrupted_by_shutdown" if interrupted else "",
             context_snapshot=context_snapshot,
         )
 
