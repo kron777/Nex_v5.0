@@ -428,3 +428,4 @@ Fountain's optional Metacognition rail injects only the generic cached formatter
 ### 28 November 2026 — G-83 generation versus persistence controls
 
 The Fountain model call returns a thought before the crystallizer checks Row 9 stillness and `signal_cooldown`. Those controls reject belief persistence after generation; the generator still logs/returns the thought. They are not generation brakes. The optional `NEX5_METACOG_VOICE` text rail is the only direct Metacognition-to-Fountain prompt influence found, default-off by source. See INDEX §134.
+Sample-ID provenance: exact repetition stores exact matching rows; template repetition stores templated IDs; n-gram and centroid store only the first five rows of their active window. Those latter IDs are samples, not exact causal parents. No active downstream consumer uses them for retrieval priority. See INDEX §133.
