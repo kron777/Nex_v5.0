@@ -890,6 +890,8 @@ The Chat route calls `Metacognition.tick()`; its groove detector reads recent un
 
 **Lifecycle clarification (28 November 2026):** Metacognition is live on the GUI chat path: `run.py` constructs/registers the shared instance and `gui/server.py` calls `tick()` plus `format_for_prompt()` per chat request. The unresolved question is only automatic 14-day `decay(now)` dispatch; no caller was found in the inspected paths or targeted 24-file sweep. The sweep is not a whole-repository proof. See INDEX §135.
 
+**Lifecycle ownership refinement (28 November 2026):** `theory_x.register()/all_nodes()` does not dispatch lifecycle methods. `AppState._quiesce_producers()` is a separate bounded worker shutdown list; `AppState.close()` shuts down scheduler/workers and drains Writers but does not iterate cognitive nodes or call `decay(now)`. Metacognition is chat-tick-driven and has no autonomous worker in the inspected path. See INDEX §136.
+
 ### G-84 — Shutdown does not quiesce all producers before Writer close (OPEN; legacy G-34)
 
 `AppState.close()` calls scheduler shutdown and closes Writers but does not call `stop_dynamic()` or coordinate all other workers. `run.py` starts SpeechQueueConsumer, SignalLoop, DiversityLoop and EdgeGeneratorLoop; AppState ignores the first three during close and does not retain the EdgeGeneratorLoop. The decoder is signaled but not joined. Scheduler stop signals are not joined because adapter thread handles are not retained. Writer close enqueues a sentinel and joins; submit has no closed-state guard on the pre-PR-280 snapshot. The keepalive supervisor has a 15-second SIGKILL deadline. This is a conditional data-loss/hang risk, not an observed incident. A central lifecycle coordinator and global deadline are required.
