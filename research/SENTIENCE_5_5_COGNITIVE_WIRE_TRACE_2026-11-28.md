@@ -167,7 +167,8 @@ The code includes exact-content deduplication and an optional CoherenceGate chec
 - `tests/test_self_model.py` tests SelfModel/BehaviouralSelfModel protocol and local behaviour. Its own module docstring explicitly says it does **not** test the wiring in `gui/server.py`.
 - `tests/test_influence_trace_integration.py` tests that trace instrumentation preserves selected outputs at several seams, including membrane candidate generation and global-workspace arbitration. It is not a complete test of the behavioural-belief feedback loop above.
 - New characterization test `tests/test_behavioural_self_model_propagation.py` exercises the real isolated-substrate path from recent NEX messages through BehaviouralSelfModel belief creation, INSIDE classification, actual BeliefRetriever/QueryRouter prompt assembly, and counterfactual deletion of the generated belief. It is a test of this bounded recurrence, not a claim about live behaviour or whether the recurrence is desirable.
-- The characterization test has been added to draft PR #359. GitHub Actions was still pending for the updated branch head when this document was refreshed; no pass count is claimed.
+- New characterization test `tests/test_meta_awareness_wire_characterization.py` uses isolated fakes to demonstrate that the Stage 1 MetaAwareness payload currently has no effect on the Stage 4 SelfModel snapshot: with no DynamicState the fields remain null; with DynamicState the returned values come from DynamicState, not the Stage 1 telemetry payload. This records current dataflow, not a desired permanent contract.
+- Both tests are in draft PR #359. GitHub Actions is rerunning the disposable sandbox/full baseline suite for successive branch commits; no pass count is claimed until the latest-head run completes.
 - The current-main CI run for `bbca5deb3a0398331503ce61c95a62f8d1b3d33d` was **in progress** when this trace was prepared. No final pass count is claimed here.
 - The latest mainline commit is G-84 step 2: it quiesces registered AppState producers against one shared five-second deadline before Writers close. The commit explicitly leaves some run.py-only producers outside the registry. This is a runtime lifecycle change, not evidence that the cognitive feedback path is complete.
 
@@ -228,6 +229,8 @@ This is the first practical experiment matching the requested “wire” method:
 - `theory_x/stage4_membrane/router.py`
 - `gui/server.py`
 - `tests/test_self_model.py`
+- `tests/test_meta_awareness_wire_characterization.py`
+- `tests/test_behavioural_self_model_propagation.py`
 - `tests/test_influence_trace_integration.py`
 - `mind_map/MIND_MAP.yaml`
 
