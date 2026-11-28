@@ -17,7 +17,7 @@ The existing tests covered an unknown initial domain, but did not characterize r
 - Reject URLs containing username/password components.
 - Compare the normalized `hostname` (lowercase, trailing dot removed) against the existing exact/subdomain allowlist; the port no longer contaminates hostname matching.
 - Supply a custom `HTTPRedirectHandler` whose `redirect_request` returns `None`. Redirect responses therefore fail rather than silently requesting a second destination.
-- Require a concrete fetch target in `ToolCaller`: an explicit URL, or a supported CoinGecko symbol paired with price/current wording. Generic current/factual questions and unsupported price targets no longer select a fetcher that cannot satisfy them. Remove the unused beliefs-list parameter and the route's literal empty-list argument. This does not add general web search.
+- Require a concrete fetch target in `ToolCaller`: an explicit URL, or a supported CoinGecko symbol paired with explicit price wording. Generic current/factual questions and unsupported price targets no longer select a fetcher that cannot satisfy them. Remove the unused beliefs-list parameter and the route's literal empty-list argument. This does not add general web search.
 - Match CoinGecko symbols as whole words, avoiding substring false positives.
 - Preserve the existing 10-second request timeout, 8 KiB read cap, HTML-tag stripping and 2,000-character result cap.
 - Add tests for an allowlisted subdomain with an explicit port, the no-redirect handler, embedded credentials, unsupported schemes, generic query selection, explicit URL selection, unsupported price targets and whole-word coin matching.
@@ -33,7 +33,7 @@ This closes the specific automatic-redirect bypass and the known selection/fetch
 
 ## 4. Validation
 
-The new unit tests assert the hostname/port acceptance path, reject credentials and non-HTTP schemes before opener construction, verify that the configured redirect handler refuses a 302 target, and characterize supported versus unsupported ToolCaller fetch targets. Exact-head full-suite CI and baseline verification are required before merge.
+The new unit tests assert the hostname/port acceptance path, reject credentials and non-HTTP schemes before opener construction, verify that the configured redirect handler refuses a 302 target, and characterize supported versus unsupported ToolCaller fetch targets, including the distinction between crypto-price and crypto-news queries. Exact-head full-suite CI and baseline verification are required before merge.
 
 ## 5. Follow-on questions
 
