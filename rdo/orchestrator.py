@@ -34,7 +34,8 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
               max_depth: int = 4,
               initial_relationships: Optional[List[Relationship]] = None,
               objective_input: Optional[Dict] = None,
-              objective_context: Optional[Dict] = None) -> Tuple[CycleRecord, dict]:
+              objective_context: Optional[Dict] = None,
+              objective_lineage: Optional[Dict] = None) -> Tuple[CycleRecord, dict]:
     applied = [p.key for p in memory.applicable(objective)] if memory else []
 
     # EXPAND (+ reconcile interleaved) -> DEDUP (done in expand) -> RECONCILE children.
@@ -245,6 +246,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         work_packages=[p.to_dict() for p in packages],
         predicted=predicted, verification=verification,
         objective_input=dict(objective_input or {}),
+        objective_lineage=dict(objective_lineage or {}),
         objective_context=objective_context,
         context_assessment=context_assessment,
     )
