@@ -1307,3 +1307,12 @@ NovelAssociation is always constructed and started by `run.py`, then registered 
 PR #396 passes the existing stop Event through the worker-owned `tick()` and `_scan()`, with compatibility-preserving optional keyword-only arguments. It checks before/after candidate retrieval and embedding calls, before each pair, and before the subsequent narrative write. An edge+log pair already started before stop is allowed to finish as one logical write unit; the worker then stops before beginning another pair. Deterministic tests cover stop during embedding, already-stopped scan and stop between pairs.
 
 **Boundary:** #396 is open and exact-head CI is pending; this is not current-main behaviour yet. Embedding calls are not cancelled. The edge and log remain two separate Writer submissions rather than one atomic transaction; an already-started pair may finish after the signal. This is cooperative stop handling, not an atomic stop/write handshake or complete producer-quiescence proof. See `research/NOVEL_ASSOCIATION_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
+
+
+### 16.17 CounterfactualNode active cycle after stop — open PR #397
+
+CounterfactualNode is always constructed and started by `run.py`, then registered with AppState. Its stop Event previously interrupted only the 300-second wait. An active cycle could read the oldest open problem, fetch up to ten belief candidates, score them, submit buildable candidates through `CoherenceGate.check()`, and insert accepted beliefs through the shared Writer after shutdown began. The producer join allowance is at most five seconds.
+
+PR #397 passes the existing Event through the worker-owned `tick()` and `_process_one()`, preserving direct-call compatibility with optional keyword-only parameters. It checks after problem retrieval, candidate fetch and scoring, before each gate call, and after gate return before beginning the accepted-belief insertion. Deterministic tests cover stop during candidate fetch, stop during gate checking, and an already-stopped tick.
+
+**Boundary:** #397 is open and exact-head CI is pending; this is not current-main behaviour yet. TimeFetch, RefinementEngine and Gate.check are synchronous and not cancellable. Gate.check may perform its own Writer-backed work before returning; this increment prevents the later accepted-belief insert once stop is observed, but does not interrupt or roll back gate work already in progress. See `research/COUNTERFACTUAL_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
