@@ -5206,3 +5206,21 @@ The stored `sample_belief_ids` are not a uniform exact support set across alert 
 ### §133 semantic-specificity refinement
 
 The optional Fountain rail receives only the generic Metacognition string for a groove event: “I notice repeated patterns in my recent thinking.” It does not receive the alert's pattern text, source alert ID, sample belief IDs or the GUI Stage-SelfNarrative narrative. Therefore the current internal Fountain feedback cue is not pattern-specific. The only pattern-specific path into future Fountain state found here is the post-generation `signal_cooldown` rejection at crystallization; that does not tell the model what pattern was detected before it generates. The pattern-specific natural-language narrative remains on the GUI chat path and is topic-filtered. This is a wiring/expressivity gap observation, not a proposal to change prompt policy before Gate 0.
+
+
+## §135 — G-83 lifecycle clarification: chat tick is live; decay dispatch remains unlocated (28 November 2026)
+
+The boot/chat trace is now explicit:
+
+- `run.py` constructs one Metacognition instance, registers it, assigns it into AppState, and passes the same object to `build_fountain(..., metacognition=...)`.
+- `gui/server.py` calls `state.metacognition.tick()` and `format_for_prompt()` during the chat request path. This is a real source-level production caller for observation/update, not merely registry membership.
+- Fountain retains the shared instance for an optional prompt rail, but its `format_for_prompt()` read does not itself call `tick()`.
+- The 14-day `decay(now)` method remains separately implemented and unit-tested; no production call to that method was found in the inspected boot/chat paths, registry, or targeted 24-file lifecycle sweep.
+
+**Corrected model:** Metacognition is connected to live chat observation and prompt assembly. The unresolved lifecycle question is specifically automatic stale-event resolution, not whether Metacognition is wired into NEX. The registry is registration/inspection only; it does not imply a generic tick/decay dispatcher.
+
+**Evidence limit:** the 24-file sweep was targeted to Theory X life loops, scheduler, world/signal/diversity loops, registry/protocol and monitor modules. It is not a whole-repository proof. Do not claim that every possible caller or SQL writer has been exhaustively ruled out.
+
+**Next step:** inspect AppState shutdown ownership and the complete production lifecycle surface for any scheduled cleanup path; then decide whether the remaining gap is only an uncalled method or a missing lifecycle owner. No scheduler, retention, schema or runtime behaviour change is authorised.
+
+**Authority boundary:** source characterization only. No frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
