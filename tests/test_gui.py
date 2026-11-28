@@ -152,6 +152,55 @@ class TestGuiEndpoints(unittest.TestCase):
             self.state.tool_registry = None
             self.state.tool_caller = None
 
+    def test_successful_tool_result_does_not_satisfy_technical_chat_gap_gate(self):
+        """Characterize tool execution before the tier-labelled belief gap gate."""
+        from theory_x.stage_capability.tools import ToolRegistry
+        from theory_x.stage_capability.tool_caller import ToolCaller
+
+        registry = ToolRegistry(beliefs_reader=self.readers["beliefs"])
+        executions = []
+        original_execute = registry.execute
+
+        def recording_execute(tool_name, **kwargs):
+            result = original_execute(tool_name, **kwargs)
+            executions.append((tool_name, result))
+            return result
+
+        registry.execute = recording_execute
+        self.state.tool_registry = registry
+        self.state.tool_caller = ToolCaller(registry)
+        captured = []
+        original_request = self.state.voice._request_fn
+        self.state.voice._request_fn = (
+            lambda url, payload: (captured.append(payload) or _mock_req(url, payload))
+        )
+        try:
+            response = self.client.post(
+                "/api/chat",
+                json={"prompt": "calculate 17 * 23", "register": "Technical"},
+            )
+            self.assertEqual(response.status_code, 200, response.get_json())
+            data = response.get_json()
+
+            self.assertEqual(len(executions), 1)
+            self.assertEqual(executions[0][0], "python_exec")
+            self.assertTrue(executions[0][1].success, executions[0][1].error)
+            self.assertEqual(executions[0][1].output, "391")
+
+            # The successful result is appended to belief_text, but the later
+            # gap gate counts only "- [Tier" belief entries. The tool result
+            # does not satisfy that count for a Technical-register turn.
+            self.assertEqual(
+                data["text"],
+                "That doesn't reach my graph right now.",
+            )
+            self.assertIsNone(data["tool_used"])
+            self.assertEqual(captured, [])
+        finally:
+            self.state.voice._request_fn = original_request
+            self.state.tool_registry = None
+            self.state.tool_caller = None
+
     def test_unknown_path_returns_json_404(self):
         r = self.client.get("/api/definitely-not-a-route")
         self.assertEqual(r.status_code, 404)
