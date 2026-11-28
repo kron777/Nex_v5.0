@@ -350,6 +350,47 @@ class TestHarmonizer(unittest.TestCase):
         self.assertIn(row_a2["tier"], [7, 8])
 
 
+class TestWorldModelBuilderStartupRollback(unittest.TestCase):
+    def test_partial_thread_start_failure_rolls_back_without_running_loops(self):
+        import threading
+        from unittest import mock
+        import theory_x.stage3_world_model as world_model_module
+
+        writers, readers, tmp = _make_env()
+        original_start = threading.Thread.start
+        attempted = []
+        loop_entered = threading.Event()
+
+        def fail_second_start(thread):
+            attempted.append(thread)
+            if len(attempted) == 2:
+                raise RuntimeError("injected world-model thread start failure")
+            return original_start(thread)
+
+        try:
+            with mock.patch.object(
+                world_model_module, "_decay_loop",
+                side_effect=lambda *_args: loop_entered.set(),
+            ):
+                with mock.patch.object(
+                    threading.Thread, "start", new=fail_second_start
+                ):
+                    with self.assertRaisesRegex(
+                        RuntimeError, "injected world-model thread start failure"
+                    ):
+                        world_model_module.build_world_model(writers, readers)
+
+            self.assertEqual(len(attempted), 2)
+            self.assertFalse(attempted[0].is_alive())
+            self.assertIsNone(attempted[1].ident)
+            self.assertFalse(
+                loop_entered.is_set(),
+                "a World Model loop ran before builder startup committed",
+            )
+        finally:
+            _cleanup(writers, tmp)
+
+
 # ---- GUI endpoints -----------------------------------------------------------
 
 class TestWorldModelGUIEndpoints(unittest.TestCase):
