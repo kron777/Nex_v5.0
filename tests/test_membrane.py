@@ -331,6 +331,91 @@ class TestRetrievalSideFilter(unittest.TestCase):
         self.assertIn("precipitated_from_dynamic", sources)
         self.assertNotIn("web_scrape", sources)
 
+    def test_single_belief_repeated_by_tool_can_clear_chat_two_entry_gate(self):
+        """Verify route effect when RAG and beliefs_query return the same ID."""
+        from types import SimpleNamespace
+
+        from theory_x.stage3_world_model.retrieval import BeliefRetriever
+        from theory_x.stage4_membrane import MembraneState, MembraneClassifier
+        from theory_x.stage4_membrane.router import QueryRouter
+        from theory_x.stage4_membrane.self_model import SelfModel
+        from theory_x.stage_capability.tools import ToolRegistry
+        from theory_x.stage_capability.tool_caller import ToolCaller
+        from voice.llm import VoiceClient
+        from gui.server import AppState, create_app
+
+        # This test owns a fresh temporary substrate, so remove init_db's
+        # keystone rows to leave exactly one available belief record.
+        self.writers["beliefs"].write("DELETE FROM beliefs", ())
+        query = "my beliefs about qzxvornum deltaargonic kvalliq"
+        content = (
+            "My beliefs about qzxvornum deltaargonic kvalliq are grounded "
+            "in recursive coupling."
+        )
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs "
+            "(content, tier, confidence, created_at, source, branch_id, locked, paused) "
+            "VALUES (?, ?, ?, ?, ?, ?, 0, 0)",
+            (content, 4, 0.98, int(time.time()), "web_scrape", "systems"),
+        )
+        seeded = self.readers["beliefs"].read_one(
+            "SELECT id FROM beliefs WHERE content = ?", (content,)
+        )
+        self.assertIsNotNone(seeded)
+
+        retriever = BeliefRetriever(self.readers["beliefs"])
+        self_model = SelfModel(self.readers["sense"], self.readers["beliefs"])
+        membrane = MembraneState(
+            classifier=MembraneClassifier(),
+            self_model=self_model,
+            router=QueryRouter(),
+            behavioural=None,
+        )
+        registry = ToolRegistry(beliefs_reader=self.readers["beliefs"])
+        caller = ToolCaller(registry)
+        requests = []
+
+        def request_fn(url, payload):
+            requests.append(payload)
+            return {"choices": [{"message": {"content": "route fixture reply"}}]}
+
+        state = AppState(
+            writers=self.writers,
+            readers=self.readers,
+            voice=VoiceClient(request_fn=request_fn),
+            world_model=SimpleNamespace(
+                retriever=retriever,
+                get_disturbance=lambda: None,
+            ),
+            membrane=membrane,
+            tool_registry=registry,
+            tool_caller=caller,
+        )
+        try:
+            response = create_app(state).test_client().post(
+                "/api/chat",
+                json={"prompt": query, "register": "Technical"},
+            )
+            self.assertEqual(response.status_code, 200, response.get_json())
+            data = response.get_json()
+
+            self.assertEqual(membrane.classify_query(query), "OUTSIDE")
+            self.assertEqual(caller.should_use_tool(query), "beliefs_query")
+            self.assertTrue(requests, "two formatted entries should clear the gate")
+            self.assertEqual(data["text"], "route fixture reply")
+            rendered = "\\n".join(
+                message.get("content", "")
+                for message in requests[-1]["messages"]
+            )
+            self.assertEqual(rendered.count(content), 2)
+            self.assertEqual(rendered.count("- [Tier"), 2)
+        finally:
+            # No background workers are attached to this fixture state.
+            state.tool_registry = None
+            state.tool_caller = None
+            state.world_model = None
+            state.membrane = None
+
     def test_outside_filter_returns_only_outside_beliefs(self):
         from theory_x.stage3_world_model.retrieval import BeliefRetriever
         self._seed("Market crypto price belief inside", source="precipitated_from_dynamic")
