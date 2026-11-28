@@ -1,9 +1,11 @@
-"""Prepare an explicitly reviewed seed proposal for RDO objective intake.
+"""Bridge an explicitly reviewed seed proposal into RDO objective intake.
 
-This is a read-only preparation bridge. It validates and maps an approved
-selection into objective.v1, computes graph diagnostics, and returns a
-cross-reference envelope. It does not append the intake ledger, run a cycle,
-expand obligations, create a handoff, or execute anything.
+`prepare_reviewed_selection` is read-only: it validates/maps the approved
+selection into objective.v1 and returns graph diagnostics plus lineage.
+`submit_reviewed_selection` is the separate explicit persistence/planning
+operation: it appends the objective and lineage together, then runs advisory
+RDO planning. Neither operation automatically creates a Stage-7 handoff,
+authorizes execution, or changes live NEX state.
 """
 from __future__ import annotations
 
