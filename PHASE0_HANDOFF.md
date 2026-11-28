@@ -535,3 +535,8 @@ The tagger producer is write-only, but its integrated signal is consumed by Read
 
 
 TRACK_THEORY.md's 2026-05-27 afterword anticipates the retrieval, prompt and readiness consumers; GENIUS_SCORE_v2.md §7's final paragraph was not reconciled. Treat the mismatch as stale documentation, not proof of unauthorized runtime behaviour.
+
+
+### 28 November 2026 — GeniusTagger fan-out contract
+
+The GeniusTagger signal fans out to independent consumers with different windows, thresholds and flags: readiness 1h/5 rows/40%; prompt block 24h; governor 90m/4 rows/5%; Metacognition rut 90m/4 rows/5%; optional continuity all-time top scores. There is no common sample manifest or shared decision contract. Do not harmonize these during Phase 0. PRs #452/#453 passed; #454/#455 pending. See INDEX §157.
