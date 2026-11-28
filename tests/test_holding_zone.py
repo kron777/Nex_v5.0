@@ -285,6 +285,26 @@ class TestTimeFade(unittest.TestCase):
 
 # ── End-to-end wiring tests ────────────────────────────────────────────────────
 
+class TestResolverLifecycle(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        self.zone = _make_zone(self.writers, self.readers)
+        self.resolver = _make_resolver(self.zone, self.writers)
+
+    def tearDown(self):
+        self.resolver.stop_loop()
+        self.resolver.join(timeout=1.0)
+        _cleanup(self.writers, self.tmp)
+
+    def test_resolver_stop_interrupts_idle_wait_and_join_confirms_exit(self):
+        self.resolver.start_loop(interval_seconds=3600)
+        self.assertTrue(self.resolver._thread.is_alive())
+        self.resolver.stop_loop()
+        self.assertTrue(self.resolver.join(timeout=1.0))
+        self.assertFalse(self.resolver._thread.is_alive())
+
+
 class TestGateWiring(unittest.TestCase):
 
     def setUp(self):
