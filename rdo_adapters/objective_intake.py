@@ -132,7 +132,7 @@ def validate_objective(payload: Any) -> dict:
     if revision > 1 and (not isinstance(supersedes, str) or not _SHA256.fullmatch(supersedes)):
         raise ObjectiveInputError("revisions after 1 must cite the previous sha256 digest")
 
-    original_text = _text(top["original_text"], "original_text")
+    original_text = _text(top["original_text"], "original_text", max_length=20000)
     intent = _text(top["intent"], "intent", max_length=4000)
     owner = _text(top["owner"], "owner", max_length=256)
 
