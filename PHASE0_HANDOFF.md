@@ -386,3 +386,7 @@ Cadence refinement: Fountain's own worker waits for the active mode interval bef
 ### 28 November 2026 — G-83 source-identity preservation boundary
 
 Metacognition temporarily carries `groove_id`, but `_write_event()` persists no source-row/episode ID in `meta_cognition_events`. The parallel narrative branch does persist it as `narrative_log.source_id`. Row 9 counts every groove event row without grouping by identity. PR #449's controlled fixture verifies five same-source rows can count separately. This confirms the identity gap, not the intended semantic unit; no schema change is authorised. See INDEX §129.
+
+### 28 November 2026 — G-83 optional second-order readers
+
+Stage-9's built-in event digest is dark behind `NEX5_METACOG_DIGEST=1`; if armed, three groove rows can trigger a digest regardless of whether they came from distinct source alerts. It excludes its own digest rows and has a one-hour per-type cooldown. The separate `tools/metacog_digest.py` is manually invoked only, requires `NEX5_METACOG_REFLECT=1` and `--live`, and reads all meta events without source deduplication before making a reflection call. Static checks found no import/invocation from the live GUI, `run.py` or keepalive. Runtime flag states remain UNKNOWN. See INDEX §129.
