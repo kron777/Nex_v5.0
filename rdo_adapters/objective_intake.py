@@ -293,6 +293,82 @@ def load_objective_file(path: str) -> dict:
     return validate_objective(payload)
 
 
+def _validate_objective_lineage(record: dict, value: Any) -> Optional[dict]:
+    """Validate reviewed seed provenance stored beside, not inside, objective.v1."""
+    if value is None:
+        return None
+    fields = {
+        "schema_version", "proposal_id", "selected_alternative_id",
+        "proposer_kind", "proposer_reference", "proposal_source_reference",
+        "raw_objective_id", "raw_objective_revision", "raw_objective_sha256",
+        "raw_objective_supersedes_sha256", "raw_reconciliation_signatures",
+        "acceptance_criterion_coverage", "approval", "objective_id",
+        "objective_revision", "objective_supersedes_sha256",
+        "objective_input_sha256",
+    }
+    lineage = _object(value, "objective lineage", fields)
+    if lineage["schema_version"] != "rdo.reviewed_seed_bridge.v1":
+        raise ObjectiveInputError("unsupported objective lineage schema")
+    if not isinstance(lineage["proposal_id"], str) or not re.fullmatch(
+        r"seedprop_[0-9a-f]{24}", lineage["proposal_id"]
+    ):
+        raise ObjectiveInputError("objective lineage proposal_id is invalid")
+    if not isinstance(lineage["selected_alternative_id"], str) or not _OBLIGATION_KEY.fullmatch(
+        lineage["selected_alternative_id"]
+    ):
+        raise ObjectiveInputError("objective lineage selected alternative is invalid")
+    if lineage["proposer_kind"] not in ("human", "external_llm"):
+        raise ObjectiveInputError("objective lineage proposer_kind is invalid")
+    _text(lineage["proposer_reference"], "lineage.proposer_reference", max_length=512)
+    _text(lineage["proposal_source_reference"], "lineage.proposal_source_reference", max_length=1000)
+    if lineage["raw_objective_id"] != record["objective_id"]:
+        raise ObjectiveInputError("objective lineage raw objective ID does not match intake")
+    for name in ("raw_objective_revision", "objective_revision"):
+        number = lineage[name]
+        if isinstance(number, bool) or not isinstance(number, int) or number < 1:
+            raise ObjectiveInputError(f"objective lineage {name} must be a positive integer")
+    for name in ("raw_objective_sha256", "objective_input_sha256"):
+        if not isinstance(lineage[name], str) or not _SHA256.fullmatch(lineage[name]):
+            raise ObjectiveInputError(f"objective lineage {name} is invalid")
+    raw_previous = lineage["raw_objective_supersedes_sha256"]
+    if raw_previous is not None and (
+        not isinstance(raw_previous, str) or not _SHA256.fullmatch(raw_previous)
+    ):
+        raise ObjectiveInputError("objective lineage raw revision predecessor is invalid")
+    if not isinstance(lineage["raw_reconciliation_signatures"], dict):
+        raise ObjectiveInputError("objective lineage raw reconciliation signatures must be an object")
+    if not isinstance(lineage["acceptance_criterion_coverage"], list):
+        raise ObjectiveInputError("objective lineage acceptance coverage must be a list")
+    if (lineage["objective_id"] != record["objective_id"]
+            or lineage["objective_revision"] != record["revision"]
+            or lineage["objective_supersedes_sha256"] != record["supersedes_sha256"]
+            or lineage["objective_input_sha256"] != _digest(record)):
+        raise ObjectiveInputError("objective lineage does not bind to this exact objective revision/digest")
+    approval = _object(lineage["approval"], "objective lineage approval", {
+        "sequence", "event_sha256", "record",
+    })
+    sequence = approval["sequence"]
+    if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 1:
+        raise ObjectiveInputError("objective lineage approval sequence is invalid")
+    if not isinstance(approval["event_sha256"], str) or not _SHA256.fullmatch(
+        approval["event_sha256"]
+    ):
+        raise ObjectiveInputError("objective lineage approval event digest is invalid")
+    review = _object(approval["record"], "objective lineage approval record", {
+        "decision", "selected_alternative_id", "reviewer", "source_reference",
+        "rationale", "evidence_references",
+    })
+    if (review["decision"] != "approved"
+            or review["selected_alternative_id"] != lineage["selected_alternative_id"]):
+        raise ObjectiveInputError("objective lineage approval does not select this alternative")
+    _text(review["reviewer"], "lineage.approval.reviewer", max_length=256)
+    _text(review["source_reference"], "lineage.approval.source_reference", max_length=1000)
+    _text(review["rationale"], "lineage.approval.rationale")
+    _text_list(review["evidence_references"], "lineage.approval.evidence_references",
+               max_items=200, max_length=1000, allow_empty=False)
+    return json.loads(_canonical_json(lineage))
+
+
 class ObjectiveInputStore:
     """Append-only revision ledger; original wording/intent cannot be rewritten."""
 
@@ -318,11 +394,15 @@ class ObjectiveInputStore:
                     wrapper = json.loads(line, object_pairs_hook=_reject_duplicate_keys)
                 except json.JSONDecodeError as exc:
                     raise ObjectiveInputError(f"invalid revision-ledger JSON on line {number}: {exc}") from exc
-                wrapper = _object(wrapper, f"revision-ledger line {number}", {"record", "sha256"})
+                wrapper = _object(
+                    wrapper, f"revision-ledger line {number}",
+                    {"record", "sha256"}, {"lineage"},
+                )
                 record = validate_objective(wrapper["record"])
                 digest = _digest(record)
                 if wrapper["sha256"] != digest:
                     raise ObjectiveInputError(f"revision-ledger integrity failure on line {number}")
+                lineage = _validate_objective_lineage(record, wrapper.get("lineage"))
                 if record["objective_id"] != objective_id:
                     raise ObjectiveInputError(f"objective_id mismatch on revision-ledger line {number}")
                 expected_revision = number
@@ -341,17 +421,25 @@ class ObjectiveInputStore:
                         raise ObjectiveInputError(
                             "original_text and intent are immutable; create a new objective_id for a new objective"
                         )
-                records.append({"record": record, "sha256": digest})
+                item = {"record": record, "sha256": digest}
+                if lineage is not None:
+                    item["lineage"] = lineage
+                records.append(item)
         return records
 
-    def append(self, payload: Any) -> dict:
+    def append(self, payload: Any, lineage: Any = None) -> dict:
         record = validate_objective(payload)
+        checked_lineage = _validate_objective_lineage(record, lineage)
         history = self.history(record["objective_id"])
         digest = _digest(record)
         revision = record["revision"]
         if revision <= len(history):
             existing = history[revision - 1]
             if existing["sha256"] == digest:
+                if existing.get("lineage") != checked_lineage:
+                    raise ObjectiveInputError(
+                        "objective revision already exists with different proposal lineage"
+                    )
                 return {**existing, "replayed": True}
             raise ObjectiveInputError(
                 f"revision {revision} already exists with different content; revisions are immutable"
@@ -374,6 +462,8 @@ class ObjectiveInputStore:
                     "original_text and intent are immutable; create a new objective_id for a new objective"
                 )
         wrapper = {"record": record, "sha256": digest}
+        if checked_lineage is not None:
+            wrapper["lineage"] = checked_lineage
         path = self._path(record["objective_id"])
         # One append-only record per revision. Never rewrite an earlier revision.
         with open(path, "a", encoding="utf-8") as fh:
