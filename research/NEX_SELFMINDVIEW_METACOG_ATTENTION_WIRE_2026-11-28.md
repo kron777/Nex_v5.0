@@ -46,7 +46,14 @@ The SelfMindView attention aspect is derived from recent belief tags and recent 
 
 NEX also has the separate Stage-2 path from external sense events → A–F → Bonsai focus/texture → Fountain branch selection and Global Workspace framing. The inspected SelfMindView attention reader does not consume that Bonsai status. These two uses of “attention” should remain semantically distinct until an explicit mapping is justified and measured. This PR repairs only the theme-history → Metacognition wire; it does not merge the two attention representations.
 
-## 5. Scope and validation
+## 5. Possible repeated-event amplification (not changed)
+
+The Phase-40 `attention_groove` finding is emitted on every `Metacognition.tick()` while the theme-overlap condition remains true. `tick()` writes every finding, and `_write_event()` performs an unconditional insert and invalidates the recent-event cache. The module's `_DRIFT_COOLDOWN` is used for goal-drift events; the inspected attention-groove path does not apply it or deduplicate an ongoing episode.
+
+Consequently, sustained identical themes may create repeated `attention_groove` rows and repeatedly occupy the recent-event prompt context. Once this previously disconnected wire is active, that could become a self-reinforcing prompt loop: recurring themes trigger an observation, the observation is injected, and subsequent responses may continue the same theme. This is a hypothesis about a possible amplification effect, not a demonstrated harmful outcome.
+
+This PR deliberately does not add a cooldown or episode-deduplication policy. The next observation should measure event frequency and repeated prompt exposure under controlled, sustained themes before choosing whether to add an episode identity, cooldown, resolution condition or decay rule.
+## 6. Scope and validation
 
 This is a one-column read projection plus an isolated integration test. No database schema, prompt text, detector threshold, feature flag, cognitive policy or governance register changed. The runtime may now emit an existing `attention_groove` observation when repeated themes genuinely appear across snapshots; that is the intended previously disconnected detector behavior.
 
