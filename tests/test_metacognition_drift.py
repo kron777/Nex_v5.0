@@ -668,11 +668,15 @@ class TestSelfMindViewAttentionWire(unittest.TestCase):
             "NEX5_METACOG_PATTERN": "0",
         }):
             mc.tick()
+            mc.tick()
         persisted = self.readers["conversations"].read(
             "SELECT event_type FROM meta_cognition_events "
             "WHERE event_type = 'attention_groove'"
         )
-        self.assertTrue(persisted)
+        # Characterize current behaviour: the detector writes again on the
+        # next qualifying tick; this is an observed open cooldown/dedup gap,
+        # not a desired permanent event-count contract.
+        self.assertEqual(len(persisted), 2)
         self.assertIn(
             "same themes have been recurring",
             mc.format_for_prompt(),
