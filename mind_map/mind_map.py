@@ -308,10 +308,16 @@ def anchor_drift(map_path: Path = MAP, root: Path = ROOT) -> list[dict]:
             want = old[a - 1:b]
             if cur[a - 1:b] == want:
                 continue
-            shift = next((d for d in sorted(range(-_DRIFT_WINDOW, _DRIFT_WINDOW + 1), key=abs)
-                          if d and a - 1 + d >= 0 and cur[a - 1 + d:b + d] == want), None)
+            shifts = [
+                d for d in range(-_DRIFT_WINDOW, _DRIFT_WINDOW + 1)
+                if d and a - 1 + d >= 0 and cur[a - 1 + d:b + d] == want
+            ]
+            # Re-anchor only when the cited content has exactly one new home.
+            # Repeated boilerplate or duplicated blocks are ambiguous evidence;
+            # choosing the nearest match could silently point at the wrong code.
+            shift = shifts[0] if len(shifts) == 1 else None
             out.append({"node": node, "path": path, "a": a, "b": b, "yaml_line": lineno,
-                        "baseline": sha,
+                        "baseline": sha, "ambiguous": len(shifts) > 1,
                         "new_a": None if shift is None else a + shift,
                         "new_b": None if shift is None else b + shift})
     return out
@@ -325,8 +331,12 @@ def anchor_drift_warnings(map_path: Path = MAP, root: Path = ROOT) -> list[str]:
     """Human-readable DRIFT warnings for anchor_drift()."""
     warns = []
     for d in anchor_drift(map_path, root):
-        where = ("content changed or removed" if d["new_a"] is None
-                 else f"now at :{_span(d['new_a'], d['new_b'])}")
+        where = (
+            "ambiguous duplicate matches; manual review required"
+            if d.get("ambiguous") else
+            "content changed or removed" if d["new_a"] is None else
+            f"now at :{_span(d['new_a'], d['new_b'])}"
+        )
         warns.append(f"{d['node']}: DRIFT — {d['path']}:{_span(d['a'], d['b'])} no longer "
                      f"holds the lines it cited at {d['baseline'][:8]} ({where})")
     return warns
@@ -344,7 +354,9 @@ def reanchor(map_path: Path = MAP, root: Path = ROOT) -> tuple[list[str], list[s
     for d in drift:
         old = f'"{d["path"]}:{_span(d["a"], d["b"])}"'
         if d["new_a"] is None:
-            review.append(f"{d['node']}: {d['path']}:{_span(d['a'], d['b'])} content changed "
+            reason = ("has multiple identical destinations" if d.get("ambiguous")
+                      else "content changed or disappeared")
+            review.append(f"{d['node']}: {d['path']}:{_span(d['a'], d['b'])} {reason} "
                           f"since {d['baseline'][:8]} -- re-verify by hand")
             continue
         new = f'"{d["path"]}:{_span(d["new_a"], d["new_b"])}"'
