@@ -146,13 +146,13 @@ _PERSONA_SYSTEM = (
 
 
 def _ask_persona(thoughts: list[str], timeout: int = 30,
-                 state: "dict | None" = None) -> str | None:
+                 state: "dict | None" = None, *, stop_event=None) -> str | None:
     """Call the model AS the separate interlocutor, responding to NEX's thoughts.
 
     When `state` is given (NEX5_SOCIAL_DEPTH), the persona is told who it has
     been — its carried focus and mood — so it continues a CONSISTENT thread and
     evolves it, instead of resetting to random small-talk each turn."""
-    if not thoughts:
+    if not thoughts or (stop_event is not None and stop_event.is_set()):
         return None
     recent = "\n".join(f"  - {t[:240]}" for t in thoughts)
     _continuity = ""
@@ -193,9 +193,13 @@ def _ask_persona(thoughts: list[str], timeout: int = 30,
     req = urllib.request.Request(
         VOICE_URL, data=data, headers={"Content-Type": "application/json"}
     )
+    if stop_event is not None and stop_event.is_set():
+        return None
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             out = json.loads(resp.read().decode("utf-8"))
+        if stop_event is not None and stop_event.is_set():
+            return None
         txt = (out["choices"][0]["message"]["content"] or "").strip()
         # strip any accidental quoting/persona-leak
         txt = txt.strip('"').strip()
@@ -538,20 +542,32 @@ def one_exchange(
     sense_writer: Writer | None = None,
     conversations_writer: Writer | None = None,
     conversations_reader: Reader | None = None,
+    stop_event=None,
 ) -> dict:
     """One turn of the OTHER's side: read NEX's recent thoughts, respond, check, write.
 
     NEX5_SOCIAL_DEPTH carries a persisted model of the interlocutor across turns.
     """
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
     _depth = os.environ.get("NEX5_SOCIAL_DEPTH") == "1"
     _state = (
         _load_interlocutor_state(conversations_writer, conversations_reader)
         if _depth else None
     )
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
     thoughts = _recent_thoughts()
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
     if not thoughts:
         return {"error": "no_recent_thoughts"}
-    reply = _ask_persona(thoughts, state=_state)
+    ask_kwargs = {}
+    if stop_event is not None:
+        ask_kwargs["stop_event"] = stop_event
+    reply = _ask_persona(thoughts, state=_state, **ask_kwargs)
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
     if not reply:
         return {"error": "persona_unavailable"}
 
@@ -561,6 +577,8 @@ def one_exchange(
         logger.warning("persona bouncer check failed (%s) — passing reply through", e)
         discard, reason, matched, max_j = False, "ok", "", 0.0
 
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
     if discard:
         _write_persona_reject(
             reason, reply, matched, max_j, dynamic_writer=dynamic_writer
@@ -571,6 +589,9 @@ def one_exchange(
         }
 
     ok = _write_other_mind(reply, sense_writer=sense_writer)
+    if stop_event is not None and stop_event.is_set():
+        return {"responded_to": thoughts[0][:60], "persona_said": reply,
+                "written": ok, "error": "shutdown_requested"}
     if ok and _depth and _state is not None:
         _evolve_interlocutor_state(
             _state, reply,
@@ -596,13 +617,19 @@ class PersonaResponderLoop:
         self._conversations_reader = conversations_reader
         self._alive = False
 
-    def tick(self):
+    def tick(self, stop_event=None):
+        if stop_event is None:
+            stop_event = getattr(self, "_stop_event", None)
         try:
+            kwargs = {}
+            if stop_event is not None:
+                kwargs["stop_event"] = stop_event
             r = one_exchange(
                 dynamic_writer=self._dynamic_writer,
                 sense_writer=self._sense_writer,
                 conversations_writer=self._conversations_writer,
                 conversations_reader=self._conversations_reader,
+                **kwargs,
             )
             if "error" in r:
                 pass
