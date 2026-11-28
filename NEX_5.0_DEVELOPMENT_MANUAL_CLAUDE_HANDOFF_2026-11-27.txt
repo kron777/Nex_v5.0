@@ -5462,3 +5462,58 @@ The earlier host diagnostic record adds an important qualification to §138:
 **Next bounded observation:** inspect the current loaded unit and timer with `systemctl --user cat/status/list-timers nex5-db-reaper.timer nex5-db-reaper.service`, then inspect the last service journal entry and reaper log. Do not start/restart the service as part of an evidence-only check.
 
 **Authority boundary:** no unit, path, timer, service, database or runtime state changed. This records historical host evidence and the remaining unknowns only.
+
+
+## §146 — G-83 narrative retrieval is literal prompt-prefix matching, not semantic topic retrieval (28 November 2026)
+
+**Question studied:** how does the GUI choose which persistent Stage-SelfNarrative rows to surface, and what does “current topic” mean at the actual call site?
+
+### Source path
+
+- gui/server.py passes SimpleNamespace(current_topic=prompt[:100]) to SelfNarrative.format_for_prompt().
+- The formatter uses the entire supplied string as a case-insensitive SQL LIKE '%topic%' substring against narrative_log.content.
+- It does not extract keywords, normalize a semantic topic, embed the prompt, rank by similarity or consult the GrooveSpotter alert type.
+- The match is therefore literal substring containment. A short prompt phrase that appears inside the narrative can match; a paraphrase or a longer first-100-character prefix that does not occur verbatim in the stored narrative will not.
+- The formatter selects at most five matching rows, ordered newest first, with no age cutoff and no source/trigger deduplication. It returns narrative content and a relative age label, not the stored trigger/source ID.
+
+### Consequence
+
+The pattern-specific Stage-SelfNarrative path is not a general semantic retrieval mechanism. It is a narrow, user-prompt-conditioned string lookup. PR #450's fixture deliberately sends the exact phrase "same source pattern", which is contained in the stored narrative text; that proves the matching branch works for an exact phrase, not that ordinary paraphrased conversation will retrieve the narrative.
+
+This is distinct from the generic Metacognition self-observation line, which is produced from the cached top event without requiring the user to repeat the pattern phrase. The two prompt contributions have different retrieval rules and should not be conflated.
+
+**Next bounded characterization:** use controlled prompt variants (exact phrase, case variant, paraphrase, and a longer prompt whose first 100 characters contain the phrase only after the cutoff) against an isolated narrative fixture. Record which rows are returned without changing the matching policy. Then locate the approved intent for literal matching versus semantic retrieval. Do not replace substring matching with embeddings or alter prompt policy before Gate 0.
+
+**Disposition:** source-observed literal prefix-substring matching; exact-phrase route delivery test-verified in PR #450; paraphrase behaviour is source-derived and not separately tested. G-83 remains OPEN. No retrieval policy, narrative retention, runtime code, schema, flags, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §147 — SelfNarrative v1 intentionally unbounded; Phase 26b retention was deferred (28 November 2026)
+
+The original `theory_x/SELF_NARRATIVE_SPEC.md` materially qualifies §144:
+
+- §2 explicitly says there is **no fade logic in v1**; the `narrative_log` growth rate was unknown before production observation, so the table was intentionally unbounded.
+- It says a 90-day row-age cutoff or size-based cap *may* be added in Phase 26b **after observing actual write frequency**. This is a deferred candidate, not an approved current retention rule.
+- §5 specifies `SelfNarrative.decay()` as a no-op for v1 and says fade logic is deferred to Phase 26b.
+- §3 labels the v1 write triggers as two of five: Goal completion and Groove alert. Problem close, Gate ACCEPT and NovelAssociation crossing are listed as Phase 26b follow-ons.
+
+### Specification-to-runtime drift
+
+The current implementation contains the later trigger paths already:
+- ProblemMemory open/close writes;
+- CoherenceGate accepted insight writes;
+- NovelAssociation crossing writes.
+
+The original spec's trigger table has not been revised to reflect these additions. Git history for `SELF_NARRATIVE_SPEC.md` shows only its foundational 10 May 2026 creation commit; no later Phase 26b specification revision was located in the repository.
+
+### Correct interpretation
+
+1. The absence of `narrative_log` pruning is consistent with the original v1 design.
+2. The proposed 90-day/size-cap idea is not an active policy and must not be implemented as though it were approved.
+3. The expanded writer set in runtime code is beyond the original v1 trigger list, while the spec remains at its original Phase 26-spec state.
+4. Whether Phase 26b's production observation and approval occurred elsewhere remains UNKNOWN. No current production write-rate measurement or active-host narrative-table inspection was performed.
+
+**Disposition:** this narrows the §144 finding from "missing retention mechanism" to "v1 intentionally unbounded, with a deferred Phase 26b retention decision and unupdated trigger specification." The remaining issue is evidence/authority reconciliation: locate the Phase 26b observation or approval, or preserve UNKNOWN. Do not add pruning, deduplication or a 90-day cutoff on the strength of the old proposal alone.
+
+**Source anchors:** `theory_x/SELF_NARRATIVE_SPEC.md` blob `97b84c9198552d874ed5dea8026247cf67cf1edc`; file history contains foundational commit `6a591c936c49e5d0c136731e4a2fc9b22f4c92d2` (10 May 2026); `theory_x/stage_self_narrative/self_narrative.py`; `tests/test_self_narrative.py`.
+
+**Authority boundary:** this spec is historical design intent, not an elevation over frozen S-01–S-25/M1.8 or Founder Sign-Off. No retention horizon, trigger policy, schema, code, flags, roadmap, Gate 0 or Phase 1 authority changed.
