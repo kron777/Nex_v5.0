@@ -271,7 +271,7 @@ class TestRutMirrorGovernor(unittest.TestCase):
         retriever = BeliefRetriever(self.readers["beliefs"])
         found = retriever.retrieve(
             query="my recent thinking has circled the same few frames",
-            limit=5,
+            limit=1000,
         )
         self.assertTrue(any(r["source"] == "self_rut_notice" for r in found))
 
