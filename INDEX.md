@@ -2272,3 +2272,26 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 **Boundaries:** narrow rollback hardening only. No cognitive semantics, registry API, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
+---
+
+## 79. Nested startup ownership — stage builders examined (28 November 2026)
+
+**Study question:** can the parent rollback recover workers from a stage builder that raises before returning its state object?
+
+**Observed pattern:** the parent can only see a builder's return value after successful return. The inspected worker-owning builders therefore need local rollback around their own thread startup, and the parent must own the builder result after return.
+
+- `theory_x/stage1_sense/scheduler.py`: scheduler construction publishes its adapter registry before starting workers; its startup loop catches `BaseException`, signals all workers and joins started workers before re-raising. The returned scheduler exposes `_threads`, `shutdown()` and `join()`, which the parent rollback understands.
+- `theory_x/stage2_dynamic/__init__.py`: constructs the full DynamicState and publishes `_stop` / `_threads` before starting loops. Workers wait behind a shared start gate. A partial `Thread.start()` failure sets stop, releases the gate so started wrappers exit without entering loop bodies, joins against one deadline and re-raises.
+- `theory_x/stage3_world_model/__init__.py`: publishes its complete thread registry and stop event before start; workers wait behind a shared gate; partial startup failure stops, releases, joins and re-raises.
+- `theory_x/stage4_membrane/__init__.py`: publishes the thread reference before start; catches `BaseException`, signals stop, joins a started thread and re-raises.
+- `theory_x/stage6_fountain/__init__.py`: publishes its thread reference and gates the worker until start succeeds; on failure it signals stop, releases the gate, joins and re-raises.
+- `theory_x/stage_gate/resolver.py`: `HoldingZoneResolver.start_loop()` publishes `self._thread` before calling `start()`. It does not contain its own startup exception, but the parent factory already owns `_resolver` before this call, and parent rollback discovers `_thread`, signals `_stop` and joins it.
+
+**Architecture conclusion:** startup cleanup is layered, not one flat parent transaction. A builder must clean workers that exist before it can return an owner object; after return, the parent owns the returned state and can quiesce it. The inspected stage builders mostly implement this nested ownership pattern. The resolver is an intentional exception where the parent has already published the owning local before starting its worker, so parent rollback can still see it.
+
+**Remaining verification:** source inspection establishes the intended ordering, but it does not prove every rare OS-level `Thread.start()` failure path behaves identically across Python/platform implementations. Focused failure-injection tests exist or should be checked per builder; do not infer coverage of every builder from the GUI rollback tests. In particular, this PR's tests directly exercise the parent rollback helper and Writer-construction failure, not every nested builder's own partial-start path.
+
+**Decision:** no additional parent-level abstraction is needed from this inspection. Preserve local builder ownership and the parent rollback boundary. Future builders that start workers must publish stop/thread handles before `Thread.start()`, gate work until startup commit where appropriate, and locally rollback any partially started workers before raising.
+
+**Boundaries:** read-only source study; no stage builder behaviour changed. No cognitive semantics, action authority, registry API, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
