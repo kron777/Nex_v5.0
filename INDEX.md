@@ -5320,3 +5320,27 @@ A bounded scan of the repository's external maintenance entrypoints was performe
 **Next bounded step:** when host access is available, inspect user crontab and user systemd timers/services alongside the active DB-reaper status. In parallel, source-trace all in-repository invocations of the three decay methods beyond the inspected production boot/chat paths. Do not schedule new cleanup until the policy and external ownership are established.
 
 **Authority boundary:** no cleanup code, data, retention horizons, timers, schema, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §140 — Doctrine intent versus runtime orchestration: interface conformance is not lifecycle execution (28 November 2026)
+
+`theory_x/DOCTRINE.md` §4 defines the SentienceNode interface and distinguishes:
+- `tick()`: called once per chat turn; applies time-based updates.
+- `decay(now)`: applies wall-clock degradation; tick-recency nodes may implement it as a no-op.
+- `state(now)`: monitoring/inspection snapshot.
+
+The same section describes `register()` and `all_nodes()` as process-lifetime registration/inspection, but does not specify a generic decay dispatcher, cadence, or lifecycle owner. Its test guidance asks for unit tests of mechanism and explicitly says not to test wiring as part of the node test.
+
+The implementation follows that split: node tests directly call `decay(now)` and prove its local DB/cache effect; registration verifies protocol shape; production callers are separately wired (chat route or background worker). None of those facts proves a runtime caller for the decay method.
+
+**Interpretation:** the present evidence establishes a gap between the protocol's declared decay capability and located runtime ownership for four persistent cleanup methods. It does not establish that a universal scheduler was ever specified or approved. The next decision is therefore not "add the missing dispatcher"; it is to locate the policy owner and intended lifecycle semantics for each method, including whether cleanup is meant to be chat-triggered, background-scheduled, externally scheduled, or merely callable by an operator.
+
+**Development-method finding:** keep four proof questions separate in future node work:
+1. Does the node implement the protocol?
+2. Do tests prove the method's local effect?
+3. Is there a production caller with a known trigger/cadence?
+4. Is that caller observed operating on the active host?
+
+Do not collapse these into a single "wired" or "complete" label.
+
+**Authority boundary:** Doctrine §4 is recorded as design intent, not elevated above the frozen specification/sign-off hierarchy. No lifecycle policy, scheduler, code, schema, flags, roadmap, Gate 0 or Phase 1 authority changed.
