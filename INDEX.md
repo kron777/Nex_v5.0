@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 28 November 2026 — G-84 steps 1–3 merged; process-wide writer-deadline/clean-marker correction in PR #370. RDO bridge candidate and ObjectiveInputStore concurrency prerequisite, G-92/G-94, Bonsai/Global Workspace, Sentience wiring and sentence-to-tool source discrepancy updated; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — G-84 steps 1–3 merged; PR #370 proposes the process-wide shutdown deadline/clean-marker correction and is under exact-head CI. PR #369 arithmetic hardening candidate rebased to current main and under exact-head CI; RDO bridge/storage prerequisite, G-92/G-94, Bonsai/Global Workspace and Sentience wiring updated; Gate 0 boundaries remain.*
 
 
 
@@ -965,7 +965,15 @@ A read-only host re-run needs founder authorisation.
 - Writer.close() defaults to a 10-second join per Writer. The keepalive's forced-kill window is 15 seconds; the handler's 1.5-second delay plus the 5-second producer-join budget leaves 8.5 seconds for Writer drains. There is no shared remaining-time budget across Writers.
 - Other thread starts outside the registered run.py producers and host-level shutdown behaviour remain unverified. No live shutdown test has been run.
 
-G-84 remains OPEN. The next correction must start one deadline at SIGTERM receipt, pass its remaining budget through producer and Writer quiescence, return an aggregate shutdown report, and write the clean marker only after every required worker and Writer has stopped/drained successfully. A failed shutdown must not be reported as clean.
+### G-84 step 4 candidate — PR #370 (draft; exact-head CI in progress)
+
+- Rebased onto current main `5ba300779ff3081508e56b509d53a27846bf7c67`; candidate head `0ec1426507e733d5e4c99270e45b4d3303bbac8a`, exact-head full-suite run `46118876580` in progress.
+- Starts a 12-second monotonic budget at SIGTERM receipt, including the handler's 1.5-second delay; caps producer quiescence at five seconds and passes the remaining global budget through Writer closes.
+- AppState.close() returns a structured report with surviving producers, stop/join errors, scheduler errors, Writer errors, Writer threads still alive and deadline exhaustion.
+- TaggingBeliefWriter forwards the timeout. The clean marker is written only after a successful close report and successful marker persistence; incomplete shutdown exits non-zero without a clean marker.
+- This is a source/test candidate, not yet merged or host-validated. The complete thread census and controlled supervisor/host shutdown test remain open.
+
+G-84 remains OPEN. PR #370 is the draft step-4 candidate for the end-to-end deadline, aggregate shutdown report and truthful clean-marker ordering. It must pass exact-head CI and merge; a complete process thread census and controlled host shutdown test still remain. A failed shutdown must not be reported as clean.
 
 ### Founder decisions required (no action taken)
 
@@ -1142,7 +1150,7 @@ The next bounded sequence is: harden ObjectiveInputStore read/append locking, sy
 
 ## 49. Bonsai → Fountain branch pick → Global Workspace trace (28 November 2026)
 
-**Evidence snapshot:** NEX `main` at `5ba300779ff3081508e56b509d53a27846bf7c67`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; the characterization run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests. The previous manual/research head `39aa3ff07c8ca1f05583369a41d89754f6f884bf` passed full-suite CI run `46117575615`; the post-Sentience/sentence-to-tool rebase is pending exact-head CI.
+**Evidence snapshot:** NEX `main` at `5ba300779ff3081508e56b509d53a27846bf7c67`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; the characterization run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests. The previous manual/research head `39aa3ff07c8ca1f05583369a41d89754f6f884bf` passed full-suite CI run `46117575615`; the post-Sentience/sentence-to-tool manual head `a499b95a134b8e9f02dfc425050bd0b09978d2f7` is undergoing exact-head full-suite CI run `46118965020`.
 
 ### Network path
 
