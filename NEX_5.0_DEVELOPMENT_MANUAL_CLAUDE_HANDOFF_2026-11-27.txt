@@ -4507,3 +4507,43 @@ This research also yields a reusable porting lesson: when adapting prior art, wr
 **Source anchors:** Sentience_5.5/Stillness_Node.py at 1767acf1fdb321d046261eb3c3059084c85fc0c8; NEX theory_x/SYNTHESIS_PLAN_V2.md §3; theory_x/DOCTRINE.md Row 9; NEX implementation commit c4b005f32e931047711ef6cdbe03e84a00183885; current NEX snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
 
 **Evidence level:** directly inspected original prior-art source; compared with the NEX design-plan text, doctrine summary, implementation patch and current runtime source. Reason for omitting the topic-specific refinement and controlling Founder authority remain UNKNOWN.
+
+
+## §119 — Row 9 does not pause the existing speech queue (2026-11-28)
+
+### Speech producer/consumer boundary
+
+The earlier conclusion that the Row 9 guard prevents the current fire's normal speech enqueue is correct, but it must not be generalized into “stillness pauses speech”:
+
+- A new Fountain thought reaches the speech enqueue code only after successful crystallization and belief creation. When the Row 9 guard returns None at the start of crystallization, that fire does not create the corresponding belief or speech_queue row.
+- The SpeechQueueConsumer is a separate daemon thread. run.py constructs it with only the beliefs Writer/Reader (plus voice configuration/state/backend). It does not receive a conversations Reader.
+- The consumer polls beliefs.db for speech_queue rows with status='pending', orders by queued_at, and speaks them when not paused and outside configured quiet hours.
+- Its inspected polling and _speak_one() paths have no read of conversations.stillness_log and no Row 9 gate. The consumer can therefore continue consuming entries that were already pending when a Row 9 stillness row became active.
+- The consumer's own pause/quiet-hours controls are independent. They are not set by Metacognition._maybe_engage_stillness().
+
+### Effective Row 9 boundary
+
+Current source behaviour is therefore:
+
+| Output stage | Effect of active Row 9 conversations stillness row |
+|---|---|
+| Thought generation | Continues; Generator returns the thought |
+| Dynamic fountain fire record | Already written before crystallizer call; remains |
+| Belief crystallization | Blocked at Crystallizer precondition |
+| New speech_queue item for that fire | Not created, because enqueue follows belief creation |
+| Existing pending speech_queue items | Not held by the Row 9 code; consumer can continue speaking them |
+| Other non-Fountain producers of speech_queue rows | Not shown to consult Row 9 in this source pass; their behaviour remains outside this specific path |
+
+This is another reason not to call the current mechanism a global speech pause. It is a crystallization precondition whose side effect is to prevent new speech entries from that Fountain fire; it does not quiesce the already-running speech consumer or drain/hold its backlog.
+
+### Test coverage and next characterization
+
+tests/test_speech.py exercises queue creation, duplicate enqueue prevention, the consumer pause flag, and shutdown during synthesis. It does not activate a Row 9 conversations stillness row while a pending speech_queue item exists. tests/test_stillness.py verifies the crystallizer guard but does not start a consumer with pre-existing queued audio.
+
+A bounded isolated characterization should seed a pending speech row, activate a conversations stillness row, and verify the consumer's current behavior separately from the new-enqueue path. This is a descriptive test of the existing boundary; it is not an authorization to make Row 9 control the consumer. Any new consumer gate would affect voice output policy and requires authority review.
+
+**Disposition:** Phase 0 output-path refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, audio device, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** run.py (SpeechQueueConsumer construction and beliefs-only dependencies); speech/queue_consumer.py (pending poll, pause/quiet-hours checks, synthesis/playback); theory_x/stage6_fountain/crystallizer.py (belief and speech enqueue ordering); theory_x/stage6_fountain/generator.py (post-crystallizer return); tests/test_speech.py; tests/test_stillness.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** source-observed independent consumer, its dependencies, poll/write path and absence of Row 9 query in inspected consumer code; targeted test inventory. Runtime queue state/audio chronology remains UNKNOWN.
