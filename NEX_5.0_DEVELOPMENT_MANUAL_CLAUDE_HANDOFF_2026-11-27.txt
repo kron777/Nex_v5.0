@@ -2005,3 +2005,24 @@ The source is `rdo_adapters/reviewed_seed_bridge.py`; the CLI is documented in `
 **G-92 is partially closed, not complete.** Both candidate lifecycle layers now exist: seed alternatives can be proposed/reviewed and explicitly bridged into objective.v1 intake; novel-kind rule proposals can be recorded/reviewed without activation. The explicit approved-seed → objective.v1 → persisted cycle → resume → Stage-7 handoff lineage path is already covered by rdo/tests/test_reviewed_seed_bridge.py::test_approved_seed_lineage_survives_objective_cycle_resume_and_stage7. The handoff is a separate explicit operation, not an automatic side effect of intake. The remaining gap is upstream raw-idea-to-seed formulation: seed alternatives still require an external human/provider; there is no integrated provider or autonomous raw-idea compiler. Planning remains advisory, and objective-context mapping and criterion verification retain their separate evidence/review path. A rule approved for catalogue consideration still requires a separate ordinary source change, tests and CI before it can enter the active catalogue. No provider is inferred, no rule is automatically promoted, and no execution authority is created.
 
 This update corrects the development status only. It does not create a new rule, activate a candidate, create a Stage-7 handoff, authorize execution, or change frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 or Phase 1 authority.
+
+## 62. Writer constructor rollback after partial thread creation — rebased candidate PR #421 (28 November 2026)
+
+**Source snapshot:** main after merged boot ownership PR #420 (`bf5dbbed66fc0d4884471420998823f658aedc7b`), dangling-symlink PR #422 (`870d16359084db56de6e117aa90a8212abcb6350`) and RDO durability PR #423 (`c374185338070aeb2653227c04c487ef11fd5e6c`). Rebased candidate branch: `fix/writer-start-rollback-rebased-2026-11-28`. The original candidate head `fe1be45ac5fb1efedf6e9daf362c9dfbef1c7d3d` passed 3,055 tests, 7 skipped and 86 subtests; that result is not a substitute for testing this rebased head. Current rebased head is awaiting exact-head CI.
+
+### Source-derived gap and correction
+
+`Writer.__init__()` calls `start()`. If `Thread.start()` raises after the OS thread has actually been created, construction raises before returning the Writer instance while its daemon worker may remain alive. The bounded correction catches startup failure, closes admission, queues the existing shutdown sentinel, and joins for at most 10 seconds while preserving the original exception. A worker that outlives rollback remains referenced and admission remains closed; a later retry cannot create a second concurrent writer. Once the worker exits, the stale sentinel is discarded and a fresh queue is used. Failure before OS thread creation leaves the object restartable.
+
+### Regression coverage
+
+Four deterministic cases cover: post-OS-start exception and worker rollback; pre-thread-creation failure and retry; worker database-open failure during caller-side start failure; and bounded rollback timeout, retained worker reference, and later retry without a stale sentinel. Tests use injected thread lifecycle behavior and bounded cleanup.
+
+### Integration boundary
+
+This is complementary to merged PR #420: #421 owns the individual partially started Writer, while #420 owns already-created producers during boot before AppState takes over. The new branch is based on the merged mainline and carries the Writer implementation and regression tests forward. Exact-head CI is pending; no pass is claimed for the rebased head.
+
+**Unchanged boundaries:** no Writer transaction semantics, schema, runtime configuration, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, descriptive Mind Aspect role, or cognitive/action authority separation is changed.
+
+---
+
