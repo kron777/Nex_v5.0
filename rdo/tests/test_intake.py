@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from rdo.model import AcceptanceVerificationRecord, ContextRequirement, NECESSARY, ANTI_REQUIREMENT, CONDITIONAL
+from rdo.model import AcceptanceVerificationRecord, ContextRequirement, CycleRecord, NECESSARY, ANTI_REQUIREMENT, CONDITIONAL
+from rdo.memory import CycleStore
 from rdo.rule_proposals import RuleProposalStore
 from rdo_adapters.objective_intake import (
     ObjectiveInputError,
@@ -594,6 +595,8 @@ def test_intake_uses_only_explicitly_selected_approved_novel_rules_and_versions_
 
     proposal = {
         "target_kind": "specialized_route",
+        "source_cycle_id": baseline["cycle"]["id"],
+        "source_frontier_key": "specialized_route_seed",
         "source_obligation": {
             "key": "specialized_route_seed",
             "title": "Specialized route mechanism",
@@ -616,13 +619,14 @@ def test_intake_uses_only_explicitly_selected_approved_novel_rules_and_versions_
         "anti_requirements": ["Do not add a write path."],
         "evidence_needs": ["Route contract source and consumer evidence."],
         "disconfirming_cases": ["A generic route with no specialized contract."],
-        "provenance": ["frontier:approved_rule_intake:specialized_route_seed"],
+        "provenance": [f"frontier:{baseline['cycle']['id']}:specialized_route_seed"],
         "positive_tests": ["tests/test_specialized_route.py::test_contract"],
         "negative_tests": ["tests/test_specialized_route.py::test_generic_route_unchanged"],
     }
     ledger = str(tmp_path / "rule_store" / "rule_proposals.jsonl")
     store = RuleProposalStore(ledger)
-    created = store.propose(proposal)
+    source_cycle = CycleStore(str(tmp_path / "baseline_cycles")).load(baseline["cycle"]["id"])
+    created = store.propose(proposal, source_cycle=source_cycle)
     proposal_id = created["data"]["proposal_id"]
     store.review(
         proposal_id, "approved", "reviewer attribution", "review:route-rule",
@@ -664,8 +668,10 @@ def test_intake_rejects_unapproved_or_unknown_rule_selection_before_cycle_creati
     raw = payload("unapproved_rule_intake")
     ledger = str(tmp_path / "rule_store" / "rule_proposals.jsonl")
     store = RuleProposalStore(ledger)
-    created = store.propose({
+    proposal = {
         "target_kind": "novel_worker",
+        "source_cycle_id": "unapproved-source-cycle",
+        "source_frontier_key": "worker",
         "source_obligation": {"key": "worker", "title": "Novel worker", "kind": "novel_worker"},
         "alternatives": [{
             "id": "basic",
@@ -685,7 +691,20 @@ def test_intake_rejects_unapproved_or_unknown_rule_selection_before_cycle_creati
         "provenance": ["frontier:unapproved:worker"],
         "positive_tests": ["tests/test_worker_rule.py::test_lifecycle"],
         "negative_tests": ["tests/test_worker_rule.py::test_documentation_only"],
-    })
+    }
+    source_cycle = CycleRecord(
+        id="unapproved-source-cycle", objective="novel worker",
+        frontier=[{
+            "key": "worker",
+            "reason": "no expansion rule for kind 'novel_worker'",
+            "frontier_type": "novel_kind_requires_rule_proposal",
+            "rule_proposal_request": {
+                "target_kind": "novel_worker",
+                "source_obligation": {"key": "worker", "title": "Novel worker", "kind": "novel_worker"},
+            },
+        }],
+    )
+    created = store.propose(proposal, source_cycle=source_cycle)
     with pytest.raises(ObjectiveInputError, match="not approved"):
         submit_objective(
             raw, repo_dir=str(repo), workdir=str(tmp_path / "cycles"),
