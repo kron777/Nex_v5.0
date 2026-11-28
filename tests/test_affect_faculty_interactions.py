@@ -37,12 +37,12 @@ class TestCompassionToCompass(unittest.TestCase):
 
 class TestCompassionToEquanimity(unittest.TestCase):
     def test_live_compassion_silences_equanimity_even_when_internal_pull_is_hot(self):
-        from theory_x.stage_affect import upekkha
+        from theory_x.stage_affect import compassion, upekkha
 
         with (
             patch.object(upekkha, "_raga_hot", return_value=1.0),
             patch.object(upekkha, "_dvesa_hot", return_value=1.0),
-            patch.object(upekkha, "_karuna_live", return_value=True),
+            patch.object(compassion, "distress_salience", return_value=0.8),
         ):
             read = upekkha.equanimity_read("a person is in genuine distress")
 
