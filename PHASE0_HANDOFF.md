@@ -601,3 +601,24 @@ StrikeProtocol is a separate manually triggered observation harness (POST /api/s
 ### 28 November 2026 — Autonomous fire-path tool boundary
 
 The Stage-B tools are called from GUI chat only; the Fountain generator has no ToolCaller/ToolRegistry references. The fire-path scope note remains an investigation, not authorization. Autonomous triggering requires a separate decision on triggers, per-tool arming, volume caps, audit and human oversight. No autonomous caller or code change. See INDEX §165.
+
+
+## Continuity checkpoint — 28 November 2026
+
+Current source baseline: NEX main 18c8f06171e1de35c3210831a49b63d0e2487af0. Documentation candidate branch: docs/nex-manual-443-snapshot-study-2026-11-28 (PR #447; draft). Sentence/tool characterization: PR #459 (draft), head db4a22d0078844992829613dbb9a4a90eb4a51e9; exact-head workflow 46186063413 passed **3,078 passed, 7 skipped, 86 subtests**; sandbox probe and baseline check OK.
+
+### New evidence
+
+- A successful Stage-B arithmetic capability can run before the normal Technical-register chat gap gate. With no tier-labelled beliefs, the route can then return the configured graph-gap refusal before prompt assembly/voice invocation. PR #459 locks this source ordering in an isolated fixture. This is a response-grounding gate, not operation approval. Do not silently count arbitrary tool output as a belief.
+- The tool_prompt_injected trace event marks staging into local response context; it is not proof that the voice model received the block on the early-refusal path.
+- The Mind Map remains descriptive-only and is kept out of runtime decision imports/reads by its checker and tests. The live ToolCaller selection path receives the raw sentence, not a Mind Aspect output or demonstrated typed Sentence Code object.
+- Sentience 5.5 raw-string voice intake and dictionary-based action placeholder are separate paths; the inspected action method simulates success and is not a real integrated executor.
+- Full Sentence Code → Recursive Extrapolator → capability → approval → execution → verification wiring remains unproven. The existing Sentence Code representation may have disconnected callers elsewhere; do not declare global absence from this selected-path trace.
+
+### Next bounded investigation
+
+Locate the existing Sentence Code owner/schema and trace one sentence through its actual Mind Aspect interpretation, typed representation and Recursive Extrapolator consumers. Identify the first validated capability boundary and distinguish proposal, permission, execution and verified outcome. Begin with a pure/read-only fixture. No new runtime framework, autonomous trigger, tool arming, feature flag, database, frozen specification or Gate 0/Phase 1 status change.
+
+### Files updated in the documentation candidate
+
+INDEX.md §§166–167; research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md §§10–11; PHASE0_HANDOFF.md continuity checkpoint. The plain-text Claude mirror is synchronized byte-for-byte with the complete updated INDEX.md (no independent preamble/content divergence).
