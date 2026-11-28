@@ -3828,3 +3828,32 @@ Next bounded work is to inspect the exact _build_prompt() producer and both stil
 **Source anchors:** ea6fe744fdd247f9d6ee3f183c2f6f2ee7f73008 (Mechanism A: raw recent-event exemplars removed after 3/3 repeated-pattern fires); 60732402f92c10819591072cd7c13d1688a21351 (four inward-feedback blocks disabled; 15-fire hum-lock recorded); 7e71935c015d4e14005fb05589455e5da7141bc2 (dead blocks removed, recovery pointer retained); 7c90e1a0bf6aaa5f030bef606e90a483ccd4f5b8 (bounded distilled own-content restoration, default OFF, slot own_render, live-check requirement).
 
 **Evidence level:** source/history-observed for the intervention and restoration design; test-verified only for the October unit tests described in that commit (not rerun here); live behavioural safety and actual flag/slot distribution UNKNOWN. No runtime code, tests, schema, indexes, feature flags, prompt policy, or execution authority changed.
+
+## 103. Fountain own-content restoration — producer-to-manifest test gap (28 November 2026)
+
+**Question studied:** do the October tests prove the whole path from opt-in distilled-content selection through manifest recording, persistence, and the stillness reader, or only prove prompt text rendering?
+
+**Source snapshot:** main at the §102 source snapshot. Static inspection of tests/test_retrieval.py and theory_x/stage6_fountain/generator.py; no tests executed.
+
+### Verified coverage boundary
+
+- tests/test_retrieval.py::test_build_prompt_includes_own_content_section sets NEX5_OWN_CONTENT_RENDER=1, calls _build_prompt(), and asserts that the own-content heading and a sample belief string appear in prompt text.
+- test_build_prompt_no_own_content_skips_section verifies that enabling the flag with no eligible own-content belief does not add the section.
+- test_build_prompt_default_off_skips_own_content inserts an eligible distilled belief with the flag unset and verifies that the section is absent.
+- The inspected test file contains no assertion about retrieval_manifest contents, no assertion that the rendered belief is recorded under own_render, and no invocation of the stillness/Jaccard caller using that manifest.
+- Current generator source confirms the renderer appends (belief_id, own_render, rank, None) only for retained rendered lines. The stillness caller separately filters its current manifest for slot == own; _check_retrieval_duplicate() separately queries prior rows with SQL slot = 'own'.
+- The tests therefore verify prompt text inclusion/default-off behaviour, not the full producer → manifest → persistence → next-fire consumer contract. The gap is a test-coverage finding, not evidence that the code should be changed.
+
+### Proposed contract tests (design only)
+
+1. With NEX5_OWN_CONTENT_RENDER unset, an eligible distilled belief does not appear in the prompt and does not produce an own_render manifest entry.
+2. With the flag set, a retained eligible belief appears in the prompt and exactly the same belief ID is represented in the manifest as own_render; excluded hot_observer and precipitated_from_sense rows do not enter that rendered population.
+3. The renderer's cap and deduplication are reflected consistently in both prompt text and manifest; skipped candidates must not appear in the manifest.
+4. The test must explicitly encode the stillness policy decision: either own_render is intentionally outside the stillness detector and that detector is documented dormant/legacy, or both current and historical stillness sets consume a clearly defined matching population. Do not make this choice implicitly through a string rename.
+5. If own_render is included, exercise the persisted prior-fire reader with historical own rows present and verify the compatibility rule (dual-read, migration, or bounded legacy handling) rather than silently dropping historical comparisons.
+
+**Disposition:** retain as a Phase 0 evidence/test-contract gap. No production code, tests, schema, slot labels, flags, or runtime behaviour changed. The October tests remain useful and intentional for their narrower text-rendering contract; they simply do not establish downstream manifest or stillness integration.
+
+**Source anchors:** tests/test_retrieval.py blob efd27b50c3cdc5ef64769fefcbb5529cc44ea90e (three opt-in/default-off prompt-render tests); theory_x/stage6_fountain/generator.py blob 26061914b1dd80858c3568217cd1ef0c49ce2c51 (own_render manifest producer, own-only current-set filter, and own-only historical SQL reader).
+
+**Evidence level:** source-observed test coverage and source-observed producer/consumer mismatch; test execution not performed in this pass; persisted live slot distribution and intended stillness policy UNKNOWN.
