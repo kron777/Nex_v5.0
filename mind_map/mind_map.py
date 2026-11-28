@@ -226,7 +226,7 @@ def _source_ref_lines(lines: list[str]) -> set[int]:
             node_indent = None
             source_indent = None
             continue
-        if indent == 0 and re.match(r"^[A-Za-z_][\\w-]*\\s*:", stripped):
+        if indent == 0 and re.match(r"^[A-Za-z_][\w-]*\s*:", stripped):
             in_nodes = False
             node_indent = None
             source_indent = None
@@ -238,13 +238,13 @@ def _source_ref_lines(lines: list[str]) -> set[int]:
             source_indent = None
             continue
         if (node_indent is not None and indent == node_indent + 2
-                and re.match(r"^source\\s*:", stripped)):
+                and re.match(r"^source\s*:", stripped)):
             source_indent = indent
             selected.add(lineno)
             continue
         if source_indent is None:
             continue
-        if stripped and indent <= source_indent and re.match(r"^[A-Za-z_][\\w-]*\\s*:", stripped):
+        if stripped and indent <= source_indent and re.match(r"^[A-Za-z_][\w-]*\s*:", stripped):
             source_indent = None
             continue
         selected.add(lineno)
