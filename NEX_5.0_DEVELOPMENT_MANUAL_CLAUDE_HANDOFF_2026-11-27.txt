@@ -2408,3 +2408,36 @@ Use temporary databases and patched flags only inside the test. Do not change an
 
 ---
 
+## 77. SentienceNode registration census and structural conformance — source audit (28 November 2026)
+
+**Question studied:** are the state-bound faculties merely attempted registrations that silently fail Protocol validation, or do their source classes expose the required lifecycle surface?
+
+### Registration call-site census
+
+At the inspected main snapshot:
+
+- `gui/server.py` contains seven potential object additions across its registration sites: module-level FocalSet and ExecutiveControl; build_state's ProblemMemory, GoalManager and Metacognition; and create_app's membrane SelfModel and BehaviouralSelfModel.
+- `run.py` contains nine state-faculty registration sites: SelfNarrative, HoldingZoneResolver, GoalManager, Metacognition, NovelAssociation, SubstrateHarmonic, GeniusTagger, DriveEmergence and AffectState. The unified entrypoint imports gui.server (which registers its two module-level nodes) and calls create_app once (which attempts to register the two membrane nodes). This is up to thirteen registration attempts in that boot route if all optional constructions succeed; it is not a claim that all attempts always succeed.
+- The two entrypoints are alternatives in normal use; do not add their counts together as one process boot.
+
+### Structural conformance spot-check
+
+The source classes inspected for ProblemMemory, GoalManager, Metacognition, SelfNarrative, HoldingZoneResolver, NovelAssociation, SubstrateHarmonic, GeniusTagger, DriveEmergence, AffectState, SelfModel and BehaviouralSelfModel each expose a `name` attribute and `tick()`, `decay()`, and `state()` methods. FocalSet and ExecutiveControl additionally have explicit Protocol conformance tests. This makes silent registration failure from a missing required member less likely for these inspected classes, but source inspection is not a substitute for an actual runtime membership test.
+
+### What remains unproven
+
+- `register()` checks the runtime-checkable Protocol and appends; it does not enforce unique names despite the Protocol documentation's uniqueness requirement.
+- No reviewed test directly asserts registry membership, duplicate handling, removal, thread safety or repeated `create_app()` behavior.
+- The GUI membrane registration catches and logs errors; several other registration sites suppress exceptions, so the caller does not always expose a failed registration.
+- The complete repository-wide `all_nodes()` consumer inventory remains incomplete; the available code-search interface returned incomplete/empty results. The inspected `gui/server.py` and `run.py` do not consume `all_nodes()`.
+
+### Next bounded test
+
+Before changing implementation, add a focused registry test suite that exercises a conforming fake node, a nonconforming object, same-object re-registration, two distinct objects with the same name, and repeated create_app registration. The expected duplicate policy must first be chosen from Doctrine §4's process-singleton contract; do not silently invent a policy in tests. Keep a separate lifecycle test for AppState-owned faculty objects only if multi-instance AppState use is accepted as supported.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `theory_x/__init__.py` blob `661dc737f54c88f763588606867ae1b9cd7e6654`; `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `theory_x/stage7_sustained/problem_memory.py` blob `720ff939062ffbe52ff36da926f7aff71eb701ec`; `theory_x/stage8_goal_manager/goal_manager.py` blob `0b879a903fa499fb88153edbcb7f5c8e69bd6dfa`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `theory_x/stage_gate/resolver.py` blob `7fa47df888b2f17ef8457ddc9ec024ccaf96298d`; `theory_x/stage10_imagination/novel_association.py` blob `064e1a605f0f22e2484df2e05713cc8b7973513b`; `theory_x/harmonic/substrate_harmonic.py` blob `d3e32c3ccd7301542f60d67bac8e5a14546dd6b1`; `theory_x/genius/tagger.py` blob `ef9f290845f74e498044307dee60ee25437419b0`; `theory_x/stage_drives/drive_emergence.py` blob `3db144383c489ea4055697a1629563cfa94a4552`; `theory_x/stage_affect/affect_state.py` blob `fca8a47fe347a880d72fa1a41dc2c1796e76d1b8`; `theory_x/stage4_membrane/self_model.py` blob `c3646242ee244d7434228fcabf0550ebd0d37947`; `theory_x/stage4_membrane/behavioural_self_model.py` blob `cd6ce4179e95b8435c33602f116f0a33f89ced12`.
+
+**Unchanged boundaries:** no registry behavior, Protocol, doctrine, startup wiring, AppState lifecycle, runtime flag, frozen specification, roadmap, Phase 0/Gate 0 or cognitive/action authority is changed.
+
+---
+
