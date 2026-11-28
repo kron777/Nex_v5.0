@@ -29,6 +29,7 @@ class _Catalogue:
     def __init__(self):
         self.saved = 0
         self.updated = []
+        self.updated_event = threading.Event()
 
     def save(self, _record):
         self.saved += 1
@@ -36,6 +37,7 @@ class _Catalogue:
 
     def update_beliefs_after(self, record_id, count):
         self.updated.append((record_id, count))
+        self.updated_event.set()
 
 
 def _protocol():
@@ -76,6 +78,7 @@ def test_delayed_belief_check_still_updates_when_its_delay_expires():
     protocol._stop_event.wait = lambda _timeout: False
     protocol.fire(StrikeType.NOVEL)
 
+    assert catalogue.updated_event.wait(timeout=1.0)
     threads = list(protocol._threads)
     for thread in threads:
         thread.join(timeout=1.0)
