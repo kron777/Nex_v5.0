@@ -2125,3 +2125,46 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 ---
 
+## 71. Stage-2 attention propagation and downstream selection — source/test seam study (28 November 2026)
+
+**Question studied:** does an external perception merely update a local attention value, or can that value reach the later Fountain branch choice and Global Workspace framing? The negative control is equally important: internal telemetry is recognized for self-monitoring but must not monopolise cognitive attention.
+
+### Source-traced chain
+
+1. `theory_x/stage2_dynamic/attention.py` maps streams to branches and computes magnitude. The source explicitly returns zero for every `internal.*` stream, preserving the separation between internal self-monitoring and attention steering.
+2. `theory_x/stage2_dynamic/pipeline.py` runs A–F: unpack event, match branches, calculate magnitude, apply membrane aperture, assign valence, then call `BonsaiTree.attend()` and log an F event when magnitude is at least 0.001.
+3. `theory_x/stage2_dynamic/bonsai.py` updates branch focus and texture from the admitted magnitude. This is the stateful attention representation.
+4. Fountain's production caller sorts the status branch vector by focus and passes the hottest branch through `_weighted_branch_pick()`. With `NEX5_BRANCH_TEMP` unset/zero, the hottest branch is preserved; with a positive temperature, a softmax roulette can select a lower-focus branch.
+5. Global Workspace's production `arbitrate()` obtains a Bonsai candidate through `_bonsai_candidate(status)` and competes it against other candidates. The candidate is omitted when the hottest branch has focus at or below 0.1. The separate `arbitrate_candidates()` helper selects the highest-salience frame.
+
+### Existing characterization and what it proves
+
+The current `tests/test_dynamic.py` contains three useful tests:
+
+- An `internal.proprioception` event is matched to `systems` but has zero magnitude, produces no Stage-2 F hit, leaves focus/texture unchanged and yields no Bonsai workspace candidate.
+- An external `ai_research.arxiv` event increases the `ai_research` branch's focus and texture through the real A–F pipeline.
+- Forty external events produce an `ai_research` focus above 0.1; the test checks the hottest branch, the zero-temperature Fountain helper, the positive-temperature roulette's forced final bucket, and the Bonsai candidate/frame helpers.
+
+This is materially stronger than checking module existence: it exercises the real Stage-2 pipeline and several downstream selection functions with isolated objects. It is still **layered characterization**, not a complete live-path demonstration. The Fountain assertion calls `_weighted_branch_pick()` directly rather than executing the full Fountain fire orchestration. The workspace assertion manually builds a status dictionary and calls `_bonsai_candidate()` plus `arbitrate_candidates()`; it does not call production `arbitrate()` with its database-backed surprise/momentum candidates. No production flag, live database or host process was changed or exercised.
+
+### Research conclusion
+
+The source supports a real functional path from external sense input to branch attention, and shows two downstream consumers of that representation. The test evidence establishes selected edges and helper semantics, not that a live NEX process is running these paths, that every relevant flag is enabled, or that the resulting cognition is beneficial. Internal telemetry's exclusion is a deliberate anti-starvation boundary; reconnecting it indiscriminately would risk the historical systems-branch pinning failure documented in the source.
+
+### Next falsification study
+
+Build a deterministic, isolated integration test that crosses the remaining seams without touching live runtime state:
+
+- Use a temporary substrate/database and controlled branch status to invoke the production Global Workspace `arbitrate()` path. Provide competing momentum/surprise candidates and assert both the Bonsai-win and non-Bonsai-win cases; record the exact salience margin and tie behaviour.
+- Exercise the actual Fountain caller around branch sorting and `_weighted_branch_pick()`, or extract a narrow pure selection function only if that reduces test coupling without changing semantics. Compare temperature zero with a controlled positive-temperature draw.
+- Add a paired negative-control case for `internal.*` and a positive external event case. Keep event count, initial focus, decay and aperture fixed; avoid relying on unbounded sleeps or stochastic sampling.
+- Separate causal claims: pipeline-to-focus, focus-to-Fountain pick, and focus-to-workspace frame are three independently falsifiable edges. A pass at one edge must not be reported as proof of the others.
+
+Do not change `NEX5_BRANCH_TEMP`, workspace flags, attention magnitude policy or runtime wiring as part of this study. First establish what the existing tests and production call sites actually guarantee.
+
+**Source anchors inspected:** `tests/test_dynamic.py` blob `7e7493a5d79dda73f0ff374728a3da9eb34a558c`; `theory_x/stage2_dynamic/pipeline.py` blob `fbac28e96ffc34dbf59c60242d3ac635835e6e06`; `theory_x/stage2_dynamic/attention.py` blob `d2765c7618e8421bb3e60c8898f749f2370f0344`; `theory_x/stage2_dynamic/bonsai.py` blob `d0389d6036deecf27dcf636771ef817c685b1e7c`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/global_workspace.py` blob `39d833d4a88ed3ad371daf7b62e7295d0dda6637`.
+
+**Unchanged boundaries:** no runtime code, live flag, attention policy, schema, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, descriptive Mind Aspect policy or cognitive/action authority separation is changed.
+
+---
+
