@@ -684,9 +684,9 @@ TABLES_PER_DB: dict[str, tuple[str, ...]] = {
 }
 
 
-# One total deadline begins at SIGTERM receipt. It includes run.py's 1.5s
-# in-flight-fire window, producer quiescence and all Writer drains, leaving
-# 3s before nex_keepalive.sh's 15s forced-kill limit.
+# One total deadline begins at SIGTERM receipt. It covers HTTP request
+# drain, producer quiescence and all Writer drains, leaving 3s before
+# nex_keepalive.sh's 15s forced-kill limit.
 _SHUTDOWN_TOTAL_BUDGET_S = 12.0
 _PRODUCER_STOP_TIMEOUT_S = 5.0
 
