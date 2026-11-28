@@ -376,3 +376,7 @@ Voice transport refinement: `voice/llm.py` builds a two-message payload and pass
 ### 28 November 2026 — G-83 route-to-transport test candidate
 
 Draft PR #450 (`b33022cfaf47cc34dc8eec316cd583c15e6d880e`) adds a GUI route fixture using real Metacognition and Stage-SelfNarrative objects with mocked voice transport. It asserts Technical's insufficient-belief return occurs before transport and Philosophical carries both reflective strings into the transport user message. Workflow `46175227754` is pending/in progress. Test-only; no live model/provider or cognitive behaviour change. See INDEX §127.
+
+### 28 November 2026 — G-83 upstream producer provenance
+
+GrooveSpotter's source query reads the latest `fountain_insight` and `synergized` beliefs, not chat messages. DiversityLoop invokes it every 60 seconds. Unchanged n-gram patterns are suppressed by an in-memory fingerprint (restart resets it). N-gram alerts at severity >=0.5 write a two-hour pattern-specific `signal_cooldown`, which FountainCrystallizer checks against future thought content. This targeted cooldown is distinct from Metacognition's consumer replay and Row 9 global hold. See INDEX §128. No behaviour changed.
