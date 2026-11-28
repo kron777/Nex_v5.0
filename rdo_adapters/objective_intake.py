@@ -311,10 +311,11 @@ def validate_raw_objective(payload: Any) -> dict:
     intent = _text(top["intent"], "intent", max_length=4000)
     owner = _text(top["owner"], "owner", max_length=256)
     source = _object(top["source"], "source", {"kind", "reference"})
-    if source["kind"] not in _SOURCE_KINDS:
+    source_kind = source["kind"]
+    if not isinstance(source_kind, str) or source_kind not in _SOURCE_KINDS:
         raise ObjectiveInputError(f"source.kind must be one of {sorted(_SOURCE_KINDS)}")
     source = {
-        "kind": source["kind"],
+        "kind": source_kind,
         "reference": _text(source["reference"], "source.reference", max_length=512),
     }
     scope = _object(top["scope"], "scope", {"in_scope", "affected_paths"})
