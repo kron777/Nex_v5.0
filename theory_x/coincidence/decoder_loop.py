@@ -59,8 +59,15 @@ def _local_hour_dow(fire_ts: float) -> tuple[int, int]:
     return local.hour, local.weekday()
 
 
-def _read_tree_snapshot(cx: Connection, fire_ts: float) -> tuple[float | None, int | None]:
+def _read_tree_snapshot(
+    cx: Connection,
+    fire_ts: float,
+    *,
+    stop_event: threading.Event | None = None,
+) -> tuple[float | None, int | None]:
     """Return (aperture, active_branch_count) from nearest tree_snapshot at-or-before fire_ts."""
+    if stop_event is not None and stop_event.is_set():
+        return None, None
     try:
         row = cx.execute(
             "SELECT membrane_aperture, active_branch_count FROM tree_snapshots "
@@ -76,7 +83,12 @@ def _read_tree_snapshot(cx: Connection, fire_ts: float) -> tuple[float | None, i
     return None, None
 
 
-def _read_state_counts(cx: Connection, fire_ts: float) -> dict:
+def _read_state_counts(
+    cx: Connection,
+    fire_ts: float,
+    *,
+    stop_event: threading.Event | None = None,
+) -> dict:
     out = {
         "surprises_30min": 0, "daemons_5min": 0, "belief_delta_1h": 0,
         "seconds_since_daemon": None,
@@ -85,6 +97,8 @@ def _read_state_counts(cx: Connection, fire_ts: float) -> dict:
     five_min = fire_ts - 300
     one_hour = fire_ts - 3600
     try:
+        if stop_event is not None and stop_event.is_set():
+            return out
         row = cx.execute(
             "SELECT COUNT(*) FROM surprise_events "
             "WHERE triggered_at > ? AND triggered_at <= ? AND surprise_flag = 1",
@@ -94,6 +108,8 @@ def _read_state_counts(cx: Connection, fire_ts: float) -> dict:
     except Exception:
         pass
 
+    if stop_event is not None and stop_event.is_set():
+        return out
     # daemon firings: count in last 5min + most recent ts for seconds_since
     daemon_total = 0
     most_recent_daemon = None
@@ -103,6 +119,8 @@ def _read_state_counts(cx: Connection, fire_ts: float) -> dict:
         ("witness_log", "composed_at"),
         ("stillness_log", "ts"),
     ]:
+        if stop_event is not None and stop_event.is_set():
+            return out
         try:
             r = cx.execute(
                 f"SELECT COUNT(*), MAX({col}) FROM {table} WHERE {col} <= ?",
@@ -125,6 +143,8 @@ def _read_state_counts(cx: Connection, fire_ts: float) -> dict:
     if most_recent_daemon is not None:
         out["seconds_since_daemon"] = max(0.0, fire_ts - most_recent_daemon)
 
+    if stop_event is not None and stop_event.is_set():
+        return out
     try:
         row = cx.execute(
             "SELECT COUNT(*) FROM fountain_events WHERE ts > ? AND ts <= ?",
@@ -136,8 +156,15 @@ def _read_state_counts(cx: Connection, fire_ts: float) -> dict:
     return out
 
 
-def _read_seconds_since_feed(sense_reader: Reader, fire_ts: float) -> float | None:
+def _read_seconds_since_feed(
+    sense_reader: Reader,
+    fire_ts: float,
+    *,
+    stop_event: threading.Event | None = None,
+) -> float | None:
     """Time since the most recent EXTERNAL (non-internal) sense event."""
+    if stop_event is not None and stop_event.is_set():
+        return None
     try:
         row = sense_reader.read_one(
             "SELECT MAX(timestamp) FROM sense_events "
@@ -174,6 +201,8 @@ def _set_last_fid(cx: Connection, fid: int) -> None:
 def decoder_tick(
     dynamic_writer: Writer | None = None,
     sense_reader: Reader | None = None,
+    *,
+    stop_event: threading.Event | None = None,
 ) -> dict:
     """Process pending fires inside the canonical dynamic Writer transaction.
 
@@ -181,6 +210,8 @@ def decoder_tick(
     transaction. Sense-feed timing is read-only through the shared Reader.
     Standalone callers may omit handles and receive an owned Writer fallback.
     """
+    if stop_event is not None and stop_event.is_set():
+        return {"processed": 0, "words": 0}
     owns_writer = dynamic_writer is None
     writer = dynamic_writer
     try:
@@ -189,6 +220,11 @@ def decoder_tick(
         reader = sense_reader or Reader(SENSE_DB)
 
         def _process(cx):
+            def _stopping() -> bool:
+                return stop_event is not None and stop_event.is_set()
+
+            if _stopping():
+                return {"processed": 0, "words": 0}
             cx.row_factory = Row
             # The daemon cursor is a small dynamic-DB key/value table. Ensure
             # it exists inside the same canonical Writer transaction before
@@ -198,24 +234,46 @@ def decoder_tick(
                 "key TEXT PRIMARY KEY, value TEXT NOT NULL)"
             )
             last_fid = _get_last_fid(cx)
+            if _stopping():
+                return {"processed": 0, "words": 0}
             rows = cx.execute(
                 "SELECT id, ts, thought, hot_branch, tag FROM fountain_events "
                 "WHERE id > ? AND thought != '' AND thought NOT LIKE '[%' "
                 "ORDER BY id ASC LIMIT 200",
                 (last_fid,),
             ).fetchall()
-            if not rows:
+            if _stopping() or not rows:
                 return {"processed": 0, "words": 0}
             total_words = 0
+            processed = 0
             for r in rows:
+                # Each completed fire row is the transaction's smallest commit
+                # unit: stop between rows, never halfway through its word set.
+                if _stopping():
+                    break
                 words = _tokenize(r["thought"])
+                if _stopping():
+                    break
                 if not words:
                     _set_last_fid(cx, r["id"])
+                    processed += 1
                     continue
-                aperture, active_count = _read_tree_snapshot(cx, r["ts"])
-                counts = _read_state_counts(cx, r["ts"])
-                secs_feed = _read_seconds_since_feed(reader, r["ts"])
+                aperture, active_count = _read_tree_snapshot(
+                    cx, r["ts"], stop_event=stop_event
+                )
+                if _stopping():
+                    break
+                counts = _read_state_counts(cx, r["ts"], stop_event=stop_event)
+                if _stopping():
+                    break
+                secs_feed = _read_seconds_since_feed(
+                    reader, r["ts"], stop_event=stop_event
+                )
+                if _stopping():
+                    break
                 hour, dow = _local_hour_dow(r["ts"])
+                if _stopping():
+                    break
                 for w in words:
                     cx.execute(
                         "INSERT INTO word_contexts "
@@ -232,7 +290,8 @@ def decoder_tick(
                     )
                     total_words += 1
                 _set_last_fid(cx, r["id"])
-            return {"processed": len(rows), "words": total_words}
+                processed += 1
+            return {"processed": processed, "words": total_words}
 
         return writer.transaction(_process)
     finally:
@@ -249,6 +308,7 @@ def decoder_loop(state, stop: threading.Event) -> None:
             result = decoder_tick(
                 dynamic_writer=state.writers["dynamic"],
                 sense_reader=state.readers["sense"],
+                stop_event=stop,
             )
             if result["processed"]:
                 log.info("decoder: %s fires, %s words logged",
