@@ -347,3 +347,12 @@ Draft PR #448 adds one test file only for the four GrooveSpotter process-local f
 ### 28 November 2026 — G-83 historical runtime evidence anchor
 
 The 14 November investigation journal records 1,198 groove_alerts rows (then 1,199 ~20 minutes later) and 0/1,198 acknowledged at that historical time. 94.8% were template_repetition; 5.2% ngram_repetition. Its 30-minute gap-clustering grouped 1,199 rows into 55 groups (median 14 rows, p90 54, max 102; median span ~106.7m, max ~837.3m). Nov 10 alert IDs 751/752 were severity-1 template alerts; the journal records a real cooldown write and later crystallization rejection. This is historical database evidence only, not current runtime observation. The 30-minute gap clusters are not the current producer fingerprints or Row 9 derived-event identity. See INDEX §123; G-83 remains OPEN.
+
+
+### 28 November 2026 — G-83 producer/consumer test candidates
+
+Two separate draft test-only PRs now characterize the two replay boundaries:
+- #448 producer fingerprints, exact head f4447ad5b243b97c91c28fc00abbef88fe7c51f9, full suite run 46173749707 IN_PROGRESS.
+- #449 consumer replay/Row 9 renewal with one source alert and five controlled chat ticks, exact head 50c2e083de1dab3e40301b37dc14b614a0d08f23, full suite run 46174148899 IN_PROGRESS.
+
+Neither workflow has a result yet. No local tests were run. Both remain drafts; no runtime behaviour or specification is changed. See INDEX §124; G-83 remains OPEN.
