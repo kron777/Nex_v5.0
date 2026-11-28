@@ -259,10 +259,10 @@ class TestSpeechConsumer(unittest.TestCase):
     def test_shutdown_during_synthesis_requeues_without_starting_playback(self):
         belief_id = self._seed_pending()
         consumer = self._make_consumer()
-        row = self.readers["beliefs"].read(
+        row = dict(self.readers["beliefs"].read(
             "SELECT id, belief_id, content, voice FROM speech_queue WHERE belief_id=?",
             (belief_id,),
-        )[0]
+        )[0])
         entered = threading.Event()
         release = threading.Event()
         stop = threading.Event()
