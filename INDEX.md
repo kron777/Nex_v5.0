@@ -1234,7 +1234,7 @@ The fetched page text is still wrapped as a tool result and inserted into the vo
 
 ### 16.9 Request-drain budget versus voice-call timeout — measured risk, not yet host-verified
 
-A source trace found a material timing mismatch: the total request/shutdown budget is **12 seconds**, while the default `VoiceClient` HTTP request timeout is **120 seconds**. The chat route may also perform one anti-repeat retry and one provenance retry, each as another sequential `state.voice.speak()` call when `NEX5_CHAT_MEMORY=1` / `NEX5_PROVENANCE=1` and an admin session are present. The tracked launcher does not explicitly set either flag; the installed service manager may inject them, but its effective environment is unverified.
+A source trace found a material timing mismatch: the total request/shutdown budget is **12 seconds**, while the default `VoiceClient` HTTP request timeout is **120 seconds**. The chat route may also perform one anti-repeat retry and one provenance retry, each as another sequential `state.voice.speak()` call when the relevant admin-session and response conditions are met. The tracked `nex_keepalive.sh` launch line explicitly sets both `NEX5_CHAT_MEMORY=1` and `NEX5_PROVENANCE=1`, so both retry paths are armed; their actual host frequency is unmeasured.
 
 The shutdown gate has no cancellation hook into an admitted VoiceClient call. If an active request remains blocked beyond the 12-second deadline, `begin_shutdown()` reports failure and `run.py` calls `os._exit(1)` before `AppState.close()`, producer quiescence, Writer draining or clean-marker persistence. The supervisor can then force-kill the child at approximately 15 seconds.
 
