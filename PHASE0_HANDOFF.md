@@ -424,3 +424,7 @@ INDEX §133 now provides the consolidated Fountain → belief → GrooveSpotter 
 ### 28 November 2026 — G-83 prompt and retrieval lineage boundary
 
 Fountain's optional Metacognition rail injects only the generic cached formatter line, not the GUI Stage-SelfNarrative pattern-specific `narrative_log` text. `groove_alerts.sample_belief_ids` is not selected by Metacognition; the disabled/de-wired GrooveBreaker selects but does not use it; Fountain context retrieval does not query the alert table. No direct alert-to-source-belief retrieval priority path was found. See INDEX §§131, 133.
+
+### 28 November 2026 — G-83 generation versus persistence controls
+
+The Fountain model call returns a thought before the crystallizer checks Row 9 stillness and `signal_cooldown`. Those controls reject belief persistence after generation; the generator still logs/returns the thought. They are not generation brakes. The optional `NEX5_METACOG_VOICE` text rail is the only direct Metacognition-to-Fountain prompt influence found, default-off by source. See INDEX §134.
