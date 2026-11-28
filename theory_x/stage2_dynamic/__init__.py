@@ -341,7 +341,11 @@ def _aperture_loop(state: DynamicState, stop: threading.Event) -> None:
     while not stop.is_set():
         try:
             nodes = state.tree.all_nodes()
+            if stop.is_set():
+                break
             agg_texture = _aggregate_texture_num(nodes)
+            if stop.is_set():
+                break
             state.membrane.recalc_aperture(agg_texture)
         except Exception as exc:
             errors.record(f"aperture_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
@@ -432,6 +436,9 @@ def _snapshot_loop(state: DynamicState, stop: threading.Event) -> None:
         except Exception as exc:
             errors.record(f"snapshot_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
 
+        if stop.is_set():
+            break
+
         # Session 29 (instrument #3) — tier-count history. Own try/except,
         # deliberately separate from the tree_snapshot write above: this is
         # telemetry, not load-bearing, and must never be able to slow or
@@ -446,6 +453,8 @@ def _snapshot_loop(state: DynamicState, stop: threading.Event) -> None:
         # write), so nothing consumes it at full resolution. 15 min keeps the
         # shape of every trend this could ever be asked about at 1/15th the rows.
         try:
+            if stop.is_set():
+                break
             tier_ts = time.time()
             if tier_ts - tier_last_ts >= _TIER_SNAPSHOT_INTERVAL:
                 tier_last_ts = tier_ts
