@@ -553,3 +553,6 @@ PR #454 exact-head workflow 46182737858 passed at 7b9ae6c3f0debbc87882b8d8e8c893
 ### 28 November 2026 — Dual SelfNarrative class identity
 
 There are two different SelfNarrative classes: the persistent StageSelfNarrative in run.py used by CoherenceGate/Metacognition/GUI chat, and a Stage-TOM SelfNarrative constructed separately by FountainGenerator under NEX5_SELF_NARRATIVE=1 for Fountain prompt composition. The Stage-TOM write_narrative method appends to a private log that get_narrative does not read; the inspected gate receives the other class. Host flag and any external callers remain UNKNOWN. See INDEX §159.
+
+
+PR #455 exact-head workflow 46182908854 passed at b74798e87174cfa1f74c740066bcd9c0904a4341. Tests characterize readiness modulation/OFF and recent-striking prompt block behavior; host flags and live delivery remain UNKNOWN.
