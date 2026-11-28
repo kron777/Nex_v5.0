@@ -1072,6 +1072,9 @@ class SelfPredictionLoop:
         self._beliefs_reader = beliefs_reader
 
     def tick(self, stop_event=None):
+        if stop_event is None:
+            stop_event = getattr(self, "_stop_event", None)
+
         def _stopping() -> bool:
             return stop_event is not None and stop_event.is_set()
 
@@ -1214,7 +1217,7 @@ class SelfPredictionLoop:
 
         def _run():
             while self._alive and not stop_event.is_set():
-                self.tick(stop_event=stop_event)
+                self.tick()
                 if stop_event.wait(self.interval):
                     break
         self._thread = threading.Thread(target=_run, daemon=True,
