@@ -5014,3 +5014,13 @@ The exact-head test establishes the first case: five rows from one source alert 
 **Disposition:** source-observed identity is retained in narrative_log.source_id but not in meta_cognition_events; Row 9 counts aggregate rows without identity deduplication. PR #449 exact-head tests verify repeated same-source events; PR #450 verifies route-to-transport strings. G-83 remains OPEN. No new schema, source code, flags, frozen specification, roadmap or Gate 0 authority changed.
 
 **Source anchors:** theory_x/stage9_metacognition/metacognition.py blob de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08; theory_x/stage_self_narrative/self_narrative.py blob 15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3; PR #449 head 8132db2a338727e580e3269ad148277db727b0d4, workflow 46174972385.
+
+
+### §129 downstream-reader refinement — two optional second-order reflection paths
+
+The event stream has two additional readers beyond the ordinary chat formatter and Row 9 counter:
+
+1. **Built-in Stage-9 digest — dark unless NEX5_METACOG_DIGEST=1.** _detect_digest() groups meta_cognition_events by event_type, requires at least three rows in its adaptive lookback (seven-day cap, tightening once 100 rows exist), excludes metacog_digest from its own count, and applies a one-hour per-event_type cooldown. If enabled, three repeated groove rows from one source alert are sufficient to create a metacog_digest row; format_for_prompt() can then surface the digest description on that same tick. Its self-exclusion prevents digest rows from recursively counting themselves, but it does not distinguish distinct source alert IDs. Existing tests verify flag-off inertness, threshold, cooldown and self-exclusion; no runtime flag state is known.
+2. **Manual M1 reflection script — dark unless NEX5_METACOG_REFLECT=1 and explicitly invoked with --live.** tools/metacog_digest.py reads every meta_cognition_events row in its lookback regardless of severity, plus high-surprise events, without source-ID deduplication. It makes one VoiceClient reflection call and stores a metacog_summaries row. Its tests verify flag-off no-op and that repeated manual runs create additional summaries. Static searches of gui/server.py, run.py and nex_keepalive.sh find no import or invocation; it is not part of the live periodic/chat path.
+
+These are optional, distinct second-order consumers, not evidence that reflective LLM calls are currently running. The ordinary Metacognition generic line and topic-filtered narrative path remain the only confirmed chat-path readers. Do not conflate the built-in template/count digest with the separate manually invoked LLM reflection script.
