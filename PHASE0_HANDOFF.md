@@ -596,3 +596,8 @@ PR #457 expanded exact-head workflow 46184425657 passed: 3,080 passed, 7 skipped
 
 
 StrikeProtocol is a separate manually triggered observation harness (POST /api/strikes/fire), not an action executor: it sends probe text to the voice model, captures context and stores a separate StrikeRecord. See INDEX §164.
+
+
+### 28 November 2026 — Autonomous fire-path tool boundary
+
+The Stage-B tools are called from GUI chat only; the Fountain generator has no ToolCaller/ToolRegistry references. The fire-path scope note remains an investigation, not authorization. Autonomous triggering requires a separate decision on triggers, per-tool arming, volume caps, audit and human oversight. No autonomous caller or code change. See INDEX §165.
