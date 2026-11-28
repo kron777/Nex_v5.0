@@ -339,6 +339,9 @@ def test_approved_seed_lineage_survives_objective_cycle_resume_and_stage7(tmp_pa
 
     assert result["status"] == "created"
     assert cycle["objective_lineage"] == lineage
+    approval_event = lineage["approval"]["event"]
+    assert approval_event["event_kind"] == "review_decision"
+    assert approval_event["event_sha256"] == lineage["approval"]["event_sha256"]
     history = objective_store.history("bridge-objective")
     assert len(history) == 1
     assert history[0]["lineage"] == lineage
@@ -349,6 +352,12 @@ def test_approved_seed_lineage_survives_objective_cycle_resume_and_stage7(tmp_pa
     conflicting_lineage["proposal_source_reference"] = "different-source"
     with pytest.raises(ObjectiveInputError, match="different proposal lineage"):
         objective_store.append(resumed["objective"], lineage=conflicting_lineage)
+    tampered_lineage = dict(lineage)
+    tampered_lineage["approval"] = dict(lineage["approval"])
+    tampered_lineage["approval"]["event"] = dict(approval_event)
+    tampered_lineage["approval"]["event"]["recorded_at"] = "tampered"
+    with pytest.raises(ObjectiveInputError, match="event digest does not verify"):
+        objective_store.append(resumed["objective"], lineage=tampered_lineage)
 
     replay = submit_reviewed_selection(
         store, proposal_id, objective_store, repo_dir=str(repo), workdir=workdir
