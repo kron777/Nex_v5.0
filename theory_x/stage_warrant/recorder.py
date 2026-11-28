@@ -79,7 +79,7 @@ def write_batch(writer, stmts: list) -> None:
             writer.write(sql, params)
 
 
-def shadow_conflict_check(rows: list) -> dict:
+def shadow_conflict_check(rows: list, *, stop_event=None) -> dict:
     """{belief_id: passed} for a window of {id, content} rows, using the
     harmonizer's detector pairwise within the window. Pure function."""
     from theory_x.stage3_world_model.harmonizer import _conflict_score
@@ -87,7 +87,11 @@ def shadow_conflict_check(rows: list) -> dict:
     toks = {r["id"]: _tokenize(r["content"] or "") for r in rows}
     failed = set()
     for i, a in enumerate(rows):
+        if stop_event is not None and stop_event.is_set():
+            return {}
         for b in rows[i + 1:]:
+            if stop_event is not None and stop_event.is_set():
+                return {}
             if _conflict_score(toks[a["id"]], a["content"] or "",
                                toks[b["id"]], b["content"] or "") >= _CONFLICT_THRESHOLD:
                 failed.add(a["id"]); failed.add(b["id"])
@@ -111,15 +115,21 @@ class WarrantRecorder:
         self._stats = {"survival_rows": 0, "use_pairs": 0, "last_error": None}
 
     # ── plumbing ────────────────────────────────────────────────────────────
-    def _ensure(self) -> None:
+    def _ensure(self, *, stop_event=None) -> None:
         if not self._ready:
             for ddl in _DDL:
+                if stop_event is not None and stop_event.is_set():
+                    return
                 self._w.write(ddl)
             # Existing installations have the original (name, value) cursor.
             # Add the stable row-id component without resetting their progress.
+            if stop_event is not None and stop_event.is_set():
+                return
             columns = {r["name"] for r in self._br.read(
                 "PRAGMA table_info(warrant_record_cursor)"
             )}
+            if stop_event is not None and stop_event.is_set():
+                return
             if "tie_id" not in columns:
                 self._w.write(
                     "ALTER TABLE warrant_record_cursor ADD COLUMN "
@@ -181,26 +191,40 @@ class WarrantRecorder:
         ])
 
     # ── 1. survival ─────────────────────────────────────────────────────────
-    def survival_cycle(self, now: Optional[float] = None) -> int:
-        self._ensure()
+    def survival_cycle(self, now: Optional[float] = None, *, stop_event=None) -> int:
+        if stop_event is not None and stop_event.is_set():
+            return 0
+        self._ensure(stop_event=stop_event)
+        if stop_event is not None and stop_event.is_set():
+            return 0
         now = time.time() if now is None else now
         window, cursors = [], {}
         for lo, hi in _BANDS:
+            if stop_event is not None and stop_event.is_set():
+                return 0
             key = f"surv_t{lo}{hi}"
             cur = self._cursor(key)
             q = ("SELECT id, content, tier FROM beliefs WHERE tier BETWEEN ? AND ? "
                  "AND locked = 0 AND paused = 0 AND id > ? ORDER BY id LIMIT ?")
             rows = [dict(r) for r in self._br.read(q, (lo, hi, int(cur), _PER_BAND))]
+            if stop_event is not None and stop_event.is_set():
+                return 0
             if len(rows) < _PER_BAND:                       # end of band: wrap
                 seen = {x["id"] for x in rows}
                 rows += [dict(r) for r in self._br.read(q, (lo, hi, -1, _PER_BAND - len(rows)))
                          if r["id"] not in seen]
+                if stop_event is not None and stop_event.is_set():
+                    return 0
             if rows:
                 cursors[key] = float(rows[-1]["id"])        # last id taken, in order
             window += rows
         if not window:
             return 0
-        verdict = shadow_conflict_check(window)
+        if stop_event is not None and stop_event.is_set():
+            return 0
+        verdict = shadow_conflict_check(window, stop_event=stop_event)
+        if stop_event is not None and stop_event.is_set():
+            return 0
         tier = {r["id"]: r["tier"] for r in window}
         write_batch(self._w, [(
             "INSERT INTO belief_survival (belief_id, ts, check_type, passed, tier) "
@@ -211,14 +235,20 @@ class WarrantRecorder:
         return len(verdict)
 
     # ── 2. use days ─────────────────────────────────────────────────────────
-    def use_cycle(self, now: Optional[float] = None) -> int:
-        self._ensure()
+    def use_cycle(self, now: Optional[float] = None, *, stop_event=None) -> int:
+        if stop_event is not None and stop_event.is_set():
+            return 0
+        self._ensure(stop_event=stop_event)
+        if stop_event is not None and stop_event.is_set():
+            return 0
         now = time.time() if now is None else now
         pairs, cur_new = set(), {}
 
         def take(key, rows, id_key, bid_keys, ts_key, tie_key=None):
             last = None
             for r in rows:
+                if stop_event is not None and stop_event.is_set():
+                    return False
                 for k in bid_keys:
                     if r[k] is not None:
                         pairs.add((int(r[k]), int(float(r[ts_key]) // _DAY)))
@@ -234,17 +264,21 @@ class WarrantRecorder:
             "SELECT id, belief_id, ts FROM fountain_retrieval_log WHERE id > ? "
             # guaranteed identity-block retrievals are not use (see warrant.py)
             "AND slot IS NOT 'identity_block' "
-            "ORDER BY id LIMIT ?", (int(c), _USE_BATCH)), "id", ("belief_id",), "ts")
+            "ORDER BY id LIMIT ?", (int(c), _USE_BATCH))
+        if stop_event is not None and stop_event.is_set() or not take("use_retrieval_id", rows, "id", ("belief_id",), "ts"):
+            return 0
         c = self._cursor("use_anchor_id")
-        take("use_anchor_id", self._dr.read(
+        rows = self._dr.read(
             "SELECT id, anchor_belief_id, ts FROM fountain_events WHERE id > ? "
-            "AND anchor_belief_id IS NOT NULL ORDER BY id LIMIT ?", (int(c), _USE_BATCH)),
-            "id", ("anchor_belief_id",), "ts")
+            "AND anchor_belief_id IS NOT NULL ORDER BY id LIMIT ?", (int(c), _USE_BATCH))
+        if stop_event is not None and stop_event.is_set() or not take("use_anchor_id", rows, "id", ("anchor_belief_id",), "ts"):
+            return 0
         c = self._cursor("use_synergizer_id")
-        take("use_synergizer_id", self._br.read(
+        rows = self._br.read(
             "SELECT id, belief_id_a, belief_id_b, ts FROM synergizer_log WHERE id > ? "
-            "ORDER BY id LIMIT ?", (int(c), _USE_BATCH)),
-            "id", ("belief_id_a", "belief_id_b"), "ts")
+            "ORDER BY id LIMIT ?", (int(c), _USE_BATCH))
+        if stop_event is not None and stop_event.is_set() or not take("use_synergizer_id", rows, "id", ("belief_id_a", "belief_id_b"), "ts"):
+            return 0
         # Use event time first and declared primary-key columns as tie-breakers.
         # A key-only cursor can miss late additions to an older child/arc (for
         # example, an active arc receiving a new member after newer arcs exist).
@@ -258,6 +292,8 @@ class WarrantRecorder:
             "ORDER BY created_at, child_id, parent_id, relationship LIMIT ?",
             (*last, _USE_BATCH),
         )
+        if stop_event is not None and stop_event.is_set():
+            return 0
         for row in rows:
             pairs.add((int(row["parent_id"]), int(float(row["created_at"]) // _DAY)))
         if rows:
@@ -274,6 +310,8 @@ class WarrantRecorder:
             "ORDER BY joined_at, arc_id, belief_id LIMIT ?",
             (*last, _USE_BATCH),
         )
+        if stop_event is not None and stop_event.is_set():
+            return 0
         for row in rows:
             pairs.add((int(row["belief_id"]), int(float(row["joined_at"]) // _DAY)))
         if rows:
@@ -282,7 +320,11 @@ class WarrantRecorder:
                 float(row["joined_at"]), int(row["arc_id"]), int(row["belief_id"])
             )
 
+        if stop_event is not None and stop_event.is_set():
+            return 0
         if pairs:
+            # Once this idempotent data/cursor commit begins, finish it so the
+            # cursor cannot lag a partially applied batch on the next restart.
             write_batch(self._w, [(
                 "INSERT OR IGNORE INTO belief_use_day (belief_id, day) VALUES (?, ?)", p)
                 for p in sorted(pairs)])
@@ -316,7 +358,9 @@ class WarrantRecorder:
         while not stop_event.is_set():
             t = time.time()
             try:
-                n = self.use_cycle(t)
+                n = self.use_cycle(t, stop_event=stop_event)
+                if stop_event.is_set():
+                    break
                 if n:
                     errors.record(f"warrant recorder: {n} (belief, day) use pairs",
                                   source=_LOG_SOURCE, level="INFO")
@@ -325,14 +369,18 @@ class WarrantRecorder:
                 errors.record(f"warrant recorder use cycle failed (non-fatal): {exc}",
                               source=_LOG_SOURCE, exc=exc)
             if t >= next_surv:
+                if stop_event.is_set():
+                    break
                 try:
-                    n = self.survival_cycle(t)
+                    n = self.survival_cycle(t, stop_event=stop_event)
                     errors.record(f"warrant recorder: {n} survival checks",
                                   source=_LOG_SOURCE, level="INFO")
                 except Exception as exc:
                     self._stats["last_error"] = str(exc)
                     errors.record(f"warrant recorder survival cycle failed (non-fatal): {exc}",
                                   source=_LOG_SOURCE, exc=exc)
+                if stop_event.is_set():
+                    break
                 next_surv = t + self._si
             if stop_event.wait(self._ui):
                 break
