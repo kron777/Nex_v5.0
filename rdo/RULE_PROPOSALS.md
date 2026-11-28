@@ -152,8 +152,10 @@ cycle produced with an earlier one.
   is an explicit caller decision; inspect the catalogue's scope and exceptions
   before doing so.
 - Every candidate must cite a persisted cycle's exact novel-kind frontier; the
-  proposal stores the SHA-256 digest of that frontier item. The source cycle
-  must still be present in the selected CycleStore.
+  proposal stores the SHA-256 digest of that frontier item. Both proposal
+  creation and every review re-load and verify the same source cycle/frontier.
+  If the frontier changes after proposal creation, review fails closed. The
+  source cycle must still be present in the selected CycleStore.
 - The append-only ledger is hash-chained and fsynced. This detects accidental
   alteration; it is not a signature or protection against an actor able to
   rewrite the entire store.
