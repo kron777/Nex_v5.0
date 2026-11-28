@@ -451,3 +451,7 @@ Four persistent cleanup methods are present: Metacognition 14d, GoalManager 60d,
 ### 28 November 2026 — external cleanup census
 
 The DB reaper covers `meta_cognition_events` only, not `goals`, `open_problems` or `novel_association_log`. `scripts/problem_persistence.py` is read-only; Stage Gate retention covers only `gate_decisions` and empty `throw_net_sessions`; signal reaper covers only `signals`. No other cleanup timer was found among inspected versioned units. This is a bounded repository census, not proof about arbitrary host cron or user units. See INDEX §139.
+
+### 28 November 2026 — protocol versus lifecycle orchestration
+
+Doctrine §4 defines `tick()` and `decay(now)` but does not specify a universal decay dispatcher, cadence or owner. Node tests prove local method effects, not runtime invocation. Keep four evidence claims separate: protocol implementation, unit-tested effect, production caller/trigger, active-host observation. The current source trace has evidence for the first two and selected tick/worker paths, but no located owner for the four persistent decay methods (with Metacognition's separate 30-day DB reaper backstop). Do not add a scheduler without policy ownership. See INDEX §140.
