@@ -281,7 +281,7 @@ def test_existing_intake_chain_rejects_changed_immutable_intent(tmp_path):
     first = prepare_reviewed_selection(store, proposal_id, intake)
     intake.append(first["objective"])
 
-    raw_changed = _raw(revision=2, supersedes=first["lineage"]["raw_objective_sha256"])
+    raw_changed = _raw()
     raw_changed["intent"] = "A different intent must not reuse this objective ID."
     changed_store = SeedProposalStore(str(tmp_path / "changed-seed-proposals.jsonl"))
     submitted = changed_store.submit(

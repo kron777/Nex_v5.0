@@ -50,8 +50,9 @@ def _graph_diagnostics(seeds: list[dict], edges: list[dict]) -> dict:
     """Reuse RDO's iterative SCC and tension machinery with a cycle-enumeration cap.
 
     Simple-cycle enumeration can grow exponentially inside a dense SCC. Tarjan's
-    SCC pass is linear; only small cyclic components are passed to the existing
-    cycle enumerator and system assessor. Larger components remain UNKNOWN.
+    SCC pass is linear; detailed cycle enumeration and system assessment run only
+    when every cyclic component is within the configured safety bounds. If any
+    component is larger, all cycle classifications remain UNKNOWN.
     """
     keys = sorted(seed["key"] for seed in seeds)
     adjacency = {key: set() for key in keys}

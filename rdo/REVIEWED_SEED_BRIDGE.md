@@ -29,7 +29,7 @@ The returned lineage envelope also binds the proposal ID, selected alternative, 
 
 The bridge reuses rdo.graph.tarjan_sccs, rdo.tension._find_cycles, _classify_cycle and assess_system. It does not invent another graph or cycle engine.
 
-Simple-cycle enumeration can grow exponentially in a dense strongly connected component. Tarjan SCC discovery remains available for all validated graphs, but detailed cycle enumeration/system assessment is performed only when every cyclic SCC is within the conservative limits of 7 nodes and 18 internal cycle edges. If any cyclic component exceeds either limit, the graph result is bounded_unknown; the component is reported without enumerating cycles or claiming a classification. This is an analysis bound, not a graph-size or objective-intake limit.
+Simple-cycle enumeration can grow exponentially in a dense strongly connected component. Tarjan SCC discovery remains available for all validated graphs, but detailed cycle enumeration/system assessment is performed only when every cyclic SCC is within the conservative limits of 7 nodes and 18 internal cycle edges. If any cyclic component exceeds either bound, the bridge skips detailed enumeration for the graph and leaves all cycle classifications/system assessments UNKNOWN. If any cyclic component exceeds either limit, the graph result is bounded_unknown; the component is reported without enumerating cycles or claiming a classification. This is an analysis bound, not a graph-size or objective-intake limit.
 
 A depends_on cycle is reported as a prerequisite/build-order cycle. A cycle containing influences is a feedback loop, not automatically a defect. Unknown remains unknown. No edge is removed or rewritten.
 
