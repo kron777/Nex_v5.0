@@ -45,3 +45,37 @@ def test_groove_centroid_scan_stops_between_embedding_calls():
     assert result is None
     assert len(calls) == 1
     writer.write.assert_not_called()
+
+
+def test_grader_evolver_stops_after_blocked_grade_read():
+    from theory_x.diversity.evolver import GraderEvolver
+
+    reader = MagicMock()
+    writer = MagicMock()
+    entered = threading.Event()
+    release = threading.Event()
+    stop = threading.Event()
+
+    def blocked_read(*_args, **_kwargs):
+        entered.set()
+        release.wait(timeout=3.0)
+        return []
+
+    reader.read.side_effect = blocked_read
+    evolver = GraderEvolver(writer, reader)
+    result = {}
+
+    worker = threading.Thread(
+        target=lambda: result.update(value=evolver.evolve(stop_event=stop)),
+        name="grader-evolver-shutdown-test",
+    )
+    worker.start()
+    assert entered.wait(timeout=2.0)
+    stop.set()
+    release.set()
+    worker.join(timeout=2.0)
+
+    assert not worker.is_alive()
+    assert result["value"] is None
+    assert reader.read.call_count == 1
+    writer.write.assert_not_called()
