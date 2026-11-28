@@ -230,3 +230,41 @@ def test_proposal_request_schema_and_catalogue_fingerprint_are_required(tmp_path
             proposer_reference="engineer",
             source_reference="fixture:old-schema",
         )
+
+
+def test_new_ledger_creation_fsyncs_parent_directory(tmp_path, monkeypatch):
+    import os
+    import stat
+
+    real_fsync = os.fsync
+    synced_modes = []
+
+    def recording_fsync(fd):
+        synced_modes.append(stat.S_ISDIR(os.fstat(fd).st_mode))
+        return real_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", recording_fsync)
+    store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
+    _submit(store)
+
+    assert synced_modes == [False, True]
+
+
+def test_invalid_prospective_event_is_rejected_before_persistence(tmp_path, monkeypatch):
+    import rdo_adapters.rule_proposals as rule_proposals
+
+    store = RuleProposalStore(str(tmp_path / "rule_proposals.jsonl"))
+
+    def malformed_candidate(*_args, **_kwargs):
+        return {"proposal_id": "ruleprop_" + "a" * 24}
+
+    monkeypatch.setattr(rule_proposals, "_validate_candidate", malformed_candidate)
+    with pytest.raises(RuleProposalError, match="persisted proposal record"):
+        store.submit(
+            _request(), _candidate(),
+            proposer_kind="human",
+            proposer_reference="engineer",
+            source_reference="fixture:malformed-prospective-event",
+        )
+
+    assert not (tmp_path / "rule_proposals.jsonl").exists()
