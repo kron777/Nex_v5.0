@@ -182,7 +182,10 @@ def _validate_candidate(request: dict, candidate: Any, proposer_kind: str,
     disconfirmations = _text_list(candidate["disconfirming_cases"], "disconfirming_cases")
     positive_tests = _text_list(candidate["positive_tests"], "positive_tests", required=True)
     negative_tests = _text_list(candidate["negative_tests"], "negative_tests", required=True)
-    if supersedes_proposal_id is not None and not _PROPOSAL_ID.fullmatch(supersedes_proposal_id):
+    if supersedes_proposal_id is not None and (
+        not isinstance(supersedes_proposal_id, str)
+        or not _PROPOSAL_ID.fullmatch(supersedes_proposal_id)
+    ):
         raise RuleProposalError("supersedes_proposal_id is invalid")
     body = {
         "schema_version": 1,
@@ -249,7 +252,10 @@ class RuleProposalStore:
                 "event_kind", "proposal_id", "recorded_at", "record", "event_sha256",
             }:
                 raise RuleProposalError(f"rule-proposal event shape is invalid on line {number}")
-            if event["schema_version"] != EVENT_SCHEMA_VERSION or event["sequence"] != number:
+            if (event["schema_version"] != EVENT_SCHEMA_VERSION
+                    or isinstance(event["sequence"], bool)
+                    or not isinstance(event["sequence"], int)
+                    or event["sequence"] != number):
                 raise RuleProposalError(f"rule-proposal event version/sequence is invalid on line {number}")
             if event["previous_event_sha256"] != previous:
                 raise RuleProposalError(f"rule-proposal event chain is broken on line {number}")
@@ -261,7 +267,7 @@ class RuleProposalStore:
                 raise RuleProposalError(f"unsupported rule-proposal event kind on line {number}")
             if not _PROPOSAL_ID.fullmatch(str(event["proposal_id"])):
                 raise RuleProposalError(f"invalid proposal identity on line {number}")
-            _text(event["recorded_at"], "recorded_at", 128)
+            _text(event.get("recorded_at"), "recorded_at", 128)
             if not isinstance(event["record"], dict):
                 raise RuleProposalError(f"rule-proposal event record is invalid on line {number}")
             events.append(event)
@@ -314,6 +320,15 @@ class RuleProposalStore:
             try:
                 fh.seek(0)
                 events = self._parse_events(fh.readlines())
+                snapshot = self._snapshot(events)
+                if event_kind == "proposal_submitted" and proposal_id in snapshot:
+                    raise RuleProposalError("proposal was submitted concurrently; reload before retrying")
+                if event_kind == "review_decision":
+                    current = snapshot.get(proposal_id)
+                    if current is None:
+                        raise RuleProposalError("cannot review an unknown proposal")
+                    if current["latest_review"] is not None:
+                        raise RuleProposalError("proposal already has a review decision")
                 base = {
                     "schema_version": EVENT_SCHEMA_VERSION,
                     "sequence": len(events) + 1,
@@ -344,7 +359,11 @@ class RuleProposalStore:
         snapshot = self._snapshot(self._read_events())
         pid = proposal["proposal_id"]
         if pid in snapshot:
-            if snapshot[pid]["proposal"] != proposal:
+            existing = dict(snapshot[pid]["proposal"])
+            incoming = dict(proposal)
+            existing.pop("created_at", None)
+            incoming.pop("created_at", None)
+            if existing != incoming:
                 raise RuleProposalError("proposal ID collision with different content")
             return snapshot[pid]
         if supersedes_proposal_id is not None:
@@ -393,7 +412,15 @@ class RuleProposalStore:
 
     def proposals(self) -> List[dict]:
         snapshot = self._snapshot(self._read_events())
-        return [self.get(pid) for pid in snapshot]
+        return [
+            {
+                "proposal": json.loads(_canonical(item["proposal"])),
+                "status": item["status"],
+                "latest_review": json.loads(_canonical(item["latest_review"]))
+                if item["latest_review"] is not None else None,
+            }
+            for item in snapshot.values()
+        ]
 
     def events(self) -> List[dict]:
         return self._read_events()
