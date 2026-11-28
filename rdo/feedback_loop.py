@@ -13,6 +13,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from watcher.evidence import utc_now
@@ -41,10 +42,17 @@ def _references(value: Any, name: str) -> List[str]:
     return list(dict.fromkeys(item.strip() for item in value))
 
 
+def _finite_number(value: Any) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except (OverflowError, TypeError, ValueError):
+        return False
+
+
 def _validate_measured_dimension(evidence: InterfaceEvidence, name: str) -> None:
-    if (isinstance(evidence.value, bool)
-            or not isinstance(evidence.value, (int, float))
-            or not math.isfinite(evidence.value)):
+    if not _finite_number(evidence.value):
         raise ValueError(f"measured feedback dimension {name!r} requires a finite numeric value")
     _text(evidence.unit, f"{name}.unit", 128)
     _references(evidence.evidence, f"{name}.evidence")
@@ -205,8 +213,7 @@ class FeedbackLoopEvidenceStore:
             if kind == "measurement_recorded":
                 if (data.get("dimension") not in MEASURED_DIMENSIONS
                         or isinstance(data.get("value"), bool)
-                        or not isinstance(data.get("value"), (int, float))
-                        or not math.isfinite(data["value"])
+                        or not _finite_number(data.get("value"))
                         or not isinstance(data.get("unit"), str) or not data["unit"].strip()
                         or not _has_traceable_evidence(data.get("evidence"))
                         or not isinstance(data.get("confidence"), str) or not data["confidence"].strip()
@@ -299,19 +306,19 @@ class FeedbackLoopEvidenceStore:
         if operating_envelope not in OPERATING_ENVELOPES:
             raise ValueError(f"operating_envelope must be one of {OPERATING_ENVELOPES}")
         loop = self._find_loop(cycle, loop_id)
+        recorded_at = utc_now()
+        identity = {
+            "cycle_id": cycle.id, "loop_id": loop_id, "dimension": dimension,
+            "value": measured.value, "unit": measured.unit, "evidence": measured.evidence,
+            "confidence": measured.confidence, "provenance": provenance,
+            "operating_envelope": operating_envelope, "recorded_at": recorded_at,
+        }
         data = {
-            "event_id": "fle_" + hashlib.sha256(_canonical({
-                "cycle_id": cycle.id, "loop_id": loop_id, "dimension": dimension,
-                "value": value, "unit": measured.unit, "evidence": measured.evidence,
-                "confidence": measured.confidence, "provenance": provenance,
-                "operating_envelope": operating_envelope, "recorded_at": utc_now(),
-            })).hexdigest()[:24],
+            "event_id": "fle_" + hashlib.sha256(_canonical(identity)).hexdigest()[:24],
             "cycle_id": cycle.id, "loop_id": loop_id,
             "topology_sha256": _topology_digest(loop),
-            "dimension": dimension, "value": measured.value, "unit": measured.unit,
-            "evidence": measured.evidence, "confidence": measured.confidence,
-            "provenance": provenance, "operating_envelope": operating_envelope,
-            "recorded_at": utc_now(),
+            **{key: value for key, value in identity.items()
+               if key not in {"cycle_id", "loop_id"}},
         }
         event = self._append("measurement_recorded", data)
         self.apply(cycle)
@@ -331,18 +338,17 @@ class FeedbackLoopEvidenceStore:
         if not isinstance(note, str) or len(note) > 2000:
             raise ValueError("note must be text of at most 2000 characters")
         loop = self._find_loop(cycle, loop_id)
-        data = {
-            "event_id": "flr_" + hashlib.sha256(_canonical({
-                "cycle_id": cycle.id, "loop_id": loop_id,
-                "stability_state": stability_state, "reviewer": reviewer,
-                "source_reference": source_reference, "assessment_evidence": evidence,
-                "confidence": confidence, "note": note, "recorded_at": utc_now(),
-            })).hexdigest()[:24],
+        recorded_at = utc_now()
+        identity = {
             "cycle_id": cycle.id, "loop_id": loop_id,
-            "topology_sha256": _topology_digest(loop),
             "stability_state": stability_state, "reviewer": reviewer,
             "source_reference": source_reference, "assessment_evidence": evidence,
-            "confidence": confidence, "note": note, "recorded_at": utc_now(),
+            "confidence": confidence, "note": note, "recorded_at": recorded_at,
+        }
+        data = {
+            "event_id": "flr_" + hashlib.sha256(_canonical(identity)).hexdigest()[:24],
+            **identity,
+            "topology_sha256": _topology_digest(loop),
         }
         event = self._append("stability_reviewed", data)
         self.apply(cycle)
