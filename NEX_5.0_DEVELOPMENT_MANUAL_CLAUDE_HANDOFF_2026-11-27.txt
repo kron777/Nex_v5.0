@@ -4120,3 +4120,53 @@ CREATE TABLE IF NOT EXISTS groove_alerts (
 **Source anchors and main snapshot:** `run.py` (SelfNarrative construction/injection); `theory_x/stage9_metacognition/metacognition.py` (tick and source ID pass-through); `theory_x/stage_self_narrative/self_narrative.py` (narrative insert); `theory_x/SELF_NARRATIVE_SPEC.md`; `substrate/schema/beliefs.sql`; `substrate/init_db.py` (schema map, apply path, conversations migration); `substrate/schema/conversations.sql`; `tests/test_self_narrative.py`; `tests/test_metacognition.py`; `tests/test_schema_indexes.py`; `journal/INVESTIGATION_2026-11-14_groove_facts.txt`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
 
 **Evidence level:** source-observed initialization, runtime dependency injection, source ID pass-through, and narrative persistence; test-coverage inspection; historical DB observation from journal. Full acknowledgement-writer census, present runtime chronology, and installed-schema distribution remain UNKNOWN.
+
+
+## §110 — Active versus dormant readers; GrooveBreaker is not a live wire (2026-11-28)
+
+### Reader inventory correction
+
+A broader source search found `theory_x/auto_probe/groove_breaker.py`, which reads `groove_alerts`. It is a real code-level reader, but it is **not an active runtime consumer on the current main snapshot**:
+
+- The module sets `ENABLED = False` and returns immediately from `check_and_maybe_log()` while disabled.
+- The module docstring records that its live construction/call wiring was removed on 2026-07-26.
+- `run.py` records that GrooveBreaker instantiation was removed.
+- `theory_x/stage6_fountain/__init__.py` records removal of the `check_and_maybe_log()` call.
+- `theory_x/stage6_fountain/generator.py` records removal of probe injection because `self._groove_breaker` was never non-None and the class was disabled.
+
+If reactivated, `GrooveBreaker._fetch_active_alert()` currently selects the newest alert above a severity threshold within a freshness window; it does not filter `acknowledged_at`. Its `GrooveContext` retains `alert_id`, and its observation logger writes that ID into `auto_probe_log.groove_alert_id`. Those are dormant source-level behaviours, not current live effects. Do not add GrooveBreaker to the active causal path unless its enable flag and construction/call/injection chain are restored and verified.
+
+### Schema introduction history narrows the migration concern
+
+The schema-history check refined §109's conditional legacy concern:
+
+- Commit `a396dda08e8861e22029ceef813c69211671a37e` (2026-04-26 12:51:58 UTC) added `theory_x/diversity/groove.py` and added the `groove_alerts` DDL to `substrate/schema/beliefs.sql`; the DDL included nullable `acknowledged_at` from its first observed tracked introduction.
+- Its parent `db41da3faa03ea7cf96c999495190c5d4b463824` has no `groove_alerts` table in `beliefs.sql`, no `groove_alerts` reference in `init_db.py`, and no `theory_x/diversity/groove.py` file.
+- This makes an official earlier tracked schema containing `groove_alerts` without `acknowledged_at` unlikely: the feature table and column entered together. The remaining uncertainty is limited to manually altered, partially upgraded, or otherwise non-standard installed databases; no current host database was inspected.
+
+### Test evidence — detector suppression remains uncharacterized
+
+`tests/test_diversity.py::TestGrooveSpotter` covers n-gram alert generation, no alert for diverse content, and cooldown-fragment filtering. It does not cover the later per-instance stale-rescan fingerprints (`_last_ngram_pattern`, `_last_exact_content`, `_last_template_ids`, `_last_centroid_ids`), repeated `detect_all()` calls on the same unchanged window, or restart/replay behaviour. The source comments document the intended suppression and historical incident, but the current tests do not independently prove those properties.
+
+This is separate from the Metacognition repeat-read gap. There are therefore two unverified idempotency boundaries:
+
+1. Detector -> `groove_alerts`: in-memory suppression of unchanged detector observations, reset on process restart.
+2. `groove_alerts` -> derived metacognition/narrative rows: repeated reads of an unacknowledged alert, with source ID retained only on the narrative side-path and without source-ID uniqueness.
+
+Neither boundary should be changed until the intended semantic identity is specified. The alert-row ID is durable within the database; the detector fingerprint is process-local; a detector episode can span multiple alert rows; a metacognitive observation may occur on each chat tick. These are not interchangeable units.
+
+### Research–develop–observe refinement: prove reachability, not just existence
+
+Add a required step to the NEX development scan:
+
+**Source existence → construction → enablement → call site → data path → observable effect.**
+
+For every apparent reader/writer, classify it as active, conditionally active, disabled, removed from runtime wiring, test-only, or unknown. A class that imports successfully or contains SQL is not evidence that the running process calls it. A flag set false plus removed construction/call sites is positive evidence of a dormant path. Conversely, a class may be active through dependency injection even without a direct call in its own module, so trace its object owner and caller before disposition.
+
+This avoids two opposite errors: treating dead code as a live influence, and overlooking a live wire merely because its call is indirect. It is the next practical layer of the “3D scan of a dark artifact”: map not only the physical wire but also whether current is actually flowing through it.
+
+**Disposition:** Phase 0 source-level classification and test-gap finding; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors:** `theory_x/auto_probe/groove_breaker.py`; `run.py`; `theory_x/stage6_fountain/__init__.py`; `theory_x/stage6_fountain/generator.py`; `tests/test_diversity.py`; commit `a396dda08e8861e22029ceef813c69211671a37e` and parent `db41da3faa03ea7cf96c999495190c5d4b463824`; current snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed dormant flag and removed live wiring; source-observed historical introduction of table/column; targeted detector-test inspection. Complete repository-wide acknowledgement-writer census, all installed database schemas, and live runtime chronology remain UNKNOWN.
