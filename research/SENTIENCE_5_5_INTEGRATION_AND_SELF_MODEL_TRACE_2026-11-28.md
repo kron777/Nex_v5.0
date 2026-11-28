@@ -14,8 +14,8 @@ The class declares a deterministic integration cycle, explicit schema normalizat
 - `_handle_input(key, request)` accepts any JSON value and stores it in `node_outputs[key]` with a timestamp. A later input for the same key replaces the previous value; the earlier event is not retained in this component.
 - Every accepted input immediately calls `_integrate()`. That method increments a version and copies the latest stored payload for every key into a new frame. The frame can therefore combine fresh input with older node values; component timestamps are not copied into the frame.
 - The top-level frame timestamp is the integration time, not the time of every contributing component.
-- The code copies component data into `components`; it does not perform a general schema-normalization pass.
-- The `decision` payload supplies `final_action.action` (default `wait`). Priority is the maximum recognized value among all current node payloads; unrecognized values fall back to the lowest rank.
+- The code copies component data into `components`; it does not perform a general schema-normalization pass. `_handle_input()` accepts any JSON type, while `_integrate()` assumes decision and component payloads support `.get()`; a list/string payload can therefore be stored and then make integration fail.
+- The `decision` payload supplies `final_action.action` (default `wait`). Priority is selected by a rank function across all current node payloads. Unknown strings receive rank 0, but the original string is returned; if only unknown priorities are present (or one ties with `low`), an invalid priority string can survive into the emitted frame rather than being normalized to `low`.
 - The output queue is an unbounded `asyncio.Queue`; a producer rate faster than the output consumer can grow queued frames without an explicit bound.
 
 This is a useful prototype of a latest-value snapshot aggregator with versioned output frames. It is not a history-preserving event bus, nor does the code itself establish freshness, causal ordering, schema validation or conflict resolution across all component types.
@@ -30,6 +30,8 @@ Source: `Self_Model_Node.py` (blob `f949daead9a6b13fd4ecc3673a9e9f8bf4b6fbdc`).
 - `observe_event()` records an event routed by the orchestrator but explicitly does not interpret it.
 - `known_facts()` returns registered-node/event-count facts; `unknowns()` explicitly lists several unknowns including subjective experience.
 
+**Conditional deadlock:** `heartbeat()` acquires a non-reentrant `threading.Lock` and, when the node is not registered, calls `register_node()`, which attempts to acquire the same lock again. A heartbeat for an unknown node therefore blocks indefinitely. If startup always registers every node before any heartbeat, this path may remain dormant, but the fallback is unsafe.
+
 This is grounded operational self-description and a useful truth-ledger concept. It does not by itself model the causal influence of cognitive faculties or establish subjective self-awareness.
 
 ## 3. Meta_Awareness_Node has its own state and directive queue
@@ -41,7 +43,7 @@ Source: `Meta_Awareness_Node.py` (blob `686c9b00c14c311bced7daace2d239140b291fc3
 - Persists rows in its own SQLite database and maintains a bounded in-memory history.
 - Emits a `self_reflection` directive when confidence/dissonance crosses thresholds; the directive is placed on its own queue.
 
-The inspected implementation does not read a Self_Model_Node snapshot or an Integration_Node frame. These are distinct state paths in the inspected code.
+The inspected implementation does not read a Self_Model_Node snapshot or an Integration_Node frame. These are distinct state paths in the inspected code. Its `state_queue` and `directive_queue` are unbounded asyncio queues, and its input state is mutated without a per-node lock; concurrency and backpressure semantics are not established here.
 
 ## 4. Cognitive_Control_Node is a separate deterministic gate
 
