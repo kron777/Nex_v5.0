@@ -1706,7 +1706,9 @@ class FountainGenerator:
                              parent_ids=[trace.reference("input_arrival")])
             raise
         if stop_event is not None and stop_event.is_set():
-            return None
+            # Preserve a fire already committed by _generate(); only suppress
+            # the optional trace-output write after shutdown is observed.
+            return result
         if trace is not None:
             trace.output(
                 result, output_kind="fountain_thought",
