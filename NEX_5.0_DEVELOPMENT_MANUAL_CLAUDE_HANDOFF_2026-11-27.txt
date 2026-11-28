@@ -2036,7 +2036,7 @@ Four deterministic cases cover: post-OS-start exception and worker rollback; pre
 
 ### Integration boundary
 
-This is complementary to merged PR #420: #421 owns the individual partially started Writer, while #420 owns already-created producers during boot before AppState takes over. Exact-head CI for this rebased candidate is pending; no pass is claimed for this head.
+This is complementary to merged PR #420: #421 owns the individual partially started Writer, while #420 owns already-created producers during boot before AppState takes over. **Merged:** PR #424, merge commit `b604ddfe4949b504196e005399c602677af157bd`. Exact-head workflow run `46145202367` passed **3,064 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map check reports `p1_continuity` source drift because `substrate/writer.py` changed after its 2026-11-27 verification; this is an evidence-refresh item, not a failed test. No live dual-writer or host/robot runtime rehearsal is claimed.
 
 **Unchanged boundaries:** no Writer transaction semantics, schema, runtime configuration, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, descriptive Mind Aspect role, or cognitive/action authority separation is changed.
 
