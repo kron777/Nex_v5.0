@@ -5373,3 +5373,8 @@ There are three substantive unowned decay paths in the registered-node set: Goal
 This confirms that the Protocol's `tick/decay/state` shape is an interface, not a scheduler. Background workers and GUI calls own their own tick cadence; no central lifecycle coordinator dispatches decay across all registered nodes.
 
 **Disposition:** source-observed registry membership and method ownership. No automatic decay is claimed where no caller was found. G-60 and G-83 remain OPEN; NovelAssociation's uncalled cleanup is recorded as a housekeeping gap, not promoted to a new defect ID without evidence of operational impact. No scheduler, code, retention policy, schema, flag, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+### §137 build-path scope refinement
+
+The nine-node list above is specifically the normal unified `run.py` boot path. The optional `gui/server.py::build_state(with_tools=True)` path separately constructs/registers ProblemMemory, GoalManager and Metacognition. Therefore ProblemMemory is absent from normal `run.py` registration but can appear in the process-lifetime registry through that optional GUI build path. This corrects G-60's earlier shorthand that `run.py` registers both ProblemMemory and GoalManager; the precise scope is now recorded in the verified defect backlog. The registry remains storage-only in either path.
