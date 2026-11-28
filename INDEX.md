@@ -5073,3 +5073,28 @@ Next bounded characterization: seed a controlled Metacognition cache, inject the
 **Disposition:** source-observed second prompt rail; default-off by source; runtime flag state UNKNOWN; dedicated Fountain injection test not located. No feature flag, runtime code, schema, frozen S-01–S-25/M1.8, Master Roadmap, Gate 0 or Phase 1 authority changed.
 
 **Source anchors:** `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `theory_x/stage6_fountain/__init__.py` blob `64405fab88dd831f735705b388cf85c0bfd1cdee`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; Metacognition formatter/tick in §126–§127.
+
+
+## §132 — G-83 acknowledgement ownership: nullable field, no writer located in the active path (28 November 2026)
+
+**Question studied:** what sets GrooveSpotter alerts as acknowledged, and is the repeated read an explicit queue/acknowledgement protocol?
+
+### Source facts
+
+- `substrate/schema/beliefs.sql` defines `groove_alerts.acknowledged_at REAL`, nullable.
+- `GrooveSpotter` inserts alert rows without setting `acknowledged_at`, leaving it NULL.
+- `Metacognition._detect_groove()` selects `acknowledged_at IS NULL` and `detected_at > now - 600`, newest first, with a maximum of three rows per chat tick. It does not update the source row after consuming it.
+- The inspected `GrooveBreaker` reads recent alerts but is disabled (`ENABLED=False`) and its current live wiring was removed in session 49; it does not write `acknowledged_at`.
+- The inspected `gui/server.py`, `run.py`, `GrooveSpotter` and `DiversityLoop` contain no acknowledgement write path. No acknowledgement UI/API route was found in the inspected GUI file.
+
+### Consequence and limit
+
+The 600-second lookback, not acknowledgement, is the only source-row expiry mechanism observed in the Metacognition query. An unchanged alert may therefore be re-consumed on multiple chat turns while it remains within ten minutes of detection; after that it naturally falls out of the query even though its database field remains NULL. The exact-head PR #449 fixture demonstrates five re-consumptions under controlled timestamps.
+
+This is not yet proof that the column is globally unused or that auto-acknowledgement was intended. A manual/administrative writer or a separate uninspected path may exist. The intended owner and semantic meaning of acknowledgement remain UNKNOWN. Do not add auto-acknowledgement, change the lookback or redefine one alert as one episode without locating the controlling design/approval.
+
+**Next bounded investigation:** complete the repository-wide writer census for `groove_alerts.acknowledged_at`, inspect historical schema/commit provenance for why the column exists, and identify whether the 10-minute replay window is intended as a transient observation window or a missing queue acknowledgement contract.
+
+**Disposition:** no acknowledgement writer found in the inspected active producer/consumer/GUI paths; source-row replay within the 600-second window is test-verified; global absence of all writers and intended semantics remain UNKNOWN. G-83 stays OPEN. No source, schema, flags, thresholds, frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
+
+**Source anchors:** `substrate/schema/beliefs.sql` blob `44a3f95dbf4c522d84dd030c9c825afffe760b6b`; `theory_x/diversity/groove.py` blob `1174b9001c7ffc876cec78ae677cb664481ad04e`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/auto_probe/groove_breaker.py` blob `2eb856f9d9afa827d38fbcb86a503237082c10b9`; PR #449 exact head `8132db2a338727e580e3269ad148277db727b0d4`.
