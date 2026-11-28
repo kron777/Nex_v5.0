@@ -475,3 +475,7 @@ Pattern-specific `narrative_log` entries are inserted on every source-alert re-r
 ### 28 November 2026 — shared narrative writer/provenance boundary
 
 `narrative_log` has multiple writers: Metacognition, ProblemMemory, GoalManager, NovelAssociation and CoherenceGate. Its prompt formatter selects only `content` and `created_at`, omitting `trigger` and `source_id`; the model receives the narrative text and age label without typed source provenance. This is broader than the GrooveSpotter replay path. See INDEX §144.
+
+### 28 November 2026 — chat-gap side-effect boundary
+
+The real GUI route calls Metacognition.tick()/formatters before the thin-belief early return. A Technical request can be refused before VoiceClient transport while still re-consuming the alert and writing event/narrative state. Repeated blocked requests may contribute to Row 9 without any model call. PR #450 verifies route ordering/transport, not the three-event threshold from blocked requests. See INDEX §127.
