@@ -4170,3 +4170,38 @@ This avoids two opposite errors: treating dead code as a live influence, and ove
 **Source anchors:** `theory_x/auto_probe/groove_breaker.py`; `run.py`; `theory_x/stage6_fountain/__init__.py`; `theory_x/stage6_fountain/generator.py`; `tests/test_diversity.py`; commit `a396dda08e8861e22029ceef813c69211671a37e` and parent `db41da3faa03ea7cf96c999495190c5d4b463824`; current snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
 
 **Evidence level:** source-observed dormant flag and removed live wiring; source-observed historical introduction of table/column; targeted detector-test inspection. Complete repository-wide acknowledgement-writer census, all installed database schemas, and live runtime chronology remain UNKNOWN.
+
+
+## §111 — GrooveBreaker reachability and detector regression boundary (2026-11-28)
+
+### Reachability result
+
+The earlier reader inventory is now closed for the known GrooveBreaker path. It is not a live consumer on current main:
+
+- `theory_x/auto_probe/groove_breaker.py` has `ENABLED = False`; `check_and_maybe_log()` returns before reading the alert when disabled.
+- `run.py` explicitly records its instantiation removed on 2026-07-26.
+- `theory_x/stage6_fountain/__init__.py` explicitly records removal of the fountain-tick call.
+- `theory_x/stage6_fountain/generator.py` explicitly records removal of the probe injection path and notes that `self._groove_breaker` was never non-None.
+- `gui/server.py` has no GrooveBreaker call site in the inspected current source.
+
+If reactivated, its existing alert query does not consult `acknowledged_at`; its context and observation log preserve `alert_id/groove_alert_id`. This should be treated as a reactivation review item, not a present runtime defect. The current active metacognition path is separate and remains wired through `run.py` and the chat handler.
+
+### Detector test boundary
+
+`tests/test_diversity.py::TestGrooveSpotter` contains tests for n-gram firing, diverse-content non-firing, and signal-cooldown fragment quality. It does not exercise `detect_all()` repeatedly against the same unchanged detector window. The current code's four in-memory fingerprint guards are therefore source-observed but not regression-test-verified by this class. The test inventory contains no separate GrooveBreaker test file in the current tree; the module is disabled and uninstantiated, consistent with the runtime classification above.
+
+### Historical table/schema result
+
+The schema's tracked introduction can be bounded to the April 26, 2026 change `a396dda08e8861e22029ceef813c69211671a37e` (12:51:58 UTC): the commit added `theory_x/diversity/groove.py` and added `groove_alerts` to `substrate/schema/beliefs.sql`, including `acknowledged_at` in the initial table DDL. The commit's parent `db41da3faa03ea7cf96c999495190c5d4b463824` has neither the table in the schema nor the GrooveSpotter module. Therefore, there is no evidence of a prior official tracked `groove_alerts` schema lacking the acknowledgement column. The earlier §109 concern is narrowed to manually modified/non-standard databases, not the ordinary tracked upgrade path.
+
+### Development-practice rule added
+
+For every apparent component, trace six gates: **source exists → object constructed → enabled → call site reachable → data actually passed → effect persisted/observed**. Mark each gate with evidence. Do not classify a component as an active influence because its source file contains a SELECT, nor as absent because a direct call is not in the file itself. Constructor injection, feature flags, removed runtime wiring, and process-local state all affect reachability.
+
+This is now a reusable scan rule, not just a GrooveBreaker finding. It prevents dormant code from inflating the active architecture and helps expose live indirect wires.
+
+**Disposition:** Phase 0 source-level refinement; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors:** `theory_x/auto_probe/groove_breaker.py`; `run.py`; `theory_x/stage6_fountain/__init__.py`; `theory_x/stage6_fountain/generator.py`; `gui/server.py`; `tests/test_diversity.py`; commit `a396dda08e8861e22029ceef813c69211671a37e` and parent `db41da3faa03ea7cf96c999495190c5d4b463824`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed flag, deleted runtime wiring, and feature-table introduction; targeted unit-test inspection. Repository-wide acknowledgement-writer census and installed runtime chronology remain UNKNOWN.
