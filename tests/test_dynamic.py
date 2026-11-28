@@ -171,6 +171,7 @@ class TestPipeline(unittest.TestCase):
 
     def test_bonsai_focus_propagates_to_fountain_branch_pick_and_workspace_frame(self):
         import random
+        from unittest import mock
         from theory_x.stage2_dynamic.bonsai import BonsaiTree
         from theory_x.stage2_dynamic.membrane import Membrane
         from theory_x.stage2_dynamic.pipeline import run_pipeline
