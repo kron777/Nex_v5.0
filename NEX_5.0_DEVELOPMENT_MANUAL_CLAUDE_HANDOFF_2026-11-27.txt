@@ -2263,3 +2263,17 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 **Limits:** this census covers tracked Python files in the current branch only. Non-Python launchers and external callers are outside the repository scan. No live boot, failure injection, host process or robot runtime was exercised. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
+---
+
+## 78. Preserve the primary construction failure across BaseException cleanup failures (28 November 2026)
+
+Review of `_rollback_partial_app_state()` against the enclosing `build_state()` exception boundary found that the factory catches `BaseException`, while the rollback helper previously caught only `Exception` from producer signalling, scheduler join, worker join and Writer close. A cleanup callback raising `KeyboardInterrupt` or `SystemExit` could escape and replace the original construction failure.
+
+**Change:** all four best-effort cleanup boundaries in `_rollback_partial_app_state()` now catch `BaseException` and log the cleanup failure. The helper returns so the outer bare `raise` preserves the original construction exception. Existing ordering and shared monotonic deadline are unchanged.
+
+**Regression:** `tests/test_gui_build_state_rollback.py::test_cleanup_errors_do_not_escape_rollback_helper` injects `KeyboardInterrupt` from producer stop and `SystemExit` from Writer close. This is scoped to rollback while another exception is already unwinding; normal `AppState.close()` semantics and global interrupt handling are unchanged.
+
+**Validation:** code and test updated on PR #446. Exact-head CI for the resulting code commit must be checked; the previous successful run on `b8c2cee06769ec3b74601885b1b6b87dddda9b82` predates this code change and is not evidence for it.
+
+**Limit:** guarded cleanup calls are covered; arbitrary failures during object attribute introspection are not claimed to be impossible. No registry API, cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
