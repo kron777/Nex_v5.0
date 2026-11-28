@@ -5794,6 +5794,7 @@ The content's first-person wording is not sufficient to establish its retrieval 
 ### Specification and source-document comparison
 
 - GENIUS_SCORE_v2.md §7's "What the tagger does not do (yet)" says other components reading genius_tags and changing behaviour do not exist yet and are future builds. Git history shows the spec's latest commit is 2026-05-24.
+- TRACK_THEORY.md's 2026-05-27 afterword later says tag-then-favor in retrieval, tag-then-include in the next prompt and tag-then-feed-back into Fountain readiness are the actual builds, not the older drive-based Phase 10 sequence. This newer design note anticipates the consumer layer; GENIUS_SCORE_v2.md's final paragraph and the tagger/run.py log-only comments were not reconciled with it.
 - The GeniusTagger module docstring and run.py Phase 9g comment likewise call the producer "LOG-ONLY" and say it has no behavioural effect on other nodes.
 - Those statements may accurately describe the tagger class in isolation: GeniusTagger itself scores and writes rows. They do not describe the integrated system at the inspected source revision, where multiple consumers already read those rows and change downstream state or prompts.
 
