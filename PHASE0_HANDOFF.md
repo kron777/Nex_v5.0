@@ -501,3 +501,8 @@ Correction: SelfNarrative.tick() itself has no demonstrated dispatcher, but Meta
 ### 28 November 2026 — Fountain rut belief consumption boundary
 
 The Fountain governor writes `source='self_rut_notice'` only after the current `_retrieve_context_beliefs()` call has fetched own/seed candidate rows. Its explicit own/seed allowlists and dedicated `hot_observer` slot omit this source, so same-fire Fountain retrieval is impossible and the next explicit Fountain source query does not select it. The generic GUI BeliefRetriever loads eligible tier<=6/confidence>=0.15 beliefs, making the row a query-dependent candidate there; actual delivery remains UNKNOWN. See INDEX §151.
+
+
+### 28 November 2026 — GeniusTagger rut-window timestamp semantics
+
+GeniusTagger backfill can process 14-day-old Fountain events but writes tagged_at=ts_now; the rut observers filter on tagged_at within 90 minutes, so historical fires can appear recent during backfill. The schema allows multiple rows per (fountain_event_id, weights_version) and rut queries do not deduplicate IDs or filter versions. Draft PR #453 adds test-only characterization; exact-head CI pending. Actual host history and impact remain UNKNOWN. See INDEX §152.
