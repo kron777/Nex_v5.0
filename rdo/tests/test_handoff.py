@@ -19,7 +19,8 @@ from rdo_adapters.handoff import (
     _digest,
     _validate_manifest,
 )
-from rdo_adapters.objective_intake import submit_objective
+from rdo_adapters.objective_intake import submit_objective, submit_approved_seed_proposal
+from rdo_adapters.seed_proposals import SeedProposalStore
 from rdo.memory import CycleStore
 
 
@@ -745,3 +746,92 @@ def test_completed_acceptance_criterion_passes_independent_watcher_verification(
     assert report["evidence_dimensions"]["runtime_observed"] == "unknown_host_only"
     # A criterion-level passed review is not the separate human acceptance event.
     assert report["human_acceptance"]["status"] == "not_recorded"
+
+
+
+def test_seed_proposal_lineage_is_bound_into_stage7_handoff_and_reverified(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "src").mkdir()
+    (repo / "src" / "app.py").write_text("def deploy():\\n    return 'staging'\\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "RDO handoff test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "rdo-handoff@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "seed proposal fixture"], check=True)
+
+    workdir = str(tmp_path / "cycles")
+    os.makedirs(workdir)
+    raw = {
+        "schema_version": "rdo.raw_objective.v1",
+        "objective_id": "seeded_handoff",
+        "raw_revision": 1,
+        "supersedes_raw_sha256": None,
+        "original_text": "Prepare a bounded, reviewable deployment workflow.",
+        "intent": "Create a deployment workflow proposal without executing it.",
+        "owner": "test-caller",
+        "source": {"kind": "external_llm", "reference": "provider:external"},
+        "scope": {"in_scope": ["deployment workflow"], "affected_paths": ["src/app.py"]},
+        "constraints": ["No deployment or runtime execution"],
+        "exclusions": ["No production changes"],
+        "assumptions": [],
+        "acceptance_criteria": ["A deployment workflow proposal is traceable."],
+        "max_depth": 0,
+    }
+    alternative = {
+        "id": "workflow_first",
+        "label": "Workflow-first",
+        "interpretation": "Create a bounded workflow proposal with a traceable review boundary.",
+        "seed_obligations": [{
+            "key": "workflow_proposal",
+            "title": "Prepare the deployment workflow proposal",
+            "kind": "documentation",
+            "classification": "necessary",
+            "rationale": "The objective asks for a reviewable workflow proposal.",
+            "impact": "The request cannot be reviewed without a bounded proposal.",
+            "evidence_needs": ["A source diff within src/app.py"],
+            "assumptions": [],
+            "confidence": "inferred",
+        }],
+        "relationships": [],
+        "reconciliation_signatures": {},
+        "assumptions": [],
+        "evidence_needs": ["evidence:reviewable-diff"],
+        "acceptance_coverage": [{
+            "criterion": "A deployment workflow proposal is traceable.",
+            "obligation_keys": ["workflow_proposal"],
+        }],
+        "open_questions": [],
+        "disconfirming_cases": ["The proposed workflow changes files outside the allowlist."],
+        "provenance": ["provider:external", "source:seeded-handoff"],
+    }
+    proposals = SeedProposalStore(os.path.join(workdir, "seed_proposals.jsonl"))
+    created = proposals.submit(
+        raw, [alternative], "external_llm", "provider:external", "source:seeded-handoff"
+    )
+    proposals.review(
+        created["proposal_id"], "approved", "reviewer", "review:seeded-handoff",
+        "The selected seed is bounded and covers the acceptance criterion.",
+        ["review:scope", "review:acceptance"],
+        selected_alternative_id="workflow_first",
+    )
+
+    import rdo.orchestrator as orchestrator
+    monkeypatch.setattr(orchestrator, "_active_experiments", lambda _repo: [])
+    result = submit_approved_seed_proposal(
+        created["proposal_id"], repo_dir=str(repo), workdir=workdir
+    )
+    cycle = result["cycle"]
+    assert cycle["work_packages"]
+    package = cycle["work_packages"][0]
+    manifest = create_handoff(
+        workdir, str(repo), "seeded_handoff", 1, cycle["id"], package["key"]
+    )
+    reference = manifest["objective"]["seed_proposal"]
+    assert reference["proposal_id"] == created["proposal_id"]
+    assert reference["selected_alternative_id"] == "workflow_first"
+    assert load_handoff(workdir, manifest["handoff_id"]) == manifest
+
+    os.unlink(os.path.join(workdir, "seed_proposals.jsonl"))
+    with pytest.raises(HandoffError, match="seed proposal approval cannot be verified"):
+        load_handoff(workdir, manifest["handoff_id"])
