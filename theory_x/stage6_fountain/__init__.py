@@ -195,10 +195,16 @@ def build_fountain(
                     except Exception:
                         pass
 
-                    thought = generator.generate(dynamic_state, readers["beliefs"])
+                    thought = generator.generate(
+                        dynamic_state, readers["beliefs"], stop_event=state._stop
+                    )
+                    if state._stop.is_set():
+                        break
                     if thought:
                         logger.info("Fountain fired: %s", thought[:100])
                     # Phase 29: drive probe opportunity each fountain tick
+                    if state._stop.is_set():
+                        break
                     try:
                         generator._maybe_spawn_drive_probe()
                     except Exception as _dpe:
@@ -207,6 +213,8 @@ def build_fountain(
                     # (session 49 continued) -- ENABLED=False since 2026-05-02
                     # made this a permanent no-op. Recoverable at commit edbddff.
                     # Phase A: state snapshot (Memory Layers)
+                    if state._stop.is_set():
+                        break
                     if snapshot_writer is not None:
                         try:
                             snapshot_writer.write_snapshot()
