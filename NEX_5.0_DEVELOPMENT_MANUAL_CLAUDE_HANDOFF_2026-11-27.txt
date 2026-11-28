@@ -3421,3 +3421,56 @@ This is a caller/formatter contract mismatch. It means the explicit held-tension
 **Host/runtime unknowns:** effective `NEX5_HELD_TENSION` and `NEX5_HARMONIZER_TENSION_COUNT_FIX`; whether any unresolved held tensions exist in the deployed database; whether any INSIDE route has attempted to surface them; and the actual prompt-injection frequency. No tests were run in this documentation pass.
 
 No runtime code, test, schema, flag, mind-map authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority was changed.
+
+
+## 95. Per-stream provenance: stamping, ranking and identity-floor audit are separate mechanisms (28 November 2026)
+
+**Question studied:** once NEX stamps each belief with `source_stream` and `source_kind`, where does that provenance actually affect retrieval, prompt composition and identity-claim review?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and fixture-test review only. No host database or runtime state was accessed.
+
+### Three separate mechanisms
+
+**1. Write-time provenance stamping**
+
+`substrate/source_kind.py` defines six origin kinds (`authored`, `self`, `seeded`, `world`, `other_mind`, `received`) and the stream/source mapping. SQLite insert triggers stamp `source_stream` and `source_kind` at the belief write boundary. A verbatim copy can inherit the earliest existing source stream for identical content; absent a stream, the producer name supplies the kind. This makes provenance available even to producers that do not explicitly pass a kind.
+
+The trigger runs only when `NEW.source_kind IS NULL`; an explicitly supplied kind is therefore trusted at insertion. The separate audit can detect some stream/kind disagreements where source-stream evidence exists. The trigger is a metadata-stamping mechanism, not a policy gate.
+
+**2. Downstream ranking and retrieval**
+
+The ordinary `BeliefRetriever.retrieve()` query selects `id, content, tier, confidence, branch_id, source, locked`; it does not select `source_kind` or `source_stream`. Its relevance score is keyword overlap multiplied by confidence, with branch and optional boilerplate adjustments, then optional spreading-activation blending. The provenance kind is not part of this ordinary retriever's eligibility or score.
+
+`NEX5_SOURCE_KIND` is consumed separately by `theory_x/life/affinity_loop.py` to choose provenance bands for affinity scoring. That is a distinct consumer and a separate flag. Do not infer that because source_kind is stamped, every retrieval or prompt pathway uses it.
+
+**3. Identity-floor audit**
+
+`theory_x/stage_tom/source_kind_audit.py::identity_floor()` scans identity-claim fires in `fountain_events`, joins their recorded `fountain_retrieval_log` belief IDs, and checks whether identity-claim beliefs among those retrieved supports are `authored` or `seeded`. It reports violations and sample IDs; `run_and_record()` writes the audit result to `source_kind_audit_log`. The daily-life schedule assigns this housekeeping audit to 03:00 local time.
+
+This is retrospective measurement, not a pre-generation filter: it runs after a fire and records whether the observed retrieved-belief support met the floor. The tests prove that the audit catches a headline carrying an identity claim; they do not show that the audit blocks the prompt or prevents the fire.
+
+### Prompt-source coverage limitation
+
+The Fountain generator has additional identity-related prompt paths:
+
+- `NEX5_IDENTITY_BLOCK` is explicitly default OFF. When enabled, `identity_block.append()` adds a standing floor selected from identity/self-location sources plus optional affinity extras.
+- Separately, the generator reads the latest `identity_log` statement and appends it to the prompt (subject to the identity-ablation arm). This is not a belief row and is not represented as a belief ID in `fountain_retrieval_log`.
+
+Consequently, the identity-floor audit's recorded population is specifically **identity-claim beliefs among logged retrieved belief IDs**. It is not a complete inventory of every identity-bearing prompt component, nor an enforcement boundary over all prompt text. This is a scope limitation, not evidence that the separate identity-log statement is incorrectly sourced; the identity-loop producer and its actual statement provenance need their own source-to-prompt check if a broader claim is desired.
+
+### Research conclusion and next step
+
+NEX now has useful provenance metadata at the write boundary, an optional provenance-aware affinity consumer, and a daily output audit. These are complementary but non-equivalent:
+
+- stamping answers “where did this row come from?”;
+- affinity answers “how does this origin band affect affinity?”;
+- the audit answers “did logged retrieved identity-claim beliefs supporting an identity-claim fire meet the authored/seeded floor?”;
+- none of these, as inspected, establishes a universal provenance gate over every prompt source.
+
+A future design review should first decide whether the identity floor is intended as an observational quality metric or a hard prompt-admission rule. If it is meant to be a hard rule, define its coverage over all relevant prompt sources and place the check before generation, with explicit treatment of identity-log and identity-block material. Do not convert the current nightly audit into an enforcement mechanism by assumption, and do not silently alter the ordinary retriever's ranking.
+
+**Source anchors inspected:** `substrate/source_kind.py` blob `11b052d529defefecd16caafae5b95a3b251c0f0`; `theory_x/stage3_world_model/retrieval.py` blob `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3`; `theory_x/stage_tom/source_kind_audit.py` blob `ac98a6562d9b8247d3ecbcd9610438463340f702`; `theory_x/life/affinity_loop.py` blob `f6567537658be1d7e56ac29c951285f6e70c6b11`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage6_fountain/identity_block.py` blob `d1f710d26f8eeb451ba71ce3b0a5a2dc683697f5`; `theory_x/life/daily_life.py` blob `3325a62b76aeaa50148c92706a0548e8f67448bf`; `tests/test_source_kind.py` blob `d54ea4cb30b8d8315b1e3f34903f6088198c5374`.
+
+**Host/runtime unknowns:** effective `NEX5_SOURCE_KIND` and `NEX5_IDENTITY_BLOCK`; whether daily_life's 03:00 audit runs on the deployed host; live audit results; current identity-log content and producer path; and whether the intended identity floor is observational or a hard prompt-admission requirement. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, indexes, feature flags, identity policy, mind-map authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority was changed.
