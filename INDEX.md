@@ -1119,3 +1119,32 @@ The first exact-head CI exposed one stale self-assessment expectation: RDO corre
 The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.tension._find_cycles`, `_classify_cycle`, `assess_system` and `rdo.graph` SCC machinery to distinguish prerequisite cycles, influence feedback loops and unknown cases. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
+
+
+## 49. Active producer cooperative shutdown sweep — validation checkpoint (28 November 2026)
+
+**Evidence snapshot:** mainline source through `55fd635bd535d15ece3e3878bf1e71621f56fa7c`; combined implementation and regression coverage on draft PR #413. The PR branch received a test-harness correction at commit `14c5e2ae6cab7aad7d12caf30bd5fe10f5a594eb`. Exact-head full-suite CI, baseline verification and mind-map verification remain required; no pass is claimed here.
+
+### Scope now covered by the combined candidate
+
+The shutdown sweep adds cooperative stop checkpoints to active producer paths and deterministic Event-based regressions across Counterfactual, AffectState, SelfMindView, PredictiveSubstrate, GeniusTagger, DriveEmergence, CompetingDrives/Fountain, NovelAssociation, SubstrateHarmonic, DiversityLoop, EdgeGenerator, WarrantRecorder, SelfMaintainShadow, SpeechQueueConsumer, SignalLoop and decoder transaction boundaries.
+
+The intended invariant is narrow: once a producer observes its stop Event, it should not begin another expensive read/compute/write unit or a later independent side effect. Existing synchronous operations already entered are allowed to return; model/TTS calls and playback already underway are not forcibly cancelled. Paired logical writes are allowed to finish once started where splitting them would create a worse partial state. This is cooperative quiescence, not transactional cancellation.
+
+### Test-harness correction
+
+The isolated Warrant shutdown regression had been appended below an earlier `if __name__ == "__main__": unittest.main()` guard. Pytest discovery would still collect it, but direct execution of the test module would invoke unittest before the appended class was defined. The guard is now moved to the end of `tests/test_warrant_recorder.py` on the PR branch, so both discovery and direct module execution include the shutdown regression.
+
+### Improvement questions and remaining boundaries
+
+1. A stop Event checked immediately before a Writer call still leaves a check-to-submit race. The sweep does not establish an atomic admission barrier between stop and write submission.
+2. A blocked synchronous Reader/Writer, embedding/model/TTS call or playback call can outlive the cooperative checkpoint. The producer join timeout and subsequent Writer close ordering therefore need separate lifecycle evidence; an Event alone cannot prove all work has quiesced.
+3. Detached route workers and any producer not registered with AppState require a complete ownership census. Thread creation, registration, stop, join and resource ownership must be traced together.
+4. Tests should distinguish “stop requested”, “stop observed”, “no new operation admitted”, “in-flight operation returned”, and “resource safely closed”. A clean thread join is not evidence that every detached or unregistered worker was included.
+5. Preserve historical direct-call signatures when introducing optional stop Events; test both worker-driven stop-aware calls and standalone callers.
+
+### Validation and authority boundary
+
+PR #413 remains a candidate pending fresh exact-head full-suite CI, baseline verification and mind-map verification. Earlier failed runs remain failures and cannot be substituted for the final head. No shutdown budget, retry policy, feature flag, formula, prompt, schema, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Gate 0 or Phase 1 authority is changed by this documentation/test-harness correction. No live runtime or database was accessed.
+
+**Next bounded work:** verify the exact PR head and CI; then continue the shutdown ownership audit at the boundary between producer quiescence, synchronous Writer admission/drain and resource closure. Do not introduce a new cancellation or locking protocol until the current shared-Writer ownership and shutdown ordering are fully traced.
