@@ -5189,3 +5189,8 @@ The final order-of-operations check changes how the feedback controls should be 
 The only direct Metacognition-to-Fountain influence on the next model request found in this trace is the optional textual prompt rail gated by `NEX5_METACOG_VOICE=1` (§131), which is default-off by source. The GUI chat path is separately user-request-triggered. Neither prompt cue is a typed operation or action authority.
 
 **Disposition:** source-observed ordering of model generation before crystallization controls; no claim of a live enabled flag or measured generation reduction. This refines §§114, 128 and 133. No runtime code, schema, feature flag, thresholds, frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
+
+
+### §133 sample-ID provenance refinement
+
+The stored `sample_belief_ids` are not a uniform exact support set across alert types: exact repetition stores all rows with the repeated exact content; template repetition stores the detected templated fire IDs; n-gram repetition stores only `window[:5]` from the active 20-row window rather than the specific rows containing the top trigram; centroid tightening likewise stores `current_window[:5]` as a sample of the measured window. Therefore, for n-gram and centroid alerts these IDs must be treated as window samples, not exact causal parents. No active downstream consumer was found to use them as retrieval priorities.
