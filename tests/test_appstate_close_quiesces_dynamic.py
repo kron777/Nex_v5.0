@@ -191,7 +191,9 @@ class TestAppStateCloseQuiescesDynamic(unittest.TestCase):
         self.assertFalse(resolver._thread.is_alive())
         with self.assertRaises(Exception):
             self.writers["beliefs"].write(
-                "INSERT INTO daemon_kv (key, value, updated_at) VALUES ('late-resolver', 'x', 0)"
+                "INSERT INTO beliefs (content, tier, confidence, created_at, source, branch_id, locked) "
+                "VALUES (?, 6, 0.5, ?, 'test', 'shutdown_test', 0)",
+                ("late resolver write", time.time()),
             )
 
     def test_close_without_dynamic_is_unchanged(self):
