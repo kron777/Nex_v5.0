@@ -122,7 +122,7 @@ class HoldingZoneResolver:
             while not self._stop.is_set():
                 self._stop.wait(interval_seconds)
                 if not self._stop.is_set():
-                    self.tick()
+                    self.tick(stop_event=self._stop)
 
         self._thread = threading.Thread(
             target=_run,
@@ -151,8 +151,22 @@ class HoldingZoneResolver:
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
-    def tick(self, context: dict[str, Any] = None) -> dict[str, Any]:
+    def tick(
+        self,
+        context: dict[str, Any] = None,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> dict[str, Any]:
         """Background step: fade stale held thoughts + process reshape pending."""
+        if stop_event is None:
+            stop_event = self._stop
+
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return self.state()
+
         try:
             faded = self._zone.fade_stale(time.time())
             if faded:
@@ -160,9 +174,14 @@ class HoldingZoneResolver:
         except Exception as exc:
             errors.record(f"resolver tick fade error: {exc}", source=_LOG_SOURCE, exc=exc)
 
+        # Shutdown may arrive while the synchronous fade operation is running.
+        # Do not start the LLM-backed reshape stage after that point.
+        if _stopping():
+            return self.state()
+
         if self._transformer is not None and self._gate is not None:
             try:
-                self._process_reshape_pending()
+                self._process_reshape_pending(stop_event=stop_event)
             except Exception as exc:
                 errors.record(
                     f"resolver tick reshape error: {exc}", source=_LOG_SOURCE, exc=exc
@@ -170,11 +189,15 @@ class HoldingZoneResolver:
 
         return self.state()
 
-    def _process_reshape_pending(self) -> None:
+    def _process_reshape_pending(
+        self, *, stop_event: Optional[threading.Event] = None
+    ) -> None:
         """Transform up to 10 reshape_pending rows and re-submit through gate."""
         from theory_x.stage_gate.coherence_gate import ThoughtPacket
         pending = self._zone.find_reshape_pending(limit=10)
         for row in pending:
+            if stop_event is not None and stop_event.is_set():
+                return
             packet = ThoughtPacket(
                 content=row["content"],
                 source_node=row["source_node"],
@@ -186,9 +209,17 @@ class HoldingZoneResolver:
                     "original_thought_id": row["id"],
                 },
             )
+            transform_kwargs = {}
+            if stop_event is not None:
+                transform_kwargs["stop_event"] = stop_event
             new_packet = self._transformer.transform(
-                packet, row["id"], row["reshape_depth"]
+                packet, row["id"], row["reshape_depth"], **transform_kwargs
             )
+            # A VoiceClient request already in flight is not cancellable here.
+            # Once it returns, do not re-submit or mark the row complete if stop
+            # arrived while the model was blocked.
+            if stop_event is not None and stop_event.is_set():
+                return
             if new_packet is not None:
                 try:
                     self._gate.check(new_packet)
@@ -197,6 +228,11 @@ class HoldingZoneResolver:
                         f"reshape gate re-submit error: {exc}",
                         source=_LOG_SOURCE, exc=exc,
                     )
+                # Gate checking may synchronously touch Writers through
+                # on_gate_accept. Avoid starting the subsequent completion write
+                # if shutdown began during that work.
+                if stop_event is not None and stop_event.is_set():
+                    return
                 self._zone.mark_reshape_complete(
                     row["id"],
                     "reshaped",
@@ -205,6 +241,8 @@ class HoldingZoneResolver:
                 )
                 self._reshape_count += 1
             else:
+                if stop_event is not None and stop_event.is_set():
+                    return
                 self._zone.mark_reshape_complete(
                     row["id"],
                     "reshape_failed",

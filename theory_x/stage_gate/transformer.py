@@ -10,6 +10,7 @@ during tick() processing — never inline in the gate hot path.
 from __future__ import annotations
 
 import re
+import threading
 from typing import Any, Optional
 
 import errors
@@ -43,8 +44,18 @@ class ReshapeTransformer:
         packet: Any,
         original_thought_id: int,
         current_depth: int,
+        *,
+        stop_event: Optional[threading.Event] = None,
     ) -> Optional[Any]:
-        """Transform packet. Returns new ThoughtPacket or None on failure."""
+        """Transform packet. Returns new ThoughtPacket or None on failure.
+
+        The VoiceClient call itself is synchronous and cannot be interrupted by
+        this event. The event prevents a request from starting after stop and
+        discards its response if shutdown began while it was in flight.
+        """
+        if stop_event is not None and stop_event.is_set():
+            return None
+
         from voice.llm import VoiceRequest
         from voice.registers import PHILOSOPHICAL
         from theory_x.stage_gate.coherence_gate import ThoughtPacket
@@ -57,7 +68,11 @@ class ReshapeTransformer:
                 max_tokens=80,
                 temperature=0.85,
             )
+            if stop_event is not None and stop_event.is_set():
+                return None
             resp = self._voice.speak(req)
+            if stop_event is not None and stop_event.is_set():
+                return None
             text = resp.text.strip() if resp and resp.text else ""
         except Exception as exc:
             errors.record(
