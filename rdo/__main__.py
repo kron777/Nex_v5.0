@@ -36,7 +36,7 @@ from .memory import CycleStore, PatternMemory
 from .feedback_loop import (
     FeedbackLoopEvidenceStore, MEASURED_DIMENSIONS, OPERATING_ENVELOPES, STABILITY_STATES,
 )
-from .rule_proposals import RuleProposalStore
+from rdo_adapters.rule_proposals import RuleProposalStore
 from .graph import compare_adjacent_relationship_impacts, failure_propagation_candidates
 from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_file,
                                            objective_history, resume_objective,
