@@ -160,7 +160,6 @@ def main() -> None:
         _close_partial_writers()
         raise
 
-    state._boot_shutdown_requested = threading.Event()
     if _partial_shutdown_requested.is_set():
         raise SystemExit(1)
     atexit.unregister(_close_partial_writers)
