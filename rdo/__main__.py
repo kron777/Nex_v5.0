@@ -23,6 +23,13 @@ temporary fixture; `handoff-verify` is source/path-only and never runs tests.
   python -m rdo handoff-verify --handoff-id <handoff-id> [--repo .] [--out rdo/.cycles]
         invoke independent Watcher source/path verification; no tests or runtime actions.
 
+  python -m rdo rule-propose --input rule-proposal.json [--dir rdo/.cycles]
+        append an inert novel expansion-rule candidate; no catalogue activation.
+  python -m rdo rule-review --proposal-id <id> --decision <decision> ...
+        append one explicit rule-proposal review decision.
+  python -m rdo rule-history [--proposal-id <id>] [--dir rdo/.cycles]
+        inspect rule proposals and their append-only review events.
+
   python -m rdo seed-propose --input proposal.json [--dir rdo/.cycles]
         append a competing candidate seed proposal; no objective intake or execution.
 
