@@ -50,7 +50,8 @@ class ApprovedRuleCatalogue:
             for step in steps:
                 if (not isinstance(step, tuple) or len(step) != 4
                         or not isinstance(step[0], str) or not _TOKEN.fullmatch(step[0])
-                        or step[0] in seen or step[1] not in CLASSIFICATIONS
+                        or step[0] == kind or step[0] in seen
+                        or not isinstance(step[1], str) or step[1] not in CLASSIFICATIONS
                         or not isinstance(step[2], str) or not step[2].strip()
                         or (step[3] is not None and (not isinstance(step[3], str)
                                                      or not _ALT_ID.fullmatch(step[3])))):
