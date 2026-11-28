@@ -71,7 +71,15 @@ class WorldPredictionLoop:
         self._stop: Optional[threading.Event] = None
         self._thread: Optional[threading.Thread] = None
 
-    def tick(self) -> None:
+    def tick(self, stop_event: Optional[threading.Event] = None) -> None:
+        if stop_event is None:
+            stop_event = self._stop
+
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return
         # 1. resolve any matured claims — the verdict comes from reality
         try:
             res = wp.resolve_due(
@@ -86,15 +94,24 @@ class WorldPredictionLoop:
         except Exception as e:  # never let a bad tick kill the loop
             log.warning("world_pred resolve failed (non-fatal): %s", e)
 
+        if _stopping():
+            return
+
         # 2. fire a fresh voice prediction + random control
         try:
+            kwargs = {}
+            if stop_event is not None:
+                kwargs["stop_event"] = stop_event
             r = pg.make_voice_prediction(
                 self.asset,
                 self._horizon,
                 conversations_writer=self._conversations_writer,
                 conversations_reader=self._conversations_reader,
                 beliefs_reader=self._beliefs_reader,
+                **kwargs,
             )
+            if r.get("error") == "shutdown_requested":
+                return
             if "error" in r:
                 log.warning("world_pred make skipped: %s", r["error"])
             else:

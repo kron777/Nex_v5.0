@@ -87,7 +87,7 @@ def _recent_context(asset: str, timeout: float = 10.0) -> Optional[str]:
 
 # --- ask the voice for a directional call ------------------------------------
 def _ask_voice_direction(
-    asset: str, baseline: float, horizon_seconds: int
+    asset: str, baseline: float, horizon_seconds: int, *, stop_event=None
 ) -> Optional[str]:
     """Ask the SAME local model NEX runs for an up/down call, GIVEN the real
     recent trajectory. Returns 'up', 'down', or None if unparseable.
@@ -98,7 +98,11 @@ def _ask_voice_direction(
         "NEX5_VOICE_URL", "http://localhost:11434/v1/chat/completions"
     )
     model = os.environ.get("NEX5_VOICE_MODEL", "qwen2.5:3b")
+    if stop_event is not None and stop_event.is_set():
+        return None
     ctx = _recent_context(asset)
+    if stop_event is not None and stop_event.is_set():
+        return None
     question = (
         (f"{ctx}\n\n" if ctx else "")
         + f"{asset} is currently ${baseline:.0f}. "
@@ -128,6 +132,8 @@ def _ask_voice_direction(
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             out = json.loads(resp.read().decode("utf-8"))
+        if stop_event is not None and stop_event.is_set():
+            return None
         txt = (out["choices"][0]["message"]["content"] or "").strip().lower()
     except (urllib.error.URLError, KeyError, IndexError, ValueError, TypeError):
         return None
@@ -148,6 +154,7 @@ def make_voice_prediction(
     conversations_writer=None,
     conversations_reader=None,
     beliefs_reader=None,
+    stop_event=None,
 ) -> dict:
     """NEX (the voice) makes a directional claim about `asset`, recorded with
     source='voice'. A random control claim is recorded at the same time/horizon
@@ -156,12 +163,23 @@ def make_voice_prediction(
     Returns {'voice_id', 'voice_dir', 'random_id', 'random_dir', 'baseline'} or
     an 'error' key if the price or the voice call failed.
     """
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
     db_path = db_path or wp._default_db_path()
     baseline = wp.fetch_price(asset)
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
     if baseline is None:
         return {"error": "price_fetch_failed"}
 
-    voice_dir = _ask_voice_direction(asset, baseline, horizon_seconds)
+    ask_kwargs = {}
+    if stop_event is not None:
+        ask_kwargs["stop_event"] = stop_event
+    voice_dir = _ask_voice_direction(
+        asset, baseline, horizon_seconds, **ask_kwargs
+    )
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested", "baseline": baseline}
     if voice_dir is None:
         return {"error": "voice_unparseable", "baseline": baseline}
 
@@ -178,6 +196,8 @@ def make_voice_prediction(
     logging.getLogger("nex5.world_loop").info(
         "calibration: voice call trust=%s (%s)", trust["level"], trust["reason"]
     )
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested", "baseline": baseline}
     random_dir = random.choice(["up", "down"])
 
     voice_id = wp.make_prediction(

@@ -148,13 +148,20 @@ def make_self_prediction(
     horizon: int = HORIZON,
     *,
     conversations_writer: Writer | None = None,
+    stop_event=None,
 ) -> dict:
     """NEX predicts whether it will fire in the next `horizon` seconds, from its
     own readiness. A coin flip predicts the same. Both recorded."""
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
     db_path = db_path or _db_path()
     ensure_schema(db_path, conversations_writer)
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
 
     status = _read_status()
+    if stop_event is not None and stop_event.is_set():
+        return {"error": "shutdown_requested"}
     if status is None:
         return {"error": "status_unavailable"}
 
@@ -1064,7 +1071,16 @@ class SelfPredictionLoop:
         self._dynamic_reader = dynamic_reader
         self._beliefs_reader = beliefs_reader
 
-    def tick(self):
+    def tick(self, stop_event=None):
+        if stop_event is None:
+            stop_event = getattr(self, "_stop_event", None)
+
+        def _stopping() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        if _stopping():
+            return
+
         try:
             r = resolve_due(
                 conversations_writer=self._conversations_writer,
@@ -1074,6 +1090,9 @@ class SelfPredictionLoop:
                 logger.info("self_pred resolved=%d", r)
         except Exception as e:
             logger.warning("self_pred resolve error: %s", e)
+        if _stopping():
+            return
+
         # fire gate MONITOR (Q3): log the threshold the fire target would learn, to
         # show it standing still at P(fire)=0.992. Does NOT set the live gate.
         try:
@@ -1087,10 +1106,17 @@ class SelfPredictionLoop:
                             upd["threshold"], upd["operating_p"], upd["n"])
         except Exception as e:
             logger.warning("self_pred monitor error: %s", e)
+        if _stopping():
+            return
+
         try:
+            kwargs = {}
+            if stop_event is not None:
+                kwargs["stop_event"] = stop_event
             out = make_self_prediction(
                 horizon=self.horizon,
                 conversations_writer=self._conversations_writer,
+                **kwargs,
             )
             if "error" not in out:
                 logger.info(
@@ -1099,29 +1125,42 @@ class SelfPredictionLoop:
                 )
         except Exception as e:
             logger.warning("self_pred make error: %s", e)
+        if _stopping():
+            return
+
         # 3(b): the two variance-bearing targets (resolve due, then make fresh).
         try:
             resolve_authored(
                 conversations_writer=self._conversations_writer,
                 beliefs_reader=self._beliefs_reader,
             )
+            if _stopping():
+                return
             make_authored_prediction(
                 conversations_writer=self._conversations_writer,
                 beliefs_reader=self._beliefs_reader,
             )
         except Exception as e:
             logger.warning("self_pred authored_30m error: %s", e)
+        if _stopping():
+            return
+
         try:
             resolve_selfdesc(
                 conversations_writer=self._conversations_writer,
                 dynamic_reader=self._dynamic_reader,
             )
+            if _stopping():
+                return
             make_selfdesc_prediction(
                 conversations_writer=self._conversations_writer,
                 dynamic_reader=self._dynamic_reader,
             )
         except Exception as e:
             logger.warning("self_pred selfdesc_novel error: %s", e)
+        if _stopping():
+            return
+
         # Build B: owned-belief expectations (dark; NEX5_OWNED_BELIEF=1), at most
         # one per NEX5_OWNED_BELIEF_EVERY_S. Writes only its own table.
         try:
@@ -1130,6 +1169,8 @@ class SelfPredictionLoop:
                 conversations_writer=self._conversations_writer,
                 conversations_reader=self._conversations_reader,
             ):
+                if _stopping():
+                    return
                 _ob.make_owned_belief_expectation(
                     conversations_writer=self._conversations_writer,
                     conversations_reader=self._conversations_reader,
@@ -1137,6 +1178,9 @@ class SelfPredictionLoop:
                 )
         except Exception as e:
             logger.warning("self_pred owned_belief error: %s", e)
+        if _stopping():
+            return
+
         # Commitments (dark; NEX5_COMMITMENTS): read her new utterances for stated
         # obligations, intentions and releases. Writes only its own table.
         try:
@@ -1148,6 +1192,9 @@ class SelfPredictionLoop:
                 )
         except Exception as e:
             logger.warning("self_pred commitments error: %s", e)
+        if _stopping():
+            return
+
         # Build B: the single reconciler (NEX5_RECONCILER). Writes only the
         # ledger tables; learning and mood stay behind their own flags.
         try:
