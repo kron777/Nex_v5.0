@@ -1,5 +1,8 @@
 # Fire-path tool use — what "reachable outside a direct chat request" would actually mean
 
+
+> **Post-merge correction (28 November 2026):** The inventory in the original §0/§4 below describes the pre-PR #369 tool implementation. It is historical. PR #369 has since merged; current python_exec is an in-process bounded AST interpreter, not a subprocess with an import blocklist. See the addendum at the end. The autonomous fire-path proposal remains unbuilt and unapproved.
+
 Not a pre-registration — nothing is built, nothing is proposed to arm. This
 is the plain writeup Jon asked for before any work starts on this candidate,
 so the decision whether to greenlight it gets made with full eyes open, not
@@ -139,3 +142,18 @@ call is bound by exactly the same walls a chat-path call is.
 
 Nothing above is built. This is the scope for Jon to decide against, not a
 plan already in motion.
+
+
+## Addendum — current tool boundary after PR #369 merge (28 November 2026)
+
+PR #369 merged at 07:21:56 UTC (merge commit 194c75c313e695b60f61d1f02b16f99434e2847d). Its exact head passed workflow 46119302748: 2,930 passed, 7 skipped, 62 subtests; baseline and disposable sandbox checks passed. Main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0 later passed pytest workflow 46153028417 at 14:13 UTC.
+
+Current Stage B tool state:
+- web_fetch remains an allowlisted, bounded HTTP GET reader with redirects and URL credentials rejected.
+- python_exec no longer launches a subprocess. It parses and interprets a narrow numeric AST allowlist in-process; it rejects arbitrary imports, dynamic imports, file access, assignments, loops and unbounded expressions. Natural-language query text is not a source-code fallback.
+- beliefs_query remains a read-only belief retrieval path.
+- The GUI chat route remains the caller. The current Fountain generator contains no ToolCaller/ToolRegistry or tool-name references; autonomous fire-path tool use has not been wired.
+
+The original fire-path scope questions therefore remain live and undecided: which caller/trigger, per-tool arming, hard volume caps, visible audit records, exposure checks and human oversight. The improved arithmetic sandbox reduces the risk of the existing chat tool, but it does not resolve the new risk created by autonomous triggering. No fire-path tool caller was added, no flag was armed, and no code was written to make autonomous fires invoke tools.
+
+This file remains an investigation/scope note, not a build authorization or pre-registration. Any autonomous caller requires a separate explicit decision and a bounded design/review before implementation.
