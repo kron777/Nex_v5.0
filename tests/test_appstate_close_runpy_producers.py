@@ -91,6 +91,16 @@ class TestRunPyRegistersProducers(unittest.TestCase):
                             and t.value.id == "state"):
                         assigned.add(t.attr)
         registered = kwargs | assigned
+        owned_starts = {
+            node.args[1].value
+            for node in ast.walk(self.tree)
+            if (isinstance(node, ast.Call)
+                and getattr(node.func, "id", None) == "_own_and_start"
+                and len(node.args) >= 2
+                and isinstance(node.args[1], ast.Constant)
+                and isinstance(node.args[1].value, str))
+        }
+        registered |= owned_starts
         for name in _RUNPY_FIELDS:
             with self.subTest(producer=name):
                 self.assertIn(name, registered, f"run.py never registers {name} on AppState")
@@ -132,6 +142,169 @@ class TestRunPyGracefulShutdownOutcome(unittest.TestCase):
         self.assertIn("create_app(state, shutdown_gate=shutdown_gate)", source)
         self.assertNotIn("mark_clean_shutdown", handler[:handler.index("state.close(deadline=deadline)")])
 
+
+
+class TestRunPyEarlyBootOwnership(unittest.TestCase):
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_appstate_is_created_before_any_producer_start_path(self):
+        source = (_ROOT / "run.py").read_text()
+        main = next(
+            node for node in ast.parse(source).body
+            if isinstance(node, ast.FunctionDef) and node.name == "main"
+        )
+        self.assertEqual(source.count("AppState("), 1)
+        self.assertLess(source.index("atexit.register(state.close)"),
+                        source.index("build_scheduler("))
+        self.assertGreater(source.index("signal.signal(signal.SIGTERM, _graceful_standby)"),
+                           source.index("app = create_app(state, shutdown_gate=shutdown_gate)"))
+        state_line = min(
+            node.lineno for node in ast.walk(main)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "AppState"
+        )
+        startup_names = {
+            "build_scheduler", "build_dynamic", "build_world_model",
+            "build_membrane", "build_fountain", "build_signal_loop",
+            "_own_and_start",
+        }
+        starts = [
+            node.lineno for node in ast.walk(main)
+            if isinstance(node, ast.Call)
+            and (
+                (isinstance(node.func, ast.Name) and node.func.id in startup_names)
+                or (isinstance(node.func, ast.Attribute)
+                    and node.func.attr in {"start", "start_loop"})
+            )
+        ]
+        self.assertTrue(starts)
+        self.assertLess(state_line, min(starts))
+        self.assertIn('_own_and_start(state, "decoder_loop"', source)
+
+    def test_owner_is_published_before_start_and_failed_start_is_quiesced(self):
+        from run import _own_and_start
+
+        state = _state(self.writers, self.readers)
+
+        class StartThenFail:
+            def __init__(self):
+                self.stop_event = threading.Event()
+                self._thread = threading.Thread(
+                    target=self.stop_event.wait, name="boot-start-then-fail", daemon=True
+                )
+                self.owner_seen_before_start = False
+
+            def start_loop(self):
+                self.owner_seen_before_start = state.resolver is self
+                self._thread.start()
+                raise RuntimeError("injected boot worker start failure")
+
+            def stop_loop(self):
+                self.stop_event.set()
+
+        worker = StartThenFail()
+        with self.assertRaisesRegex(RuntimeError, "injected boot worker start failure"):
+            _own_and_start(state, "resolver", worker, "start_loop", "stop_loop")
+
+        self.assertTrue(worker.owner_seen_before_start)
+        self.assertIs(state.resolver, worker)
+        self.assertFalse(worker._thread.is_alive())
+        report = state.close()
+        self.assertTrue(report["success"], report)
+        self.assertFalse(worker._thread.is_alive())
+
+    def test_boot_signal_during_start_rolls_back_before_exit(self):
+        from run import _own_and_start
+
+        state = _state(self.writers, self.readers)
+        state._boot_shutdown_requested = threading.Event()
+
+        class StartOnSignal:
+            def __init__(self):
+                self.stop_event = threading.Event()
+                self._thread = threading.Thread(
+                    target=self.stop_event.wait, name="boot-signal-during-start", daemon=True
+                )
+
+            def start_loop(self):
+                self._thread.start()
+                state._boot_shutdown_requested.set()
+
+            def stop_loop(self):
+                self.stop_event.set()
+
+        worker = StartOnSignal()
+        with self.assertRaises(SystemExit):
+            _own_and_start(state, "resolver", worker, "start_loop", "stop_loop")
+
+        self.assertIs(state.resolver, worker)
+        self.assertFalse(worker._thread.is_alive())
+        report = state.close()
+        self.assertTrue(report["success"], report)
+
+    def test_decoder_start_failure_after_thread_creation_is_quiesced(self):
+        from run import _own_and_start
+
+        state = _state(self.writers, self.readers)
+
+        class DecoderOwner:
+            def __init__(self):
+                self.stop_event = threading.Event()
+                self._thread = threading.Thread(
+                    target=self.stop_event.wait,
+                    name="boot-decoder-start-then-fail",
+                    daemon=True,
+                )
+
+            def start(self):
+                self._thread.start()
+
+            def stop(self):
+                self.stop_event.set()
+
+        worker = DecoderOwner()
+        real_start = threading.Thread.start
+
+        def start_then_raise(thread):
+            real_start(thread)
+            if thread.name == "boot-decoder-start-then-fail":
+                raise RuntimeError("injected decoder start failure after creation")
+
+        with mock.patch.object(threading.Thread, "start", new=start_then_raise):
+            with self.assertRaisesRegex(RuntimeError, "decoder start failure"):
+                _own_and_start(state, "decoder_loop", worker, "start", "stop")
+
+        self.assertIs(state.decoder_loop, worker)
+        self.assertTrue(worker.stop_event.is_set())
+        self.assertFalse(worker._thread.is_alive())
+        report = state.close()
+        self.assertTrue(report["success"], report)
+
+    def test_appstate_close_uses_deadline_latched_at_boot_signal(self):
+        from gui.server import AppState
+
+        class FakeWriter:
+            def __init__(self):
+                self.timeout = None
+
+            def close(self, timeout):
+                self.timeout = timeout
+
+        writer = FakeWriter()
+        state = AppState(writers={"fake": writer}, readers={}, voice=object())
+        deadline = time.monotonic() - 0.01
+        state._boot_shutdown_deadline = deadline
+
+        report = state.close()
+
+        self.assertEqual(report["deadline_monotonic"], deadline)
+        self.assertEqual(writer.timeout, 0.0)
+        self.assertTrue(report["deadline_exceeded"])
 
 
 if __name__ == "__main__":

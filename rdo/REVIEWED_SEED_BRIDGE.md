@@ -1,12 +1,15 @@
 # Reviewed seed proposal → objective intake bridge
 
-**Status:** first read-only preparation increment; no persistence or RDO cycle execution.
+**Status:** implemented two-operation bridge. `prepare_reviewed_selection()` is read-only; `submit_reviewed_selection()` is the separate explicit persistence plus advisory-planning operation. Neither automatically creates a Stage-7 handoff or authorizes execution.
 
 ## Purpose
 
-The prepare_reviewed_selection() function accepts only a proposal that SeedProposalStore.approved_selection() confirms has an explicit recorded approval. It prepares a validated rdo.objective.v1 payload, preserves a separate provenance envelope, and characterizes the selected graph with existing RDO cycle/SCC mechanisms.
+The bridge accepts only a proposal with an explicit recorded approval and exposes two intentionally separate operations:
 
-The function is deliberately read-only. It reads the proposal ledger and objective-intake history, but it does not append either ledger, call submit_objective(), run recursive expansion, create a CycleRecord, create a Stage-7 handoff, or execute work.
+- `prepare_reviewed_selection()` validates the approved selection, prepares a validated `rdo.objective.v1` payload, preserves a separate provenance envelope, and characterizes the selected graph with existing RDO cycle/SCC mechanisms. It is read-only: it appends neither ledger, runs no recursive expansion, creates no CycleRecord or Stage-7 handoff, and executes no work.
+- `submit_reviewed_selection()` revalidates the approved selection, persists the objective and its lineage together through the existing objective-intake ledger, and runs the advisory RDO planning cycle. This is explicit persistence/planning, not an automatic side effect of approval or preparation.
+
+The bridge does not automatically create a Stage-7 handoff, execute code, activate rules, or alter live NEX runtime state.
 
 ## Mapping
 

@@ -316,21 +316,24 @@ See [the intake contract](OBJECTIVE_INTAKE.md), [the JSON Schema](schemas/object
 
 ## Candidate seed proposal lifecycle (pre-intake review)
 
-Before converting a raw idea into an `objective.v1` intake, the provider-neutral
-`rdo_adapters.seed_proposals.SeedProposalStore` can preserve the exact raw
-objective revision and several competing seed-graph interpretations. It records
-an append-only, hash-linked proposal/review ledger; external-LLM seed confidence
-remains inferred, and approval must explicitly select one existing alternative.
-This first increment has a Python API but no CLI or GUI.
+The provider-neutral `rdo_adapters.seed_proposals.SeedProposalStore` preserves
+an exact raw-objective revision and competing seed-graph interpretations in an
+append-only, hash-linked proposal/review ledger. The CLI exposes
+`seed-propose`, `seed-review`, `seed-history` and `seed-selection`.
+External-LLM seed confidence remains inferred, and approval must explicitly
+select one existing alternative. Proposer/reviewer labels are caller-attributed,
+not identity-authenticated.
 
-An approved selection is still advisory: it does not create an objective intake,
-run recursive expansion, execute code, activate rules or create a Stage-7 handoff.
-The next bridge must retain the raw-objective digest and proposal/alternative
-identity while reconciling the selected graph against existing architecture.
+The reviewed-selection bridge is implemented separately:
+`seed-prepare` is read-only, while `seed-intake` explicitly persists the
+approved objective and provenance lineage and runs advisory RDO planning.
+Neither operation automatically creates a Stage-7 handoff, executes code,
+activates rules or changes live NEX runtime state. The handoff remains a
+separate explicit operation.
 
-See [the candidate seed proposal lifecycle](SEED_PROPOSAL_LIFECYCLE.md) for
-the API, ledger integrity guarantees, authority boundaries and the next graph-
-analysis reuse opportunity.
+See [the candidate seed proposal lifecycle](SEED_PROPOSAL_LIFECYCLE.md) and
+[the reviewed seed bridge](REVIEWED_SEED_BRIDGE.md) for schemas, ledger
+integrity, replay behavior, provenance and authority boundaries.
 
 ## Stage-7 handoff (non-executing)
 
@@ -432,10 +435,14 @@ The frontier entry now carries a `rule_proposal_request` containing the complete
 source obligation, the known rule kinds, terminal kinds, and the review dimensions
 needed for a candidate decomposition.
 
-This is a provider-neutral handoff to a human or external LLM, not an automatically
-generated or activated rule. Candidate rules remain inert until an explicit review
-and approval lifecycle is implemented. Repeated pattern frequency alone does not
-activate a rule.
+This is a provider-neutral handoff to a human or external LLM, not an
+automatically generated or activated rule. The candidate/review lifecycle is
+implemented in `rdo_adapters/rule_proposals.py`: proposals preserve applicability,
+constraints, exceptions, anti-requirements, alternatives, evidence,
+disconfirmations and positive/negative test plans. Even
+`approved_for_catalogue` is inert; activation requires a separate reviewed
+source change, tests and CI. Repeated pattern frequency alone does not activate
+a rule.
 
 
 ## Novel expansion-rule proposals

@@ -44,10 +44,30 @@ class SignalLoop:
         if self._thread is not None:
             return
         self._stop_flag.clear()
+        start_gate = threading.Event()
+
+        def _run_after_start():
+            start_gate.wait()
+            if not self._stop_flag.is_set():
+                self._run()
+
         self._thread = threading.Thread(
-            target=self._run, name="SignalLoop", daemon=True,
+            target=_run_after_start, name="SignalLoop", daemon=True,
         )
-        self._thread.start()
+        try:
+            self._thread.start()
+        except BaseException:
+            # A patched/failed start may raise after the OS thread exists.
+            # Request stop before releasing the gate so no detector tick can
+            # run for a builder that did not successfully start.
+            self._stop_flag.set()
+            start_gate.set()
+            if self._thread.ident is not None:
+                self._thread.join(timeout=1.0)
+                if self._thread.is_alive():
+                    logger.error("SignalLoop worker survived startup rollback")
+            raise
+        start_gate.set()
         logger.info("SignalLoop started (interval=%ds)", self._interval)
 
     def stop(self):

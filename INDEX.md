@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `149c7d1ff7dd8b1c2c7789ed74c0ac64fb39ffe5` (PR #416 merged; reconciled exact-head CI passed)
+**Last verified against:** `main` at `dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f` plus boot-ownership candidate branch (exact-head CI pending)
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -1910,3 +1910,108 @@ This is adaptive judgement, not autonomous project authority. The founder's gove
 **Unchanged boundaries:** this chapter adds no runtime mechanism, scheduler, score, database, feature flag, cognitive authority or permission. It does not modify frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 or the action-authority separation.
 
 ---
+
+## 60. Boot-Time Ownership — AppState Before Producers (28 November 2026)
+
+### Why the study boundary moved
+
+The recent transactional-startup fixes for the World Model, Membrane and Fountain were separate, justified increments. Their repetition exposed a wider question: even if each builder can roll back its own partial start, who owns workers that have already started when a later boot step fails before the application has constructed its shutdown registry?
+
+This is a deliberate return to study, not scope drift. The evidence changed from several local builder defects to a common boot-orchestration boundary in `run.py`.
+
+### Source observations
+
+- Writers start worker threads during construction, before the original `AppState` was created.
+- The original `AppState`, its `atexit` cleanup registration and the normal graceful signal handler were established late, after multiple producer startup paths.
+- The direct `run.py` starts already corresponded to fields understood by `AppState`. The defect was that ownership was published too late, not that a second process-wide supervisor was missing.
+- Internally-started builders still need their own transactional rollback because the caller cannot publish an object it has not yet received.
+- SignalLoop was the remaining internal-start boundary after the Scheduler, Dynamic, World Model, Membrane and Fountain rollback increments.
+- The decoder thread was the only direct `Thread.start()` call left in `run.py`; it is now represented as an AppState-owned worker and started through `_own_and_start`.
+
+### Candidate ownership sequence
+
+1. Construct Writers and Readers, with bounded cleanup for Writers already constructed if setup fails.
+2. Construct `AppState` immediately and register its close callback before starting producers.
+3. Publish each directly-started worker into its AppState field before calling its start method.
+4. On explicit start failure, request stop and perform a bounded join; keep the reference in AppState for final cleanup if the first rollback cannot finish.
+5. For internally-started builders, keep rollback inside the builder. Publish the returned owner immediately, then check for a latched boot-shutdown request.
+6. Preserve one absolute shutdown deadline from the original signal through producer quiescence and Writer draining.
+7. Install normal clean-shutdown semantics only after the application object is constructed. A boot abort deliberately does not write the clean marker.
+
+### Signal handling during boot
+
+A boot-time SIGINT/SIGTERM handler latches a request rather than closing Writers underneath a builder that may still be starting. The current synchronous startup operation is allowed to return; the next safe checkpoint unwinds startup. Builder/helper rollback runs first, then `atexit` invokes the early-registered AppState cleanup. This avoids concurrent cleanup of a builder's partially-started resources.
+
+This means a signal can be delayed until the current builder returns. That trade-off is explicit and remains subject to host timing validation.
+
+### Regression evidence in the candidate
+
+- AST checks require the single AppState construction and `atexit` registration to precede producer startup paths.
+- Failure injection verifies ownership is published before a direct worker start and that a thread which starts before raising is stopped and joined.
+- A boot-shutdown request injected during a start call must unwind through the helper and quiesce the worker.
+- AppState must honor the absolute deadline latched at the boot signal.
+- SignalLoop uses a start gate so a failed `Thread.start()` cannot enter the detector loop body; its regression injects a failure after the OS thread has been created.
+- The decoder uses the same owner-before-start helper; its regression injects a failure after thread creation and verifies the stop Event is set and the worker is joined.
+
+### Boundaries and unresolved evidence
+
+- This is repository source/test work, not a live host or robot shutdown rehearsal. Real SIGTERM delivery, service-manager timeouts, SQLite contention and hardware startup timing remain unknown.
+- A synchronous builder can delay the response to a boot-shutdown request until its next checkpoint.
+- Partial Writer cleanup covers constructors that returned and were published in the local registry. A failure inside a Writer constructor after an OS thread exists but before the constructor returns is handled by the separate rebased candidate PR #421 (§62). Its original exact-head suite passed; the rebased head is undergoing a fresh exact-head run.
+- SIGKILL, power loss and process abort cannot be handled by Python cleanup.
+- No process-wide thread census, new runtime flag, database, cognitive mechanism, Mind Aspect action authority or frozen-spec change is introduced.
+
+### Current status
+
+**Merged:** PR #420, merge commit `bf5dbbed66fc0d4884471420998823f658aedc7b`. Exact-head workflow run `46144422152` passed **3,058 tests, 7 skipped, 86 subtests**; baseline check OK and the isolated sandbox probe passed. The initial run on `fa2116ecd9404011072a536a74c200c42b872777` had one stale AST assertion failure; the corrected test now recognises decoder ownership through `_own_and_start`. The merged implementation is the boot ownership baseline. It has not been validated by a live host/robot SIGTERM rehearsal; real signal delivery, service-manager timeouts, SQLite contention and hardware startup timing remain unknown.
+
+
+## 61. G-92 reviewed seed bridge and CLI — implementation status correction (28 November 2026)
+
+**Source snapshot:** `main` at `dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f`. The RDO bridge, CLI, tests and README files listed below are blob-identical to the reconciled PR #416 exact-head source at `e6d19453e0ec63447d0f0b7fca85ffcd3eef1d1a`. Exact-head CI run `46140753232` passed **3,051 tests, 7 skipped, 86 subtests**; baseline check OK. This correction supersedes the older §43/§48 statements that the bridge/CLI did not yet exist. Section 48 remains the historical first proposal-lifecycle increment.
+
+### Implemented surface
+
+The current `rdo/__main__.py` exposes six provider-neutral seed lifecycle commands:
+
+- `seed-propose`: append candidate seed alternatives against an exact raw-objective snapshot.
+- `seed-review`: append an explicit decision selecting an existing alternative.
+- `seed-history`: inspect raw-objective revisions and append-only review events.
+- `seed-selection`: retrieve an alternative only after explicit approval.
+- `seed-prepare`: read-only mapping of the approved selection into a validated `objective.v1` candidate with graph diagnostics and lineage.
+- `seed-intake`: explicitly persist the approved objective and proposal lineage, then run advisory RDO planning.
+
+The source is `rdo_adapters/reviewed_seed_bridge.py`; the CLI is documented in `rdo/README.md` and `rdo/REVIEWED_SEED_BRIDGE.md`. Regression coverage includes `rdo/tests/test_seed_proposal_cli.py` and `rdo/tests/test_reviewed_seed_bridge.py`. The cross-layer lineage regression also verifies Stage-7 handoff provenance and non-execution authority.
+
+### Integrity and authority boundaries
+
+- Preparation validates the exact approval event, raw-objective digest, selected alternative identity and proposal lineage. It writes neither ledger and starts no planning.
+- Intake appends the validated objective and its lineage together in one objective revision record. A retry reuses the same proposal lineage and CycleStore identity rather than creating another objective revision.
+- Structural diagnostics reuse Tarjan SCC and the existing cycle/tension machinery. If a cyclic component exceeds 7 nodes or 18 internal cycle edges, detailed classification remains UNKNOWN rather than attempting unbounded simple-cycle enumeration.
+- Intake runs the existing advisory `run_cycle` with no authorised gates. It does not create a Stage-7 handoff, execute generated code, activate runtime policy, or write to live NEX runtime state.
+- Candidate seed interpretations still originate from an external human/provider submission. The lifecycle does not itself supply an integrated provider or an autonomous raw-idea-to-seed compiler.
+- The separate candidate expansion-rule lifecycle is already implemented by merged PR #352 (rdo_adapters/rule_proposals.py and rdo/tests/test_rule_proposals.py; merge commit 60cc178ba1f3c895651c86ad95345c98fd5a2198). It binds proposals to a fingerprint of the active rule/terminal catalogue, preserves applicability, assumptions, exceptions, anti-requirements, alternatives, evidence, disconfirmations and positive/negative test plans, and records append-only review decisions. Even approved_for_catalogue remains inert: no activation API or dynamic loading exists, and EXPANSION_RULES changes only through a separate reviewed code change and tests.
+
+### Updated G-92 disposition
+
+**G-92 is partially closed, not complete.** Both candidate lifecycle layers now exist: seed alternatives can be proposed/reviewed and explicitly bridged into objective.v1 intake; novel-kind rule proposals can be recorded/reviewed without activation. The explicit approved-seed → objective.v1 → persisted cycle → resume → Stage-7 handoff lineage path is already covered by rdo/tests/test_reviewed_seed_bridge.py::test_approved_seed_lineage_survives_objective_cycle_resume_and_stage7. The handoff is a separate explicit operation, not an automatic side effect of intake. The remaining gap is upstream raw-idea-to-seed formulation: seed alternatives still require an external human/provider; there is no integrated provider or autonomous raw-idea compiler. Planning remains advisory, and objective-context mapping and criterion verification retain their separate evidence/review path. A rule approved for catalogue consideration still requires a separate ordinary source change, tests and CI before it can enter the active catalogue. No provider is inferred, no rule is automatically promoted, and no execution authority is created.
+
+This update corrects the development status only. It does not create a new rule, activate a candidate, create a Stage-7 handoff, authorize execution, or change frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 or Phase 1 authority.
+
+## 63. Rule-proposal ledger append durability and replay validation — merged PR #423 (28 November 2026)
+
+**Merged:** `c374185338070aeb2653227c04c487ef11fd5e6c`. Candidate branch head `df33ed8140b08fa10f28988268fe018222a2a2bf`; exact-head workflow run `46144136825` passed **3,054 tests, 7 skipped, 86 subtests**; baseline check OK and the isolated sandbox probe passed.
+
+### Source-derived corrections
+
+- Validate the prospective event against the complete replay snapshot while holding the exclusive ledger lock, before writing bytes.
+- Apply the configured byte limit to the encoded append, not merely the pre-existing ledger size.
+- After first creating the ledger, fsync the file and then its parent directory so the directory entry is included in the durability boundary.
+- Regression coverage verifies parent-directory fsync and that a malformed prospective event appends no bytes (the empty ledger file may exist).
+
+This is a narrow integrity/durability correction to the existing append-only rule-proposal ledger. It does not change event schemas, review decisions, catalogue activation, execution authority or live runtime behavior.
+
+**Unchanged boundaries:** no frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, cognitive/action authority or runtime feature-flag design is changed.
+
+---
+

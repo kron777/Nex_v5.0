@@ -360,6 +360,7 @@ class RuleProposalStore:
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         if os.path.islink(self.path):
             raise RuleProposalError("rule-proposal ledger path must not be a symlink")
+        created = not os.path.exists(self.path)
         with open(self.path, "a+", encoding="utf-8") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
             try:
@@ -393,10 +394,24 @@ class RuleProposalStore:
                 }
                 event = dict(base)
                 event["event_sha256"] = _digest(base)
+                # Validate the prospective event against the complete ledger
+                # while holding the lock. Never persist an event that makes
+                # subsequent replay fail.
+                self._snapshot(events + [event])
+                encoded = _canonical(event) + "\n"
                 fh.seek(0, os.SEEK_END)
-                fh.write(_canonical(event) + "\n")
+                if fh.tell() + len(encoded.encode("utf-8")) > MAX_LEDGER_BYTES:
+                    raise RuleProposalError("rule-proposal ledger exceeds byte limit")
+                fh.write(encoded)
                 fh.flush()
                 os.fsync(fh.fileno())
+                if created:
+                    directory = os.path.dirname(os.path.abspath(self.path)) or "."
+                    dir_fd = os.open(directory, os.O_RDONLY)
+                    try:
+                        os.fsync(dir_fd)
+                    finally:
+                        os.close(dir_fd)
                 return event
             finally:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)

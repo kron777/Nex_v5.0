@@ -372,6 +372,15 @@ def test_approved_seed_lineage_survives_objective_cycle_resume_and_stage7(tmp_pa
     )
     assert handoff["proposal_lineage"] == lineage
     assert handoff["manifest_sha256"]
+    # The explicit Stage-7 handoff carries the approved seed lineage but remains
+    # a review artifact: it must not grant execution, test, runtime or launch authority.
+    assert handoff["authority"]["execution_authority"] == "none"
+    assert handoff["authority"]["tests_execution_authorized"] is False
+    assert handoff["authority"]["runtime_operations_authorized"] is False
+    assert handoff["agent_handoff"]["launch_authorized"] is False
+    assert handoff["proposal_lineage"]["approval"]["event_sha256"] == (
+        lineage["approval"]["event_sha256"]
+    )
 
     cycle_store = CycleStore(workdir)
     corrupted_cycle = cycle_store.load(cycle["id"])
