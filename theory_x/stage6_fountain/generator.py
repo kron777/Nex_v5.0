@@ -1397,7 +1397,12 @@ class FountainGenerator:
     _SUBSTRATE_VOICE_COOLDOWN_FIRES = 5
 
     def _maybe_substrate_voice(
-        self, beliefs_reader, readiness: float, trace=None,
+        self,
+        beliefs_reader,
+        readiness: float,
+        trace=None,
+        *,
+        stop_event: Optional[threading.Event] = None,
     ) -> Optional[str]:
         """Substrate-as-voice path. Returns the emitted thought if we fired
         this way, or None to fall through to normal generation.
@@ -1409,6 +1414,8 @@ class FountainGenerator:
 
         Selection: least-recently-voiced anchor (ORDER BY last_voiced_at ASC).
         """
+        if stop_event is not None and stop_event.is_set():
+            return None
         last_sv = getattr(self, "_last_substrate_voice_fire", -999)
         # Groove-aware cooldown: a fixed 5-fire gap lets a HARD groove (sev~1.0)
         # re-establish in the gap, so the breaker becomes a periodic tap instead
@@ -1425,6 +1432,8 @@ class FountainGenerator:
             _gr_sev = float(_gr_row["s"] or 0.0) if _gr_row else 0.0
         except Exception:
             _gr_sev = 0.0
+        if stop_event is not None and stop_event.is_set():
+            return None
         if _gr_sev >= 0.9:
             _cooldown = 1
         elif _gr_sev >= 0.8:
@@ -1443,6 +1452,8 @@ class FountainGenerator:
             groove = float(row["s"] or 0.0) if row else 0.0
         except Exception:
             groove = 0.0
+        if stop_event is not None and stop_event.is_set():
+            return None
         if groove < self._SUBSTRATE_VOICE_GROOVE_THRESHOLD:
             return None
 
@@ -1455,6 +1466,8 @@ class FountainGenerator:
             )
             rows = list(rows or [])
         except Exception:
+            return None
+        if stop_event is not None and stop_event.is_set():
             return None
         if not rows:
             return None
@@ -1484,6 +1497,10 @@ class FountainGenerator:
 
         ts_now = time.time()
 
+        if stop_event is not None and stop_event.is_set():
+            return None
+        # Once the anchor-touch write begins, finish its paired fountain event
+        # so the stored last_voiced_at timestamp has a corresponding fire.
         if self._beliefs_writer is not None:
             try:
                 self._beliefs_writer.write(
@@ -1523,9 +1540,11 @@ class FountainGenerator:
                 )
                 trace.remember("substrate_voice_event", _substrate_event_trace_id)
             self._link_activation_to_event()
-            # Snapshot the substrate_voice fire (Mode A walks). Fire-and-forget.
+            # Snapshot is optional; skip it once shutdown is observed.
             try:
-                if _sv_fid:
+                if _sv_fid and not (
+                    stop_event is not None and stop_event.is_set()
+                ):
                     self._capture_fire_snapshot(_sv_fid, "substrate_voice", anchor_id)
             except Exception:
                 pass
@@ -1775,10 +1794,13 @@ class FountainGenerator:
             # the SYNTH_EMIT half changes nothing observable either way.
             if os.environ.get("NEX5_RECONCILE") != "1":
                 if trace is None:
-                    _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
+                    _sv_thought = self._maybe_substrate_voice(
+                        beliefs_reader, readiness, stop_event=stop_event,
+                    )
                 else:
                     _sv_thought = self._maybe_substrate_voice(
                         beliefs_reader, readiness, trace=trace,
+                        stop_event=stop_event,
                     )
                 if _stopping():
                     return None
