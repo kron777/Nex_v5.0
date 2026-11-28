@@ -48,3 +48,29 @@ def test_signal_loop_stops_after_detector_returns_before_persisting():
     second.detect.assert_not_called()
     writer.write.assert_not_called()
     loop._library.match.assert_not_called()
+
+def test_signal_loop_start_rolls_back_after_thread_creation_failure():
+    loop = SignalLoop(MagicMock(), MagicMock(), MagicMock())
+    loop_entered = threading.Event()
+    loop._run = loop_entered.set
+    original_start = threading.Thread.start
+
+    def start_then_fail(thread):
+        original_start(thread)
+        # Give an ungated target time to enter _run before simulating the
+        # failure that occurs after the OS thread has been created.
+        thread.join(timeout=0.05)
+        raise RuntimeError("injected Thread.start failure after creation")
+
+    with patch.object(threading.Thread, "start", new=start_then_fail):
+        try:
+            loop.start()
+        except RuntimeError as exc:
+            assert "after creation" in str(exc)
+        else:
+            raise AssertionError("SignalLoop.start should propagate the injected failure")
+
+    assert loop._thread is not None
+    assert not loop._thread.is_alive()
+    assert not loop_entered.is_set()
+
