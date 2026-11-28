@@ -35,7 +35,7 @@ These are two independent consumers of the same Bonsai state: Fountain selects a
 4. Patches the random draw deterministically and verifies that positive temperature can select a lower-focus branch.
 5. Passes the same branch snapshot to the Global Workspace Bonsai candidate and pure arbiter, verifying that the branch frames over a lower-salience momentum candidate.
 
-The prior Stage-2 test remains the negative control for internal telemetry: `internal.proprioception` matches `systems` but its magnitude is zero, so it produces no Bonsai focus change and no F-step event.
+The prior Stage-2 test remains the negative control for internal telemetry: `internal.proprioception` matches `systems` but its magnitude is zero, so it produces no Bonsai focus change, no F-step event and no Global Workspace Bonsai candidate from the unchanged snapshot.
 
 ## 3. Limits
 
