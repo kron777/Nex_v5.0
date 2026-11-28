@@ -217,7 +217,7 @@ deployed-host behaviour. Later CI runs are not substituted for this exact histor
 `rdo selfcheck` now distinguishes the core reasoning package from its external
 input boundary. The last recorded self-assessment baseline contained **14 modules / 3,775
 non-comment LOC**; the provider-neutral objective-intake and Stage-7 handoff
-adapters were separately reported at **2 modules / 1,098 non-comment LOC** under
+adapters are separately reported at **3 modules / 1,538 non-comment LOC** under
 `rdo_adapters/`. The typed objective-context and acceptance-verification increment
 adds code to existing core modules rather than creating another reasoning module.
 The self-assessment must be rerun against the current head before publishing a
