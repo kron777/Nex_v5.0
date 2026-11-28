@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from typing import Optional
 
@@ -10,18 +11,24 @@ log = logging.getLogger("theory_x.diversity.reanimate")
 _pending_reanimation: Optional[dict] = None
 
 
-def wake_one(writer, reader) -> Optional[dict]:
-    """Pick one high-dormancy belief, mark it reanimated, return it for injection."""
+def wake_one(
+    writer, reader, *, stop_event: threading.Event | None = None
+) -> Optional[dict]:
+    """Pick one high-dormancy belief, stopping before the reanimation write."""
     global _pending_reanimation
+    if stop_event is not None and stop_event.is_set():
+        return None
     rows = reader.read(
         "SELECT d.belief_id, b.content FROM dormant_beliefs d "
         "JOIN beliefs b ON d.belief_id = b.id "
         "WHERE d.reanimated_at IS NULL "
         "ORDER BY d.dormancy_score DESC LIMIT 1"
     )
-    if not rows:
+    if (stop_event is not None and stop_event.is_set()) or not rows:
         return None
     row = dict(rows[0])
+    if stop_event is not None and stop_event.is_set():
+        return None
     writer.write(
         "UPDATE dormant_beliefs SET reanimated_at=? WHERE belief_id=?",
         (time.time(), row["belief_id"]),
