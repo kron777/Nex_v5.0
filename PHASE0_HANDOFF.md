@@ -337,3 +337,8 @@ The tracked-source reader map is extended in INDEX §120. Two additional live in
 ### 28 November 2026 — G-83 detector identity and restart boundary
 
 GrooveSpotter has four per-instance fingerprints (exact content, top trigram, template belief-ID set, centroid current-window ID tuple). They suppress unchanged scans while the same instance lives, clear when the detector condition falls away, and reset on process restart. A restart can therefore emit another alert row for an unchanged condition. Persisted sample_belief_ids do not preserve every detector fingerprint; scripts/trajectory.py's (alert_type, sample_belief_ids) episode grouping is a separate analytical equivalence relation. tests/test_diversity.py does not characterize repeated detect_all(), reset/recur or restart replay for the four detectors. See INDEX §121; G-83 remains OPEN.
+
+
+### 28 November 2026 — G-83 test characterization candidate
+
+Draft PR #448 adds one test file only for the four GrooveSpotter process-local fingerprints: same-instance unchanged suppression, clear/recur, and new-instance replay. Exact head f4447ad5b243b97c91c28fc00abbef88fe7c51f9, base main 18c8f06171e1de35c3210831a49b63d0e2487af0. Full CI run 46173749707 was queued; commit status pending at handoff. No local tests were run and no test pass is claimed. Keep draft until exact-head CI and review. No runtime source/behaviour change. See INDEX §122; G-83 stays OPEN.
