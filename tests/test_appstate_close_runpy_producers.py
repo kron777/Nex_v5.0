@@ -201,6 +201,35 @@ class TestRunPyEarlyBootOwnership(unittest.TestCase):
         self.assertTrue(report["success"], report)
         self.assertFalse(worker._thread.is_alive())
 
+    def test_boot_signal_during_start_rolls_back_before_exit(self):
+        from run import _own_and_start
+
+        state = _state(self.writers, self.readers)
+        state._boot_shutdown_requested = threading.Event()
+
+        class StartOnSignal:
+            def __init__(self):
+                self.stop_event = threading.Event()
+                self._thread = threading.Thread(
+                    target=self.stop_event.wait, name="boot-signal-during-start", daemon=True
+                )
+
+            def start_loop(self):
+                self._thread.start()
+                state._boot_shutdown_requested.set()
+
+            def stop_loop(self):
+                self.stop_event.set()
+
+        worker = StartOnSignal()
+        with self.assertRaises(SystemExit):
+            _own_and_start(state, "resolver", worker, "start_loop", "stop_loop")
+
+        self.assertIs(state.resolver, worker)
+        self.assertFalse(worker._thread.is_alive())
+        report = state.close()
+        self.assertTrue(report["success"], report)
+
 
 if __name__ == "__main__":
     unittest.main()
