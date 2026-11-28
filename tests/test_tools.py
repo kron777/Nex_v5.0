@@ -130,6 +130,11 @@ class TestToolRegistry(unittest.TestCase):
         self.assertIn("scheme", unsupported.error)
         build_opener.assert_not_called()
 
+    def test_coingecko_symbol_matching_uses_word_boundaries(self):
+        from theory_x.stage_capability.tools import _build_coingecko_url
+        self.assertEqual(_build_coingecko_url("whether the market is trading"), "")
+        self.assertIn("ethereum", _build_coingecko_url("ETH price"))
+
     def test_web_fetch_no_url_no_query(self):
         result = self.reg.execute("web_fetch")
         self.assertFalse(result.success)
@@ -174,12 +179,24 @@ class TestToolCaller(unittest.TestCase):
         tool = self.caller.should_use_tool("what do I believe about consciousness?", [])
         self.assertEqual(tool, "beliefs_query")
 
-    def test_current_query_returns_web_fetch(self):
+    def test_generic_current_query_without_fetch_target_does_not_select_web_fetch(self):
         tool = self.caller.should_use_tool("what is happening right now in AI?", [])
+        self.assertIsNone(tool)
+
+    def test_generic_factual_query_without_fetch_target_does_not_select_web_fetch(self):
+        tool = self.caller.should_use_tool("what is the Cambrian explosion?", beliefs=[])
+        self.assertIsNone(tool)
+
+    def test_explicit_url_selects_web_fetch(self):
+        tool = self.caller.should_use_tool("summarize https://openai.com/research", [])
         self.assertEqual(tool, "web_fetch")
 
-    def test_factual_no_beliefs_returns_web_fetch(self):
-        tool = self.caller.should_use_tool("what is the Cambrian explosion?", beliefs=[])
+    def test_unsupported_price_target_does_not_select_web_fetch(self):
+        tool = self.caller.should_use_tool("what is the price of silver?", [])
+        self.assertIsNone(tool)
+
+    def test_current_supported_crypto_query_selects_web_fetch(self):
+        tool = self.caller.should_use_tool("what is the current bitcoin price?", [])
         self.assertEqual(tool, "web_fetch")
 
     def test_factual_with_beliefs_returns_none(self):
