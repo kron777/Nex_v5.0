@@ -492,3 +492,32 @@ class RuleProposalStore:
 
     def events(self) -> List[dict]:
         return self._read_events()
+
+    def history(self, proposal_id: Optional[str] = None) -> dict:
+        """Return proposals and events derived from one locked ledger snapshot."""
+        events = self._read_events()
+        snapshot = self._snapshot(events)
+        if proposal_id is not None:
+            if not isinstance(proposal_id, str) or not _PROPOSAL_ID.fullmatch(proposal_id):
+                raise RuleProposalError("invalid proposal_id")
+            if proposal_id not in snapshot:
+                raise RuleProposalError("unknown proposal")
+            snapshot = {proposal_id: snapshot[proposal_id]}
+        proposal_ids = set(snapshot)
+        proposals = [
+            {
+                "proposal": json.loads(_canonical(item["proposal"])),
+                "status": item["status"],
+                "latest_review": json.loads(_canonical(item["latest_review"]))
+                if item["latest_review"] is not None else None,
+            }
+            for item in snapshot.values()
+        ]
+        return {
+            "proposal_count": len(proposals),
+            "proposals": proposals,
+            "events": [
+                event for event in events
+                if event.get("proposal_id") in proposal_ids
+            ],
+        }

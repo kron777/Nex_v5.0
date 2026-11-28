@@ -284,30 +284,13 @@ def _rule_review(args) -> int:
 
 def _rule_history(args) -> int:
     try:
-        store = _rule_store(args)
-        proposals = store.proposals()
-        if args.proposal_id:
-            proposals = [
-                item for item in proposals
-                if item["proposal"]["proposal_id"] == args.proposal_id
-            ]
-            if not proposals:
-                raise RuleProposalError("unknown rule proposal")
-        proposal_ids = {item["proposal"]["proposal_id"] for item in proposals}
-        events = [
-            event for event in store.events()
-            if event.get("proposal_id") in proposal_ids
-        ]
-        result = {
-            "proposal_count": len(proposals),
-            "proposals": proposals,
-            "events": events,
-        }
+        result = _rule_store(args).history(args.proposal_id)
     except (RuleProposalError, OSError, ValueError, TypeError) as exc:
         print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2, default=str))
     return 0
+
 
 
 def _seed_store(args):
@@ -363,30 +346,13 @@ def _seed_review(args) -> int:
 
 def _seed_history(args) -> int:
     try:
-        store = _seed_store(args)
-        proposals = store.proposals()
-        if args.proposal_id:
-            proposals = [
-                item for item in proposals
-                if item["proposal"]["proposal_id"] == args.proposal_id
-            ]
-            if not proposals:
-                raise SeedProposalError("unknown seed proposal")
-        proposal_ids = {item["proposal"]["proposal_id"] for item in proposals}
-        events = [
-            event for event in store.events()
-            if event.get("proposal_id") in proposal_ids
-        ]
-        result = {
-            "proposal_count": len(proposals),
-            "proposals": proposals,
-            "events": events,
-        }
+        result = _seed_store(args).history(args.proposal_id)
     except (SeedProposalError, OSError, ValueError, TypeError) as exc:
         print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2, default=str))
     return 0
+
 
 
 def _seed_selection(args) -> int:
