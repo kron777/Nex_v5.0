@@ -141,6 +141,14 @@ class TestPipeline(unittest.TestCase):
 
         self.assertEqual(hits, 0)
         self.assertEqual((systems.focus_num, systems.texture_num), before)
+        from theory_x.stage_tom.global_workspace import _bonsai_candidate
+        status = {
+            "branches": [
+                {"branch_id": node.branch_id, "focus_num": node.focus_num}
+                for node in tree.all_nodes()
+            ]
+        }
+        self.assertIsNone(_bonsai_candidate(status))
         time.sleep(0.1)
         f_events = self.readers["dynamic"].read(
             "SELECT id FROM pipeline_events WHERE step = 'F'"
