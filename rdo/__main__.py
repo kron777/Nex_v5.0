@@ -33,6 +33,7 @@ import sys
 from . import __version__
 from .knowledge import genius_authority_audit
 from .memory import CycleStore, PatternMemory
+from .rule_proposals import RuleProposalStore
 from .graph import compare_adjacent_relationship_impacts, failure_propagation_candidates
 from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_file,
                                            objective_history, resume_objective,
@@ -137,10 +138,54 @@ def _patterns(args) -> int:
     return 0
 
 
+def _rule_propose(args) -> int:
+    try:
+        with open(args.input, "r", encoding="utf-8") as fh:
+            proposal = json.load(fh)
+        event = RuleProposalStore(os.path.join(args.dir, "rule_proposals.jsonl")).propose(proposal)
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(event, indent=2, default=str))
+    return 0
+
+
+def _rule_review(args) -> int:
+    try:
+        event = RuleProposalStore(os.path.join(args.dir, "rule_proposals.jsonl")).review(
+            args.proposal_id, args.decision, args.reviewer, args.source_reference,
+            args.evidence_reference, selected_alternative=args.selected_alternative,
+            positive_test_evidence=args.positive_test_evidence,
+            negative_test_evidence=args.negative_test_evidence, note=args.note,
+        )
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(event, indent=2, default=str))
+    return 0
+
+
+def _rule_catalogue(args) -> int:
+    try:
+        catalogue = RuleProposalStore(os.path.join(args.dir, "rule_proposals.jsonl")).approved_catalogue()
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(catalogue.to_dict() if catalogue else {
+        "version": 0, "rules": {}, "note": "No approved novel-kind rules."
+    }, indent=2, default=str))
+    return 0
+
+
 def _intake(args) -> int:
     try:
         record = load_objective_file(args.input)
-        result = submit_objective(record, repo_dir=args.repo, workdir=args.out)
+        rule_path = args.rule_proposals or os.path.join(args.out, "rule_proposals.jsonl")
+        result = submit_objective(
+            record, repo_dir=args.repo, workdir=args.out,
+            rule_proposals_path=rule_path,
+            approved_rule_kinds=args.approved_rule_kind or None,
+        )
     except (ObjectiveInputError, OSError, ValueError) as exc:
         print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
         return 2
@@ -340,10 +385,35 @@ def main(argv=None) -> int:
     pt.add_argument("--dir", default="rdo/.cycles")
     pt.set_defaults(fn=_patterns)
 
+    rp = sub.add_parser("rule-propose", help="record a candidate decomposition rule; never activates it")
+    rp.add_argument("--input", required=True, help="JSON proposal with alternatives, scope, exceptions and test cases")
+    rp.add_argument("--dir", default="rdo/.cycles")
+    rp.set_defaults(fn=_rule_propose)
+
+    rr = sub.add_parser("rule-review", help="record an explicit review/approval of a candidate rule")
+    rr.add_argument("--proposal-id", required=True)
+    rr.add_argument("--decision", required=True, choices=("approved", "rejected", "changes_requested"))
+    rr.add_argument("--reviewer", required=True)
+    rr.add_argument("--source-reference", required=True)
+    rr.add_argument("--evidence-reference", action="append", required=True)
+    rr.add_argument("--selected-alternative")
+    rr.add_argument("--positive-test-evidence", action="append", default=[])
+    rr.add_argument("--negative-test-evidence", action="append", default=[])
+    rr.add_argument("--note", default="")
+    rr.add_argument("--dir", default="rdo/.cycles")
+    rr.set_defaults(fn=_rule_review)
+
+    rc = sub.add_parser("rule-catalogue", help="show explicitly approved, versioned novel-kind rules")
+    rc.add_argument("--dir", default="rdo/.cycles")
+    rc.set_defaults(fn=_rule_catalogue)
+
     intake = sub.add_parser("intake", help="validate and run a versioned external objective")
     intake.add_argument("--input", required=True, help="path to objective.v1 JSON")
     intake.add_argument("--repo", default=".", help="clean Git repository snapshot to reconcile")
     intake.add_argument("--out", default="rdo/.cycles", help="RDO objective/cycle store")
+    intake.add_argument("--rule-proposals", help="append-only novel-rule proposal ledger (default: <out>/rule_proposals.jsonl)")
+    intake.add_argument("--approved-rule-kind", action="append", default=[],
+                        help="explicitly opt this cycle into one approved novel rule kind; repeat as needed")
     intake.set_defaults(fn=_intake)
 
     history = sub.add_parser("history", help="show immutable objective input revisions")
