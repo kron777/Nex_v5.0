@@ -14,7 +14,7 @@ What owns producer threads, Writers and shutdown when NEX boot fails before the 
 2. Before this candidate, the application `AppState` was constructed only after the Sense Scheduler, Dynamic, Resolver, World Model, Membrane, optional cognitive producers, Fountain, Speech Queue Consumer, SignalLoop, DiversityLoop and Edge Generator startup paths had already been reached.
 3. `atexit.register(state.close)` and the normal SIGTERM/SIGINT graceful handler were also installed late. An exception or termination earlier in boot therefore did not have the same application-level owner and cleanup path as a fully-started process.
 4. The direct `run.py` start sites correspond to fields already understood by `AppState`; the main defect was late ownership publication, not a need for a second process-wide supervisor.
-5. Several builders start workers internally. Their partial-start rollback must be guaranteed inside the builder because the caller cannot own a returned object before the builder returns. The Sense Scheduler, Dynamic, World Model, Membrane and Fountain builders now have individually tested rollback increments. SignalLoop was the remaining internal-start boundary in this audit.
+5. Several builders start workers internally. Their partial-start rollback must be guaranteed inside the builder because the caller cannot own a returned object before the builder returns. The Sense Scheduler, Dynamic, World Model, Membrane and Fountain builders now have individually tested rollback increments. SignalLoop was the remaining internal-start boundary in this audit. The decoder is the only direct `Thread.start()` call left in `run.py`; it is now routed through the same owner-before-start helper as the other explicit producers.
 
 ## Candidate design
 
@@ -23,6 +23,7 @@ What owns producer threads, Writers and shutdown when NEX boot fails before the 
 - Check the request after each builder publishes its returned owner and after explicit worker starts. A requested boot abort unwinds through the current builder/helper, then `atexit` closes the already-published services using the original deadline.
 - Use `_own_and_start` for explicit `run.py` starts: publish the worker field first, invoke start second, and on failure request stop and perform a bounded join before re-raising. The AppState retains the reference for final cleanup if the first rollback cannot finish.
 - Make SignalLoop's own `start()` transactional with a start gate. If `Thread.start()` raises after the OS thread exists, set stop before releasing the gate, preventing the detector loop body from running, then join the worker.
+- Represent the decoder thread as an AppState-owned worker with `start`, `stop` and `_thread`, then pass it through `_own_and_start`; a post-creation start exception now signals and joins it rather than merely logging the error.
 - Install the normal clean-shutdown handler only after `create_app()` has returned. A boot abort does not write the clean-shutdown marker.
 - Preserve one absolute deadline from the original boot-time signal through AppState cleanup. Partial Writer construction has a bounded cleanup callback until AppState takes ownership.
 
@@ -33,6 +34,7 @@ What owns producer threads, Writers and shutdown when NEX boot fails before the 
 - A boot-shutdown request injected during a start call must unwind through the helper and quiesce the thread.
 - AppState close must use the absolute deadline latched at the boot signal.
 - SignalLoop failure injection starts the wrapper thread, waits briefly, then raises; the start gate must keep the loop body from running and the failed worker must be joined.
+- Decoder-owner failure injection starts its thread and then raises; `_own_and_start` must set its stop Event, join the thread and leave the owner registered with AppState.
 
 ## Boundaries and residual unknowns
 
