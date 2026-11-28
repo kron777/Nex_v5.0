@@ -182,6 +182,9 @@ def test_quoted_code_pointers_in_notes_are_not_treated_as_source_anchors(repo):
         '        - "pkg/mod.py:3-4"\n'
         "    notes: >\n"
         '      This prose mentions "pkg/mod.py:3-4" but is not an anchor.\n'
+        "  - id: second\n"
+        "    notes: >\n"
+        '      This second node also mentions "pkg/mod.py:3-4" as prose.\n'
     )
     _git(repo, "commit", "-qam", "add prose pointer")
     (repo / "pkg" / "mod.py").write_text("new\n" + _SRC)
