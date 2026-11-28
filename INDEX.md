@@ -2295,3 +2295,27 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 **Boundaries:** read-only source study; no stage builder behaviour changed. No cognitive semantics, action authority, registry API, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
 
+---
+
+## 80. Nested builder failure-injection test inventory (28 November 2026)
+
+The source study in §79 was followed through into the regression suite. Dedicated partial-start tests were found for all five worker-owning builder families inspected:
+
+| Builder | Regression test | Failure mode asserted |
+|---|---|---|
+| Stage 1 Sense | `tests/test_sense.py::test_partial_thread_start_failure_rolls_back_without_polling` | Second adapter start raises; both worker threads exit; no adapter polls before startup commit |
+| Stage 2 Dynamic | `tests/test_dynamic.py::TestBuildDynamicStartupRollback::test_partial_thread_start_failure_does_not_release_any_loop` | Second start raises; first worker exits, second never starts, no loop body runs |
+| Stage 3 World Model | `tests/test_world_model.py::TestWorldModelBuilderStartupRollback::test_partial_thread_start_failure_rolls_back_without_running_loops` | Second start raises; started worker exits, failed worker remains unstarted, no loop body runs |
+| Stage 4 Membrane | `tests/test_membrane.py::TestMembraneBuilderStartupRollback::test_start_failure_after_thread_creation_stops_and_joins_worker` | Real thread starts and then patched `start()` raises; worker receives stop and is joined |
+| Stage 6 Fountain | `tests/test_fountain.py::TestFountainBuilderStartupRollback::test_start_failure_after_thread_creation_prevents_loop_activation` | Real thread starts and then patched `start()` raises; gated loop does not activate and worker exits |
+
+**Assessment:** the nested-startup design is not merely documented; each of these five builder families has a targeted failure-injection regression. Tests distinguish a start call that fails before a thread is created from the harder "thread created, then wrapper raises" case where relevant. These tests complement, but do not replace, the GUI parent rollback tests.
+
+**Remaining gap:** no dedicated failure-injection test was found for `HoldingZoneResolver.start_loop()` when `Thread.start()` raises after creating the thread. Its parent ownership ordering is correct by source inspection: `build_state()` assigns `_resolver` before invoking `start_loop()`, and the resolver assigns `self._thread` before `start()`; parent rollback can therefore find and stop/join it. A focused parent-factory regression would be useful if a practical isolated test fixture can be built without broadening the PR excessively.
+
+**Decision:** do not duplicate the five existing builder tests in this PR. Keep the resolver test gap visible as a narrow follow-up candidate. No stage builder code changed.
+
+**Validation note:** this is source/test inspection only. The current full-suite CI run is the authority for the latest rollback code and documentation head; the per-test assertions above are not represented as independently executed during this inspection.
+
+**Boundaries:** no cognitive semantics, action authority, registry API, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
