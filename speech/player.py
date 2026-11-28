@@ -17,3 +17,12 @@ class Player:
         except Exception as e:
             log.error("Playback failed: %s", e)
             raise
+
+    def stop(self) -> None:
+        """Stop any active sounddevice playback stream."""
+        try:
+            import sounddevice as sd
+            sd.stop()
+        except Exception as e:
+            # No active stream (or no audio device) is not a shutdown failure.
+            log.debug("Playback stop requested: %s", e)
