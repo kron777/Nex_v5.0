@@ -1121,7 +1121,278 @@ The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
 
 
-## 49. Active producer cooperative shutdown sweep — validation checkpoint (28 November 2026)
+
+## 49. Development practice refinement — evidence, influence and learning (28 November 2026)
+
+**Research snapshot:** current `main` at `55fd635bd535d15ece3e3878bf1e71621f56fa7c`. This entry records an engineering-method refinement from the existing INDEX, RDO design and development records, the G-92/G-93 lifecycle work, the cognitive interaction trace and the design-mindedness investigation. It is a development aid, not a governing specification, roadmap amendment or runtime finding.
+
+### The central correction: diagnose the kind of gap before proposing a fix
+
+Classify each finding before choosing an implementation:
+
+1. **Absent capability:** no suitable mechanism exists in the current architecture.
+2. **Disconnected capability:** the mechanism exists, but a required producer-to-consumer path is missing or incorrectly wired.
+3. **Unconsumed or ineffective output:** a producer runs, but its output is not consumed, is neutralised, is stale, or has no demonstrated effect.
+4. **Deliberate exclusion:** a path is disabled or filtered because prior evidence showed distortion, starvation, amplification, unsafe side effects or experimental confounding. Preserve it unless new evidence and authority justify reconsideration.
+5. **Measurement gap:** the mechanism/path exists, but its actual influence, operating envelope or runtime status is unknown.
+6. **Semantic/authority gap:** source behaviour exists but intended meaning, lifecycle contract, policy or approval is unresolved. Do not guess implementation semantics from convenient code.
+7. **Regression or ownership defect:** a previously established invariant has been violated by a change, concurrency path, alternate consumer or lifecycle boundary.
+
+These classes can overlap. Record the primary gap and any secondary gaps. Do not automatically translate every finding into a new feature.
+
+### Trace influence as a relationship, not a component count
+
+For each material signal or state, trace:
+
+- origin and producer;
+- representation, units, confidence, provenance and freshness;
+- transformations, filters, defaults, thresholds and selection rules;
+- persistence and ownership;
+- every direct and indirect consumer;
+- whether the effect is descriptive, prompt-mediated, selection-changing, state-changing or externally consequential;
+- flags, deployment conditions, capability checks and approval authority;
+- failure, retry, restart, concurrency and stale-data behaviour.
+
+Assess influence per relationship: direct/indirect, read/behavioural, conditional/unconditional, bounded/unbounded, reversible/irreversible, measured/unmeasured. A count of consumers or files is not an authority or impact score. A prompt contribution is not proof of mechanical selection influence; a log entry is not proof of consumption; boot construction is not proof of liveness.
+
+Record intentional negative edges explicitly. Use positive and negative controls where practical. A signal useful for self-description may be harmful when used for attention steering; a bounded scan may starve items unless it rotates; a safety filter in one path does not protect alternate consumers.
+
+### Use a stronger evidence ladder
+
+Keep these states separate in every report:
+
+- specified;
+- present in source;
+- boot-wired;
+- enabled in the examined environment;
+- consumed by a real downstream path;
+- measured under a controlled probe or authorised runtime observation;
+- validated against a relevant falsifier, baseline and regression set.
+
+For each claim preserve the exact source commit and path/line or symbol, test path and exact workflow/run/job, evidence class, counter-evidence, verification date and remaining unknowns. Source anchors establish where to inspect, not semantic satisfaction. A fixture establishes only its fixture scope. CI validates only the exact tested commit and test scope. Host behaviour remains UNKNOWN without authorised host evidence.
+
+For PR work, independently check open/closed, draft/ready, base, head, merge base, changed files and exact-head CI. A green workflow on a stale base is not validation of a replay onto current main. Documentation commits after a code test do not change the tested code, but the new exact head should still be recorded accurately.
+
+### Improve experiment design before increasing implementation scope
+
+For a proposed connection or behaviour change:
+
+1. State the causal claim in one sentence.
+2. Identify the smallest observable intermediate variables.
+3. Capture a baseline and source/fixture conditions.
+4. Perturb one independent input at a time.
+5. Include a positive control and a negative/intentional-exclusion control where appropriate.
+6. Trace the effect through the intended consumer, not merely the producer.
+7. Test counterfactual subtraction or disablement where feasible.
+8. Inspect unintended consumers, feedback amplification, starvation and side effects.
+9. Compare predicted and observed outcomes; preserve null, adverse and ambiguous results.
+10. Only then decide whether the next integration level is justified.
+
+Separate three levels of evidence: one connection works; the subsystem behaves coherently; the whole system delivers a beneficial, stable outcome. Passing the first does not imply the second or third. Prompt wording, self-report and component labels must not substitute for measured changes in attention, retrieval, selection or external behaviour.
+
+### Make boundedness fair and lifecycle-safe
+
+Whenever code uses limits, windows, top-K selection, pagination, sampling, retries or periodic scans, ask whether the bound creates starvation, permanent ordering bias, missed updates or restart gaps. Inspect cursor semantics, rotation, idempotency and recovery. When state is shared, identify the canonical owner and writer; inspect submit/close races, concurrent mutation, atomic persistence, replay and failure between ledger and snapshot writes.
+
+Reuse existing infrastructure when its responsibility fits. Do not mechanically split modules based on LOC heuristics or create a parallel ledger, queue, workspace, node or authority layer merely to make a gap look addressed. Conversely, do not overload an existing component when ownership and lifecycle become incoherent. Choose the smallest change that closes the invariant, not necessarily the smallest textual diff.
+
+### Treat NEX and RDO as systems that must also be examined critically
+
+NEX's disabled mechanisms can encode experimental learning, not unfinished work. Recover the reason for an OFF state before proposing activation. Preserve welfare constraints, boundedness, reversibility and neutral alternatives where a mechanism can create aversive or self-reinforcing states. Do not describe functional analogues as proof of subjective experience.
+
+RDO remains advisory and separate from NEX runtime cognition. Its source-signature reconciliation is not semantic verification; its prioritisation mathematics is not calibrated merely because it produces numbers; repeated patterns do not automatically justify new rules. Compare efficiency only across comparable executed-and-verified cycles, with denominators and missing outcomes preserved. Planning-only and imported-retrospective cycles are not execution outcomes. Human approval, scope review, acceptance, independent verification and execution remain distinct decisions.
+
+### Revised research–develop–observe loop
+
+`Orient → classify the gap → trace the relationship network → form competing hypotheses → identify disconfirming evidence → check authority and existing mechanisms → design the smallest causal probe → implement one bounded increment → validate exact scope → rescan changed and adjacent paths → record outcomes and newly exposed obligations → reassess.`
+
+The loop is iterative, not a rigid waterfall. Research and implementation may proceed together where the evidence and authority permit. Stop expanding when the next obligation is actionable, an existing mechanism should be reused, a required authority/runtime fact is unavailable, or expected information gain has materially diminished. Record the unresolved boundary and continue elsewhere rather than inventing certainty.
+
+**No NEX runtime code, feature flags, databases, frozen S-01–S-25/M1.8 content, Master Roadmap, mind-map authority, Gate 0 or Phase 1 status was changed by this method study.** This entry is a refinement of engineering practice only.
+
+
+## 50. Boot-time worker ownership and partial-construction boundary (28 November 2026)
+
+**Source snapshot:** `main` at `b680b13006a767cf0567c952697659fb92a831f7`. This is a source/test-coverage finding from the boot orchestrator, AppState shutdown registry, SenseScheduler, SignalLoop, DiversityLoop, EdgeGeneratorLoop and `tests/test_sense.py`. It is not a claim that a production boot failure or leaked thread has been observed.
+
+### Verified construction and ownership paths
+
+- `run.py` constructs the SenseScheduler at boot. Its constructor creates one `_AdapterThread` per adapter, and each `_AdapterThread` starts its daemon thread immediately. The scheduler then auto-starts external feeds.
+- `build_signal_loop()` constructs and starts SignalLoop internally before returning it.
+- `build_diversity_loop()` constructs only; `run.py` calls `.start()` separately.
+- `run.py` starts SpeechQueueConsumer, DiversityLoop and EdgeGeneratorLoop before constructing AppState. SignalLoop and SenseScheduler are also already running by then.
+- AppState's `_quiesce_producers()` has explicit stop/join handling for the registered services, and `close()` correctly refuses a clean result when registered producers remain alive or report errors. This registry is bounded to the services passed into AppState; it is not a process-wide thread census.
+- The decoder thread is started after AppState construction and is then attached to state for shutdown handling.
+
+### The uncovered lifecycle boundary
+
+The normal post-construction shutdown path is substantially covered, but the inspected `tests/test_sense.py` scheduler tests do not exercise constructor rollback when adapter construction fails partway through `SenseScheduler.__init__`. Since each worker starts inside `_AdapterThread.__init__`, an exception while constructing a later adapter can leave earlier workers running without a successfully returned scheduler object to own and stop them. Duplicate adapter IDs are another untested ownership edge: the current dictionary assignment can replace a prior worker reference after its thread has already started.
+
+The broader boot sequence has the same class of risk: if boot raises after one or more services start but before AppState is constructed, the normal AppState registry is not yet available to clean them up. The inspected source establishes the ordering and the missing owner during that interval; it does not establish that any particular exception path has occurred in a live host.
+
+### Refinement direction — bounded, test-first
+
+1. Make SenseScheduler construction transactional: validate adapter IDs before starting threads; if any worker construction/start fails, signal and join every worker already created before re-raising the original failure.
+2. Add deterministic tests for duplicate IDs, failure after at least one successful worker start, and bounded cleanup when an earlier worker is blocked. Assert no worker is silently orphaned and preserve the original exception.
+3. Separately design a boot-scope owner/rollback boundary that is established before the first background worker starts, or defer all starts until a complete state owner exists. Do not add a second competing shutdown registry; reuse the existing stop/join contracts and absolute deadline.
+4. Keep builder semantics explicit. A builder that starts a worker must advertise that side effect and return an object with a defined stop/join lifecycle. Avoid silently mixing auto-start and caller-start conventions.
+5. Re-run exact-head tests and rescan every boot-created producer against the AppState registry before claiming process-wide lifecycle completeness.
+
+This finding does not justify changing graceful-shutdown timeouts, forcibly cancelling threads, altering scheduler feed policy, changing frozen specifications, or asserting a host leak. The next implementation should begin with the narrow SenseScheduler constructor invariant; the cross-boot rollback design is a separate increment because it spans many subsystems and must preserve their ownership contracts.
+
+**Evidence boundary:** source ordering and normal-path tests inspected; no live host boot fault was injected. Partial-construction failure, duplicate-ID orphaning and boot-time leaked threads remain unobserved hypotheses requiring deterministic tests. No runtime code, feature flags, databases, frozen S-01–S-25/M1.8 content, Master Roadmap, mind-map authority, Gate 0 or Phase 1 status changed in this study.
+
+
+
+## 51. Development approach upgrade — lifecycle contracts, adversarial probes and evidence debt (28 November 2026)
+
+**Research snapshot:** `main` at `169217c2b9e9641abe98551c89a6cf0570d4fc4c`. This entry upgrades the working method in §49 using the boot-ownership investigation in §50 and the current SenseScheduler implementation branch. It is an engineering-process refinement, not a change to NEX's governing specifications, roadmap or runtime authority.
+
+### 1. Model ownership as a lifecycle contract, not a shutdown callback
+
+For every background service, explicitly map the lifecycle:
+
+`unconstructed → constructed → prepared → started → active/paused → stop-requested → quiescent → joined → resources-released`
+
+Not every service needs every state, but transitions and owners must be explicit. Distinguish:
+- object construction from worker creation;
+- thread creation from successful thread start;
+- successful start from permission to perform work;
+- stop request from actual quiescence;
+- join completion from resource release;
+- normal shutdown from rollback after failed construction.
+
+A returned object is not automatically an owner of workers started before it was returned. A builder with side effects must either return a complete owner or roll back every side effect before propagating failure. At a higher level, boot must have an owner before the first service starts, or defer starts until that owner exists. Reuse the existing stop/join contracts; do not create a competing registry without evidence that the current owner cannot express the lifecycle.
+
+### 2. Use a fault-injection matrix, not one happy-path test
+
+For each owner/builder boundary, consider deterministic failure points:
+- before any worker is prepared;
+- after one or more workers are prepared but none started;
+- after the first successful start;
+- after a later start fails;
+- immediately before the activation/release gate opens;
+- during the first work unit;
+- while work is blocked in I/O;
+- while stop races with submit/write;
+- during join timeout;
+- during resource close after workers stop.
+
+For each case assert the invariant, not just an expected log: no unowned live worker, no work before activation commits, no post-stop submission where prohibited, no false clean-shutdown marker, bounded waiting, and preservation of the original exception. Use events/barriers and injected failures rather than sleeps wherever possible. A test that only asserts `is_alive() == False` should also establish that the worker actually entered the intended path or never passed its activation gate.
+
+### 3. Separate the three concurrency questions
+
+Do not collapse these into a generic “thread-safe” claim:
+1. **Ownership:** who retains the reference and is responsible for stop/join?
+2. **Admission:** what prevents new work from beginning while shutdown/rollback proceeds?
+3. **Completion:** what proves in-flight work has stopped before shared resources close?
+
+For each shared resource, identify its canonical owner and the exact admission/close ordering. Check the time-of-check/time-of-use gap between a producer's stop check and a Writer submission; a cooperative stop flag alone cannot close that gap. Conversely, do not introduce locks or cancellation where the existing queue/close contract already guarantees the required ordering.
+
+### 4. Expand the evidence record into an explicit claim ledger
+
+Every material finding should have a compact record:
+- claim and scope;
+- source revision plus path/symbol;
+- evidence class (source, test, CI, authorised host observation);
+- exact test/workflow/job and revision;
+- observed result;
+- counter-evidence and falsifier;
+- unresolved assumptions;
+- next probe and stop condition.
+
+Use precise status language: **observed**, **reproduced**, **source-derived**, **test-covered**, **CI-validated at exact head**, **host-observed**, or **unknown**. Do not promote one status into another. Preserve stale CI and base divergence as evidence debt, not as footnotes.
+
+### 5. Add a deliberate adversarial review before widening scope
+
+For every proposed fix, ask:
+- What if the exception happens one instruction earlier or later?
+- What if the callback runs twice or concurrently?
+- What if the worker starts but the caller sees an exception?
+- What if a resource is already closing?
+- What if the process restarts between persistence steps?
+- What if an alternate consumer bypasses the intended guard?
+- What prior OFF-state or exclusion might this change accidentally undo?
+- What evidence would show the fix is unnecessary or harmful?
+
+Prefer the smallest causal change that closes the invariant. Then inspect adjacent owners and alternate paths for the same defect class; do not mass-refactor them from pattern resemblance alone. A repeated pattern creates a research obligation, not automatic permission to copy a fix.
+
+### 6. Prioritise by risk, information gain and reversibility
+
+A practical order is:
+1. irreversible or externally consequential authority/side-effect boundary;
+2. data integrity, persistence ownership and false-clean-shutdown risks;
+3. orphaned workers, races, unbounded waits and recovery gaps;
+4. silent loss, starvation, stale state and misleading observability;
+5. semantic/interpretive quality and measured downstream effect;
+6. usability and efficiency.
+
+Within a tier, prefer a probe that distinguishes competing explanations and reduces uncertainty. Record expected information gain before expensive or broad work. If the evidence cannot distinguish hypotheses, keep the result unknown and move to a better probe rather than increasing code volume.
+
+### 7. Research–develop–observe now includes a lifecycle and counterfactual pass
+
+`Orient → classify the gap → map ownership and influence → state competing causal hypotheses → identify falsifiers → check existing contracts and authority → design fault/counterfactual probes → implement one bounded invariant → validate exact revision and scope → adversarially inspect adjacent paths → record evidence debt and consequences → reassess priority.`
+
+Continue research and implementation concurrently when a bounded, reversible increment is justified. Do not let CI waiting become idle time: inspect adjacent contracts, test blind spots, source ownership and alternative explanations. Equally, do not infer a pass while CI is pending. Every new implementation should trigger a rescan of the changed code, its callers, its consumers and the owner that closes its resources.
+
+### Current application: SenseScheduler startup transaction
+
+PR #414 (`fix/sense-scheduler-transactional-startup-2026-11-28`, head `ab8a1908be1ee17026a80ab934c6318b87847a9e`) implements the first bounded application:
+- validate adapter IDs before constructing workers;
+- prepare all workers before starting any;
+- hold workers behind a shared start gate until every thread has started;
+- on partial start failure, stop and join all prepared workers before re-raising;
+- treat never-started threads as already quiescent;
+- add deterministic duplicate-ID and injected second-start-failure regressions.
+
+The exact-head CI run 2526 was still running its full baseline suite when this entry was prepared; no pass is claimed here. The current regression proves the injected partial-start rollback and no-poll-before-commit case, but does not yet inject a worker blocked in its first operation during rollback. That is a specific remaining test question, not evidence of a leak.
+
+The same internal-start pattern appears in Dynamic, World Model, Membrane and Fountain builders. This is a cross-subsystem research queue only. Inspect each builder's own cleanup contract, constructor dependencies and tests before changing it. The boot-level owner-before-first-start boundary remains separate from builder-level rollback.
+
+**Unchanged boundaries:** no frozen S-01–S-25/M1.8 content, Master Roadmap, Gate 0/Phase 1 authority, Tibetan mind-map role, cognitive interpretation/action-authority separation, NEX runtime flags, databases or live host state changed by this method entry.
+
+
+
+## 52. Dynamic builder startup rollback — first cross-builder application (28 November 2026)
+
+**Implementation branch / PR:** `fix/dynamic-builder-transactional-startup-2026-11-28`, [PR #415](https://github.com/kron777/Nex_v5.0/pull/415), exact head `8889eba914cbffe1767efb200f70626e71f9c945`. Base at PR creation: `58a3cb13d4b15c65421e595830d78d233e663ffb`.
+
+### Source-derived gap
+
+`build_dynamic()` creates a DynamicState, prepares a list of loop functions, then starts each thread sequentially. Before this increment, it assigned `state._stop` and `state._threads` only after every `Thread.start()` succeeded. If a later start raised, earlier threads could already be running, but the builder would not return the state or expose its ownership handles to the caller. The normal `stop_dynamic()` contract could therefore not be used by the caller for that failed construction.
+
+This is a source-derived partial-construction risk, not a report of an observed production failure or host leak.
+
+### Bounded implementation
+
+- Publish `state._stop` and the live `state._threads` list before starting any worker.
+- Prepare workers behind a shared activation gate; loop bodies cannot begin until every thread start succeeds.
+- If a start fails, set the stop event, release the gate so started wrappers can exit without entering their loop body, and join started threads against one shared one-second rollback budget.
+- Preserve and re-raise the original startup exception. Log any worker that unexpectedly survives the bounded rollback.
+- Add a deterministic regression injecting failure on the second thread start; it asserts that the first thread is joined, the second was never started, and the patched first loop body was never entered.
+
+### Validation boundary and next work
+
+PR #415 was opened against current `main`; exact-head CI had not yet been reported when this entry was written. No test pass is claimed. The regression exercises the second-start failure and gate/rollback ordering, but does not inject a failure after a worker has passed the gate, because the gate is deliberately withheld until all starts succeed.
+
+This change does not alter the successful Dynamic loop cadence or processing semantics. It does not solve boot-level ownership before AppState. World Model, Membrane and Fountain have similar internal-start patterns, but their cleanup contracts differ and remain separate investigations. No shared thread utility or bulk refactor is justified yet.
+
+**Unchanged boundaries:** no frozen S-01–S-25/M1.8 content, Master Roadmap, Gate 0/Phase 1 authority, mind-map role, cognitive/action authority separation, NEX runtime flags, databases or live host state changed by this increment.
+
+
+
+## 53. SenseScheduler startup transaction — merged and exact-head validated (28 November 2026)
+
+**Merged PR:** [#414](https://github.com/kron777/Nex_v5.0/pull/414), merge commit `c54a82f7add75553ad256c31d0f5e9ca04066d07`. The tested PR head was `ab8a1908be1ee17026a80ab934c6318b87847a9e`; its code was unchanged by the intervening documentation-only commits on `main).
+
+**Exact-head CI:** workflow run `46137289839` (run 2526), job `140955316633`, completed successfully. Full baseline result: **3,001 passed, 7 skipped, 86 subtests passed**, 0 failures. Sandbox probe passed. Mind-map verification: 30 nodes, 0 unverified, 12 dark, 2 blocked. Existing warnings remain: two cited doctrine files missing and p13_finitude unblock past due. CI validates the exact PR head and its test environment, not live host operation.
+
+The merged change validates adapter IDs before worker creation, prepares all workers before starting them, holds them behind a shared start gate until all starts succeed, and rolls back a partial start by stopping and joining the prepared workers before re-raising. Regression tests cover duplicate IDs and an injected second-start failure with no polling before startup commit.
+
+**Integration boundary:** PR #414 is merged. This does not resolve the wider boot-before-AppState ownership gap, nor does it prove all other builders roll back partial startup. PR #415 separately addresses Dynamic builder rollback and remains under exact-head CI at the time of this entry.
+
+
+## 54. Active producer cooperative shutdown sweep — validation checkpoint (28 November 2026)
 
 **Evidence snapshot:** mainline source through `55fd635bd535d15ece3e3878bf1e71621f56fa7c`; combined implementation and regression coverage on draft PR #413. The PR branch received a test-harness correction at commit `14c5e2ae6cab7aad7d12caf30bd5fe10f5a594eb`. Exact-head full-suite CI, baseline verification and mind-map verification remain required; no pass is claimed here.
 
@@ -1150,7 +1421,7 @@ PR #413 remains a candidate pending fresh exact-head full-suite CI, baseline ver
 **Next bounded work:** verify the exact PR head and CI; then continue the shutdown ownership audit at the boundary between producer quiescence, synchronous Writer admission/drain and resource closure. Do not introduce a new cancellation or locking protocol until the current shared-Writer ownership and shutdown ordering are fully traced.
 
 
-## 50. Shutdown ownership and Writer admission — source-level follow-up (28 November 2026)
+## 55. Shutdown ownership and Writer admission — source-level follow-up (28 November 2026)
 
 **Evidence:** `run.py` blob `d4482e2c2a2da5e165ec810fd40cf9536c45f49c`; `gui/server.py` blob `cb399a337441bebe23f3f52079ea79bf1b7ab460`; `gui/shutdown_gate.py` blob `c03e8e83b2b27c79e050605f75cd37e590848852`; `substrate/writer.py` blob `455329e3c25aa1a3e7fd977241bb4cd7f8a61e34`. Source inspection only; no host/runtime observation.
 
@@ -1183,7 +1454,7 @@ Complete the source-to-sink ownership census for thread/process creation and rou
 No live runtime, host process, database, feature flag, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority was changed.
 
 
-## 51. Request-drain versus voice-call timeout — operational improvement candidate (28 November 2026)
+## 56. Request-drain versus voice-call timeout — operational improvement candidate (28 November 2026)
 
 **Evidence source:** `research/SHUTDOWN_REQUEST_VOICE_TIMEOUT_GAP_2026-11-28.md` on the shutdown candidate branch; source snapshot after #378/#381. This is a code-derived timing risk, not an observed host failure.
 
