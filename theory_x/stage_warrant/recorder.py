@@ -336,13 +336,20 @@ class WarrantRecorder:
         if _stopping():
             return 0
         if pairs:
-            # Once the idempotent data/cursor commit starts, finish it so the
-            # cursors cannot lag a partially applied batch on the next restart.
-            write_batch(self._w, [(
+            # Day rows are INSERT OR IGNORE and summary rows are recomputed
+            # upserts. They can safely be replayed if stop interrupts a chunk;
+            # cursors advance only after every chunk has completed.
+            statements = [(
                 "INSERT OR IGNORE INTO belief_use_day (belief_id, day) VALUES (?, ?)", pair)
-                for pair in sorted(pairs)])
+                for pair in sorted(pairs)]
+            for i in range(0, len(statements), 500):
+                if _stopping():
+                    return 0
+                write_batch(self._w, statements[i:i + 500])
             ids = sorted({belief_id for belief_id, _day in pairs})
             for i in range(0, len(ids), 500):
+                if _stopping():
+                    return 0
                 chunk = ids[i:i + 500]
                 placeholders = ",".join("?" * len(chunk))
                 self._w.write(
@@ -352,6 +359,8 @@ class WarrantRecorder:
                     "ON CONFLICT(belief_id) DO UPDATE SET days=excluded.days, "
                     "first_day=excluded.first_day, last_day=excluded.last_day, "
                     "updated_at=excluded.updated_at", (now, *chunk))
+        if _stopping():
+            return 0
         scalar_cursors = {key: value for key, value in cur_new.items()
                           if not isinstance(value, tuple)}
         tuple_cursors = {key: value for key, value in cur_new.items()
