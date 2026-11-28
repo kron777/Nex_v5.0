@@ -401,5 +401,121 @@ class TestNovelAssociationCrossingTrigger(unittest.TestCase):
         sn.write_narrative.assert_not_called()
 
 
+class TestRutMirrorTick(unittest.TestCase):
+    """Characterize the existing rut-mirror hook without changing runtime code."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        self.sn = _make_sn(self.writers, self.readers)
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def _seed_tags(self, classes, now):
+        for i, tag_class in enumerate(classes, start=1):
+            self.writers["conversations"].write(
+                "INSERT INTO genius_tags "
+                "(fountain_event_id, score, class, weights_version, tagged_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (i, 0.1, tag_class, "rut-mirror-test", now - 60),
+            )
+        time.sleep(0.05)
+
+    def _rut_count(self):
+        rows = self.readers["conversations"].read(
+            "SELECT COUNT(*) AS n FROM narrative_log WHERE trigger='rut_notice'"
+        )
+        return int(rows[0]["n"])
+
+    def test_tick_writes_rut_notice_at_or_below_five_percent(self):
+        now = 1_800_000_000.0
+        self._seed_tags(["ordinary"] * 20 + ["STRIKING"], now)
+        with patch.dict(os.environ, {"NEX5_RUT_MIRROR_OFF": "0"}):
+            with patch(
+                "theory_x.stage_self_narrative.self_narrative.time.time",
+                return_value=now,
+            ):
+                self.sn.tick()
+        time.sleep(0.05)
+        self.assertEqual(self._rut_count(), 1)
+
+    def test_tick_does_not_write_above_five_percent_striking(self):
+        now = 1_800_000_000.0
+        self._seed_tags(["ordinary"] * 3 + ["STRIKING"], now)
+        with patch.dict(os.environ, {"NEX5_RUT_MIRROR_OFF": "0"}):
+            with patch(
+                "theory_x.stage_self_narrative.self_narrative.time.time",
+                return_value=now,
+            ):
+                self.sn.tick()
+        time.sleep(0.05)
+        self.assertEqual(self._rut_count(), 0)
+
+    def test_tick_respects_rut_mirror_off_flag(self):
+        now = 1_800_000_000.0
+        self._seed_tags(["ordinary"] * 4, now)
+        with patch.dict(os.environ, {"NEX5_RUT_MIRROR_OFF": "1"}):
+            with patch(
+                "theory_x.stage_self_narrative.self_narrative.time.time",
+                return_value=now,
+            ):
+                self.sn.tick()
+        time.sleep(0.05)
+        self.assertEqual(self._rut_count(), 0)
+
+    def test_tick_throttles_rut_notice_for_two_hours(self):
+        now = 1_800_000_000.0
+        self._seed_tags(["ordinary"] * 4, now)
+        self.writers["conversations"].write(
+            "INSERT INTO narrative_log (content, trigger, source_id, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            ("prior rut notice", "rut_notice", None, now - 3600),
+        )
+        time.sleep(0.05)
+        with patch.dict(os.environ, {"NEX5_RUT_MIRROR_OFF": "0"}):
+            with patch(
+                "theory_x.stage_self_narrative.self_narrative.time.time",
+                return_value=now,
+            ):
+                self.sn.tick()
+        time.sleep(0.05)
+        self.assertEqual(self._rut_count(), 1)
+    def test_metacognition_direct_rut_hook_bypasses_off_flag(self):
+        """Characterize the chat-path helper call that bypasses SelfNarrative.tick()."""
+        now = time.time()
+        self._seed_tags(["ordinary"] * 4, now)
+
+        from theory_x.stage9_metacognition.metacognition import Metacognition
+        mc = Metacognition(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self.readers["beliefs"],
+            narrative=self.sn,
+        )
+        with patch.dict(os.environ, {"NEX5_RUT_MIRROR_OFF": "1"}):
+            mc.tick()
+
+        time.sleep(0.05)
+        self.assertEqual(self._rut_count(), 1)
+
+    def test_rut_notice_retrieval_is_literal_topic_matched(self):
+        note = (
+            "I notice my recent thinking has circled the same few frames "
+            "without surprising me. Many thoughts, little that landed. "
+            "Perhaps it is time to reach for something I have not touched."
+        )
+        self.sn.write_narrative(note, "rut_notice", None)
+        time.sleep(0.05)
+
+        unrelated = MagicMock()
+        unrelated.current_topic = "What should I explore next?"
+        self.assertEqual(self.sn.format_for_prompt(unrelated), "")
+
+        matching = MagicMock()
+        matching.current_topic = "my recent thinking has circled"
+        self.assertIn(note, self.sn.format_for_prompt(matching))
+
+
+
 if __name__ == "__main__":
     unittest.main()
