@@ -55,7 +55,9 @@ def _own_and_start(state: AppState, field: str, worker, start_method: str,
     """
     setattr(state, field, worker)
     try:
+        _abort_if_boot_shutdown_requested(state)
         getattr(worker, start_method)()
+        _abort_if_boot_shutdown_requested(state)
     except BaseException:
         stop = getattr(worker, stop_method, None)
         if callable(stop):
@@ -80,6 +82,12 @@ def _own_and_start(state: AppState, field: str, worker, start_method: str,
                     )
         raise
     return worker
+
+
+def _abort_if_boot_shutdown_requested(state: AppState) -> None:
+    requested = getattr(state, "_boot_shutdown_requested", None)
+    if requested is not None and requested.is_set():
+        raise SystemExit(1)
 
 
 def main() -> None:
@@ -122,12 +130,11 @@ def main() -> None:
                 log.error("Partial Writer cleanup failed: %s", _close_error)
 
     atexit.register(_close_partial_writers)
+    _partial_shutdown_requested = threading.Event()
 
     def _partial_boot_shutdown(signum, frame):
-        log.warning("Shutdown during Writer construction; unwinding to bounded cleanup")
-        # Raising lets the current constructor/startup transaction roll back;
-        # the registered atexit callback then drains all constructed Writers.
-        raise SystemExit(1)
+        _partial_shutdown_requested.set()
+        log.warning("Shutdown during Writer construction; cleanup requested")
 
     signal.signal(signal.SIGTERM, _partial_boot_shutdown)
     signal.signal(signal.SIGINT, _partial_boot_shutdown)
@@ -135,6 +142,8 @@ def main() -> None:
     try:
         for _name, _path in paths.items():
             writers[_name] = Writer(_path, name=_name)
+            if _partial_shutdown_requested.is_set():
+                raise SystemExit(1)
     except BaseException:
         _close_partial_writers()
         raise
@@ -144,29 +153,31 @@ def main() -> None:
         # Tag Protocol — wrap beliefs writer so new INSERTs auto-generate tags
         from theory_x.tag_protocol.writer_wrapper import TaggingBeliefWriter as _TBW
         writers["beliefs"] = _TBW(writers["beliefs"])
+        if _partial_shutdown_requested.is_set():
+            raise SystemExit(1)
         state = AppState(writers=writers, readers=readers, voice=voice)
     except BaseException:
         _close_partial_writers()
         raise
 
+    state._boot_shutdown_requested = threading.Event()
+    if _partial_shutdown_requested.is_set():
+        raise SystemExit(1)
     atexit.unregister(_close_partial_writers)
     atexit.register(state.close)
 
-    _boot_shutdown_started = False
-
     def _boot_shutdown(signum, frame):
-        nonlocal _boot_shutdown_started
-        if _boot_shutdown_started:
-            return
-        _boot_shutdown_started = True
-        log.warning("Shutdown during NEX boot; unwinding startup before cleanup")
-        # Do not close Writers underneath a builder that is still starting.
-        # SystemExit unwinds through builder/helper rollback, then atexit calls
-        # the already-registered AppState.close(). No clean marker is written.
-        raise SystemExit(1)
+        if not state._boot_shutdown_requested.is_set():
+            log.warning("Shutdown during NEX boot; cleanup requested")
+            state._boot_shutdown_requested.set()
+        # Return instead of closing underneath a builder. The current startup
+        # operation completes, publishes its owner, then the next checkpoint
+        # unwinds to AppState.close() via atexit.
+        return
 
     signal.signal(signal.SIGTERM, _boot_shutdown)
     signal.signal(signal.SIGINT, _boot_shutdown)
+    _abort_if_boot_shutdown_requested(state)
 
     # 3. Self-location commitment
     log.info("Committing self-location...")
@@ -211,6 +222,7 @@ def main() -> None:
     log.info("Starting sense scheduler (external feeds auto-start)...")
     scheduler = build_scheduler(writers, readers, mode_state=mode_state)
     state.scheduler = scheduler
+    _abort_if_boot_shutdown_requested(state)
     log.info("Sense scheduler constructed — 28 adapters wired (4 internal, 24 external)")
 
     # 9b-pre. SelfNarrative — autobiographical accumulation (Phase 26)
@@ -254,6 +266,7 @@ def main() -> None:
     log.info("Starting dynamic formation...")
     dynamic = build_dynamic(writers, readers, coherence_gate=coherence_gate)
     state.dynamic = dynamic
+    _abort_if_boot_shutdown_requested(state)
     log.info("Dynamic started — bonsai tree active")
 
     # Voice health check
@@ -273,6 +286,7 @@ def main() -> None:
     log.info("Starting world model...")
     world_model = build_world_model(writers, readers, dynamic_state=dynamic, voice_client=voice, coherence_gate=coherence_gate)
     state.world_model = world_model
+    _abort_if_boot_shutdown_requested(state)
     log.info("World model started")
 
     # 8. Membrane
@@ -284,6 +298,7 @@ def main() -> None:
         coherence_gate=coherence_gate,
     )
     state.membrane = membrane
+    _abort_if_boot_shutdown_requested(state)
     log.info("Membrane drawn — inside/outside boundary active")
 
     # 9. Problem memory (needed by fountain for task-bearing override)
@@ -735,6 +750,7 @@ def main() -> None:
                               drive_emergence=_drive_emergence, erosion=world_model.erosion, competing_drives=_competing_drives,
                               metacognition=metacognition)
     state.fountain = fountain
+    _abort_if_boot_shutdown_requested(state)
     log.info("Fountain lit — loop running at %ds interval", FOUNTAIN_CHECK_INTERVAL_SECONDS)
 
     # 11. Strike protocols
@@ -790,6 +806,7 @@ def main() -> None:
     from theory_x.signals import build_signal_loop
     signal_loop = build_signal_loop(writers, readers)
     state.signal_loop = signal_loop
+    _abort_if_boot_shutdown_requested(state)
     log.info("Signal loop ready — detectors running every 60s")
 
     # 14. Diversity ecology (LLM-free, sentence-transformers)
@@ -895,6 +912,7 @@ def main() -> None:
             stop=_decoder_stop.set, _thread=_decoder_thread)
         atexit.register(lambda: _decoder_stop.set())
         _decoder_thread.start()
+        _abort_if_boot_shutdown_requested(state)
         # Registered before start so failed startup remains visible to AppState (G-84).
         log.info("Decoder loop started — tokenizing fountain outputs every 30s")
     except Exception as _dec_exc:
@@ -963,6 +981,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _graceful_standby)
     signal.signal(signal.SIGINT, _graceful_standby)
 
+    _abort_if_boot_shutdown_requested(state)
     app = create_app(state, shutdown_gate=shutdown_gate)
 
     host = os.environ.get("NEX5_HOST", "127.0.0.1")
