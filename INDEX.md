@@ -1998,23 +1998,6 @@ The source is `rdo_adapters/reviewed_seed_bridge.py`; the CLI is documented in `
 
 This update corrects the development status only. It does not create a new rule, activate a candidate, create a Stage-7 handoff, authorize execution, or change frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 or Phase 1 authority.
 
-## 63. Rule-proposal ledger append durability and replay validation — merged PR #423 (28 November 2026)
-
-**Merged:** `c374185338070aeb2653227c04c487ef11fd5e6c`. Candidate branch head `df33ed8140b08fa10f28988268fe018222a2a2bf`; exact-head workflow run `46144136825` passed **3,054 tests, 7 skipped, 86 subtests**; baseline check OK and the isolated sandbox probe passed.
-
-### Source-derived corrections
-
-- Validate the prospective event against the complete replay snapshot while holding the exclusive ledger lock, before writing bytes.
-- Apply the configured byte limit to the encoded append, not merely the pre-existing ledger size.
-- After first creating the ledger, fsync the file and then its parent directory so the directory entry is included in the durability boundary.
-- Regression coverage verifies parent-directory fsync and that a malformed prospective event appends no bytes (the empty ledger file may exist).
-
-This is a narrow integrity/durability correction to the existing append-only rule-proposal ledger. It does not change event schemas, review decisions, catalogue activation, execution authority or live runtime behavior.
-
-**Unchanged boundaries:** no frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, cognitive/action authority or runtime feature-flag design is changed.
-
----
-
 ## 62. Writer constructor rollback after partial thread creation — merged PR #424 (28 November 2026)
 
 **Source snapshot:** current main after merged PR #420 (`bf5dbbed66fc0d4884471420998823f658aedc7b`), #422 (`870d16359084db56de6e117aa90a8212abcb6350`), #423 (`c374185338070aeb2653227c04c487ef11fd5e6c`) and #424 (`b604ddfe4949b504196e005399c602677af157bd`). The final Writer rollback change was squash-merged from the rebased PR #424 branch.
@@ -2032,6 +2015,23 @@ Four deterministic cases cover: post-OS-start exception and worker rollback; pre
 This is complementary to merged PR #420: #424 owns the individual partially started Writer, while #420 owns already-created producers during boot before AppState takes over. **Merged:** PR #424, merge commit `b604ddfe4949b504196e005399c602677af157bd`. Exact-head workflow run `46145202367` passed **3,064 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map check reports `p1_continuity` source drift because `substrate/writer.py` changed after its 2026-11-27 verification; this is an evidence-refresh item, not a failed test. No live dual-writer or host/robot runtime rehearsal is claimed.
 
 **Unchanged boundaries:** no Writer transaction semantics, schema, runtime configuration, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, descriptive Mind Aspect role, or cognitive/action authority separation is changed.
+
+---
+
+## 63. Rule-proposal ledger append durability and replay validation — merged PR #423 (28 November 2026)
+
+**Merged:** `c374185338070aeb2653227c04c487ef11fd5e6c`. Candidate branch head `df33ed8140b08fa10f28988268fe018222a2a2bf`; exact-head workflow run `46144136825` passed **3,054 tests, 7 skipped, 86 subtests**; baseline check OK and the isolated sandbox probe passed.
+
+### Source-derived corrections
+
+- Validate the prospective event against the complete replay snapshot while holding the exclusive ledger lock, before writing bytes.
+- Apply the configured byte limit to the encoded append, not merely the pre-existing ledger size.
+- After first creating the ledger, fsync the file and then its parent directory so the directory entry is included in the durability boundary.
+- Regression coverage verifies parent-directory fsync and that a malformed prospective event appends no bytes (the empty ledger file may exist).
+
+This is a narrow integrity/durability correction to the existing append-only rule-proposal ledger. It does not change event schemas, review decisions, catalogue activation, execution authority or live runtime behavior.
+
+**Unchanged boundaries:** no frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, cognitive/action authority or runtime feature-flag design is changed.
 
 ---
 
