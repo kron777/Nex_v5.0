@@ -312,3 +312,8 @@ The initial Row 9 history is now checked against both design and implementation 
 ### 28 November 2026 — G-83 caller/cadence refinement
 
 The 60-second DiversityLoop invokes GrooveSpotter, DormancyScanner and ClockRunner, not Metacognition. Production Metacognition is constructed in run.py and ticked by the chat handler in gui/server.py; the SentienceNode protocol describes tick as once per chat turn, while its registry only registers/lists nodes and does not dispatch periodic ticks. Thus alerts can accumulate between chat turns; the next tick selects at most three newest eligible rows. This is source/caller evidence, not evidence of actual chat cadence. See INDEX §116. No code/tests/runtime changes; Gate 0 pending and Phase 1 unauthorized.
+
+
+### 28 November 2026 — G-83 renewal and starvation implications
+
+The source ordering permits a further conditional failure mode: same eligible alert rows can be re-read on later chat turns, and new derived groove events are written before the active-stillness check. Once a 60-second stillness row expires, a tick can count those refreshed derived events (within the 1,800-second count window) and renew the global hold without a new detector episode. With four or more eligible unacknowledged rows, ORDER BY detected_at DESC LIMIT 3 can keep returning the same newest three and allow older rows to age out. These are source-derived possibilities, not live observations. Add controlled-clock tests before considering any fix. See INDEX §117; G-83 remains OPEN.
