@@ -2042,3 +2042,16 @@ This is complementary to merged PR #420: #421 owns the individual partially star
 
 ---
 
+## 64. Provider-neutral CLI for inert expansion-rule proposals — candidate PR #429 (28 November 2026)
+
+**Candidate:** [PR #426](https://github.com/kron777/Nex_v5.0/pull/426), branch `feat/rule-proposal-cli-2026-11-28`. This exposes the already-implemented `RuleProposalStore` lifecycle through three commands: `rule-propose` submits an exact-schema request/candidate envelope; `rule-review` appends an explicit review decision; and `rule-history` inspects proposals/events with an optional proposal filter. The default ledger remains `rdo/.cycles/rule_proposals.jsonl`.
+
+The commands reuse the existing store and its catalogue fingerprint, schema validation, append-only hash chain, exclusive locking, prospective-event replay validation and fsync behavior. No second ledger or rule engine is introduced. The JSON envelope rejects unknown fields and duplicate JSON properties before store access. Proposer/reviewer labels remain caller-attributed, not identity-authenticated.
+
+**Authority boundary:** `approved_for_catalogue` remains inert. No activation, dynamic loading, generated-code execution, catalogue mutation, runtime action or authority grant is exposed. The only route into `EXPANSION_RULES` remains a separate reviewed source change with tests and CI.
+
+**Validation:** new `rdo/tests/test_rule_proposal_cli.py` covers command routing, review fields, filtered history and strict input-field rejection. Exact-head CI is pending; no pass is claimed for the candidate.
+
+**Unchanged boundaries:** no frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, or cognitive/action authority is changed.
+
+---
