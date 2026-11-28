@@ -124,9 +124,10 @@ def main() -> None:
     atexit.register(_close_partial_writers)
 
     def _partial_boot_shutdown(signum, frame):
-        log.warning("Shutdown during Writer construction; draining constructed Writers")
-        _close_partial_writers()
-        os._exit(1)  # boot did not complete; deliberately write no clean marker
+        log.warning("Shutdown during Writer construction; unwinding to bounded cleanup")
+        # Raising lets the current constructor/startup transaction roll back;
+        # the registered atexit callback then drains all constructed Writers.
+        raise SystemExit(1)
 
     signal.signal(signal.SIGTERM, _partial_boot_shutdown)
     signal.signal(signal.SIGINT, _partial_boot_shutdown)
@@ -156,12 +157,13 @@ def main() -> None:
     def _boot_shutdown(signum, frame):
         nonlocal _boot_shutdown_started
         if _boot_shutdown_started:
-            os._exit(1)
+            return
         _boot_shutdown_started = True
-        log.warning("Shutdown during NEX boot; stopping registered producers and draining Writers")
-        report = state.close(deadline=_time.monotonic() + _SHUTDOWN_TOTAL_BUDGET_S)
-        log.warning("Boot interrupted; clean-shutdown marker intentionally not written: %s", report)
-        os._exit(1)
+        log.warning("Shutdown during NEX boot; unwinding startup before cleanup")
+        # Do not close Writers underneath a builder that is still starting.
+        # SystemExit unwinds through builder/helper rollback, then atexit calls
+        # the already-registered AppState.close(). No clean marker is written.
+        raise SystemExit(1)
 
     signal.signal(signal.SIGTERM, _boot_shutdown)
     signal.signal(signal.SIGINT, _boot_shutdown)
