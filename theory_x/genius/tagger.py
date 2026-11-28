@@ -186,7 +186,7 @@ class GeniusTagger:
             while not self._stop.is_set():
                 self._stop.wait(interval_seconds)
                 if not self._stop.is_set():
-                    self.tick()
+                    self.tick(stop_event=self._stop)
 
         self._thread = threading.Thread(
             target=_run, name="genius_tagger", daemon=True,
