@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `b5e78842f43ac93c2624697f686da0b600306177`  
+**Last verified against:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 28 November 2026 — records Sentience 5.5/NEX cognitive wire trace (§46), self-binding shared-Writer correction and open semantic edges (§47), and current RDO/Watcher progress; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — current-main evidence refreshed after G-92 and G-94 merges; §51 records the SelfMindView → Metacognition attention-history correction as a pending, separately gated candidate; Gate 0 boundaries remain.*
 
 
 
@@ -1119,3 +1119,27 @@ The first exact-head CI exposed one stale self-assessment expectation: RDO corre
 The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.tension._find_cycles`, `_classify_cycle`, `assess_system` and `rdo.graph` SCC machinery to distinguish prerequisite cycles, influence feedback loops and unknown cases. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
+
+## 51. SelfMindView → Metacognition attention-history wire correction (28 November 2026)
+
+**Evidence snapshot:** NEX `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. One-column read-path correction and real integration test are proposed on branch `fix/selfmindview-metacog-attention-wire-2026-11-28`, replayed onto current main; exact-head CI pending.
+
+### Broken connection found
+
+`SelfMindView._snapshot()` already persists `current_themes_json` in `self_mind_snapshots`. Metacognition's attention-groove detector reads `SelfMindView.aspect_history("attention")` and expects that field to calculate theme overlap across snapshots. The attention projection omitted it, returning only timestamp/count/drive-theme columns. The detector therefore received empty theme sets and could not fire from real snapshots. Existing tests used mocked rows that already contained `current_themes_json`, hiding the adapter mismatch.
+
+### Correction and evidence
+
+`SelfMindView.aspect_history("attention")` now includes the persisted `current_themes_json` column. A real integration test in `tests/test_metacognition_drift.py` seeds controlled tagged beliefs, takes five real snapshots, passes the real SelfMindView instance to Metacognition, verifies `attention_groove`, runs the actual tick/event persistence path, and checks that the existing self-observation reaches `format_for_prompt()`.
+
+This closes the source-to-sink path: beliefs/tags → snapshot → attention history → drift detector → metacognitive event ledger → prompt context.
+
+Runtime confirmation: `run.py` injects the real SelfMindView into Metacognition, and `gui/server.py` calls `state.metacognition.tick()` on the chat path before `format_for_prompt()` and prompt injection. This is an active per-chat-turn wire, not a dormant detector.
+
+Semantic boundary: this SelfMindView attention aspect is theme-recurrence derived from belief tags, not the Stage-2 Bonsai branch-focus vector. The Metacognition detector is therefore a thematic repetition detector. The Stage-2 → Bonsai → Fountain/Global Workspace path remains a separate attention representation; this PR does not conflate or merge them.
+
+### Scope
+
+No schema, theme calculation, detector threshold, feature flag or prompt wording changed. The previously disconnected existing detector may now emit an `attention_groove` event when the evidence warrants it. The integration test uses isolated temporary databases. The expanded characterization seeds an older distinct observation, then confirms three qualifying attention ticks occupy all three most-recent unresolved event slots. Exact-head full-suite CI is pending; no pass count is claimed.
+
+**Open amplification risk:** the attention-groove detector currently writes an event on every qualifying Metacognition tick; the inspected path has no cooldown or episode deduplication. The expanded real integration test confirms that three consecutive qualifying ticks write three identical event rows and displace an older distinct unresolved event from `get_recent(limit=3)`. `format_for_prompt()` uses only the newest row, so the demonstrated risk is starvation of other observations from the recent-event pool, not three separate prompt lines. A separate existing candidate, `NEX5_SALIENT_SELF_OBS`, widens the pool to 10 and ranks severity × quadratic decay, but remains default-off in source and does not deduplicate. A companion integration test confirms that a fresh maximum-severity attention episode still outranks an older maximum-severity event even with that ranking enabled. This PR does not change that policy; measure frequency and prompt exposure before deciding on throttling or episode resolution.

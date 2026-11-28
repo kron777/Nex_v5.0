@@ -1,12 +1,12 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with branch INDEX.md; evidence snapshot: main at b5e78842f43ac93c2624697f686da0b600306177.
+Mirror synchronized with branch INDEX.md; evidence snapshot: main at f5cf19c32b0151043ca90b139b25c24e01e384fb.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `60cc178ba1f3c895651c86ad95345c98fd5a2198`  
+**Last verified against:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -295,7 +295,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — records merged DAG integrity and policy-scan fixes, #223–#226 bounded one-pen migrations, #236/#238 SelfPredictionLoop handle integration, #253 Warrant cursor closure, and current G-69/G-70/G-73–G-75 status; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — current-main evidence refreshed after G-92 and G-94 merges; §51 records the SelfMindView → Metacognition attention-history correction as a pending, separately gated candidate; Gate 0 boundaries remain.*
 
 
 
@@ -966,8 +966,41 @@ Gate 0 remains pending and Phase 1 is not authorised. G-69/#259 stays on HOLD. G
 
 
 
+## 45. Feedback-loop evidence update path — G-93 (28 November 2026)
 
-46. Cognitive network interaction trace — attention, affect, drives and workspace (28 November 2026)
+**Evidence snapshot:** merged main commit `6f12f403e13b94a4b019aa666abac448b8a9a62d` (PR #357). Exact-head sandbox run `46101032854`.
+
+### Merged capability
+
+- `FeedbackLoopAssessment` remains UNKNOWN-first. Any dimension marked `measured` must now carry a finite numeric value, a unit, traceable evidence references and a confidence label.
+- `FeedbackLoopEvidenceStore` records measurement and stability-review events in a separate append-only, hash-chained JSONL ledger.
+- Every event is bound to the existing feedback-loop ID, members and directed relationships. Replay refuses to apply evidence if the loop topology has changed.
+- Measurement and stability review remain separate. A measurement never calculates stability. A new measurement after a review resets the current verdict to UNKNOWN until another explicit review is recorded.
+- A non-UNKNOWN stability state requires an explicit review with caller-attributed reviewer, source reference, assessment evidence and confidence. The local ledger does not authenticate reviewer identity.
+- Event history is also persisted in the trailing, legacy-compatible `CycleRecord.feedback_loop_evidence_events` field. `feedback-replay` recovers a cycle snapshot if a ledger append succeeds but snapshot persistence does not.
+- CLI commands: `feedback-measure`, `feedback-review`, `feedback-replay`.
+- Operator guide: `rdo/FEEDBACK_LOOP_EVIDENCE.md`.
+
+### Exact-head verification
+
+- Full sandbox suite: **2,864 passed, 7 skipped, 45 subtests passed**.
+- Mind-map verification: **30 nodes, 0 unverified**. Existing warnings remain for missing `VIRTUE_SLATE.md`, missing `mental_factors_inventory_alobha_spec.txt`, and overdue P13 finitude unblock; 14 dark and 2 blocked nodes are existing map status, not new unverified nodes.
+- The sandbox probe confirmed unprivileged execution, no capabilities/credentials, read-only source, disposable data/tmpfs and no outbound network.
+
+### Gap status and boundary
+
+**G-93 update-path gap: closed.** The repository can now append measured dimensions and separately reviewed stability evidence to the existing CycleRecord while preserving topology and history. This does **not** implement calibrated stability, gain, damping, oscillation thresholds, causal propagation or automatic stability verdicts. Those remain UNKNOWN/unevaluated until exact v1.4 criteria and grounded measurements are available.
+
+**G-92: partially closed.** PR #352 already merged the provider-neutral, hash-chained candidate-rule proposal lifecycle. Its `approved_for_catalogue` state remains deliberately inert: no dynamic activation, no automatic promotion and no changes to `EXPANSION_RULES`. The remaining raw-idea-to-handoff gap is the provider-neutral candidate-seed proposal and approval path; objective intake still requires externally supplied seed obligations.
+
+### Next bounded development
+
+Design the raw-idea → candidate-seed alternatives → explicit human review → objective.v1 intake → recursive expansion → Stage-7 handoff lineage. Bind each candidate to the exact raw objective revision; preserve competing interpretations, assumptions, evidence needs, acceptance-criterion coverage, disconfirming cases and provenance. Do not run planning from an unreviewed external-LLM seed proposal, and do not make the candidate-rule ledger an active rule loader.
+
+No frozen S-01–S-25/M1.8 specification content, NEX runtime, protected experiment, deployment path, Gate 0 or Phase 1 authority was changed.
+
+
+## 46. Cognitive network interaction trace — attention, affect, drives and workspace (28 November 2026)
 
 **Evidence snapshot:** source files on `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. This is a source-level connection trace, not host/runtime telemetry. The exact source-file SHAs and detailed edge register are recorded in `research/SENTIENCE_5_5_COGNITIVE_WIRE_TRACE_2026-11-28.md`.
 
@@ -1017,8 +1050,7 @@ This trace is source-verified and hypothesis-generating. It identifies several e
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, M0/M1 gate, mind-map policy, live runtime flag, service or database was changed.
 
-
-47. Self-binding shared-Writer correction — G-94 (28 November 2026)
+## 47. Self-binding shared-Writer correction — G-94 (28 November 2026)
 
 **Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is proposed on draft PR #362; exact-head CI is pending.
 
@@ -1068,8 +1100,7 @@ These are candidates for further source tracing and controlled experiments. No e
 
 This is a persistence-ownership correction that preserves the existing cognitive connections. It does not add a new faculty or claim that the recursive self-reading nudge produces a beneficial attention change. Gate 0 and Phase 1 authority remain unchanged.
 
-
-48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
+## 48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
 
 **Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is on draft-review candidate PR #360; exact-head CI is being rerun after correcting the self-assessment count for the new adapter.
 
@@ -1093,6 +1124,28 @@ The first exact-head CI exposed one stale self-assessment expectation: RDO corre
 
 The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.tension._find_cycles`, `_classify_cycle`, `assess_system` and `rdo.graph` SCC machinery to distinguish prerequisite cycles, influence feedback loops and unknown cases. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
 
-**Critical next-step constraint:** the proposal and objective-intake ledgers compute different hashes. `raw_objective_sha256` hashes only the immutable raw request; `ObjectiveInputStore` hashes the full `objective.v1` record including selected seeds. Their `supersedes_sha256` fields therefore belong to two distinct revision chains. The current `objective.v1` schema also rejects additional fields and has no structured proposal ID/alternative/proposer provenance. A raw idea may be human-sourced while the selected seed graph is LLM-proposed; keep that distinction and the inferred confidence. The bridge must define a versioned or stable cross-reference carrying proposal ID, selected alternative, raw digest and review event before it maps the selected graph into intake. Never substitute the two digests or silently upgrade inferred confidence.
-
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
+
+## 51. SelfMindView → Metacognition attention-history wire correction (28 November 2026)
+
+**Evidence snapshot:** NEX `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. One-column read-path correction and real integration test are proposed on branch `fix/selfmindview-metacog-attention-wire-2026-11-28`, replayed onto current main; exact-head CI pending.
+
+### Broken connection found
+
+`SelfMindView._snapshot()` already persists `current_themes_json` in `self_mind_snapshots`. Metacognition's attention-groove detector reads `SelfMindView.aspect_history("attention")` and expects that field to calculate theme overlap across snapshots. The attention projection omitted it, returning only timestamp/count/drive-theme columns. The detector therefore received empty theme sets and could not fire from real snapshots. Existing tests used mocked rows that already contained `current_themes_json`, hiding the adapter mismatch.
+
+### Correction and evidence
+
+`SelfMindView.aspect_history("attention")` now includes the persisted `current_themes_json` column. A real integration test in `tests/test_metacognition_drift.py` seeds controlled tagged beliefs, takes five real snapshots, passes the real SelfMindView instance to Metacognition, verifies `attention_groove`, runs the actual tick/event persistence path, and checks that the existing self-observation reaches `format_for_prompt()`.
+
+This closes the source-to-sink path: beliefs/tags → snapshot → attention history → drift detector → metacognitive event ledger → prompt context.
+
+Runtime confirmation: `run.py` injects the real SelfMindView into Metacognition, and `gui/server.py` calls `state.metacognition.tick()` on the chat path before `format_for_prompt()` and prompt injection. This is an active per-chat-turn wire, not a dormant detector.
+
+Semantic boundary: this SelfMindView attention aspect is theme-recurrence derived from belief tags, not the Stage-2 Bonsai branch-focus vector. The Metacognition detector is therefore a thematic repetition detector. The Stage-2 → Bonsai → Fountain/Global Workspace path remains a separate attention representation; this PR does not conflate or merge them.
+
+### Scope
+
+No schema, theme calculation, detector threshold, feature flag or prompt wording changed. The previously disconnected existing detector may now emit an `attention_groove` event when the evidence warrants it. The integration test uses isolated temporary databases. The expanded characterization seeds an older distinct observation, then confirms three qualifying attention ticks occupy all three most-recent unresolved event slots. Exact-head full-suite CI is pending; no pass count is claimed.
+
+**Open amplification risk:** the attention-groove detector currently writes an event on every qualifying Metacognition tick; the inspected path has no cooldown or episode deduplication. The expanded real integration test confirms that three consecutive qualifying ticks write three identical event rows and displace an older distinct unresolved event from `get_recent(limit=3)`. `format_for_prompt()` uses only the newest row, so the demonstrated risk is starvation of other observations from the recent-event pool, not three separate prompt lines. A separate existing candidate, `NEX5_SALIENT_SELF_OBS`, widens the pool to 10 and ranks severity × quadratic decay, but remains default-off in source and does not deduplicate. A companion integration test confirms that a fresh maximum-severity attention episode still outranks an older maximum-severity event even with that ranking enabled. This PR does not change that policy; measure frequency and prompt exposure before deciding on throttling or episode resolution.

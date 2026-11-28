@@ -613,5 +613,142 @@ class TestValueDriftFormatForPrompt(unittest.TestCase):
         self.assertIn("deepest beliefs", result)
 
 
+# ── 16. Real SelfMindView snapshots feed Metacognition attention-groove ──────
+
+class TestSelfMindViewAttentionWire(unittest.TestCase):
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_real_snapshot_themes_reach_metacognition_and_prompt(self):
+        from unittest.mock import patch
+        from theory_x.stage_tom.self_mind_view import SelfMindView
+
+        # Isolate the attention history so the five snapshots share the same
+        # known themes, rather than mixing in init_all's seed beliefs.
+        self.writers["beliefs"].write("DELETE FROM beliefs")
+        tags = json.dumps(["attention", "awareness", "consciousness"])
+        base_time = int(time.time()) + 1
+        for index in range(5):
+            self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, tier, confidence, source, created_at, tags) "
+                "VALUES (?, 7, 0.8, 'wire-test', ?, ?)",
+                (f"snapshot theme {index}", base_time + index, tags),
+            )
+
+        smv = SelfMindView(
+            dynamic_reader=self.readers["dynamic"],
+            dynamic_writer=self.writers["dynamic"],
+            beliefs_reader=self.readers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+        )
+        for _ in range(5):
+            smv._snapshot()
+
+        history = smv.aspect_history("attention", window_s=3600)
+        self.assertEqual(len(history), 5)
+        self.assertTrue(all("current_themes_json" in row for row in history))
+        self.assertTrue(all(
+            json.loads(row["current_themes_json"]) == [
+                "attention", "awareness", "consciousness"
+            ]
+            for row in history
+        ))
+
+        mc = _make_mc(self.writers, self.readers, smv=smv)
+        findings = mc._detect_drift()
+        self.assertIn("attention_groove", [item["event_type"] for item in findings])
+
+        # Exercise the actual persistence/cache/prompt path, not just the
+        # detector's return value.
+        # Seed an older, distinct unresolved observation. Three qualifying
+        # attention ticks should be able to displace it from the current
+        # three-row recency pool; this measures exposure, not desired policy.
+        mc._write_event({
+            "event_type": "value_drift_distance",
+            "description": "older distinct observation",
+            "severity": 0.9,
+            "source": "wire-test",
+        }, time.time() - 60)
+
+        with patch.dict(os.environ, {
+            "NEX5_METACOG_DIGEST": "0",
+            "NEX5_METACOG_PATTERN": "0",
+            "NEX5_SALIENT_SELF_OBS": "0",
+        }):
+            for _ in range(3):
+                mc.tick()
+        persisted = self.readers["conversations"].read(
+            "SELECT event_type FROM meta_cognition_events "
+            "WHERE event_type = 'attention_groove'"
+        )
+        # Characterize the actual per-tick write and 3-row recency window.
+        # This is an observed open cooldown/dedup gap, not a desired
+        # permanent event-count contract.
+        self.assertEqual(len(persisted), 3)
+        recent = mc.get_recent(limit=3)
+        self.assertEqual([row["event_type"] for row in recent],
+                         ["attention_groove"] * 3)
+        self.assertNotIn("value_drift_distance",
+                         [row["event_type"] for row in recent])
+        self.assertIn(
+            "same themes have been recurring",
+            mc.format_for_prompt(),
+        )
+
+
+    def test_salience_ranking_does_not_deduplicate_repeated_max_severity_groove(self):
+        from unittest.mock import patch
+        from theory_x.stage_tom.self_mind_view import SelfMindView
+
+        self.writers["beliefs"].write("DELETE FROM beliefs")
+        tags = json.dumps(["attention", "awareness", "consciousness"])
+        base_time = int(time.time()) + 1
+        for index in range(5):
+            self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, tier, confidence, source, created_at, tags) "
+                "VALUES (?, 7, 0.8, 'wire-test', ?, ?)",
+                (f"salience snapshot theme {index}", base_time + index, tags),
+            )
+        smv = SelfMindView(
+            dynamic_reader=self.readers["dynamic"],
+            dynamic_writer=self.writers["dynamic"],
+            beliefs_reader=self.readers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+        )
+        for _ in range(5):
+            smv._snapshot()
+        mc = _make_mc(self.writers, self.readers, smv=smv)
+
+        # An older maximum-severity event is retained in the wider candidate
+        # pool, but a fresh maximum-severity attention event still wins its
+        # severity*decay score. Salience ranking is not episode deduplication.
+        mc._write_event({
+            "event_type": "value_drift_distance",
+            "description": "older maximum-severity observation",
+            "severity": 1.0,
+            "source": "wire-test",
+        }, time.time() - 86400)
+
+        with patch.dict(os.environ, {
+            "NEX5_METACOG_DIGEST": "0",
+            "NEX5_METACOG_PATTERN": "0",
+            "NEX5_SALIENT_SELF_OBS": "1",
+        }):
+            for _ in range(3):
+                mc.tick()
+        recent = mc._cached_recent
+        self.assertEqual(len(recent), 4)
+        self.assertEqual(recent[0]["event_type"], "attention_groove")
+        self.assertIn("value_drift_distance", [row["event_type"] for row in recent])
+        self.assertEqual(
+            [row["event_type"] for row in recent].count("attention_groove"), 3
+        )
+        self.assertIn("same themes have been recurring", mc.format_for_prompt())
+
+
+
 if __name__ == "__main__":
     unittest.main()
