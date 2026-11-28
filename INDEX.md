@@ -2167,3 +2167,22 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 **Mode:** STUDY remains active for this boundary. The earlier exact-head CI result validates only the rollback tests on source commit `f12a668869b6f06bf15efabf2d0e568a5ac8d877`; the documentation-refresh head requires its own workflow result. No code behaviour is changed by this study entry.
 
 **Boundaries:** no cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed. The mind map remains descriptive only.
+
+---
+
+## 73. Registry study correction — distinguish the executable boot path from the GUI state factory (28 November 2026)
+
+**Reason for correction:** the previous §72 wording said the normal GUI entrypoint calls `build_state()` once. Direct inspection of the current branch's `run.py` disproves that statement. Do not carry the earlier entrypoint assumption forward.
+
+**Verified executable path:** `run.py` constructs its own `AppState` directly from Writers, Readers and VoiceClient, then wires the runtime services into that state and calls `create_app(state)`. It does not call `gui.server.build_state()`. In this path, `run.py` constructs and registers its own `GoalManager` and `Metacognition`; it constructs `ProblemMemory` but does not register that instance in the inspected code. The shutdown path calls `state.close()` and then terminates the process with `os._exit(0)` after successful clean-shutdown marking. Thus the registry references surviving `state.close()` are process-resident only until this executable path exits, which is compatible with a process-lifetime registry. This is source inspection, not a live boot/shutdown rehearsal.
+
+**Separate factory path:** `gui.server.build_state()` is a distinct AppState factory. Its `with_tools=True` path constructs and registers `ProblemMemory`, `GoalManager` and `Metacognition` before the function returns. Its failure rollback closes Writers and stops published workers, but does not undo those registry appends. The inspected rollback regression invokes `build_state(..., with_tools=False)`; therefore that test does not exercise the three tool-node registration side effects. The ordinary GUI endpoint test constructs `AppState` directly and does not call the factory. The inspected `run.py` executable path also does not call it. No claim is made that these are the only callsites in the full repository; callsite inventory remains incomplete.
+
+**Corrected risk statement:** the source-level partial-build residue concern remains for `build_state(with_tools=True)` if construction fails after one or more registrations and the process catches the failure and remains alive. A later successful build in the same interpreter could add another set of instances because `register()` appends without deduplication. However, the inspected primary executable path does not use this factory, and no supported retry/rebuild contract or live registry consumer has been demonstrated. Do not describe the issue as an established production-runtime leak or user-visible defect.
+
+**Study delta:** separate three contexts in all future analysis: (1) the executable `run.py` boot path; (2) the standalone `gui.server.build_state()` factory and its tests; (3) module-level process registrations such as FocalSet and ExecutiveControl. Similar node classes do not imply shared instances or shared ownership. The next source task is to enumerate every `build_state()` callsite and every registry consumer with a complete scan, then decide whether the factory needs deferred registration or whether its contract should explicitly be single-shot/process-terminal.
+
+**Exact-head validation:** the current branch head before this documentation correction, `96cf3d5af20b505563232e2a874e42318ab60092`, passed workflow run [`46156012237`](https://github.com/kron777/Nex_v5.0/actions/runs/46156012237), job `141012773436`: **3,081 passed, 7 skipped, 86 subtests passed**; sandbox probe and baseline check passed. This validates that exact head only. The present documentation commit will require its own exact-head workflow result.
+
+**Boundaries:** no code behaviour changed by this correction. No registry API, cognitive logic, execution authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed. The mind map remains descriptive only.
+
