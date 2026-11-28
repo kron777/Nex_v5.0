@@ -228,3 +228,19 @@ No frozen S-01–S-25/M1.8 specification content or NEX runtime/deployment path 
 The earlier next-step wording to run the Stage-2 belief-development slice and fresh-process persistence/resume is stale. The repository already contains `rdo/STAGE2_EXTRAPOLATOR_MVP.md` and `rdo/tests/test_stage2_extrapolator_mvp.py`. The test exercises the belief-decay objective through the existing Extrapolator/reconciler/CycleStore and launches a fresh Python subprocess to reload the persisted cycle, checking discovered counts, deferred frontier and native-planning kind. It also guards against writing reusable patterns from deterministic fixture reviews without authorised review provenance.
 
 The #339 and #343 exact-head full-suite runs passed this test. This is isolated repository/test-store verification only; it is not live belief-database or host-runtime evidence. Keep it as a regression baseline and do not rebuild Stage 2.
+
+
+## 2026-11-28 — Novel expansion-rule proposal lifecycle (candidate-only increment)
+
+The frontier request for a novel obligation kind is now version 2 and carries a SHA-256 fingerprint of the full expansion-rule content plus terminal-kind catalogue. A request is rejected by the proposal store if it was generated against an older schema or a different catalogue snapshot.
+
+New boundary adapter: `rdo_adapters/rule_proposals.py`.
+
+- Candidate proposals are provider-neutral structured data; arbitrary code, callables and unknown fields are rejected.
+- Required content includes decomposition steps, applicability, preconditions, constraints, assumptions, exceptions, anti-requirements, alternative interpretations, evidence references, disconfirming cases, and positive and negative test plans.
+- The append-only JSONL event ledger is hash-chained, sequence-checked, fsynced and protected by an exclusive file lock. Review decisions are separate events.
+- Review outcomes are `changes_requested`, `approved_for_catalogue`, or `rejected`. A changed candidate is a new proposal linked to its predecessor.
+- `approved_for_catalogue` does not activate a rule. There is deliberately no activation API and no dynamic rule loading; `EXPANSION_RULES` remains the only active catalogue and still requires an ordinary reviewed source change and tests.
+- Proposer/reviewer labels are caller-attributed and not identity-authenticated. The ledger is tamper-evident, not an authentication or authorization system.
+
+**Validation status:** focused proposal-store tests and the full repository CI are pending on the exact PR head. No active rule has been added, no existing rule has been changed, and no RDO specification has been amended.
