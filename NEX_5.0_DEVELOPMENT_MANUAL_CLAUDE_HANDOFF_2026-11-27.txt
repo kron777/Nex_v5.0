@@ -6,7 +6,7 @@ The canonical Markdown manual remains INDEX.md; verify live source and evidence 
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `0d83b36776b0e51b87c3b152d23f4dd74915da35`  
+**Last verified against:** `main` at `a6d084051e1d523812ef51c2d93784cba226499d`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -924,3 +924,42 @@ The next safe capability is a provider-neutral candidate-seed and candidate-rule
 5. Preserve the already implemented Stage-2 belief-development and fresh-process CycleStore-resume tests as regression baseline; focus next on novel-kind rule proposals and the raw-idea-to-handoff boundary rather than rebuilding Stage 2.
 
 This update records implementation evidence and remaining capability boundaries; it does not amend the frozen specification/register.
+
+
+## 44. One-pen census, G-78 validation consequence and open persistence PRs (28 November 2026)
+
+**Evidence snapshot:** `main` at `a6d084051e1d523812ef51c2d93784cba226499d`. Source and fixture-test evidence only; host and runtime state remains **UNKNOWN**.
+
+### One-pen census (G-61)
+
+`tools/one_pen_census.py` is a read-only static scan, run with `python tools/one_pen_census.py`. It lists every write-capable `connect()` call site outside `substrate/` and the tests, and classifies each by write SQL in the enclosing function, by whether the connection is handed off, and by whether it is runtime code or a script. It found 112 sites:
+
+- **Boot-reachable direct writers to the six substrate databases:** only `signal_to_problem_tick()`. This is G-85; PR #347 proposes the fix.
+- **Documented exception:** `strikes/catalogue.py` writes its separate `strikes_catalogue.db` directly, by design. The open governance question is whether SPECIFICATION.md §8 should also cover non-substrate databases.
+- **Present but not reachable at boot:** `groove_breaker`, `value_drift_monitor`, the `genius_provenance_tag`/`source_identity` backfills, `prose_stats.build_direct`, a `hot_observer` demo, and 10 script or tool sites.
+- **Read through a non-read-only connection:** 68 runtime sites. Another 7 hand their connection off, and all of those were traced to readers except the strikes catalogue. This is hygiene, not a one-pen write.
+
+The scan is a heuristic over source text, so its limits are recorded in backlog G-61. `tests/test_one_pen_census.py` pins the classification rules and the documented exception.
+
+### G-78 consequence
+
+`warrant_validate` gates on the composite warrant, of which survival is 35%. Before PR #271, survival ignored promotion history. Every earlier `warrant_validate` verdict therefore rests on history-free survival, including the failed gate that G-75 refers to.
+
+A read-only host re-run needs founder authorisation.
+
+### Open persistence PRs (ready, exact-head CI green on current main)
+
+- **PR #347 — G-85: SignalToProblem one-pen, recoverable two-file order.**
+  - Exact head `f84e1ada956386945bc7aaaa83ec30d6c3c3bf12`, run `46089697232`: 2,841 passed, 7 skipped, 45 subtests; baseline OK.
+- **PR #348 — G-84 step 1: `AppState.close()` quiesces the dynamic loops before the Writers close.**
+  - It also re-verifies the mind-map nodes that cite `gui/server.py` and corrects their already-drifted line anchors.
+  - Exact head `fa4ea8d40c3beccd816bb12d0279db35d973e784`, run `46091039346`: 2,838 passed, 7 skipped, 45 subtests; baseline OK; no STALE warnings.
+
+### Founder decisions required (no action taken)
+
+1. **G-80:** should reanimation delivery be at-most-once or recoverable? The backlog requires this choice before any outbox or retry design.
+2. **G-78:** may `tools/warrant_validate.py` be re-run, read-only, on host data?
+3. **G-76:** is provenance erosion meant to be reachable, including whether `use_count` should count?
+4. **G-61:** does the one-pen rule extend to non-substrate databases such as `strikes_catalogue.db`?
+
+Gate 0 remains pending and Phase 1 is not authorised. G-69/#259 stays on HOLD. G-58 is unchanged.

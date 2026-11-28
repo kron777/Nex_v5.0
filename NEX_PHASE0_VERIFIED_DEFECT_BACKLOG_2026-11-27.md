@@ -1,6 +1,6 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot index:** `main` at `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`  
+**Snapshot index:** `main` at `a6d084051e1d523812ef51c2d93784cba226499d`  
 **Date:** 27 November 2026  
 **Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy. The header SHA is the latest repository snapshot for navigation only; each finding retains its own source/test evidence date and must be revalidated before being called current.
 
@@ -177,6 +177,12 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - The Writer/Reader-based `prose_stats.build()` exists but is not used by the scheduled loop. No dedicated SignalToProblem or prose-stats integration test was found.
 - **Impact/qualification:** the global one-pen audit remains open. The cross-database ordering/recovery contract is unresolved; do not mechanically replace the two-DB transaction or imply atomicity. No live lock contention or runtime incident is claimed.
 - **Disposition:** continue the remaining census and define idempotent recovery before migrating SignalToProblem. A separate prose-statistics Writer migration may be evaluated after equivalence/performance tests.
+- **Repository census, 28 November 2026 (main `a6d084051e1d523812ef51c2d93784cba226499d`):** `tools/one_pen_census.py` (read-only static scan; `tests/test_one_pen_census.py`) lists 112 write-capable `connect()` call sites outside `substrate/` and the tests. Classified by enclosing-function write SQL/commit and by caller tracing:
+  - **Boot-reachable direct writers to the six substrate databases:** only `signal_to_problem_tick()` (G-85; fix proposed in PR #347).
+  - **Documented exception:** `strikes/catalogue.py` writes its own `strikes_catalogue.db` directly by design (module docstring: observation data, not operational substrate); it is constructed at boot (`run.py:634`) and written from the strike protocol and the GUI notes endpoint. Whether SPECIFICATION.md §8 should cover non-substrate databases is a governance question, not a defect fixed here.
+  - **Present but not boot-reachable:** `groove_breaker` (`ENABLED=False`, never constructed), `value_drift_monitor` (no importers), `genius_provenance_tag.backfill/undo` and `source_identity.backfill` (no callers), `prose_stats.build_direct` (no callers since PR #279), the `hot_observer` `__main__` demo, and 10 standalone script/tool sites.
+  - **Read-only use of a write-capable connection:** 68 runtime sites read through a non-`mode=ro` connection; 7 hand their connection to a helper or caller and were traced by hand (all readers, apart from the strikes catalogue). These are hygiene, not one-pen writes.
+  - **Limits:** a source-text heuristic, not proof; SQL assembled elsewhere, connections stored on attributes and dynamic imports can evade it, and reachability was traced by hand. Host/runtime state was not inspected.
 
 ### G-62 — Internally generated reflective beliefs bypass the declared Coherence Gate boundary
 
@@ -359,6 +365,7 @@ The former “no boot invocation” conclusion from main `99ae476` is superseded
 - **Sources:** `theory_x/stage_warrant/warrant.py::_promotion_events()`, `_survival()`; `tests/test_warrant_promotion_log_format.py`.
 - The producer stores each JSON event as a JSON-encoded string element. The consumer now decodes both string and object forms and skips malformed elements without losing valid history; tests include a row written by the real BeliefPromoter.
 - PR #271 merged as `77d4cd89015ebf605c9e5ec6af994a28126f6ed5`; exact-head run `46032708456` passed 2,629 tests, 7 skipped and 45 subtests with baseline OK.
+- **Consequence for earlier validation results (verified from source at `a6d08405`):** `tools/warrant_validate.py` judges its gate on the composite `warrant` (`WEIGHTS`: survival 0.35, sustain 0.35, indep 0.20, xsynth 0.10) through group AUCs and Spearman correlations, including decayed-tier groups. Before PR #271, survival ignored all promotion history for every belief that had any, so any `warrant_validate` verdict produced before `77d4cd8` -- including the failed validation gate G-75 refers to, whose source run was not located in the repository -- was computed with history-free survival and is not evidence about the current scorer. A read-only host re-run needs founder authorisation; none was performed.
 
 ### G-79 — Expectations _learn compare-and-set (CLOSED by PR #272)
 
@@ -403,9 +410,13 @@ The Chat route calls `Metacognition.tick()`; its groove detector reads recent un
 
 `AppState.close()` calls scheduler shutdown and closes Writers but does not call `stop_dynamic()` or coordinate all other workers. `run.py` starts SpeechQueueConsumer, SignalLoop, DiversityLoop and EdgeGeneratorLoop; AppState ignores the first three during close and does not retain the EdgeGeneratorLoop. The decoder is signaled but not joined. Scheduler stop signals are not joined because adapter thread handles are not retained. Writer close enqueues a sentinel and joins; submit has no closed-state guard on the pre-PR-280 snapshot. The keepalive supervisor has a 15-second SIGKILL deadline. This is a conditional data-loss/hang risk, not an observed incident. A central lifecycle coordinator and global deadline are required.
 
+**Step 1 proposed (PR #348, 28 November 2026):** `AppState.close()` stops and joins the dynamic layer through `stop_dynamic()` between the scheduler shutdown and the Writer close, bounded by 5 s inside the keepalive's 15 s SIGTERM window. The other worker families listed above remain unjoined; the coordinated global deadline is still open.
+
 ### G-85 — SignalToProblem direct Writer bypass and split commit (OPEN; legacy G-44, under G-61)
 
 The boot-registered SignalToProblem worker's primary `signal_to_problem_tick()` still uses direct connections to beliefs and conversations, dynamically adds `actioned_at`, and commits the beliefs database before the conversations database. This bypasses the one-pen contract and has a cross-database failure window. The separate hourly prose-statistics rebuild was migrated to the shared beliefs Writer/Reader by PR #279; that does not alter the primary tick. Define recovery/idempotency before migrating the primary transaction; do not claim cross-database atomicity.
+
+**Fix proposed (PR #347, 28 November 2026):** conversations-Writer transaction for the cap/debounce/dupe/insert decisions, then `actioned_at` marks through the beliefs Writer after that commit; re-deciding a signal is idempotent on the `Auto-opened from signal #<id> (type: ...)` stamp. A scratch check of main showed the old order loses the problem when the conversations commit fails, and a signal whose problem exists can open a second one. No cross-database atomicity is claimed; gates, thresholds and cap are unchanged.
 
 ### G-86 — SignalReaper preservation allowlist drift (OPEN; legacy G-43)
 
