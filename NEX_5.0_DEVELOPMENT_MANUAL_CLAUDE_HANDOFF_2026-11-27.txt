@@ -1,6 +1,6 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Last mirrored against main at 0d83b36776b0e51b87c3b152d23f4dd74915da35.
+Last mirrored against main at 60cc178ba1f3c895651c86ad95345c98fd5a2198.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
