@@ -134,7 +134,7 @@ nodes:
     blocked: false
     falsifier: "Calibrated response should show uptake in unprompted turns. Never probed."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_affect/compassion.py:225-325", "tests/test_compassion.py:52-57"] }
+    source: { kind: composite, refs: ["theory_x/stage_affect/compassion.py:225-330", "tests/test_compassion.py:53-58"] }
     last_verified: 2026-11-28
     notes: >
       Calibrated, uptake unprobed. Same family as amoha. VIRTUE_SLATE.md re-pinned to the real
@@ -156,6 +156,12 @@ nodes:
       mutated) and surfaces only as the compass's 'care is owed' clause when another consideration is
       live (compass.py:134-141; the clause itself is at :139-141). Whether that partial use makes this node not-dark is a classification
       question left open for the founder; dark is left true.
+
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. Pure move:
+      test_compassion.py:52-57 -> :53-58 (c6bc4e41). Edited range: compassion.py:225-325 is now
+      :225-330, from _ensure_table() to the end of format_stance(); a5029558 routed its persistence
+      through a shared conversations Writer and left the level arithmetic unchanged.
 
   - id: upeksa
     label: "upekṣā — equanimity"
@@ -207,7 +213,7 @@ nodes:
     blocked: false
     falsifier: "Should reduce repeat-selection of the same object across consecutive moments."
     falsifier_status: pass
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:727-785", "theory_x/stage6_fountain/generator.py:867-883", "tests/test_alobha.py:52-58"] }
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:728-786", "theory_x/stage6_fountain/generator.py:868-884", "tests/test_alobha.py:52-58"] }
     last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: this was filed as 'spec exists, unbuilt-open' -- it isn't. Both
@@ -230,6 +236,11 @@ nodes:
       dynamic_writer to recursive_self.format_for_prompt) and moved no line. Both cited generator.py
       ranges are byte-identical to the 2026-11-27 verification and tests/test_alobha.py is unchanged
       since then. nex_keepalive.sh still omits NEX5_ALOBHA. Live process state remains UNKNOWN.
+
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. Pure moves, byte-identical to
+      c6bc4e41: generator.py:727-785 -> :728-786; generator.py:867-883 -> :868-884 (later generator.py
+      edits added one line above both).
   - id: vedana
     label: "vedanā — feeling-tone"
     layer: arm
@@ -245,7 +256,7 @@ nodes:
     probe: { valence_delta_samples: 35, distinct_values: 12, min: 0.0219, max: 0.2237, source: "/tmp/nex5_affect_state.log" }
     falsifier: "A price that is constant is not a price. Valence should vary with content."
     falsifier_status: pass
-    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:341-415", "theory_x/stage6_fountain/generator.py:611-652", "theory_x/stage6_fountain/generator.py:857-863", "nex_keepalive.sh:225-226"] }
+    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:384-458", "theory_x/stage6_fountain/generator.py:612-653", "theory_x/stage6_fountain/generator.py:858-864", "nex_keepalive.sh:225-226"] }
     last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: 'no location yet pinned' was wrong -- the check regex just
@@ -294,6 +305,12 @@ nodes:
       2026-11-28 (G-84 step 4): AffectState's loop gained a stop Event and stop(), adding 10 lines
       above the cited range; _compute_valence_delta() and its neighbours moved from
       affect_state.py:331-405 to :341-415 with byte-identical content.
+
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. Pure moves: generator.py:611-652
+      -> :612-653; generator.py:857-863 -> :858-864; affect_state.py:341-415 -> :384-458. The
+      affect_state.py range is the c6bc4e41 block (:331-405), byte-identical; the G-84 step-4 anchor
+      :341-415 had since moved again.
   - id: mana
     label: "māna — self-conceit"
     layer: arm
@@ -307,7 +324,7 @@ nodes:
     blocked: false
     falsifier: "Reads every turn. A faculty that fires unconditionally carries no information."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:40-75", "theory_x/stage_tom/self_binding.py:280-346", "theory_x/stage_affect/compass.py:74-102", "theory_x/stage6_fountain/generator.py:3986-3995", "nex_keepalive.sh:225-226"] }
+    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:40-75", "theory_x/stage_tom/self_binding.py:337-403", "theory_x/stage_affect/compass.py:74-102", "theory_x/stage6_fountain/generator.py:4141-4150", "nex_keepalive.sh:225-226"] }
     last_verified: 2026-11-28
     notes: >
       CORRECTION, 2026-11-15 (falsifier-sweep round): "always-on read-only sidecar" was wrong.
@@ -360,6 +377,14 @@ nodes:
       lines above the launch block; the launch line's tail moved from nex_keepalive.sh:219-220 to
       :225-226 with byte-identical content. generator.py:3986-3995 is byte-identical and still gates
       the Fountain surface behind NEX5_AFFLICTIONS, which the launch line still omits.
+
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. This CORRECTS the 2026-11-28 G-95
+      re-verification above, which compared against b5e78842~1 instead of the 2026-11-27 verification
+      c6bc4e41; same-day commits after c6bc4e41 had already moved these lines, so that entry's
+      "byte-identical" claim held only against the later tree. Pure moves, byte-identical to c6bc4e41:
+      self_binding.py:280-346 -> :337-403; generator.py:3986-3995 -> :4141-4150. The self_binding.py
+      block is the affliction-cluster section through the module's __main__ (c6bc4e41's :278-344).
   - id: vicikitsa
     label: "vicikitsā — doubt"
     layer: arm
@@ -416,7 +441,7 @@ nodes:
     falsifier: "A locked Tier-1 belief's confidence should never move via ordinary reconciliation, regardless of contrary evidence arriving elsewhere in the belief graph."
     falsifier_status: pass
     probe: { locked_beliefs_checked: 90, confidence_values: "static (0.95-0.99), consistent with never-touched" }
-    source: { kind: composite, refs: ["keystone.py:1-20", "keystone.py:61-101", "theory_x/stage_world/expectations.py:582-645", "theory_x/stage_world/expectations.py:850-875"] }
+    source: { kind: composite, refs: ["keystone.py:1-20", "keystone.py:61-101", "theory_x/stage_world/expectations.py:583-687", "theory_x/stage_world/expectations.py:903-928"] }
     last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: the original falsifier ("declined as a detector, same as vicikitsā")
@@ -453,6 +478,14 @@ nodes:
       The 90-row confidence probe above is historical 2026-11-15 evidence and was not repeated
       against live data in this source-only review.
 
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. Edited range:
+      expectations.py:582-645 (c6bc4e41) covered _learn(); G-79 (#272) replaced its locked-row read
+      with _live_basis() and a compare-and-set UPDATE, so the anchor now spans the whole function,
+      :583-687. The claim holds and is stricter: _learn() still skips seeded basis rows and locked
+      beliefs, and the CAS UPDATE adds AND COALESCE(locked, 0) = 0. Pure move: expectations.py:850-875
+      -> :903-928 (c6bc4e41).
+
   # ───────────────────────────── WRITES ─────────────────────────────
   - id: smrti
     label: "smṛti — retention"
@@ -470,7 +503,7 @@ nodes:
     falsifier: "Should carry an object forward without the object being re-presented."
     falsifier_status: pass
     probe: { tests: "tests/test_smrti_retained_candidate.py", new_tests: 4, regression_suite: "64 pre-existing crystallizer-touching tests, unchanged" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:1878-1903", "theory_x/stage6_fountain/generator.py:2960-2975", "theory_x/stage6_fountain/crystallizer.py:290-298", "theory_x/stage6_fountain/crystallizer.py:629-637", "tests/test_smrti_retained_candidate.py:87-121"] }
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:1952-1979", "theory_x/stage6_fountain/generator.py:3113-3128", "theory_x/stage6_fountain/crystallizer.py:290-298", "theory_x/stage6_fountain/crystallizer.py:658-666", "tests/test_smrti_retained_candidate.py:87-121"] }
     last_verified: 2026-11-28
     notes: >
       The factor that gives Property 8 a home; the store itself is substrate — see p8_episodic.
@@ -539,6 +572,15 @@ nodes:
       dynamic_writer to recursive_self.format_for_prompt) and moved no line; generator.py:1878-1903
       and :2960-2975 are byte-identical, and crystallizer.py and
       tests/test_smrti_retained_candidate.py are unchanged since 2026-11-27.
+
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. This CORRECTS the 2026-11-28 G-95
+      re-verification above, which compared against b5e78842~1 instead of the 2026-11-27 verification
+      c6bc4e41; same-day commits after c6bc4e41 had already moved these lines, so that entry's
+      "byte-identical" claim held only against the later tree. Pure moves: generator.py:2960-2975 ->
+      :3113-3128; crystallizer.py:629-637 -> :658-666. Edited range: generator.py:1878-1903 (c6bc4e41)
+      is now :1952-1979; the only change inside it is a Fountain stop check (if _stopping(): return
+      None, G-84) before the retrieval-manifest capture, which the node's claim does not depend on.
   - id: virya
     label: "vīrya — joyous effort"
     layer: arm
@@ -649,7 +691,7 @@ nodes:
     falsifier: "Should re-open a past entry rather than leave it settled."
     falsifier_status: pass
     probe: { tests: "tests/test_reprice_tensions_on_new_evidence.py", new_tests: 6, corpus_exposure_check: "random-pair false-positive measured at 8.0% on 200 real live beliefs, production code path", regression_suite: "43 pre-existing held_tensions/harmonizer/semantic-conflict tests, unchanged" }
-    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:173-187", "theory_x/stage3_world_model/harmonizer.py:610-720", "tests/test_reprice_tensions_on_new_evidence.py:131-250", "substrate/schema/dynamic.sql:151-159"] }
+    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:173-187", "theory_x/stage3_world_model/harmonizer.py:610-720", "tests/test_reprice_tensions_on_new_evidence.py:131-250", "substrate/schema/dynamic.sql:159-167"] }
     last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: read harmonizer.py's actual resolution paths over held_tensions to
@@ -721,6 +763,10 @@ nodes:
 
       2026-11-27 source re-verification: the new-evidence repricing path remains in harmonizer.py:610-720, with template stripping at 173-187 and the regression suite at tests/test_reprice_tensions_on_new_evidence.py:131-250. The 15-Nov production-corpus measurements remain historical evidence; no new live corpus probe or runtime change was made.
 
+      2026-11-28 anchor reconciliation (G-96): substrate/schema/dynamic.sql:151-159 moved to :159-167,
+      byte-identical to its last verification (5b95c6ca inserted the centralized daemon_kv table above
+      it). Applied by mind_map.py --reanchor; no claim changed.
+
   # ──────────────────────────── CONSUMERS ───────────────────────────
 
 
@@ -738,7 +784,7 @@ nodes:
     blocked: false
     falsifier: "Should fail to unify when channels disagree — a measurable incoherence."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_tom/global_workspace.py:245-310", "theory_x/stage6_fountain/generator.py:3864-3890", "gui/server.py:202-280", "nex_keepalive.sh:225-226"] }
+    source: { kind: composite, refs: ["theory_x/stage_tom/global_workspace.py:245-310", "theory_x/stage6_fountain/generator.py:4019-4045", "gui/server.py:204-282", "nex_keepalive.sh:225-226"] }
     last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: mechanism is located. Fountain's global_workspace.arbitrate
@@ -768,6 +814,13 @@ nodes:
       block; the launch line's tail moved from nex_keepalive.sh:219-220 to :225-226 with
       byte-identical content. The launch line still sets NEX5_GLOBAL_WORKSPACE=1; NEX5_CHAT_WORKSPACE
       appears only in the comment at :199.
+
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. This CORRECTS the 2026-11-28 G-95
+      re-verification above, which compared against b5e78842~1 instead of the 2026-11-27 verification
+      c6bc4e41; same-day commits after c6bc4e41 had already moved these lines, so that entry's
+      "byte-identical" claim held only against the later tree. Pure moves: generator.py:3864-3890 ->
+      :4019-4045; server.py:202-280 -> :204-282 (gui/server.py against the 321a156e re-verification).
   - id: vitarka
     label: "vitarka — applied thought"
     layer: arm
@@ -784,7 +837,7 @@ nodes:
     falsifier: "An object entering wide-mode focus should be explicitly recorded as taken hold of, distinguishable from objects that merely passed through retrieval unselected."
     falsifier_status: pass
     probe: { wide_mode_fires_logged: 2821, source: "nex5_soak.log [WIDE MODE] markers" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:893-990", "theory_x/stage6_fountain/generator.py:4044-4068", "theory_x/stage6_fountain/generator.py:2719-2735"] }
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:894-991", "theory_x/stage6_fountain/generator.py:4201-4225", "theory_x/stage6_fountain/generator.py:2851-2867"] }
     last_verified: 2026-11-28
     notes: >
       Dev round, 2026-11-15: found via vicāra's paired search (see that node) -- the SET side of
@@ -811,6 +864,14 @@ nodes:
       generator.py ranges (893-990, 2719-2735, 4044-4068) are byte-identical. Live process state
       remains UNKNOWN.
 
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. This CORRECTS the 2026-11-28 G-95
+      re-verification above, which compared against b5e78842~1 instead of the 2026-11-27 verification
+      c6bc4e41; same-day commits after c6bc4e41 had already moved these lines, so that entry's
+      "byte-identical" claim held only against the later tree. Pure moves, byte-identical to c6bc4e41:
+      generator.py:893-990 -> :894-991; generator.py:4044-4068 -> :4201-4225; generator.py:2719-2735
+      -> :2851-2867.
+
   - id: vicara
     label: "vicāra — sustained thought"
     layer: arm
@@ -827,7 +888,7 @@ nodes:
     falsifier: "An object recorded as this fire's focal item should still be readable and used as the thread in a subsequent fire, not reset to empty."
     falsifier_status: pass
     probe: { gate: "NEX5_ASSOC_RECALL=1, confirmed armed live", caller_condition: "own_n > 1" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3356-3445", "theory_x/stage6_fountain/generator.py:3460-3475", "theory_x/stage6_fountain/generator.py:4060-4072", "nex_keepalive.sh:225-226"] }
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3511-3600", "theory_x/stage6_fountain/generator.py:3615-3630", "theory_x/stage6_fountain/generator.py:4217-4229", "nex_keepalive.sh:225-226"] }
     last_verified: 2026-11-28
     notes: >
       Dev round, 2026-11-15: THIS is the real home of self._last_focal_item -- the exact mechanism
@@ -861,6 +922,14 @@ nodes:
       resolution, inserting 6 lines above the launch block; the launch line's tail moved from
       nex_keepalive.sh:219-220 to :225-226 with byte-identical content. The launch line still sets
       NEX5_ASSOC_RECALL=1 and NEX5_WIDE_MODES=1. Live process state remains UNKNOWN.
+
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. This CORRECTS the 2026-11-28 G-95
+      re-verification above, which compared against b5e78842~1 instead of the 2026-11-27 verification
+      c6bc4e41; same-day commits after c6bc4e41 had already moved these lines, so that entry's
+      "byte-identical" claim held only against the later tree. Pure moves, byte-identical to c6bc4e41:
+      generator.py:3356-3445 -> :3511-3600; generator.py:3460-3475 -> :3615-3630;
+      generator.py:4060-4072 -> :4217-4229.
 
   # ────────────────────────────── SCOPE ─────────────────────────────
   # Intentionally empty. See meta.findings — this is a result, not a TODO.
@@ -955,7 +1024,7 @@ nodes:
     falsifier: "Should resume a sequence after restart without re-deriving it."
     falsifier_status: pass
     probe: { boots_checked: 5, dates: "2026-11-13 to 2026-11-15", beliefs_promoted_per_boot: 5 }
-    source: { kind: composite, refs: ["theory_x/memory/resumption.py:1-21", "theory_x/memory/resumption.py:57-186"] }
+    source: { kind: composite, refs: ["theory_x/memory/resumption.py:1-21", "theory_x/memory/resumption.py:62-197"] }
     last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: anchor is pinned -- Memory Layer B, resumption.py, promotes real
@@ -968,6 +1037,13 @@ nodes:
       just code reading: 5 consecutive real boots (2026-11-13 through 2026-11-15) each log
       "Resumption: promoted 5 beliefs" -- the mechanism has genuinely fired on every real restart
       checked, not just in theory.
+
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. Edited range:
+      resumption.py:57-186 (c6bc4e41) is now :62-197 (same first and last statements); 5d7f4e28 routed
+      _promote_beliefs()'s created_at UPDATE through the shared beliefs Writer. The promotion itself
+      -- the same belief rows by id, created_at = now - 1 -- is unchanged, so the falsifier result
+      stands.
 
   - id: p3_stakes
     label: "3 · Stakes"
@@ -983,7 +1059,7 @@ nodes:
     blocked: false
     falsifier: "Should be visible as a budget that can actually be spent."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_tom/stakes_appraisal.py:50-149", "theory_x/stage6_fountain/readiness.py:104-140", "theory_x/stage_world/frozen_at_made.py:100-107", "theory_x/stage_world/self_prediction.py:177-193", "theory_x/stage_world/self_prediction.py:234-313"] }
+    source: { kind: composite, refs: ["theory_x/stage_tom/stakes_appraisal.py:50-149", "theory_x/stage6_fountain/readiness.py:104-140", "theory_x/stage_world/frozen_at_made.py:100-107", "theory_x/stage_world/self_prediction.py:184-200", "theory_x/stage_world/self_prediction.py:241-320"] }
     last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: this is a real, named function (L4_stakes self-referent
@@ -1024,6 +1100,10 @@ nodes:
       now waits on a stop Event and keeps its thread, near line 1040): the cited ranges
       177-193 and 234-313 are byte-identical to main bbca5deb, and snapshot_stakes() is still
       called from the same two sites (:183, :588). The claim above holds; live state UNKNOWN.
+
+      2026-11-28 anchor reconciliation (G-96): against the G-84 step 3 re-verification (677fb9c2),
+      self_prediction.py:177-193 and :234-313 moved to :184-200 and :241-320, byte-identical (93f39f8e
+      added lines above). Applied by mind_map.py --reanchor; no claim changed.
 
   - id: p4_interoception
     label: "4 · Honest interoception"
@@ -1191,10 +1271,10 @@ nodes:
     source:
       kind: composite
       refs:
-        - "theory_x/stage_finitude/budget_shadow.py:1-134"
+        - "theory_x/stage_finitude/budget_shadow.py:1-144"
         - "theory_x/stage_tom/global_workspace.py:144-166"
-        - "gui/server.py:202-280"
-        - "gui/server.py:271"
+        - "gui/server.py:204-282"
+        - "gui/server.py:273"
         - "nex_keepalive.sh:197-226"
     last_verified: 2026-11-28
     notes: >
@@ -1239,6 +1319,13 @@ nodes:
       2026-11-28 anchor correction: 14873c10 (2026-11-27) inserted 6 lines near the top of
       nex_keepalive.sh; the cited launch_nex() block moved from :191-220 to :197-226 with
       byte-identical content, including the 2026-11-20 DISARMED comment for NEX5_CHAT_WORKSPACE.
+
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. Pure moves against the 321a156e
+      re-verification: server.py:202-280 -> :204-282; server.py:271 -> :273. Edited range: the
+      whole-file budget_shadow.py anchor dated from d9bc326f (134 lines); 22489b8d and 5b95c6ca grew
+      it to 144 lines, now :1-144. gui/server.py still neither imports nor constructs Budget and does
+      not call spend().
 
   # ─────────────────────────── BOUNDARY ─────────────────────────────
   - id: p9_dissonance
@@ -1320,7 +1407,7 @@ nodes:
       retry_bridge_for_tensions() periodically re-attempts a synthesis bridge without forcing one.
       39 tests pass (test_held_tension.py, test_retry_bridge_for_tensions.py,
       test_harmonizer_active_count_fix.py, test_hud_tensions_episodes.py), all run in isolation
-      2026-11-09. A read-only HUD endpoint exists (gui/server.py:3555, api_harmonizer_tensions; pointer corrected 2026-11-28 from a drifted :3056, re-pinned after the G-84 producer edits); nothing live consumes it.
+      2026-11-09. A read-only HUD endpoint exists (gui/server.py:3636, api_harmonizer_tensions; pointer corrected 2026-11-28 from a drifted :3056, re-pinned after the G-84 producer edits); nothing live consumes it.
 
       SENTIENCE_PROGRAM.md's own summary row (line 36) still cited `stage_warrant`/`NEX5_WARRANT` --
       an unrelated belief-support-scoring module, not a dissonance mechanism -- as if it were the
@@ -1417,9 +1504,9 @@ nodes:
         - "theory_x/memory/episodic.py:168-248"
         - "tests/test_episodic.py:118-277"
         - "tests/test_episodic_falsifier.py:42-54"
-        - "substrate/schema/dynamic.sql:172-193"
+        - "substrate/schema/dynamic.sql:180-201"
         - "nex_config.py:84"
-        - "gui/server.py:3590-3604"
+        - "gui/server.py:3671-3685"
         - "nex_keepalive.sh:225-226"
         - "SENTIENCE_PROGRAM.md:148-157"
     last_verified: 2026-11-28
@@ -1478,6 +1565,14 @@ nodes:
       2026-11-28 (G-84 step 4): six more AppState producer fields and eleven more quiesce lines
       moved the api_episodic_episodes endpoint by 17 lines to gui/server.py:3590-3604,
       byte-identical content.
+
+      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
+      verified it (named per ref), not against an intermediate tree. Pure move: dynamic.sql:172-193 ->
+      :180-201 (against 6984b88e). The episodes endpoint is re-derived from the last verified anchor,
+      677fb9c2's gui/server.py:3573-3587 (def api_episodic_episodes() through its error return), now
+      at :3671-3685, byte-identical. The intermediate :3590-3604 written by #375 (ee88ae41) carried
+      line numbers from a differently laid-out branch and pointed at the ghost-flags endpoint; it was
+      never a verified anchor, so it is not used as a baseline.
 
 constraints:
   - { from: p13_finitude,     to: prices,  label: "caps the budget" }
