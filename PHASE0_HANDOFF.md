@@ -322,3 +322,8 @@ The source ordering permits a further conditional failure mode: same eligible al
 ### 28 November 2026 — G-83 prior-art comparison
 
 The Sentience 5.5 Stillness_Node.py cited as Row 9 prior art is now inspected. It has a single global non-reentrant stillness state and a trigger/time/duration log, with no topic or alert identity. NEX SYNTHESIS_PLAN_V2 §3 then described a topic-specific NEX extension; the NEX implementation uses a global count/global crystallizer hold. The implementation resembles prior art in scope, but the reason the plan's topic-specific delta was not carried is undocumented in the inspected commit. Authority remains UNKNOWN. See INDEX §118; G-83 stays OPEN.
+
+
+### 28 November 2026 — G-83 speech-consumer boundary
+
+Row 9 prevents the current fire from reaching the crystallizer's later speech enqueue, but SpeechQueueConsumer is a separate beliefs.db-only daemon and does not read conversations.stillness_log. Already-pending speech entries can continue to drain while Row 9 is active, subject to the consumer's independent pause and quiet-hours controls. tests/test_speech.py has no pending-entry-during-Row-9 case. This is evidence that Row 9 is not a speech-consumer pause. See INDEX §119; G-83 remains OPEN.
