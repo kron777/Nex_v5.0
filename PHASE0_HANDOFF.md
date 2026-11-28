@@ -434,3 +434,4 @@ Internal Fountain feedback is generic only; it does not receive GrooveSpotter pa
 ### 28 November 2026 — live Metacognition tick versus decay
 
 Correction of scope: Metacognition is connected to the live GUI chat path. `run.py` constructs/registers the shared object; `gui/server.py` calls `tick()` and `format_for_prompt()` during chat. The unlocated production path is specifically `decay(now)` for 14-day stale-event resolution. A targeted 24-file lifecycle sweep found no dispatcher but is not a whole-repository proof. See INDEX §135.
+Persistence-loop effect: GrooveSpotter reads only stored Fountain/Synergized beliefs, so crystallization rejection prevents the generated thought from becoming future detector input. Row 9/cooldown regulate durable memory accumulation, not current LLM generation. See INDEX §134.
