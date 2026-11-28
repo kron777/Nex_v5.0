@@ -118,3 +118,30 @@ def test_emergent_drive_scan_stops_after_blocked_belief_read():
 
     assert proposals == []
     state.status.assert_not_called()
+
+
+def test_edge_builder_stops_embedding_pool_before_atomic_edge_batch():
+    import theory_x.diversity.edge_builder as module
+
+    stop = threading.Event()
+    reader = MagicMock()
+    reader.read.side_effect = [
+        [{"id": 1, "content": "A sufficiently long source belief about global systems."}],
+        [
+            {"id": 1, "content": "A sufficiently long source belief about global systems."},
+            {"id": 2, "content": "A sufficiently long target belief about global systems."},
+        ],
+    ]
+    writer = MagicMock()
+
+    def embed_and_stop(*_args, **_kwargs):
+        stop.set()
+        return [1.0, 0.0]
+
+    with patch.object(module, "embed_belief", side_effect=embed_and_stop):
+        result = module.edge_builder_tick(
+            beliefs_reader=reader, beliefs_writer=writer, stop_event=stop
+        )
+
+    assert result["wrote"] == 0
+    writer.write_many_with_counts.assert_not_called()
