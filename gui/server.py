@@ -716,6 +716,7 @@ class AppState:
     probe_runner: Optional["ProbeRunner"] = None             # type: ignore[type-arg]
     probes_reader: Optional[Reader] = None
     coherence_gate: Optional[object] = None        # Phase 22
+    resolver: Optional[object] = None              # G-84 managed HoldingZoneResolver
     trigger_detector: Optional[object] = None      # Phase 25a TN-1
     throw_net_monitor: Optional[object] = None     # Phase 25a TN-5
     counterfactual_node: Optional[object] = None   # Phase 25b CN
