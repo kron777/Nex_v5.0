@@ -1401,7 +1401,7 @@ nodes:
       retry_bridge_for_tensions() periodically re-attempts a synthesis bridge without forcing one.
       39 tests pass (test_held_tension.py, test_retry_bridge_for_tensions.py,
       test_harmonizer_active_count_fix.py, test_hud_tensions_episodes.py), all run in isolation
-      2026-11-09. A read-only HUD endpoint exists (gui/server.py:3555, api_harmonizer_tensions; pointer corrected 2026-11-28 from a drifted :3056, re-pinned after the G-84 producer edits); nothing live consumes it.
+      2026-11-09. A read-only HUD endpoint exists (gui/server.py:3636, api_harmonizer_tensions; pointer corrected 2026-11-28 from a drifted :3056, re-pinned after the G-84 producer edits); nothing live consumes it.
 
       SENTIENCE_PROGRAM.md's own summary row (line 36) still cited `stage_warrant`/`NEX5_WARRANT` --
       an unrelated belief-support-scoring module, not a dissonance mechanism -- as if it were the
@@ -1500,7 +1500,7 @@ nodes:
         - "tests/test_episodic_falsifier.py:42-54"
         - "substrate/schema/dynamic.sql:180-201"
         - "nex_config.py:84"
-        - "gui/server.py:3612-3626"
+        - "gui/server.py:3671-3685"
         - "nex_keepalive.sh:225-226"
         - "SENTIENCE_PROGRAM.md:148-157"
     last_verified: 2026-11-28
@@ -1561,9 +1561,12 @@ nodes:
       byte-identical content.
 
       2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
-      verified it (named per ref), not against an intermediate tree. Pure moves: dynamic.sql:172-193
-      -> :180-201; server.py:3590-3604 -> :3612-3626 (dynamic.sql against 6984b88e, gui/server.py
-      against the G-84 step-4 anchor ee88ae41).
+      verified it (named per ref), not against an intermediate tree. Pure move: dynamic.sql:172-193 ->
+      :180-201 (against 6984b88e). The episodes endpoint is re-derived from the last verified anchor,
+      677fb9c2's gui/server.py:3573-3587 (def api_episodic_episodes() through its error return), now
+      at :3671-3685, byte-identical. The intermediate :3590-3604 written by #375 (ee88ae41) carried
+      line numbers from a differently laid-out branch and pointed at the ghost-flags endpoint; it was
+      never a verified anchor, so it is not used as a baseline.
 
 constraints:
   - { from: p13_finitude,     to: prices,  label: "caps the budget" }
