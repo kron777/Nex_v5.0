@@ -1,9 +1,10 @@
-"""AppState.close() must quiesce the dynamic layer before closing Writers.
+"""AppState.close() must quiesce managed workers before closing Writers.
 
-Backlog G-84 (first step). AppState.close() used to shut the scheduler and
-close every Writer without stopping the Stage 2 dynamic loops, although
-stop_dynamic() exists for exactly that. A loop mid-tick could then submit its
-writes to a Writer that was already draining or closed, and lose them.
+Backlog G-84, bounded incremental coverage. AppState.close() previously
+closed Writers without joining the Stage 2 dynamic loops, Fountain, or the
+HoldingZoneResolver. An in-flight worker could then submit writes to a
+Writer that was already draining or closed, and lose them. This increment
+covers those three worker families; it does not claim global producer closure.
 
 Pinned here, on isolated temporary databases:
 - close() stops and joins the dynamic loops and Fountain BEFORE any Writer
