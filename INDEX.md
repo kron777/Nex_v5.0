@@ -5987,8 +5987,8 @@ The same class name can obscure this separation. Searching for "SelfNarrative.ti
 
 ### Characterization tests
 
-- **PR #456** adds a test that inserts a tier-6 self_rut_notice plus a substantive Fountain fire and verifies build_narrative() can include the note; it also verifies the Stage-TOM private _log sentinel is not returned by get_narrative(). Exact-head CI status was still in progress at this snapshot.
-- **PR #457** adds prompt-builder tests for the enabled/disabled NEX5_SELF_NARRATIVE boundary. Exact-head CI was queued/in progress at this snapshot.
+- **PR #456** adds a test that inserts a tier-6 self_rut_notice plus a substantive Fountain fire and verifies build_narrative() can include the note; it also verifies the Stage-TOM private _log sentinel is not returned by get_narrative(). Its first exact-head run failed because the test expected the full note while the composer intentionally truncates T6 content to 80 characters. The assertion was corrected to the 80-character prefix; corrected head 7996f5d091ffc0a45f77484bd4b3c7d6e6cb391b is awaiting exact-head CI.
+- **PR #457** adds prompt-builder tests for the enabled/disabled NEX5_SELF_NARRATIVE boundary. Exact-head workflow 46183886214 passed at 75a042e07aa69ce8f41fd72082de157dfd3f6772: 3,079 passed, 7 skipped, 86 subtests; baseline OK; sandbox probe OK. The mind-map check reported 30 nodes, 0 unverified, 12 dark and 2 blocked, with the existing two missing-doctrine-reference and past-due P13 warnings.
 - These fixture tests establish source-level composition and prompt-string assembly only. They do not establish host flag values, live Fountain execution, model-provider acceptance or semantic influence on generated output.
 
 ### Evidence boundary and next step
