@@ -71,13 +71,13 @@ nodes:
       threshold. A genuine design question (recalibrate, or this is an honest trait finding), not
       a mechanical bug -- flagged for a decision, not silently tuned."
     evidence: measured
-    dark: true
+    dark: false
     blocked: false
     probe: { thought_sample: 50, max_salience_observed: 0.191, threshold_to_count_clouded: 0.30 }
     falsifier: "Discernment should vary across turns. It reads under forced injection, never spontaneously."
     falsifier_status: fail
-    source: { kind: file, ref: "theory_x/stage_tom/amoha_detector.py:75-159" }
-    last_verified: 2026-11-27
+    source: { kind: composite, refs: ["theory_x/stage_tom/amoha_detector.py:75-159", "theory_x/stage_affect/compass.py:74-102", "nex_keepalive.sh:225-226"] }
+    last_verified: 2026-11-28
     notes: >
       The most instructive node in the map: it works and is never used. VIRTUE_SLATE.md (the
       draft's original ref) does not exist anywhere in this repo's history -- re-pinned to the
@@ -104,6 +104,22 @@ nodes:
       not fixing a bug. Flagged for a decision rather than silently retuned -- unlike the LIMIT-50/
       narration-template fixes this round, this isn't a mechanical error with one correct answer.
 
+      CORRECTION, 2026-11-28 (G-95): 'it works and is never used' is contradicted by source.
+      NEX5_AMOHA gates only the detector's own prompt surface (amoha_detector.format_for_prompt(), and
+      generator.py's call behind it). theory_x/stage_affect/compass.py's weigh() calls
+      amoha_detector.detect() directly at :91-92 with no flag check, and gui/server.py's chat handler
+      calls the compass on admin turns when NEX5_COMPASS=1 (gui/server.py:2262-2264 at f5cf19c3),
+      which the launch line has set since 4f1f3c7e (2026-09-15; nex_keepalive.sh:225). A 'clouded' or
+      'mild' read becomes a compass consideration in the admin chat prompt (compass.py:123-128).
+      280125c3 (2026-10-05), which disarmed NEX5_AMOHA, records the same: "The compass reads
+      amoha.detect() directly (not flag-gated) and is untouched." tests/test_compass_detector_reach.py
+      pins the call with stubbed detectors. Reclassified dark:true -> false on source and
+      launch-config evidence; how often admin chat turns happen on the host is UNKNOWN. This does not
+      change the measured falsifier: on the 2026-11-15 sample no real thought reached the 0.30
+      per-thought bar, so detect() would return 'clear' (fraction below _FRAC_LO 0.20) and the compass
+      would add nothing from clarity. The read is reached; on that sample it would be silent.
+      amoha_detector.py:75-159 is unchanged since 2026-11-27.
+
   - id: karuna
     label: "karuṇā — compassion"
     layer: arm
@@ -119,7 +135,7 @@ nodes:
     falsifier: "Calibrated response should show uptake in unprompted turns. Never probed."
     falsifier_status: unrun
     source: { kind: composite, refs: ["theory_x/stage_affect/compassion.py:225-325", "tests/test_compassion.py:52-57"] }
-    last_verified: 2026-11-27
+    last_verified: 2026-11-28
     notes: >
       Calibrated, uptake unprobed. Same family as amoha. VIRTUE_SLATE.md re-pinned to the real
       module (NEX5_COMPASSION, default OFF).
@@ -131,6 +147,15 @@ nodes:
       function computes correctly" -- it requires the mechanism actually running live and
       surfacing in organic conversation, which is impossible to observe while dark. Left unrun
       rather than claiming a pass the evidence doesn't support.
+
+      2026-11-28 re-verification (G-95, related): NEX5_COMPASSION is still absent from the launch
+      line, so the compassion level and stance this node describes (update_and_level(), stance_for())
+      stay dark, and compassion.py is unchanged since 2026-11-27. Separately, the compass -- armed in
+      the launch line via NEX5_COMPASS=1 -- calls compassion._distress_read() on admin chat turns
+      (compass.py:81-83). That read is stateless (tests/test_compass.py asserts the level is not
+      mutated) and surfaces only as the compass's 'care is owed' clause when another consideration is
+      live (compass.py:134-141; the clause itself is at :139-141). Whether that partial use makes this node not-dark is a classification
+      question left open for the founder; dark is left true.
 
   - id: upeksa
     label: "upekṣā — equanimity"
@@ -183,7 +208,7 @@ nodes:
     falsifier: "Should reduce repeat-selection of the same object across consecutive moments."
     falsifier_status: pass
     source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:727-785", "theory_x/stage6_fountain/generator.py:867-883", "tests/test_alobha.py:52-58"] }
-    last_verified: 2026-11-27
+    last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: this was filed as 'spec exists, unbuilt-open' -- it isn't. Both
       mental_factors_inventory_alobha_spec.txt (the cited spec doc) and VIRTUE_SLATE.md are absent
@@ -200,6 +225,11 @@ nodes:
 
 
       2026-11-27 source re-verification: _alobha_context() and _alobha_penalty() remain in generator.py:727-785; the generator applies the penalty only behind NEX5_ALOBHA=1 at 867-883. The current keepalive launch line omits NEX5_ALOBHA. The 2026-11-15 /proc probe is historical; current process environment was not checked.
+
+      2026-11-28 re-verification: #362 (b5e78842) changed generator.py by one line at :3927 (passing
+      dynamic_writer to recursive_self.format_for_prompt) and moved no line. Both cited generator.py
+      ranges are byte-identical to the 2026-11-27 verification and tests/test_alobha.py is unchanged
+      since then. nex_keepalive.sh still omits NEX5_ALOBHA. Live process state remains UNKNOWN.
   - id: vedana
     label: "vedanā — feeling-tone"
     layer: arm
@@ -215,8 +245,8 @@ nodes:
     probe: { valence_delta_samples: 35, distinct_values: 12, min: 0.0219, max: 0.2237, source: "/tmp/nex5_affect_state.log" }
     falsifier: "A price that is constant is not a price. Valence should vary with content."
     falsifier_status: pass
-    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-405", "theory_x/stage6_fountain/generator.py:611-652", "theory_x/stage6_fountain/generator.py:857-863", "nex_keepalive.sh:219-220"] }
-    last_verified: 2026-11-27
+    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-405", "theory_x/stage6_fountain/generator.py:611-652", "theory_x/stage6_fountain/generator.py:857-863", "nex_keepalive.sh:225-226"] }
+    last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: 'no location yet pinned' was wrong -- the check regex just
       missed .venv-excluded hits. Real location: AffectState._compute_valence_delta() (confidence-
@@ -252,6 +282,14 @@ nodes:
 
 
       2026-11-27 source re-verification: AffectState._compute_valence_delta() computes confidence-weighted polarity over high-tier belief content and blends the self-evaluation nudge; _valence_reach() reads affect_state and returns a bounded novelty multiplier. Keep the two layers distinct: valence computation is not the same as valence steering. The generator uses the multiplier only when NEX5_VALENCE_DRIVE=1; the keepalive line sets NEX5_MOOD=1 but omits NEX5_VALENCE_DRIVE. The 35 raw log samples and live observation remain historical 2026-11-15 evidence; current process state was not checked.
+
+      2026-11-28 re-verification: #362 (b5e78842) changed generator.py by one line at :3927 (passing
+      dynamic_writer to recursive_self.format_for_prompt) and moved no line; generator.py:611-652 and
+      :857-863 are byte-identical and affect_state.py is unchanged since 2026-11-27. 14873c10
+      (2026-11-27, after that day's verification) replaced the launcher's hard-coded cd with
+      script-relative resolution, inserting 6 lines above the launch block; the launch line's tail
+      moved from nex_keepalive.sh:219-220 to :225-226 with byte-identical content. The launch line
+      still sets NEX5_MOOD=1 and omits NEX5_VALENCE_DRIVE. Live process state remains UNKNOWN.
   - id: mana
     label: "māna — self-conceit"
     layer: arm
@@ -259,14 +297,14 @@ nodes:
     factor: mana
     role_note: "Prices the self's standing relative to the other."
     build_difficulty: shipped
-    sketch: "Real detector (mana_detector.py), but NOT always-on -- corrected 2026-11-15, see notes. dark:true, not false."
+    sketch: "Real detector (mana_detector.py). Not always-on and not on the Fountain path (NEX5_AFFLICTIONS is off), but the compass reads it on admin chat turns under the launch line's NEX5_COMPASS=1 -- corrected 2026-11-28 (G-95), see notes. dark:false by source and launch config; live invocation UNKNOWN."
     evidence: static
-    dark: true
+    dark: false
     blocked: false
     falsifier: "Reads every turn. A faculty that fires unconditionally carries no information."
-    falsifier_status: na
-    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:40-75", "theory_x/stage_tom/self_binding.py:278-344", "theory_x/stage6_fountain/generator.py:3986-3995", "nex_keepalive.sh:219-220"] }
-    last_verified: 2026-11-27
+    falsifier_status: unrun
+    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:40-75", "theory_x/stage_tom/self_binding.py:280-346", "theory_x/stage_affect/compass.py:74-102", "theory_x/stage6_fountain/generator.py:3986-3995", "nex_keepalive.sh:225-226"] }
+    last_verified: 2026-11-28
     notes: >
       CORRECTION, 2026-11-15 (falsifier-sweep round): "always-on read-only sidecar" was wrong.
       mana_detector.detect() has exactly one caller in the live path -- self_binding.py's
@@ -293,6 +331,31 @@ nodes:
 
 
       2026-11-27 source re-verification: detect() remains in mana_detector.py:40-75; _cluster_reads() and afflictions_for_prompt() gate it in self_binding.py:298-344; generator.py:3986-3995 adds the outer NEX5_AFFLICTIONS gate. The current keepalive launch line omits NEX5_AFFLICTIONS. The 2026-11-15 /proc probe is historical; current process state was not checked.
+
+      CORRECTION, 2026-11-28 (G-95): the 2026-11-15 findings that detect()'s one live-path caller is
+      _cluster_reads(), "called only from afflictions_for_prompt()", and that detect() therefore runs
+      on ZERO live turns -- carried forward by the 2026-11-27 re-verification -- are contradicted by
+      source. theory_x/stage_affect/compass.py's weigh() (:74-102) calls self_binding._cluster_reads()
+      at :96-97, and _cluster_reads() (self_binding.py:303-319) calls all five affliction detectors --
+      mana included -- without checking NEX5_AFFLICTIONS; only afflictions_for_prompt() checks that
+      flag. gui/server.py's chat handler calls compass.stance_for() when NEX5_COMPASS=1 and the
+      session is admin (gui/server.py:2262-2264 at f5cf19c3). The launch line has set NEX5_COMPASS=1
+      since 4f1f3c7e (2026-09-15) and still does (nex_keepalive.sh:225); b941c796 (2026-10-04)
+      disarmed NEX5_AFFLICTIONS, and its message records that "the compass still reads the cluster via
+      self_binding._cluster_reads() directly (not flag-gated), so its KEEP is unaffected": the reach
+      was known and kept, and the map's 2026-11-15 correction missed it. A read of 'inflated' becomes
+      a compass consideration naming mana in the admin chat prompt (compass.py:129-132).
+      tests/test_compass_detector_reach.py pins this with stubbed detectors. Reclassified dark:true ->
+      false on that source and launch-config evidence. The 2026-11-15 /proc probe looked for
+      NEX5_AFFLICTIONS, not NEX5_COMPASS, so it does not settle this path; how often admin chat turns
+      happen on the host is UNKNOWN. The falsifier is now evaluable in principle (does detect() read
+      high on every admin chat turn?) and has not been run: falsifier_status na -> unrun. Anchors:
+      #362 added two lines to self_binding.bind() (:232-235), so the cited self_binding.py range moved
+      from 278-344 to 280-346 with byte-identical content; 14873c10 (2026-11-27, after that day's
+      verification) replaced the launcher's hard-coded cd with script-relative resolution, inserting 6
+      lines above the launch block; the launch line's tail moved from nex_keepalive.sh:219-220 to
+      :225-226 with byte-identical content. generator.py:3986-3995 is byte-identical and still gates
+      the Fountain surface behind NEX5_AFFLICTIONS, which the launch line still omits.
   - id: vicikitsa
     label: "vicikitsā — doubt"
     layer: arm
@@ -404,7 +467,7 @@ nodes:
     falsifier_status: pass
     probe: { tests: "tests/test_smrti_retained_candidate.py", new_tests: 4, regression_suite: "64 pre-existing crystallizer-touching tests, unchanged" }
     source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:1878-1903", "theory_x/stage6_fountain/generator.py:2960-2975", "theory_x/stage6_fountain/crystallizer.py:290-298", "theory_x/stage6_fountain/crystallizer.py:629-637", "tests/test_smrti_retained_candidate.py:87-121"] }
-    last_verified: 2026-11-27
+    last_verified: 2026-11-28
     notes: >
       The factor that gives Property 8 a home; the store itself is substrate — see p8_episodic.
       Check tightened 2026-11-09 to exclude .venv (the un-excluded grep was matching third-party
@@ -467,6 +530,11 @@ nodes:
 
 
       2026-11-27 source re-verification: generate() captures retrieval_manifest at generator.py:1878-1903 and passes the retained own_sense candidate through the current crystallize call at generator.py:2960-2975. crystallize() accepts the optional parameter at crystallizer.py:290-298 and records it at 629-637; focused regression tests are at tests/test_smrti_retained_candidate.py:87-121. The 15-Nov line numbers in the historical narrative above are not current anchors; use these source refs.
+
+      2026-11-28 re-verification: #362 (b5e78842) changed generator.py by one line at :3927 (passing
+      dynamic_writer to recursive_self.format_for_prompt) and moved no line; generator.py:1878-1903
+      and :2960-2975 are byte-identical, and crystallizer.py and
+      tests/test_smrti_retained_candidate.py are unchanged since 2026-11-27.
   - id: virya
     label: "vīrya — joyous effort"
     layer: arm
@@ -666,7 +734,7 @@ nodes:
     blocked: false
     falsifier: "Should fail to unify when channels disagree — a measurable incoherence."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_tom/global_workspace.py:245-310", "theory_x/stage6_fountain/generator.py:3864-3890", "gui/server.py:202-280", "nex_keepalive.sh:219-220"] }
+    source: { kind: composite, refs: ["theory_x/stage_tom/global_workspace.py:245-310", "theory_x/stage6_fountain/generator.py:3864-3890", "gui/server.py:202-280", "nex_keepalive.sh:225-226"] }
     last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: mechanism is located. Fountain's global_workspace.arbitrate
@@ -690,6 +758,12 @@ nodes:
       gui/server.py:202, the NEX5_CHAT_WORKSPACE gate is at :257 and the budget read at :271;
       lines 202-280 are byte-identical to main a6d08405. The other refs are unchanged since
       2026-11-27. Live process state remains UNKNOWN.
+
+      2026-11-28 anchor correction: 14873c10 (2026-11-27, after that day's verification) replaced the
+      launcher's hard-coded cd with script-relative resolution, inserting 6 lines above the launch
+      block; the launch line's tail moved from nex_keepalive.sh:219-220 to :225-226 with
+      byte-identical content. The launch line still sets NEX5_GLOBAL_WORKSPACE=1; NEX5_CHAT_WORKSPACE
+      appears only in the comment at :199.
   - id: vitarka
     label: "vitarka — applied thought"
     layer: arm
@@ -707,7 +781,7 @@ nodes:
     falsifier_status: pass
     probe: { wide_mode_fires_logged: 2821, source: "nex5_soak.log [WIDE MODE] markers" }
     source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:893-990", "theory_x/stage6_fountain/generator.py:4044-4068", "theory_x/stage6_fountain/generator.py:2719-2735"] }
-    last_verified: 2026-11-27
+    last_verified: 2026-11-28
     notes: >
       Dev round, 2026-11-15: found via vicāra's paired search (see that node) -- the SET side of
       the same mechanism vicāra reads. generator.py:4068 (self._last_focal_item = _kw.get("item"))
@@ -728,6 +802,11 @@ nodes:
       wide-mode prompt is successfully accepted. The 2,821-fire probe is historical 15-Nov
       evidence; the live process/flag was not rechecked in this source-only pass.
 
+      2026-11-28 re-verification: #362 (b5e78842) changed generator.py by one line at :3927 (passing
+      dynamic_writer to recursive_self.format_for_prompt) and moved no line; the three cited
+      generator.py ranges (893-990, 2719-2735, 4044-4068) are byte-identical. Live process state
+      remains UNKNOWN.
+
   - id: vicara
     label: "vicāra — sustained thought"
     layer: arm
@@ -744,8 +823,8 @@ nodes:
     falsifier: "An object recorded as this fire's focal item should still be readable and used as the thread in a subsequent fire, not reset to empty."
     falsifier_status: pass
     probe: { gate: "NEX5_ASSOC_RECALL=1, confirmed armed live", caller_condition: "own_n > 1" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3356-3445", "theory_x/stage6_fountain/generator.py:3460-3475", "theory_x/stage6_fountain/generator.py:4060-4072", "nex_keepalive.sh:219-220"] }
-    last_verified: 2026-11-27
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3356-3445", "theory_x/stage6_fountain/generator.py:3460-3475", "theory_x/stage6_fountain/generator.py:4060-4072", "nex_keepalive.sh:225-226"] }
+    last_verified: 2026-11-28
     notes: >
       Dev round, 2026-11-15: THIS is the real home of self._last_focal_item -- the exact mechanism
       ruled OUT for smṛti's within-moment directive is the right fit here, read the other way
@@ -771,6 +850,14 @@ nodes:
       armed-process observation are historical 15-Nov evidence; current runtime state was not
       checked. No cross-restart persistence is claimed by this node.
 
+      2026-11-28 re-verification: #362 (b5e78842) changed generator.py by one line at :3927 (passing
+      dynamic_writer to recursive_self.format_for_prompt) and moved no line; the three cited
+      generator.py ranges (3356-3445, 3460-3475, 4060-4072) are byte-identical. 14873c10 (2026-11-27,
+      after that day's verification) replaced the launcher's hard-coded cd with script-relative
+      resolution, inserting 6 lines above the launch block; the launch line's tail moved from
+      nex_keepalive.sh:219-220 to :225-226 with byte-identical content. The launch line still sets
+      NEX5_ASSOC_RECALL=1 and NEX5_WIDE_MODES=1. Live process state remains UNKNOWN.
+
   # ────────────────────────────── SCOPE ─────────────────────────────
   # Intentionally empty. See meta.findings — this is a result, not a TODO.
 
@@ -790,7 +877,7 @@ nodes:
     blocked: false
     falsifier: "Should fail loudly if two writers claim the same subject."
     falsifier_status: fail
-    source: { kind: composite, refs: ["nex_keepalive.sh:14-39", "substrate/writer.py:1-16", "substrate/writer.py:57-155", "substrate/writer.py:170-258", "substrate/db.py:135-196"] }
+    source: { kind: composite, refs: ["nex_keepalive.sh:20-45", "substrate/writer.py:1-16", "substrate/writer.py:57-155", "substrate/writer.py:170-258", "substrate/db.py:135-196"] }
     last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: 'anchor not pinned' was wrong -- NEX5_CONTINUITY_N is a real,
@@ -832,6 +919,10 @@ nodes:
       the serialized Writer worker, wraps it in BEGIN IMMEDIATE/COMMIT, and rolls back on
       callback failure. This extends the one-pen boundary without adding a second connection
       or a same-subject detector. The preventive-vs-detective falsifier therefore remains FAIL.
+
+      2026-11-28 anchor correction: 14873c10 (2026-11-27) replaced the hard-coded cd at line 12 with
+      script-relative resolution (+6 lines); the single-instance flock and scoped-child supervision
+      block cited above moved from :14-39 to :20-45 with byte-identical content.
 
   - id: p2_train
     label: "2 · Train of thought across restart"
@@ -1086,7 +1177,7 @@ nodes:
         - "theory_x/stage_tom/global_workspace.py:144-166"
         - "gui/server.py:202-280"
         - "gui/server.py:271"
-        - "nex_keepalive.sh:191-220"
+        - "nex_keepalive.sh:197-226"
     last_verified: 2026-11-28
     notes: >
       UNBLOCK 2026-11-21 -- r77 freeze close. Real ceiling found and already
@@ -1126,6 +1217,10 @@ nodes:
       corrected from :243, which had drifted when 612022e8 added trace lines to
       _assemble_chat_blocks. Live process state remains UNKNOWN; the UNBLOCK marker and
       dark=true are preserved.
+
+      2026-11-28 anchor correction: 14873c10 (2026-11-27) inserted 6 lines near the top of
+      nex_keepalive.sh; the cited launch_nex() block moved from :191-220 to :197-226 with
+      byte-identical content, including the 2026-11-20 DISARMED comment for NEX5_CHAT_WORKSPACE.
 
   # ─────────────────────────── BOUNDARY ─────────────────────────────
   - id: p9_dissonance
@@ -1307,7 +1402,7 @@ nodes:
         - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
         - "gui/server.py:3573-3587"
-        - "nex_keepalive.sh:219-220"
+        - "nex_keepalive.sh:225-226"
         - "SENTIENCE_PROGRAM.md:148-157"
     last_verified: 2026-11-28
     notes: >
@@ -1357,6 +1452,10 @@ nodes:
       lines into dynamic.sql ahead of this table — content unchanged, but the old
       dynamic.sql:161-182 citation was shifted stale by the insertion itself; corrected to
       172-193 here, same pass that caused the shift.
+
+      2026-11-28 anchor correction: 14873c10 (2026-11-27, after that day's verification) inserted 6
+      lines near the top of nex_keepalive.sh; the launch line's tail moved from :219-220 to :225-226
+      with byte-identical content. The launch line still omits NEX5_EPISODIC.
 
 constraints:
   - { from: p13_finitude,     to: prices,  label: "caps the budget" }
