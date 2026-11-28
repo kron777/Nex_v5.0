@@ -77,6 +77,8 @@ NEX also contains a more structured objective-intake path:
 
 This is a promising objective-level intermediate representation, but it is not the user's Sentence Code and not yet a free-form sentence-to-machine-operation compiler. The inspected gui/server.py chat route has no rdo, rdo_adapters or objective_intake call. The chat-to-RDO wire is therefore absent in the inspected source.
 
+The RDO's Recursive Extrapolator is also specifically a development-network expander: it consumes already-structured seed obligations, applies generic engineering decomposition rules, reconciles them against repository mechanisms, and produces a bounded obligation graph and work packages. It does not parse a free-form human sentence, produce executable runtime instructions, or execute the generated work. Stage-7 hands reviewed development packages to an external execution agent and verifies the resulting source/tests separately. This is valuable downstream machinery for developing NEX, but it must not be mistaken for the runtime Sentence Code pathway.
+
 Do not connect it blindly: RDO objective obligations describe development work, while runtime tool operations describe actions NEX may perform in response to a user. Their authority, validation and execution contracts differ. Reuse may be possible at the representation/provenance layer, but that requires a deliberate mapping.
 
 ## 5. Limits and next wire
