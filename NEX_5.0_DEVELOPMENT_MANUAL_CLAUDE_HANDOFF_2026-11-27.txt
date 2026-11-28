@@ -4797,3 +4797,39 @@ No test has been run locally and no CI pass is claimed. Keep both PRs in draft u
 **Disposition:** Phase 0 test-characterization evidence candidates only. No live host, database, process, API, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
 
 **Evidence anchors:** PR #448 / run 46173749707 / commit f4447ad5b243b97c91c28fc00abbef88fe7c51f9; PR #449 / run 46174148899 / commit 50c2e083de1dab3e40301b37dc14b614a0d08f23; main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+
+## §125 — Producer fingerprint tests pass exact-head CI (2026-11-28)
+
+### PR #448 result
+
+Producer-side characterization PR #448 was tested at exact head f4447ad5b243b97c91c28fc00abbef88fe7c51f9 against base main 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+GitHub Actions run 46173749707 completed successfully on 2026-11-28:
+- 3,081 passed;
+- 7 skipped;
+- 86 subtests passed;
+- 0 known-intentional deselections;
+- baseline gate: OK;
+- mind-map verification: 30 nodes, 0 unverified, 12 dark, 2 blocked.
+
+The workflow also completed the disposable test-image build and sandbox probe successfully. The mind-map verifier retained existing warnings: missing VIRTUE_SLATE.md and mental_factors_inventory_alobha_spec.txt doctrine references, and the overdue p13_finitude UNBLOCK marker dated 2026-11-21. These are recorded as verifier warnings, not new test failures or authorization to rearm any node.
+
+### What this validates
+
+It validates that the four new tests pass against the current GrooveSpotter implementation on this exact commit:
+- unchanged per-instance n-gram, exact, template and centroid observations are suppressed;
+- the tested fingerprint clears when that detector condition is absent;
+- a fresh GrooveSpotter instance can emit again because its process-local fingerprint begins empty.
+
+It does not prove live restart frequency, canonical semantic episode identity, persistence across processes, or correct downstream interpretation by Metacognition/Row 9. The test PR remains draft pending review; passing CI is not approval to merge or change runtime behaviour.
+
+### Consumer test still pending
+
+Separate draft PR #449 (head 50c2e083de1dab3e40301b37dc14b614a0d08f23) is testing the controlled-clock Metacognition replay/Row 9 renewal characterization. Run 46174148899 was still in progress at this snapshot, in the disposable image-build step; no result is claimed.
+
+**Disposition:** producer-side test characterization is now test-verified on the exact PR #448 head; G-83 itself remains OPEN. No runtime code, schema, flags or cognitive behaviour changed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Evidence anchors:** PR #448; exact head f4447ad5b243b97c91c28fc00abbef88fe7c51f9; run 46173749707; job 141067710930; full log; tests/test_groove_spotter_fingerprints.py; main base 18c8f06171e1de35c3210831a49b63d0e2487af0. Pending separate PR #449/run 46174148899.
+
+**Evidence level:** exact-head full-suite CI test-verified; no production runtime observation.
