@@ -91,7 +91,7 @@ _TICK_SECONDS = 86400  # daily -- both retention windows are measured in weeks
 
 def _prune_table(writer, reader, table: str, ts_column: str,
                   retention_days: int, batch_size: int = _BATCH_SIZE,
-                  extra_where: str = "") -> int:
+                  extra_where: str = "", stop_event=None) -> int:
     """Delete rows in `table` older than retention_days, batched.
 
     Loops until no more rows match rather than assuming a single batch
@@ -105,12 +105,18 @@ def _prune_table(writer, reader, table: str, ts_column: str,
     _and = f" AND ({extra_where})" if extra_where else ""
     total_deleted = 0
     while True:
+        if stop_event is not None and stop_event.is_set():
+            break
         remaining = reader.read(
             f"SELECT COUNT(*) AS n FROM {table} WHERE {ts_column} < ?{_and}",
             (cutoff,),
         )
+        if stop_event is not None and stop_event.is_set():
+            break
         n = remaining[0]["n"] if remaining else 0
         if n == 0:
+            break
+        if stop_event is not None and stop_event.is_set():
             break
         writer.write(
             f"DELETE FROM {table} WHERE id IN "
@@ -121,13 +127,14 @@ def _prune_table(writer, reader, table: str, ts_column: str,
     return total_deleted
 
 
-def prune_gate_decisions(writer, reader) -> int:
+def prune_gate_decisions(writer, reader, *, stop_event=None) -> int:
     return _prune_table(
-        writer, reader, "gate_decisions", "ts", GATE_DECISIONS_RETENTION_DAYS
+        writer, reader, "gate_decisions", "ts", GATE_DECISIONS_RETENTION_DAYS,
+        stop_event=stop_event,
     )
 
 
-def prune_throw_net_sessions(writer, reader) -> int:
+def prune_throw_net_sessions(writer, reader, *, stop_event=None) -> int:
     # Prune only EMPTY sessions; keep any that did real work (throw_count or
     # accepted_count > 0, or a non-'empty' status) so useful sessions survive
     # instead of being deleted alongside the empties.
@@ -135,6 +142,7 @@ def prune_throw_net_sessions(writer, reader) -> int:
         writer, reader, "throw_net_sessions", "started_at",
         THROW_NET_SESSIONS_RETENTION_DAYS,
         extra_where="status = 'empty' AND throw_count = 0 AND accepted_count = 0",
+        stop_event=stop_event,
     )
 
 
@@ -147,8 +155,10 @@ def retention_loop(state, stop: threading.Event) -> None:
         try:
             writer = state.writers["beliefs"]
             reader = state.readers["beliefs"]
-            gd_count = prune_gate_decisions(writer, reader)
-            tns_count = prune_throw_net_sessions(writer, reader)
+            gd_count = prune_gate_decisions(writer, reader, stop_event=stop)
+            if stop.is_set():
+                break
+            tns_count = prune_throw_net_sessions(writer, reader, stop_event=stop)
             if gd_count or tns_count:
                 errors.record(
                     f"gate_retention pruned gate_decisions={gd_count} "
