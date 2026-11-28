@@ -142,10 +142,14 @@ class TestRunPyEarlyBootOwnership(unittest.TestCase):
         _cleanup(self.writers, self.tmp)
 
     def test_appstate_is_created_before_any_producer_start_path(self):
+        source = (_ROOT / "run.py").read_text()
         main = next(
-            node for node in ast.parse((_ROOT / "run.py").read_text()).body
+            node for node in ast.parse(source).body
             if isinstance(node, ast.FunctionDef) and node.name == "main"
         )
+        self.assertEqual(source.count("AppState("), 1)
+        self.assertLess(source.index("atexit.register(state.close)"),
+                        source.index("build_scheduler("))
         state_line = min(
             node.lineno for node in ast.walk(main)
             if isinstance(node, ast.Call)
