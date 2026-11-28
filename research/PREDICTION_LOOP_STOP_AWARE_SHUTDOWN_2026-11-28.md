@@ -1,6 +1,6 @@
 # Stop-aware predictor loops during shutdown — 28 November 2026
 
-**Base:** `kron777/Nex_v5.0` main at `d7d204c24807eb3e46c37d70f2c1dcaae63830dc`.  
+**Base:** `kron777/Nex_v5.0` main at `a3fd532e12cbc84fa9505819ce475eef6101a06c` (after #388 and #389).  
 **Scope:** add cooperative stop checkpoints around the two run.py-managed prediction loops that can perform network I/O and then write to shared Writers. No cadence, request timeout, feature flag or shutdown budget changed.
 
 ## 1. Source evidence
