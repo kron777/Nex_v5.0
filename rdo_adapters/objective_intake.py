@@ -484,7 +484,7 @@ class ObjectiveInputStore:
                     wrapper["lineage"] = checked_lineage
                 # One append-only record per revision. Never rewrite an earlier revision.
                 with open(path, "a", encoding="utf-8") as fh:
-                    fh.write(_canonical_json(wrapper) + "\\n")
+                    fh.write(_canonical_json(wrapper) + "\n")
                     fh.flush()
                     os.fsync(fh.fileno())
                 return {**wrapper, "replayed": False}
