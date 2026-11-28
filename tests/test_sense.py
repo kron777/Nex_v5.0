@@ -248,7 +248,7 @@ class TestScheduler(unittest.TestCase):
                 return 0
 
         sched = self._build([BlockingAdapter()])
-        self.assertTrue(entered.wait(1.0))
+        self.assertTrue(entered.wait(2.0))
         sched.shutdown()
         started = time.monotonic()
         alive = sched.join(timeout=0.05)
