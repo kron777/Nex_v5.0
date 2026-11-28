@@ -416,3 +416,7 @@ Cache timing: `_CACHE_TTL=60s`; every chat tick can write events/narratives and 
 ### 28 November 2026 — G-83 Fountain rail exact-head CI
 
 Draft PR #451 exact head `91739d131f21f3dd2c55d35ef2b23a07aa73c424`, workflow `46176528182`, passed 3,078 tests, 7 skipped, 86 subtests; baseline and sandbox checks passed. The fixture verifies the optional flag and that Fountain reads the cache without ticking Metacognition. Stale-cache age and host flag state remain UNKNOWN. See INDEX §131.
+
+### 28 November 2026 — G-83 consolidated causal model
+
+INDEX §133 now provides the consolidated Fountain → belief → GrooveSpotter → Metacognition → Row 9 → chat/Fountain prompt feedback map, separating confirmed source/test evidence from host flag, runtime and semantic unknowns. Next bounded work: stale-cache characterization, acknowledgement/resolved_at writer census, decay caller verification, then sample-belief/retrieval-manifest lineage. No behaviour changed; Gate 0 pending and Phase 1 unauthorized.
