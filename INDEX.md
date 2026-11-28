@@ -2186,3 +2186,21 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 **Boundaries:** no code behaviour changed by this correction. No registry API, cognitive logic, execution authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed. The mind map remains descriptive only.
 
+---
+
+## 74. Reader/Writer lifetime distinction — narrow the stale-registry consequence (28 November 2026)
+
+**Study question:** do registry-retained nodes hold closed Reader resources as well as closed Writers, and what can still happen after AppState shutdown?
+
+**Source facts:** `substrate/reader.py` defines `Reader` as a path/configuration wrapper. Each `read()` / `read_one()` opens a fresh read-only SQLite connection through a context manager and closes that connection before returning. The `Reader` object itself has no persistent connection and no `close()` lifecycle. Therefore a retained Reader reference is not a closed connection and is not, by itself, a leaked open database handle. If the database remains present and accessible, a stale node's read calls can still succeed after AppState closes its Writers.
+
+**Writer contrast:** `substrate/writer.py` owns a worker thread and write queue. `Writer.close()` stops accepting submissions, enqueues the shutdown sentinel, joins the worker, and clears the thread reference after successful termination. Subsequent `submit()/write()` calls fail with `RuntimeError` while the Writer is not running. The documented lifecycle permits an explicit later `start()` to reopen a fully stopped Writer, but no registry-node restart contract is established here.
+
+**Revised consequence:** registry-retained `ProblemMemory`, `GoalManager` and `Metacognition` objects retain both Reader and Writer references, but only the Writer is a closed lifecycle-managed resource. Their read-only `tick()/state()` paths may continue to query the database; their write-producing `decay()` paths can fail when they submit to the closed Writer. This is a more precise conditional stale-node hazard than the earlier shorthand that implied both Reader and Writer wrappers were closed. No live post-close invocation was performed, so the exact exception path and any consumer reaction remain unobserved.
+
+**Design implication:** do not add Reader shutdown/retirement solely to solve this registry question. The unresolved ownership decision concerns whether a process-level registry should retain AppState-owned nodes whose Writer dependency has been shut down, and whether any consumer invokes them after that point. Keep Reader's per-call connection model separate from Writer's worker lifecycle.
+
+**Mode:** STUDY. Next: trace registry consumers and factory callsites; then add a focused test that closes the AppState Writer and exercises a retained node's read-only versus write-producing lifecycle method using isolated temporary databases. Such a test must assert the expected failure is contained or surfaced according to the eventual registry-consumer contract; do not silently swallow it or invent a restart policy.
+
+**Boundaries:** source inspection only; no code behaviour changed. No live database, host process or robot runtime accessed. No cognitive semantics, action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or Tibetan mind-map authority changed.
+
