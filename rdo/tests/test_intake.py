@@ -11,7 +11,7 @@ import pytest
 
 from rdo.model import AcceptanceVerificationRecord, ContextRequirement, CycleRecord, NECESSARY, ANTI_REQUIREMENT, CONDITIONAL
 from rdo.memory import CycleStore
-from rdo.rule_proposals import RuleProposalStore
+from rdo_adapters.rule_proposals import RuleProposalStore
 from rdo_adapters.objective_intake import (
     ObjectiveInputError,
     ObjectiveInputStore,
