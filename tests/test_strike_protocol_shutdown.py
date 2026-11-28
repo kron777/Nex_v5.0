@@ -128,3 +128,37 @@ def test_appstate_reports_an_inflight_strike_request_that_exceeds_shutdown_budge
     assert not request_thread.is_alive()
     assert protocol._threads == []
     assert catalogue.updated == []
+
+
+def test_appstate_interrupts_silence_observation_without_claiming_sixty_seconds():
+    protocol, _catalogue = _protocol()
+    started = threading.Event()
+    original_wait = protocol._stop_event.wait
+
+    def observed_wait(timeout):
+        started.set()
+        return original_wait(timeout)
+
+    protocol._stop_event.wait = observed_wait
+    protocol._fountain_event_count = lambda: 0
+    results = []
+    request_thread = threading.Thread(
+        target=lambda: results.append(protocol.fire(StrikeType.SILENCE)),
+        name="in-flight-silence-observation",
+    )
+    request_thread.start()
+    assert started.wait(timeout=1.0)
+
+    state = AppState(
+        writers={}, readers={}, voice=None, strike_protocol=protocol,
+    )
+    report = state._quiesce_producers(timeout=1.0)
+    request_thread.join(timeout=1.0)
+
+    assert report == {"alive": [], "errors": []}
+    assert not request_thread.is_alive()
+    assert len(results) == 1
+    assert results[0].notes == "interrupted_by_shutdown"
+    assert "60-second observation was not completed" in results[0].response_text
+    assert "60s of quiet" not in results[0].response_text
+    assert protocol._threads == []
