@@ -414,14 +414,16 @@ class RuleProposalStore:
                     from .extrapolator import EXPANSION_RULES, TERMINAL_KINDS
                     if created["target_kind"] in EXPANSION_RULES or created["target_kind"] in TERMINAL_KINDS:
                         raise ValueError("target kind now conflicts with a built-in rule")
+                    existing_proposals = {
+                        event["data"]["proposal_id"]: event["data"]["proposal"]
+                        for event in events if event["event_kind"] == "proposal_created"
+                    }
                     if any(
-                        e["event_kind"] == "proposal_reviewed"
-                        and e["data"]["decision"] == "approved"
-                        and next((p["target_kind"] for p in events
-                                  if p["event_kind"] == "proposal_created"
-                                  and p["data"]["proposal_id"] == e["data"]["proposal_id"]), None)
+                        event["event_kind"] == "proposal_reviewed"
+                        and event["data"]["decision"] == "approved"
+                        and existing_proposals.get(event["data"]["proposal_id"], {}).get("target_kind")
                             == created["target_kind"]
-                        for e in events
+                        for event in events
                     ):
                         raise ValueError("target kind already has an approved rule")
                     prior_versions = [
