@@ -1250,3 +1250,14 @@ Current-main `SenseScheduler._AdapterThread._run()` previously performed `adapte
 If shutdown begins during a poll, that poll can return after stop was signalled and the old worker loop would still begin a Writer submission. PR #388 proposes checking the stop event immediately after poll and discarding those results when shutdown has begun. It adds a deterministic blocked-poll regression test and a source note.
 
 **Boundary:** #388 is open and its exact-head CI is pending; the correction is not current-main behaviour yet. It does not interrupt the in-flight poll, change adapter timeouts/cadence, or cancel a submission that already started before stop. It narrows the late-submit window but does not establish complete producer or host-level shutdown safety; slow polls can still cause a non-clean exit.
+
+
+### 16.11 Active prediction loops versus producer-stop budget — open PR #391
+
+The tracked launcher explicitly enables `NEX5_WORLD_PRED=1` and `NEX5_SELF_PRED=1`. `run.py` constructs both loops and passes them into AppState for stop/join during shutdown. Their producer join allowance is at most five seconds.
+
+The WorldPredictionLoop can perform a 10-second price fetch, a 10-second recent-context fetch and a 30-second local voice request before writing paired predictions and a trust stamp. The SelfPredictionLoop can block up to ten seconds reading the fountain status endpoint, then write prediction rows and continue through additional Writer-backed stages. Before PR #391, stop events were not passed into the active ticks/functions, so those paths could continue into later writes after shutdown had been requested.
+
+PR #391 proposes passing stop events into both ticks and adding checkpoints after blocking network calls and between sequential write stages, with deterministic blocked-call tests.
+
+**Boundary:** #391 is open and exact-head CI is pending; its correction is not current-main behaviour yet. It does not cancel in-flight HTTP calls or change their 10/30-second timeouts, so either loop can still outlive the five-second join and cause the existing non-clean shutdown path. This is not an atomic stop/write handshake and does not prove every producer has been audited.
