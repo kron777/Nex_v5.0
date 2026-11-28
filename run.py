@@ -16,6 +16,7 @@ All subsystems are wired into AppState before the GUI starts.
 from __future__ import annotations
 
 import atexit
+import types
 import logging
 import os
 import signal
@@ -491,6 +492,9 @@ def main() -> None:
     # Stage C — World prediction loop (grounding). NEX makes its own falsifiable
     # crypto-direction calls + a random control, scored against the live price.
     # Env-gated, default OFF. See theory_x/stage_world/.
+    # Kept for AppState so shutdown can stop and join them (G-84).
+    _world_pred_loop = None
+    _self_pred_loop = None
     if os.environ.get("NEX5_WORLD_PRED") == "1":
         try:
             from theory_x.stage_world.world_loop import WorldPredictionLoop as _WPL
@@ -512,14 +516,15 @@ def main() -> None:
         try:
             from theory_x.stage_world.self_prediction import SelfPredictionLoop as _SPL
             _spl_interval = int(os.environ.get("NEX5_SELF_PRED_INTERVAL", "900"))
-            _SPL(
+            _self_pred_loop = _SPL(
                 interval=_spl_interval,
                 conversations_writer=writers["conversations"],
                 beliefs_writer=writers["beliefs"],
                 conversations_reader=readers["conversations"],
                 dynamic_reader=readers["dynamic"],
                 beliefs_reader=readers["beliefs"],
-            ).start_loop()
+            )
+            _self_pred_loop.start_loop()
         except Exception as _spl_err:
             log.warning("SelfPredictionLoop failed to start (non-fatal): %s", _spl_err)
 
@@ -755,6 +760,9 @@ def main() -> None:
         probes_reader=probes_reader,
         coherence_gate=coherence_gate,
         resolver=_resolver,
+        world_pred_loop=_world_pred_loop,
+        self_pred_loop=_self_pred_loop,
+        edge_generator_loop=edge_generator_loop,
         trigger_detector=_trigger_detector,
         throw_net_monitor=_throw_net_monitor,
         counterfactual_node=_counterfactual_node,
@@ -781,6 +789,9 @@ def main() -> None:
         )
         _decoder_thread.start()
         atexit.register(lambda: _decoder_stop.set())
+        # Registered so AppState.close() stops and joins it with the rest (G-84).
+        state.decoder_loop = types.SimpleNamespace(
+            stop=_decoder_stop.set, _thread=_decoder_thread)
         log.info("Decoder loop started — tokenizing fountain outputs every 30s")
     except Exception as _dec_exc:
         log.warning("decoder_loop failed to start: %s", _dec_exc)

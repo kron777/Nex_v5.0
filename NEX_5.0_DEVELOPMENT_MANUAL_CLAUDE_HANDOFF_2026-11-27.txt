@@ -1,12 +1,12 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with branch INDEX.md; evidence snapshot: main at f5cf19c32b0151043ca90b139b25c24e01e384fb.
+Mirror synchronized with branch INDEX.md; evidence snapshot: main at bbce631723ed92496c878a9927c688900972413d.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`  
+**Last verified against:** `main` at `bbce631723ed92496c878a9927c688900972413d`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -295,7 +295,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 28 November 2026 — G-84 steps 1–2 merged, step 3 CI-green pending merge, and writer-deadline/clean-marker defect recorded. RDO bridge candidate and ObjectiveInputStore concurrency prerequisite, G-92/G-94, Bonsai/Global Workspace and Sentience wiring updated; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — G-84 steps 1–3 merged; process-wide writer-deadline/clean-marker defect remains open. RDO bridge candidate and ObjectiveInputStore concurrency prerequisite, G-92/G-94, Bonsai/Global Workspace and Sentience wiring updated; Gate 0 boundaries remain.*
 
 
 
@@ -842,7 +842,7 @@ PR #275's mind-map freshness update, PR #276's RDO generated-cycle exclusion and
 - G-81: Fountain's total-fire counter and ClockRunner's notified-fire counter count different event populations.
 - G-82 is folded into G-73: the same oldest 50 dormancy rows are reselected on each scan, starving later rows; ClockRunner and DiversityLoop own separate scanners. `wake_one()` also lacks final eligibility filters. Old PR #102/#145 proposals are not current-main fixes.
 - G-83: Metacognition can re-emit the same unacknowledged groove alert on successive Chat turns, while stillness counts event rows.
-- G-84: partially resolved by PRs #348 and #354 (dynamic and registered producer quiescence); PR #361 adds the remaining run.py-only producers and is CI-green pending merge. Still open: no process-wide deadline across Writer drains, clean marker is written before drain, Writer timeouts are swallowed by AppState.close(), and other thread starts/host shutdown remain unverified.
+- G-84: partially resolved by PRs #348, #354 and #361 (dynamic, registered and four run.py-only producers). Still open: no process-wide deadline across Writer drains, clean marker is written before drain, Writer timeouts are swallowed by AppState.close(), and other thread starts/host shutdown remain unverified.
 - G-85: SignalToProblem's primary signal-to-problem tick remains a direct-write, split-commit path across two databases. PR #279 migrated the separate hourly prose-statistics rebuild to the shared Writer/Reader; the primary G-61 persistence gap remains open.
 - G-86: SignalReaper's preservation allowlist has drifted from SignalToProblem's current promotable types.
 - G-87: Moltbook dry-run suppresses non-GET requests but still reads remotely and can persist simulated sends as real `posted`/`sent` states.
@@ -928,7 +928,7 @@ This update records implementation evidence and remaining capability boundaries;
 
 ## 44. One-pen census, G-78 validation consequence and persistence corrections (28 November 2026)
 
-**Evidence snapshot:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. The 112-site one-pen census is a historical pre-merge scan and must be rerun on current main before making a current-count or reachability claim. Source and fixture-test evidence only; host and runtime state remains **UNKNOWN**.
+**Evidence snapshot:** `main` at `bbce631723ed92496c878a9927c688900972413d`. The 112-site one-pen census is a historical pre-merge scan and must be rerun on current main before making a current-count or reachability claim. Source and fixture-test evidence only; host and runtime state remains **UNKNOWN**.
 
 ### One-pen census (G-61)
 
@@ -958,9 +958,9 @@ A read-only host re-run needs founder authorisation.
   - Stops all registered Stage 2, World Model, Fountain, resolver, signal, diversity, arc, speech, ThrowNet, counterfactual, predictive-substrate and SelfMindView producers before joining them against one shared monotonic deadline; scheduler adapters use the remaining budget.
   - Exact head `a2140577c21f7d4b54bcd60722f237a787aeca92`, run `46102788846`: full-suite CI completed successfully.
 
-### G-84 step 3 candidate — PR #361 (CI green; pending merge)
+### G-84 step 3 — PR #361 merged
 
-- Exact head `817c787244787d841c5dc9baa527e204a6af68e4`, run `46116200382`: exact-head full-suite CI completed successfully.
+- Merged as `bbce631723ed92496c878a9927c688900972413d`. Exact head `817c787244787d841c5dc9baa527e204a6af68e4`, run `46116200382`: exact-head full-suite CI completed successfully.
 - Registers the run.py-created EdgeGeneratorLoop, WorldPredictionLoop, SelfPredictionLoop and decoder thread wrapper with AppState; retains the self-prediction thread handle and uses interruptible Event.wait().
 - This closes the specifically identified run.py-only registration gap for those four producers, not every thread in the process.
 
@@ -1070,7 +1070,7 @@ No frozen S-01–S-25/M1.8 specification content, Master Roadmap, M0/M1 gate, mi
 
 ## 47. Self-binding shared-Writer correction — G-94 (28 November 2026)
 
-**Evidence snapshot:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. Correction merged in PR #362 as `f207cc7734ca833995bfbfc5a79dfec4a04eb6f6`; exact-head CI run `46114329075` passed 2,894 tests, 7 skipped and 54 subtests; baseline OK.
+**Evidence snapshot:** `main` at `bbce631723ed92496c878a9927c688900972413d`. Correction merged in PR #362 as `f207cc7734ca833995bfbfc5a79dfec4a04eb6f6`; exact-head CI run `46114329075` passed 2,894 tests, 7 skipped and 54 subtests; baseline OK.
 
 ### Source-traced defect
 
@@ -1120,7 +1120,7 @@ This is a persistence-ownership correction that preserves the existing cognitive
 
 ## 48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
 
-**Evidence snapshot:** `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. The first G-92 candidate-seed lifecycle increment merged in PR #360 as `8fe2e74d0d24c2ae897cc1a3abb4ddbd3edc8cd0`; exact-head CI run `46115093455` passed 2,913 tests, 7 skipped and 54 subtests; baseline OK.
+**Evidence snapshot:** `main` at `bbce631723ed92496c878a9927c688900972413d`. The first G-92 candidate-seed lifecycle increment merged in PR #360 as `8fe2e74d0d24c2ae897cc1a3abb4ddbd3edc8cd0`; exact-head CI run `46115093455` passed 2,913 tests, 7 skipped and 54 subtests; baseline OK.
 
 ### What this increment adds
 
@@ -1148,7 +1148,7 @@ The next bounded sequence is: harden ObjectiveInputStore read/append locking, sy
 
 ## 49. Bonsai → Fountain branch pick → Global Workspace trace (28 November 2026)
 
-**Evidence snapshot:** NEX `main` at `f5cf19c32b0151043ca90b139b25c24e01e384fb`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; the characterization run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests. The previous manual/research head `39aa3ff07c8ca1f05583369a41d89754f6f884bf` passed full-suite CI run `46117575615`; the subsequent G-84/storage-risk manual update is undergoing exact-head CI.
+**Evidence snapshot:** NEX `main` at `bbce631723ed92496c878a9927c688900972413d`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; the characterization run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests. The previous manual/research head `39aa3ff07c8ca1f05583369a41d89754f6f884bf` passed full-suite CI run `46117575615`; the post-G-84-merge rebased head is pending exact-head CI.
 
 ### Network path
 
