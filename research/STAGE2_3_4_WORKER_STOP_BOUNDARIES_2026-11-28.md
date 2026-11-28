@@ -35,6 +35,15 @@ The quiet check now observes stop after its Reader call; the loop does not begin
 
 Pressure scans check stop after the beliefs read and between branch aggregation. Proposal logging checks before each proposal write. Approval application checks between proposals and after the coherence-gate call; once a proposal is admitted, its tree/proposal status work is treated as one logical unit.
 
+
+### EdgeBuilder
+
+The DynamicState edge-builder is registered and can score up to 30 under-connected beliefs against a pool of 800, using embedding calls before one atomic `write_many_with_counts` batch. It now checks stop between candidate/pool embedding calls and before the final batch. If shutdown interrupts scoring, the accumulated in-memory statements are discarded and no partial edge batch is written. The atomic Writer batch, once started, is allowed to finish.
+
+### Retention
+
+The daily retention worker can have a large first-run catch-up (the documented gate_decisions backlog is millions of rows) and deletes in batches of 250,000. It now checks stop before each count read, after the read and before each DELETE. A DELETE batch already started completes; the next batch is not admitted after stop. The existing retention windows, predicates and batch size are unchanged.
+
 ## 3. Stage 3 World Model
 
 ### Harmonizer
@@ -71,7 +80,7 @@ Added deterministic tests for:
 
 ## 6. Remaining audit work
 
-This increment does not yet instrument every nested Stage 2 life/add-on loop (witness, pattern, identity, affinity, scorecard, surprise, remember, wonder, fetch, daily-life, focus, signal-to-problem, edge-builder, retention and Moltbook). Those loops are registered under DynamicState, but their in-flight work still needs a source-to-stop boundary audit. Do not infer that these remaining paths are unsafe or safe without checking their exact call sites and effective launch flags.
+This increment does not yet instrument every nested Stage 2 life/add-on loop (witness, pattern, identity, affinity, scorecard, surprise, remember, wonder, fetch, daily-life, focus, signal-to-problem and Moltbook). Those loops are registered under DynamicState, but their in-flight work still needs a source-to-stop boundary audit. Do not infer that these remaining paths are unsafe or safe without checking their exact call sites and effective launch flags.
 
 Synchronous Reader/Writer calls, embedding/model work, VoiceClient calls and already-started logical write pairs are not forcibly cancelled. Host-level process state and actual shutdown timing still require authorized host evidence.
 
