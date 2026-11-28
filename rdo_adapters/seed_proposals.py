@@ -584,12 +584,19 @@ class SeedProposalStore:
                 event = dict(base)
                 event["event_sha256"] = _digest(base)
                 encoded = _canonical(event) + "\n"
+                fh.seek(0, os.SEEK_END)
                 if fh.tell() + len(encoded.encode("utf-8")) > MAX_LEDGER_BYTES:
                     raise SeedProposalError("seed-proposal ledger exceeds byte limit")
-                fh.seek(0, os.SEEK_END)
                 fh.write(encoded)
                 fh.flush()
                 os.fsync(fh.fileno())
+                if created:
+                    directory = os.path.dirname(os.path.abspath(self.path)) or "."
+                    dir_fd = os.open(directory, os.O_RDONLY)
+                    try:
+                        os.fsync(dir_fd)
+                    finally:
+                        os.close(dir_fd)
                 return event
             finally:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
