@@ -590,3 +590,6 @@ PR #456 corrected exact-head workflow 46184315945 passed: 3,078 passed, 7 skippe
 ### 28 November 2026 — Existing sentence-to-capability bridge
 
 The current GUI path parses a human sentence into one of three bounded capabilities: allowlisted HTTP GET, AST-interpreted arithmetic or read-only belief retrieval. It executes the selected capability and injects the result into the voice prompt. Arithmetic does not execute arbitrary Python. There is no approval/operation record in this path, but the current tools are read-only/pure; this must not be generalized to state-changing or embodied actions. Tests cover the boundary. No runtime change. See INDEX §164.
+
+
+PR #457 expanded exact-head workflow 46184425657 passed: 3,080 passed, 7 skipped, 86 subtests; constructor gate and prompt insertion tests passed. PR #458 exact-head workflow 46184447225 passed: 3,078 passed, 7 skipped, 86 subtests; the paused tier-six fixture was included in the narrative. Both baseline and sandbox checks were OK; no runtime changes. See INDEX §§160–161.
