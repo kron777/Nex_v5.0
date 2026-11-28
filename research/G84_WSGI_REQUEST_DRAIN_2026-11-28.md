@@ -24,4 +24,4 @@ This replaces the arbitrary 1.5-second delay with an observed request drain. It 
 
 ## Remaining boundary
 
-The gate covers requests entering through this Flask application. It does not itself prove lifecycle behavior for an alternate external WSGI server, reverse-proxy workers, or direct non-HTTP callers. Those remain separate deployment/runtime census work. No route behavior changes during normal operation, no database schema or strike policy changes, and no frozen specification, Master Roadmap, Gate 0 or Phase 1 authority change.
+The gate covers requests entering through this Flask application. It does not automatically own detached background work spawned by a route; such workers must still be registered with AppState. It also does not itself prove lifecycle behavior for an alternate external WSGI server, reverse-proxy workers, or direct non-HTTP callers. Those remain separate deployment/runtime census work. No route behavior changes during normal operation, no database schema or strike policy changes, and no frozen specification, Master Roadmap, Gate 0 or Phase 1 authority change.
