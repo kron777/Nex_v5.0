@@ -548,7 +548,15 @@ class DriveEmergence:
             self._formed_at          = None
             self._last_reinforced_at = None
 
-    def _persist_decay(self, existing: dict, now: float) -> None:
+    def _persist_decay(
+        self,
+        existing: dict,
+        now: float,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> None:
+        if stop_event is not None and stop_event.is_set():
+            return
         strength = existing["drive_strength"]
         if strength >= _MIN_DRIVE_STRENGTH:
             self._cw.write(
