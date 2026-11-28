@@ -1362,3 +1362,12 @@ PredictiveSubstrate is always started by `run.py` and registered with AppState. 
 PR #404 passes the existing Event through the worker tick, verification, internal/external prediction, representative-content selection and persistence paths. It checks between reads, embeddings and stages, discards partial results after stop, and prevents subsequent writes from starting. An already-started prediction row is allowed to complete; the surprise-event insert and corresponding prediction update are treated as one logical commit pair. Deterministic tests cover stop during internal embedding, verification embedding, between tick stages and during the verification pair.
 
 **Boundary:** #404 is open and exact-head CI is pending; no pass count is claimed. Embedding, Reader and tag-generation calls are not cancelled. The verification pair remains two Writer submissions, not a database transaction. See `research/PREDICTIVE_SUBSTRATE_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
+
+
+### 16.24 GeniusTagger immediate 14-day backfill — open PR #405
+
+GeniusTagger is always started by `run.py`, and its first tick runs immediately. On first run it loads fountain events from the prior 14 days by default, filters existing tags, loads T6 belief context, then scores and writes one tag row per remaining fire. The stop Event previously interrupted only the 60-second interval wait; it was not passed into the active backfill. A large backfill could therefore continue scoring and writing after shutdown began.
+
+PR #405 passes the Event into initial and periodic ticks, checks between the event/existing-tag/T6 reads, scoring and per-fire writes, and makes `_backfill()` report whether it completed. The `_backfill_done` flag is set only after full completion, so an interrupted backfill remains resumable. Existing weights-version uniqueness and `INSERT OR IGNORE` allow already-tagged fires to be skipped on retry. Deterministic tests cover stop during scoring, between fires, before tick start and during continuous tagging.
+
+**Boundary:** #405 is open and exact-head CI is pending; no pass count is claimed. Reader operations and scoring are not cancelled. A single tag write already started may finish, but later fires do not start. The 14-day horizon and scoring policy are unchanged. See `research/GENIUS_TAGGER_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
