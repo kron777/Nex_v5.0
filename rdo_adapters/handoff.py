@@ -290,7 +290,6 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
         "schema_version": HANDOFF_SCHEMA,
         "handoff_id": handoff_id,
         "created_at": utc_now(),
-        "proposal_lineage": proposal_lineage or None,
         "objective": {
             "objective_id": objective_id,
             "revision": revision,
@@ -375,6 +374,8 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
             "reviewer_identity": "caller_attributed_not_authenticated",
         },
     }
+    if proposal_lineage:
+        manifest["proposal_lineage"] = proposal_lineage
     manifest["manifest_sha256"] = _digest(manifest)
     path = _manifest_path(workdir, handoff_id)
     created = _write_manifest_exclusive(path, manifest)
