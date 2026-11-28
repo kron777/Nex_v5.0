@@ -317,3 +317,8 @@ The 60-second DiversityLoop invokes GrooveSpotter, DormancyScanner and ClockRunn
 ### 28 November 2026 — G-83 renewal and starvation implications
 
 The source ordering permits a further conditional failure mode: same eligible alert rows can be re-read on later chat turns, and new derived groove events are written before the active-stillness check. Once a 60-second stillness row expires, a tick can count those refreshed derived events (within the 1,800-second count window) and renew the global hold without a new detector episode. With four or more eligible unacknowledged rows, ORDER BY detected_at DESC LIMIT 3 can keep returning the same newest three and allow older rows to age out. These are source-derived possibilities, not live observations. Add controlled-clock tests before considering any fix. See INDEX §117; G-83 remains OPEN.
+
+
+### 28 November 2026 — G-83 prior-art comparison
+
+The Sentience 5.5 Stillness_Node.py cited as Row 9 prior art is now inspected. It has a single global non-reentrant stillness state and a trigger/time/duration log, with no topic or alert identity. NEX SYNTHESIS_PLAN_V2 §3 then described a topic-specific NEX extension; the NEX implementation uses a global count/global crystallizer hold. The implementation resembles prior art in scope, but the reason the plan's topic-specific delta was not carried is undocumented in the inspected commit. Authority remains UNKNOWN. See INDEX §118; G-83 stays OPEN.
