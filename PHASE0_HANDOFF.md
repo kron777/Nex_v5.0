@@ -577,3 +577,8 @@ PR #457 exact-head workflow 46183886214 passed: 3,079 passed, 7 skipped, 86 subt
 
 
 The tracked launch command sets NEX5_SELF_NARRATIVE=1 and NEX5_GOVERNOR_OFF=1 together: it enables the Stage-TOM reader while disabling the Fountain governor's self_rut_notice writer. Old stored rows remain eligible; host launcher/service selection and actual rows are UNKNOWN. See INDEX §160/§162.
+
+
+### 28 November 2026 — Fountain prompt-to-event feedback
+
+On the normal path, Fountain composes Stage-TOM narrative context, calls the voice model, then persists the returned thought in sense_events and fountain_events. A later Stage-TOM read can reuse that thought in a subsequent prompt. This is a conditional text/database feedback loop, not sentence parsing into executable code or a typed operation. Quiescent and eligible RECONCILE routes bypass the normal prompt path; tracked launcher sets NEX5_RECONCILE=1. Host execution and semantic influence remain UNKNOWN. No runtime change. See INDEX §163.
