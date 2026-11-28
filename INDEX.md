@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f` plus boot-ownership candidate branch (exact-head CI pending)
+**Last verified against:** `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0` (28 November 2026); exact-head workflow 46153028417 (`pytest`) passed at 14:13 UTC
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -2109,3 +2109,4194 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 ---
 
+## 70. Single-snapshot seed and rule proposal history — merged mainline commit `18c8f06171e1de35c3210831a49b63d0e2487af0` (PR #443; 28 November 2026)
+
+**Finding addressed:** the `rule-history` and `seed-history` command paths previously assembled proposal state and event history through separate ledger reads. A review append between those reads could make the two parts of one response represent different ledger revisions.
+
+**Implementation now present on main:** `RuleProposalStore.history()` and `SeedProposalStore.history()` each call the ledger reader once, derive the proposal snapshot from that returned event sequence, and select the matching event rows from the same sequence. Both history CLI handlers delegate to this store-level operation. This narrows the consistency boundary to one ledger snapshot; it does not claim a transaction across separate stores or a global snapshot of NEX.
+
+**Evidence:** commit `18c8f06171e1de35c3210831a49b63d0e2487af0` is the latest commit returned by the repository-scoped commit search. The diff includes store-level history methods, CLI delegation and tests asserting one ledger read and agreement between the resulting review status and event sequence. The combined-status lookup returned no status rows for this commit; therefore this manual makes **no exact-head CI-pass claim** for #443. Earlier implementation/test-head workflow results recorded under §68 are not substitutes for the rebased/integrated #443 head.
+
+**Study interpretation:** this is a useful example of a general NEX integrity rule: when a response combines a derived state view with its event history, derive both from the same immutable-in-memory read snapshot. The lock/read mechanism remains the store's responsibility; this change does not establish cross-process behaviour beyond what the underlying reader and its tests demonstrate.
+
+**Next research seam — concurrency falsification:** add or inspect a deterministic interleaving test in which a review append is attempted while `history()` is reading. Establish whether the lock provides the intended consistent read on the actual supported filesystem/process model, and whether the reader returns either the pre-append or post-append state without mixing them. Prefer a barrier-controlled test over timing sleeps. Include a second-process test only if the store's supported deployment model requires cross-process access. Do not call this a discovered defect until the test or source establishes one.
+
+**Unchanged boundaries:** no proposal schema, approval meaning, catalogue activation, generated-code execution, runtime action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority or cognitive/action authority separation is changed. Proposal approval remains inert and does not activate a rule.
+
+---
+
+## 71. Stage-2 attention propagation and downstream selection — source/test seam study (28 November 2026)
+
+**Question studied:** does an external perception merely update a local attention value, or can that value reach the later Fountain branch choice and Global Workspace framing? The negative control is equally important: internal telemetry is recognized for self-monitoring but must not monopolise cognitive attention.
+
+### Source-traced chain
+
+1. `theory_x/stage2_dynamic/attention.py` maps streams to branches and computes magnitude. The source explicitly returns zero for every `internal.*` stream, preserving the separation between internal self-monitoring and attention steering.
+2. `theory_x/stage2_dynamic/pipeline.py` runs A–F: unpack event, match branches, calculate magnitude, apply membrane aperture, assign valence, then call `BonsaiTree.attend()` and log an F event when magnitude is at least 0.001.
+3. `theory_x/stage2_dynamic/bonsai.py` updates branch focus and texture from the admitted magnitude. This is the stateful attention representation.
+4. Fountain's production caller sorts the status branch vector by focus and passes the hottest branch through `_weighted_branch_pick()`. With `NEX5_BRANCH_TEMP` unset/zero, the hottest branch is preserved; with a positive temperature, a softmax roulette can select a lower-focus branch.
+5. Global Workspace's production `arbitrate()` obtains a Bonsai candidate through `_bonsai_candidate(status)` and competes it against other candidates. The candidate is omitted when the hottest branch has focus at or below 0.1. The separate `arbitrate_candidates()` helper selects the highest-salience frame.
+
+### Existing characterization and what it proves
+
+The current `tests/test_dynamic.py` contains three useful tests:
+
+- An `internal.proprioception` event is matched to `systems` but has zero magnitude, produces no Stage-2 F hit, leaves focus/texture unchanged and yields no Bonsai workspace candidate.
+- An external `ai_research.arxiv` event increases the `ai_research` branch's focus and texture through the real A–F pipeline.
+- Forty external events produce an `ai_research` focus above 0.1; the test checks the hottest branch, the zero-temperature Fountain helper, the positive-temperature roulette's forced final bucket, and the Bonsai candidate/frame helpers.
+
+This is materially stronger than checking module existence: it exercises the real Stage-2 pipeline and several downstream selection functions with isolated objects. It is still **layered characterization**, not a complete live-path demonstration. The Fountain assertion calls `_weighted_branch_pick()` directly rather than executing the full Fountain fire orchestration. The workspace assertion manually builds a status dictionary and calls `_bonsai_candidate()` plus `arbitrate_candidates()`; it does not call production `arbitrate()` with its database-backed surprise/momentum candidates. No production flag, live database or host process was changed or exercised.
+
+### Research conclusion
+
+The source supports a real functional path from external sense input to branch attention, and shows two downstream consumers of that representation. The test evidence establishes selected edges and helper semantics, not that a live NEX process is running these paths, that every relevant flag is enabled, or that the resulting cognition is beneficial. Internal telemetry's exclusion is a deliberate anti-starvation boundary; reconnecting it indiscriminately would risk the historical systems-branch pinning failure documented in the source.
+
+### Next falsification study
+
+Build a deterministic, isolated integration test that crosses the remaining seams without touching live runtime state:
+
+- Use a temporary substrate/database and controlled branch status to invoke the production Global Workspace `arbitrate()` path. Provide competing momentum/surprise candidates and assert both the Bonsai-win and non-Bonsai-win cases; record the exact salience margin and tie behaviour.
+- Exercise the actual Fountain caller around branch sorting and `_weighted_branch_pick()`, or extract a narrow pure selection function only if that reduces test coupling without changing semantics. Compare temperature zero with a controlled positive-temperature draw.
+- Add a paired negative-control case for `internal.*` and a positive external event case. Keep event count, initial focus, decay and aperture fixed; avoid relying on unbounded sleeps or stochastic sampling.
+- Separate causal claims: pipeline-to-focus, focus-to-Fountain pick, and focus-to-workspace frame are three independently falsifiable edges. A pass at one edge must not be reported as proof of the others.
+
+Do not change `NEX5_BRANCH_TEMP`, workspace flags, attention magnitude policy or runtime wiring as part of this study. First establish what the existing tests and production call sites actually guarantee.
+
+**Source anchors inspected:** `tests/test_dynamic.py` blob `7e7493a5d79dda73f0ff374728a3da9eb34a558c`; `theory_x/stage2_dynamic/pipeline.py` blob `fbac28e96ffc34dbf59c60242d3ac635835e6e06`; `theory_x/stage2_dynamic/attention.py` blob `d2765c7618e8421bb3e60c8898f749f2370f0344`; `theory_x/stage2_dynamic/bonsai.py` blob `d0389d6036deecf27dcf636771ef817c685b1e7c`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/global_workspace.py` blob `39d833d4a88ed3ad371daf7b62e7295d0dda6637`.
+
+**Unchanged boundaries:** no runtime code, live flag, attention policy, schema, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, descriptive Mind Aspect policy or cognitive/action authority separation is changed.
+
+---
+
+## 72. Theory X registry lifecycle and AppState ownership — continuation study (28 November 2026)
+
+**Question studied:** does the process-level SentienceNode registry actually have process-lifetime ownership, or does it also retain objects whose database handles and workers belong to an individual AppState?
+
+### Registry contract found in source
+
+At current main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0, theory_x/__init__.py defines a module-global _registered_nodes list. register(node) checks isinstance(node, SentienceNode) using a runtime_checkable Protocol, then appends the object. all_nodes() returns a new list containing the same object references.
+
+The implementation has no visible duplicate-name/identity check, removal/unregister operation, registry lock, or owner token. The runtime-checkable Protocol check establishes attribute presence, not method signatures or semantic lifecycle correctness. These are source observations, not proof that a current production consumer is malfunctioning.
+
+### Registration paths traced
+
+- **Module import (gui/server.py):** constructs and registers one process-level FocalSet and one ExecutiveControl. These are module globals and are naturally aligned with process scope.
+- **GUI build_state() path:** when with_tools is enabled and the relevant handles exist, constructs ProblemMemory, GoalManager and Metacognition using that build's Readers/Writers, then registers those objects. The function also constructs Writers and starts/builds several services before returning its AppState; it is not a pure data-only factory.
+- **GUI create_app(state) path:** registers the supplied membrane's self_model and behavioural nodes when the Flask app is created. Repeated app construction can therefore repeat registration for the same or a different state.
+- **Unified run.py boot path:** constructs its own AppState rather than calling build_state(). It registers SelfNarrative, the HoldingZoneResolver, GoalManager, Metacognition, NovelAssociation, SubstrateHarmonic, GeniusTagger, DriveEmergence and AffectState at their respective construction sites. create_app(state) subsequently registers the membrane-owned nodes. Several registration calls are wrapped in broad exception handling or silently ignored, so a construction log is not itself a registry-membership proof.
+
+### Consumer inventory and lifecycle risk
+
+The inspected run.py and gui/server.py contain registration calls but no call to all_nodes(). The registry's own docstring describes process-level monitoring and future cross-node orchestration. A complete repository-wide consumer inventory remains **incomplete**; do not claim that the registry is unused everywhere.
+
+A concrete ownership mismatch is possible on repeated GUI factory/app construction: build_state() creates faculties bound to that invocation's Readers/Writers, while the module-global registry retains those object references beyond the lifetime of the returned state. AppState.close() quiesces its owned producers and closes its Writers, but no registry removal is visible in the reviewed lifecycle. Repeated build_state() or create_app() calls can therefore accumulate duplicate/stale entries. This is a **lifecycle risk derived from source**, not yet a demonstrated production failure; its impact depends on whether any consumer iterates the registry and invokes those objects after their owning state closes.
+
+The normal run.py path constructs one AppState and one Flask app, so the repeated-factory scenario must not be presented as evidence of a current live failure. The process registry also contains objects that are not necessarily owned by AppState in the same way (for example, module-level FocalSet and ExecutiveControl). The ownership contract needs to distinguish these cases rather than simply clearing the registry on every close.
+
+### Required next study — do not patch yet
+
+1. Complete the repository-wide registration and consumption inventory: every register() call, every all_nodes() read, any alias/import of either, and all tests that depend on registry state.
+2. Trace the full lifecycle of both construction routes: run.py → AppState → create_app and gui/server.py main → build_state → create_app. Include test fixtures and repeated app creation.
+3. In isolated tests with separate temporary databases, build two states sequentially, register their nodes, close the first, and determine whether registry entries from the first remain reachable and whether any consumer calls them. Check identity, names, Reader/Writer ownership and worker shutdown; do not access live databases.
+4. Decide the ownership model only after the inventory: process-singleton registry for true process-lifetime nodes; an AppState-scoped registry for state-bound nodes; or an explicit owner-aware registration/removal contract. Any future design must define duplicate handling, thread safety, close ordering and behavior when registration fails.
+5. Add a deterministic regression test for the selected contract before changing implementation. Preserve the frozen doctrine/specification and do not create a cross-node orchestrator merely because the registry's docstring mentions one.
+
+**Source anchors inspected:** theory_x/__init__.py blob 661dc737f54c88f763588606867ae1b9cd7e6654; gui/server.py blob ecaa6982544e883a50dbf85c5de1e10f74180c67; run.py blob 8ebe33c251e874b16107428eb4e92cf6301a4621. All are source snapshots at main commit 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Unchanged boundaries:** no registry code, protocol, AppState lifecycle, runtime configuration, database, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority or cognitive/action authority separation is changed.
+
+---
+
+## 73. Separate cognitive-node registry from AppState shutdown ownership — lifecycle study (28 November 2026)
+
+**Question studied:** does the existing shutdown machinery already provide an owner-scoped lifecycle model, and is it distinct from the process-level SentienceNode registry?
+
+### Important distinction established
+
+There are two different registries in this architecture and they must not be conflated:
+
+1. **SentienceNode registry** — `theory_x/__init__.py` keeps a module-global list intended for process-lifetime cognitive nodes, with `register()` and `all_nodes()`. Doctrine §4 (Model A) explicitly distinguishes process-lifetime nodes from session-scoped WorkingMemory.
+2. **AppState producer ownership** — `gui/server.py`'s `AppState._quiesce_producers()` keeps a bounded list of state-owned producers/workers. It signals stop methods/events, gathers joinable threads, joins against a shared deadline, and reports survivors/errors before `AppState.close()` closes Writers. Its own docstring explicitly says it is not a claim that every process thread is registered.
+
+The second mechanism is an owner-scoped shutdown inventory, not a consumer of the SentienceNode registry. The source and tests show it is deliberately populated through AppState fields and run.py's `_own_and_start()` boot path.
+
+### What existing tests establish
+
+- `tests/test_appstate_close_runpy_producers.py` pins the four run.py-only producer handles and checks in-flight writes finish before Writer closure; it also source-checks the boot wiring and early AppState ownership.
+- `tests/test_appstate_close_held_loops.py` covers membrane behavioural, NovelAssociation, AffectState, DriveEmergence and SocialPresence shutdown handling.
+- `tests/test_appstate_close_joins_producers.py`, `test_appstate_close_quiesces_dynamic.py` and `test_appstate_close_runpy_writers.py` add other producer, dynamic-loop and writer shutdown coverage.
+- `tests/test_focal_set.py` and `tests/test_executive_control.py` verify those two nodes satisfy the SentienceNode Protocol. These are conformance tests, not tests of registry membership, uniqueness, removal or owner lifecycle.
+
+This is meaningful lifecycle protection for AppState-owned workers. It does **not** prove that the SentienceNode registry is owner-aware or that its contents are drained/removed on AppState close.
+
+### Doctrine-to-implementation tension
+
+Doctrine §4 says registered nodes are process-lifetime (FocalSet is the canonical example) and session-scoped WorkingMemory is kept outside the process registry. The Protocol documentation says node names are unique across all nodes, but `register()` currently only performs a runtime Protocol attribute check and appends. It does not enforce uniqueness. The registry also has no visible removal, owner association or lock.
+
+Production boot code registers additional faculties that are constructed in the same process as an AppState and, in several cases, retain that state's database Readers/Writers or services: `SelfNarrative`, `HoldingZoneResolver`, `GoalManager`, `Metacognition`, `NovelAssociation`, `SubstrateHarmonic`, `GeniusTagger`, `DriveEmergence`, and the GUI membrane's `self_model` and `behavioural` nodes. The GUI `build_state()` route also registers ProblemMemory, GoalManager and Metacognition. The normal unified `run.py` boot constructs one AppState and one app per process, so this can be consistent with a process-lifetime contract in the intended deployment. It becomes a lifecycle concern if multiple AppStates/apps are built sequentially in one process or if a future registry consumer outlives the state that owns a faculty.
+
+The registration calls in `build_state()` and several run.py paths suppress exceptions; other run.py paths log warnings. Therefore a boot path's construction of a faculty does not prove that registration succeeded. No reviewed source or test currently establishes an operational consumer that iterates `all_nodes()`; the inspected `gui/server.py` and `run.py` do not call it. Repository-wide consumer inventory remains open because the available code-search result was incomplete; do not state that the registry is unused.
+
+### Updated design judgment — no patch yet
+
+Do not simply clear the process registry in `AppState.close()`: module-level process-lifetime nodes such as FocalSet and ExecutiveControl must survive an AppState teardown if they are genuinely process-owned. Do not automatically move every registered node into AppState either: that would change the Doctrine's Model A scope and may conflate observability with worker shutdown.
+
+Before choosing a design, finish the consumer inventory and establish whether the intended contract is:
+- process-singleton cognitive nodes only, with state-bound faculties excluded;
+- process registry plus explicit owner metadata and unregister/close semantics; or
+- separate process and AppState registries with narrowly defined responsibilities.
+
+Any design must specify unique-name enforcement, duplicate object handling, thread safety, registration failure reporting, owner-close ordering and behaviour during repeated app construction. A registry is metadata/observability, not an action authority or a new cross-node orchestrator.
+
+### Next falsification work
+
+1. Find every `register()` call and every direct/aliased `all_nodes()` consumer across the complete repository, tests, scripts and alternate entry points. Treat current GitHub code-search results as incomplete.
+2. Determine whether `gui/server.py`'s `main()` invokes `build_state()` and `create_app()` exactly once in the intended process; distinguish this supported lifecycle from test/reload/multi-app usage.
+3. Use isolated temporary databases to construct two AppStates sequentially, create apps, close the first, and inspect registry identity/name membership. Do not call methods on stale nodes until the source/test establishes whether a consumer does so.
+4. Add tests only after selecting the contract: duplicate names, same-object re-registration, different-object same-name registration, repeated app creation, failed registration reporting, and process singleton preservation across AppState close.
+5. Keep AppState producer shutdown tests separate; they prove worker quiescence and Writer ordering, not cognitive-node registry ownership.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `theory_x/__init__.py` blob `661dc737f54c88f763588606867ae1b9cd7e6654`; `theory_x/DOCTRINE.md` blob `6506276979364dc62da120d4b7c8966328fb2e6d`; `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `tests/test_appstate_close_runpy_producers.py` blob `6c9ec4ac0e88e56853963d378383789263d68e24`; `tests/test_appstate_close_held_loops.py` blob `a759bd71b4dbca1d82c04bd4eeb7a41b00c9ebe6`; `tests/test_focal_set.py` blob `083b8053ff09ef0975f8aab35a120904b2f55423`; `tests/test_executive_control.py` blob `d0ffe94a36e60cb30536759090affc09cfc1c3b1`.
+
+**Unchanged boundaries:** no registry code, AppState lifecycle, Protocol, doctrine, database, runtime flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority or cognitive/action authority separation is changed.
+
+---
+
+## 74. Bonsai influence ceiling in the production Global Workspace — salience study (28 November 2026)
+
+**Question studied:** does a Stage-2 attention increase merely reach Global Workspace, or can it actually win the competition that frames a Fountain fire?
+
+### Production path confirmed
+
+The source path is now traced beyond isolated helpers:
+
+1. Stage-2 `run_pipeline()` updates the Bonsai tree's branch focus from admitted sense-event magnitude.
+2. `DynamicState.status()` returns `tree.snapshot()["branches"]` as the branch vector, including each branch's `focus_num`.
+3. Fountain's production `_generate()` obtains `dynamic_state.status()` and passes it to `_build_prompt()`.
+4. With `NEX5_GLOBAL_WORKSPACE` unset or equal to `1`, Fountain's production prompt builder calls `global_workspace.arbitrate(dynamic_status, stakes_active=..., drive_line=...)`.
+5. `_bonsai_candidate()` selects the highest-focus branch only when its focus exceeds 0.1 and offers salience `focus_num * _W_BONSAI`. The winner is prepended as a framing line to the Fountain focus block. Other module blocks still append later; this is framing competition, not exclusive control over all prompt content.
+
+Therefore the attention-to-workspace path is present in the production call chain. The existing Stage-2 propagation test does not execute the entire `FountainGenerator._generate() → _build_prompt() → arbitrate()` chain; it tests the real Stage-2 pipeline, then directly tests the Fountain selection helper and workspace candidate/helper functions.
+
+### Effective influence ceiling
+
+The current source constants are:
+- surprise: 1.00 × surprise score (admitted above its gate);
+- stakes: flat 0.90;
+- momentum: flat 0.55 by default;
+- Bonsai: 0.50 × highest branch focus;
+- drive: flat 0.45.
+
+Bonsai focus is clamped to a maximum of 1.0 in `BonsaiTree.attend()`. Thus under the default, undemoted momentum weight, Bonsai's maximum salience is 0.50 and it cannot beat an active momentum candidate at 0.55. It can beat drive only when focus is strictly above 0.90, and it can lead when stronger candidates are absent. Surprise and stakes have higher ceilings.
+
+**Configuration qualification:** `_teeth_momentum_factor()` returns 1.0 unless `NEX5_L4_TEETH=1`; when enabled it applies a factor of 0.6, reducing momentum from 0.55 to 0.33. Bonsai can then beat momentum above focus 0.66, provided no stronger surprise/stakes candidate wins. The deployment's actual flag state was not inspected. Do not report either branch of this conditional as live host behaviour without runtime evidence.
+
+### What the existing analysis tool does — and does not — establish
+
+`tools/check_arbiter_competition.py` is a read-only analyser for `NEX5_GW_LOG` decision records. Its own design explicitly separates:
+- correctness of the logged effective argmax;
+- departure from the nominal flat-weight ladder; and
+- the genuinely variable/data-dependent region.
+
+It also detects demoted momentum salience as a signal that L4 teeth may have been armed. Its docstring warns that the arbiter chooses a framing line over a fetch whose content was already fixed; it is an expression/framing instrument, not a content-quality measure. `tests/test_arbiter_competition.py` checks the Bonsai-versus-drive veto region, detection of L4 demotion and other readout cases. These tests validate the analyser's calculations with synthetic records; they are not evidence of live decision frequencies.
+
+### Research conclusion
+
+The earlier claim that attention "influences the workspace" is true but incomplete. Its influence is sharply bounded by the salience ladder and by the presence of stronger candidates. Without L4 demotion, the default momentum line is structurally unbeatable by Bonsai. With L4 demotion, Bonsai has a larger competitive region, but only if its focus is high enough and surprise/stakes do not outrank it.
+
+The important architectural question is therefore not simply whether faculties are connected. It is whether the measured competition gives a faculty a meaningful opportunity to alter the frame, and whether that alteration improves the resulting output. The current source/tests establish the competition mechanics, not the quality benefit.
+
+### Next falsification study
+
+1. Add a deterministic integration test using an isolated temporary dynamic database and controlled Bonsai state. Exercise `DynamicState.status()`, the actual Fountain prompt-building caller and `global_workspace.arbitrate()` without touching production databases or external voice services.
+2. Cover the default momentum-present case, momentum-absent case, L4-demoted case, drive-only case, and surprise/stakes blockers. Assert exact candidate vectors, winner and inserted framing line.
+3. Keep `NEX5_GLOBAL_WORKSPACE`, `NEX5_L4_TEETH` and all production flags unchanged. Inject/patch only within the test.
+4. If measuring whether the frame improves output, preregister a separate content-quality evaluation. Do not infer benefit from a higher Bonsai win rate or a successful framing insertion.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `theory_x/stage2_dynamic/__init__.py` blob `b1740d7957953ca06b54133f67af821bdc76200e`; `theory_x/stage2_dynamic/bonsai.py` blob `d0389d6036deecf27dcf636771ef817c685b1e7c`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/global_workspace.py` blob `39d833d4a88ed3ad371daf7b62e7295d0dda6637`; `tools/check_arbiter_competition.py` blob `e7881f8246e474fad67c2639e69faefac2a3e1eb`; `tests/test_dynamic.py` blob `7e7493a5d79dda73f0ff374728a3da9eb34a558c`; `tests/test_arbiter_competition.py` blob `d744e47021164acae15490d722a2b030ce8b663e`.
+
+**Unchanged boundaries:** no attention magnitude, Bonsai focus, salience weights, L4 teeth, runtime flag, Global Workspace policy, prompt generation, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed.
+
+---
+
+## 75. Supported boot-path cardinality for Theory X registry ownership — entrypoint study (28 November 2026)
+
+**Question studied:** does the normal application startup create multiple AppStates/apps in one process, or is repeated construction only a factory/test/future deployment concern?
+
+### GUI entrypoint
+
+At main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`, `gui/server.py` defines `main()` with one direct `state = build_state()`, one `atexit.register(state.close)`, and one `app = create_app(state)`, followed by `app.run(..., use_reloader=False)`. The source has no second call to either factory in this main path. Disabling the Flask reloader avoids the usual development-server parent/child re-import path for this entrypoint.
+
+### Unified run.py entrypoint
+
+`run.py` imports `AppState` and `create_app` from `gui.server`, then constructs its own `AppState` directly during `main()` startup. It does not call `gui.server.build_state()`. It registers `state.close` early, constructs/wires the faculties and producers, then calls `create_app(state, shutdown_gate=...)` once before `app.run(..., use_reloader=False, threaded=True)`. The existing `tests/test_appstate_close_runpy_producers.py` includes a source-level assertion that `run.py` contains one `AppState(` construction and that ownership registration precedes producer-start paths.
+
+### Revised risk assessment
+
+The normal supported startup paths are single-AppState/single-app per process. This supports the current Model A process-lifetime registry assumption for the intended deployment; it does not establish that repeated construction is a production failure. The remaining lifecycle question is narrower: if the GUI factory is reused, tests create multiple app states, or a future embedded/multi-app host builds multiple instances in one process, state-bound registered faculties can remain in the module-global list after their owning AppState closes. There is still no reviewed `all_nodes()` consumer establishing that such stale references are actively invoked. Treat this as a reuse/extension hazard, not an incident.
+
+**Design consequence:** preserve the current single-instance production model while testing the registry contract explicitly. Do not add an owner-aware registry or change Doctrine Model A solely to accommodate unsupported multi-instance use. If multi-instance operation becomes a supported requirement, it must be designed and tested as a deliberate architecture change.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `tests/test_appstate_close_runpy_producers.py` blob `6c9ec4ac0e88e56853963d378383789263d68e24`.
+
+**Unchanged boundaries:** no boot path, app factory, registry, AppState lifecycle, runtime configuration, doctrine, frozen specification, roadmap or cognitive/action authority is changed.
+
+---
+
+## 76. Attention-selected branch attribution and next-fire continuity — causal seam study (28 November 2026)
+
+**Question studied:** after Fountain generates a thought, does the attention-selected branch affect only logging, or does it also enter continuity mechanisms that can influence later turns?
+
+### Production path traced
+
+The Fountain generator obtains the current Stage-2 status before prompt construction. After a thought is generated, it independently sorts the status branch vector by `focus_num` and selects `hot_branch` through `_weighted_branch_pick()`. With `NEX5_BRANCH_TEMP` unset/zero, the hottest branch is retained; a positive temperature enables a focus-weighted roulette selection.
+
+The selected branch is:
+- recorded in `recursion_attrib` and the later `fountain_events` record;
+- used as `_carry_branch`, unless the optional `NEX5_RETRIEVAL_TEETH=1` fixation diversion selects another branch for carry;
+- passed to `capture_momentum()` when `NEX5_MOMENTUM` is unset or `1` (the default), which stores branch plus the generated thought fragment in the single-row `momentum` table;
+- passed to the optional Hot Observer when `NEX5_HOT_OBSERVER=1`.
+
+The attention-selected branch is therefore more than an ephemeral score: it is persisted as attribution and as momentum metadata. However, timing matters: this `hot_branch` selection occurs **after** the thought has been generated. It cannot be claimed as the cause of that same thought's content.
+
+### What can influence the next fire?
+
+Two consumers must be distinguished:
+
+1. **Global Workspace momentum candidate:** `global_workspace._momentum_candidate()` reads the momentum row's timestamp and `thought_fragment` and offers a flat-weight continuation framing candidate. It does not use the stored branch field in the candidate text or salience. Thus the prior thought fragment can influence the next Fountain frame, but the branch label itself is not what makes that candidate win.
+2. **SelfNarrative branch carry:** `stage_tom.self_narrative.build_narrative()` calls `read_momentum()`; that renderer includes the stored branch in a line such as `(I was on <branch>)`. Fountain appends this narrative to a later prompt only when `NEX5_SELF_NARRATIVE=1`. That flag is explicitly checked and its default is off. Therefore branch-labelled carry into the next prompt is conditional, not a default-on claim.
+
+Momentum itself has anti-rut controls: the row goes stale after 30 minutes, and `read_momentum()` goes silent after more than three consecutive similar carries. The similarity check requires at least three shared distinctive words. These controls constrain continuity rather than allowing an indefinitely self-reinforcing loop.
+
+### Existing tests and evidence boundary
+
+- `tests/test_branch_selection.py` covers the focus-weighted selection helper, including default top-pick and temperature behavior.
+- `tests/test_momentum_writer.py` verifies injected Reader/Writer persistence, branch storage, carry count, surprise metadata, resolution and readback on temporary databases.
+- The existing Stage-2 propagation test separately exercises the real A–F pipeline, then calls branch/workspace helpers.
+- The inspected tests do not yet execute one integrated sequence from Stage-2 focus → production Fountain branch selection → `capture_momentum()` → `read_momentum()` → optional SelfNarrative prompt insertion. In particular, no reviewed test verifies the branch label's conditional next-fire prompt effect under `NEX5_SELF_NARRATIVE`.
+
+### Research conclusion
+
+There are two different forms of downstream influence:
+- **Current-fire framing:** Bonsai focus enters Global Workspace before thought generation, but its ability to win is bounded by the salience ladder and runtime configuration (see §74).
+- **Post-fire attribution/continuity:** the focus-ranked branch is selected after generation and stored with the generated thought. Its branch identity reaches the next prompt only through the optional SelfNarrative path; the default Global Workspace momentum candidate uses the thought fragment, not the branch field.
+
+This is a more precise causal model than saying "attention controls the next thought." Attention contributes to framing and branch attribution, while other mechanisms and feature flags determine whether the branch label is carried forward.
+
+### Next falsification test
+
+Build an isolated, deterministic test that:
+1. feeds controlled external events through the real Stage-2 pipeline and obtains `DynamicState.status()`;
+2. invokes the production Fountain branch-selection/carry path with controlled `NEX5_BRANCH_TEMP` and `NEX5_RETRIEVAL_TEETH` settings;
+3. verifies `hot_branch` attribution remains distinct from a diverted `_carry_branch`;
+4. verifies the exact branch and thought fragment written to the temporary momentum row;
+5. verifies `read_momentum()` returns the branch-labelled line, and that SelfNarrative prompt insertion occurs only with `NEX5_SELF_NARRATIVE=1`;
+6. verifies the default Global Workspace momentum candidate depends on the thought fragment and not the branch field.
+
+Use temporary databases and patched flags only inside the test. Do not change any live flag, momentum policy, branch selection or prompt wiring as part of the study.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/momentum.py` blob `45d0249fe445871ebb2bfbcdb2da6e131a229e18`; `theory_x/stage_tom/global_workspace.py` blob `39d833d4a88ed3ad371daf7b62e7295d0dda6637`; `theory_x/stage_tom/self_narrative.py` blob `5fbc617fadc177ade59b45acf118b77c43ef2e84`; `tests/test_branch_selection.py` blob `01b94766a9344b6c3287947a610302345ae1bd97`; `tests/test_momentum_writer.py` blob `fdbab169457a9ebe8c3c451c69b635e200127bd6`; `tests/test_dynamic.py` blob `7e7493a5d79dda73f0ff374728a3da9eb34a558c`.
+
+**Unchanged boundaries:** no branch-selection algorithm, momentum policy, carry limit, self-narrative flag, hot-observer flag, retrieval teeth, Global Workspace salience or prompt behavior is changed. No live database or host process is accessed.
+
+---
+
+## 77. SentienceNode registration census and structural conformance — source audit (28 November 2026)
+
+**Question studied:** are the state-bound faculties merely attempted registrations that silently fail Protocol validation, or do their source classes expose the required lifecycle surface?
+
+### Registration call-site census
+
+At the inspected main snapshot:
+
+- `gui/server.py` contains seven potential object additions across its registration sites: module-level FocalSet and ExecutiveControl; build_state's ProblemMemory, GoalManager and Metacognition; and create_app's membrane SelfModel and BehaviouralSelfModel.
+- `run.py` contains nine state-faculty registration sites: SelfNarrative, HoldingZoneResolver, GoalManager, Metacognition, NovelAssociation, SubstrateHarmonic, GeniusTagger, DriveEmergence and AffectState. The unified entrypoint imports gui.server (which registers its two module-level nodes) and calls create_app once (which attempts to register the two membrane nodes). This is up to thirteen registration attempts in that boot route if all optional constructions succeed; it is not a claim that all attempts always succeed.
+- The two entrypoints are alternatives in normal use; do not add their counts together as one process boot.
+
+### Structural conformance spot-check
+
+The source classes inspected for ProblemMemory, GoalManager, Metacognition, SelfNarrative, HoldingZoneResolver, NovelAssociation, SubstrateHarmonic, GeniusTagger, DriveEmergence, AffectState, SelfModel and BehaviouralSelfModel each expose a `name` attribute and `tick()`, `decay()`, and `state()` methods. FocalSet and ExecutiveControl additionally have explicit Protocol conformance tests. This makes silent registration failure from a missing required member less likely for these inspected classes, but source inspection is not a substitute for an actual runtime membership test.
+
+### What remains unproven
+
+- `register()` checks the runtime-checkable Protocol and appends; it does not enforce unique names despite the Protocol documentation's uniqueness requirement.
+- No reviewed test directly asserts registry membership, duplicate handling, removal, thread safety or repeated `create_app()` behavior.
+- The GUI membrane registration catches and logs errors; several other registration sites suppress exceptions, so the caller does not always expose a failed registration.
+- The complete repository-wide `all_nodes()` consumer inventory remains incomplete; the available code-search interface returned incomplete/empty results. The inspected `gui/server.py` and `run.py` do not consume `all_nodes()`.
+
+### Next bounded test
+
+Before changing implementation, add a focused registry test suite that exercises a conforming fake node, a nonconforming object, same-object re-registration, two distinct objects with the same name, and repeated create_app registration. The expected duplicate policy must first be chosen from Doctrine §4's process-singleton contract; do not silently invent a policy in tests. Keep a separate lifecycle test for AppState-owned faculty objects only if multi-instance AppState use is accepted as supported.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `theory_x/__init__.py` blob `661dc737f54c88f763588606867ae1b9cd7e6654`; `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `theory_x/stage7_sustained/problem_memory.py` blob `720ff939062ffbe52ff36da926f7aff71eb701ec`; `theory_x/stage8_goal_manager/goal_manager.py` blob `0b879a903fa499fb88153edbcb7f5c8e69bd6dfa`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `theory_x/stage_gate/resolver.py` blob `7fa47df888b2f17ef8457ddc9ec024ccaf96298d`; `theory_x/stage10_imagination/novel_association.py` blob `064e1a605f0f22e2484df2e05713cc8b7973513b`; `theory_x/harmonic/substrate_harmonic.py` blob `d3e32c3ccd7301542f60d67bac8e5a14546dd6b1`; `theory_x/genius/tagger.py` blob `ef9f290845f74e498044307dee60ee25437419b0`; `theory_x/stage_drives/drive_emergence.py` blob `3db144383c489ea4055697a1629563cfa94a4552`; `theory_x/stage_affect/affect_state.py` blob `fca8a47fe347a880d72fa1a41dc2c1796e76d1b8`; `theory_x/stage4_membrane/self_model.py` blob `c3646242ee244d7434228fcabf0550ebd0d37947`; `theory_x/stage4_membrane/behavioural_self_model.py` blob `cd6ce4179e95b8435c33602f116f0a33f89ced12`.
+
+**Unchanged boundaries:** no registry behavior, Protocol, doctrine, startup wiring, AppState lifecycle, runtime flag, frozen specification, roadmap, Phase 0/Gate 0 or cognitive/action authority is changed.
+
+---
+
+## 78. RDO Stage-7 execution verification versus bounded handoff verification — authority/evidence seam study (28 November 2026)
+
+**Question studied:** does NEX have one continuous execution verifier, or are there distinct mechanisms with different authority and evidence guarantees? In particular, what does an exact-path test allowlist actually authorize, and what does the newer independent Watcher process do?
+
+### Two mechanisms, deliberately not conflated
+
+The source exposes two separate paths:
+
+1. **Legacy/in-process execution integration — `rdo/execution.py::verify()`.** It reads the after-state using the RDO's read-only `_grep`, optionally invokes pytest, records per-obligation lifecycle in `watcher.ledger.ConnectionLedger`, and produces source/test/runtime evidence dimensions. Test execution requires the caller to pass the exact repository-relative path in `approved_test_files`; the evidence requirement's `test_file` field alone is not permission. The helper rejects absolute paths, parent traversal and paths resolving outside the repository. The tests show that an unapproved test is not run and that an escaping symlink is refused.
+2. **Newer independent handoff verifier — `watcher.handoff_verify`.** The Stage-7 handoff adapter launches the fixed Watcher verification process for source/path scope. Its own module contract explicitly says it does not execute tests, project scripts, agents, services or NEX runtime operations. The manifest is required to declare `execution_authority=none`, `tests_execution_authorized=false`, `runtime_operations_authorized=false`, `test_verified=not_authorized`, `runtime_observed=unknown_host_only`, and `human_acceptance=not_recorded`. It validates the immutable manifest, approval/event chain, planning revision, exact path scope and repository evidence. This is a read-only verification boundary, not an execution launcher.
+
+The second mechanism does not silently replace or upgrade the first. The Stage-7 handoff documentation explicitly preserves this distinction.
+
+### Important correction: exact-path allowlist is not a sandbox
+
+The legacy verifier's allowlist is a path-authorization check, not containment of arbitrary code effects. Once a test is allowlisted, `_run_test()` invokes `python -m pytest <path> -q` in the repository process environment. That test can execute Python, pytest configuration, `conftest.py` and plugins. The Stage-7 documentation explicitly says this is not an OS sandbox and arbitrary test execution remains unapproved until a disposable environment with no secrets, no live NEX data mounts and restricted network access is independently designed and verified.
+
+Therefore the safe interpretation is narrow:
+- Exact-path allowlisting prevents a declared test path from being treated as permission by default.
+- Repository containment prevents the selected path from escaping the repository root.
+- Neither property proves that the test's transitive code or side effects are contained.
+- A passed test in this legacy path is evidence about the controlled execution that occurred; it is not host/runtime observation of the live NEX organism.
+
+### Evidence semantics and a subtle ledger distinction
+
+The legacy verifier computes an obligation verdict from independent source evidence plus the optional test result:
+- source absent → `claim_unverified`, even if a completion claim or unrelated test exists;
+- source present, no test requested/authorized → `partial`;
+- source present and test failed → `failed`;
+- source present and test passed → `verified`.
+
+The runtime dimension is still a host-origin placeholder with `data=None`, evidence class `unknown`. Cloud source/test verification cannot promote it to runtime-observed.
+
+The generic `ConnectionLedger.seed_from_graph()` path is a different evidence operation: it can record `TEST_WRITTEN` and `TEST_PASSED` from a curated graph's `test_verified` assertion, while its own docstring says the ledger does not execute the cited test. Do not read that ledger state as an independently executed test result. By contrast, the legacy `rdo.execution.verify()` records its TEST state after its own pytest invocation returns. Provenance and the producer of the state matter; the state label alone is insufficient context.
+
+### Human decisions remain separate from technical evidence
+
+The bounded handoff manifest starts with test evidence not authorized, runtime unknown, and human acceptance not recorded. Scope review can authorize only the documented bounded preparation/edit actions; it does not authorize pytest, arbitrary commands, live NEX writes, database changes, experiment changes, service restarts or deployment. Reviewer/source fields are caller-attributed, not identity-authenticated.
+
+Criterion-level verification, overall human acceptance, source implementation, test verification and runtime observation are separate records/dimensions. A human acceptance event does not rewrite the immutable manifest's creation-time evidence statuses, and a passed criterion does not itself grant execution authority.
+
+### Research conclusion
+
+NEX currently has a layered progression rather than a single all-powerful execution path:
+- cognition/planning can form and refine work packages;
+- the handoff manifest binds a proposed task to an exact repository snapshot and bounded file scope;
+- human scope review records a limited preparation decision;
+- the independent Watcher verifies source/path facts without executing tests;
+- test execution remains a separate authority boundary;
+- live runtime observation remains host-only UNKNOWN;
+- human acceptance remains a distinct judgement.
+
+This separation is consistent with the governing architecture principle: interpretive cognition is not operation authority. A Mind Aspect, salience score, proposal, plan or completion claim must not become an implicit capability grant.
+
+### Next falsification / development work
+
+1. Keep the legacy test runner and new handoff verifier explicitly labelled as separate APIs in all documentation and reports.
+2. Add or retain regression coverage that the new handoff subprocess never launches pytest, project scripts, agents or runtime operations, and that its manifest rejects any attempt to claim those permissions.
+3. Design the disposable test-execution environment as a separate security project. Threat-model pytest startup hooks, `conftest.py`, plugins, environment variables, filesystem mounts, credentials, network access, subprocesses, time/resource exhaustion and artifact egress before enabling arbitrary test execution.
+4. Make evidence reports show the producer and method for each evidence state, not merely the label `TEST_PASSED`.
+5. Do not broaden handoff approval actions or infer Stage-7 completion. The real objective-to-verified-delivery demonstration, safe test boundary, host/runtime evidence and separate human acceptance remain outstanding.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `rdo/execution.py` blob `c4c3bb9b8c0dab5c16091c0ca3146921cf569c15`; `rdo/tests/test_stage7_execution_watcher.py` blob `832b6290a45c793274e0890037618a7fb5eeea36`; `watcher/handoff_verify.py` blob `fae4a9c6475f9d52d16a786e71d42b907d094407`; `watcher/ledger.py` blob `698ae962fe1dfad2d252b39a41066cd8cc0e4310`; `watcher/evidence.py` blob `0d235f79a562ae6fad14325915b0be8c34d4f382`; `rdo/STAGE7_HANDOFF.md` blob `1585d1f4ffe28608614ade6679429584126a0987`.
+
+**Unchanged boundaries:** no test execution, agent launch, RDO execution, handoff creation/review, approval action, sandbox, host operation, runtime flag, database, evidence policy, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed. This was a source-and-test review only.
+## 79. Stage-B capability wire and autonomous-fire boundary — current-main reconciliation (28 November 2026)
+
+**Question studied:** where can the existing tools actually be invoked, what operation representation crosses that boundary, and has the capability layer been connected to NEX's autonomous Fountain/fire loop?
+
+### Current chat-path wire
+
+At main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`, `gui/server.py` constructs `ToolRegistry` and `ToolCaller` only when `with_tools` is enabled and the required conversation storage is available. The chat handler then performs this sequence:
+
+```text
+chat prompt
+  → ToolCaller.should_use_tool(prompt)
+  → ToolCaller.build_tool_kwargs(prompt, tool_name)
+  → ToolRegistry.execute(tool_name, **kwargs)
+  → ToolResult
+  → successful result wrapped by build_tool_prompt()
+  → appended to belief_text / response context
+```
+
+The route records tool-execution and tool-prompt-injection trace events when tracing is available. Exceptions are reported to the error channel. The current source calls `should_use_tool(prompt)` with one argument; an older research note describing `should_use_tool(prompt, [])` is not an accurate description of this snapshot.
+
+### What the current Stage-B operation actually is
+
+The caller selects from three registered tools:
+- `web_fetch`: fetch an explicit URL or supported cryptocurrency-price target; the registry restricts HTTP(S) destinations to its fixed hostname allowlist, rejects URL credentials and disables automatic redirects.
+- `python_exec`: the caller extracts a narrowly bounded numeric expression from a recognised sentence prefix, then passes explicit `code=print(expression)`. The registry parses and interprets a small numeric AST allowlist in-process; it does not use Python `exec`, `eval`, `compile` or a subprocess. It bounds expression length, AST size, integer magnitude, float magnitude and exponent size.
+- `beliefs_query`: read-only retrieval through the configured beliefs reader.
+
+This is a meaningful hardening of the old sentence-to-code boundary. Natural-language sentences are not silently substituted as Python source. Unsupported or ambiguous calculation wording produces no tool selection. The tool result is a `ToolResult` data object, then formatted as prompt context.
+
+However, this is **not yet the general typed operation representation** envisioned by the broader NEX architecture. The caller still selects by keyword patterns and passes tool-specific keyword arguments; the registry directly dispatches by tool name. There is no general operation envelope here that carries a canonical operation ID, typed arguments, provenance, preconditions, requested side-effect class, expiry, approval requirement, or postcondition contract. Do not describe this narrow Stage-B route as the completed Sentence Code → Recursive Extrapolator → executable-interface pathway.
+
+### Important authority observation
+
+On the inspected chat path, once a supported tool is selected, `gui/server.py` directly calls `ToolRegistry.execute()`; no separate human approval step is visible between this heuristic selection and the bounded tool invocation. That observation must be interpreted in proportion to the actual capability surface: the current tools are limited to allowlisted HTTP GET, bounded arithmetic interpretation and read-only belief retrieval. It does not establish that arbitrary shell, filesystem, robot, deployment or other consequential operations are available.
+
+The architectural lesson is not to put a Mind Aspect in front of this call as a veto. Preserve the user's rule: Mind Aspects provide interpretation, not action authority. If NEX expands the capability surface, the next design should add an explicit typed operation/authority boundary independent of the mind-map position of any cognitive faculty. Capability validation, any required human approval, execution and post-execution verification must remain separate stages.
+
+### Autonomous-fire reachability: not present in the inspected Fountain source
+
+A direct scan of `theory_x/stage6_fountain/generator.py` at this snapshot found no references to `ToolCaller`, `ToolRegistry`, `tool_caller`, `tool_registry`, `python_exec`, `web_fetch` or `beliefs_query`. The reviewed `gui/server.py` chat handler is therefore evidence of chat-triggered capability use, not autonomous-fire tool use. No fire-loop tool call, trigger rate, or autonomous execution frequency should be inferred from the chat path.
+
+This matters to the wider neural-network/exponential-propagation idea: adding a new caller from internal thought state would change *who or what can trigger a capability*, even if the tool implementation itself remained unchanged. That would be a separate architecture and authority decision, not a harmless reuse of the chat helper.
+
+### Reconciliation of older research notes
+
+Two repository notes require snapshot-aware reading:
+- `research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md` describes an earlier main snapshot `5ba30077` and a bounded correction as still candidate PR #369. The inspected current-main source at `18c8f061...` already contains the bounded AST interpreter and explicit expression extraction described there. Treat the note's implementation-status paragraph and old chat-call signature as historical, not current status.
+- `observation_reports/fire_path_tools_SCOPE.md` describes `python_exec` as subprocess-based and refers to import blocklisting/sandboxing. That does not match the current `tools.py` implementation inspected here. Its broader governance warning remains useful: a new autonomous caller changes trigger source, volume and observability, even when the capability itself is bounded. Its old implementation description must not be repeated as current fact.
+
+The current source snapshot, not a stale note, is the implementation authority for this study. The source trace itself remains a snapshot observation; it does not establish live host configuration or whether `with_tools` is enabled in a running deployment.
+
+### Next bounded development sequence
+
+1. Keep the current three-tool chat route bounded; do not connect it to Fountain as an incidental refactor.
+2. Specify a minimal typed operation envelope for future capability growth, but first inventory existing execution interfaces and governance contracts. It should carry operation identity, typed inputs, provenance, requested capability, preconditions and expected postconditions; it must not itself grant authority.
+3. Separate deterministic capability validation from approval policy. A cognition result or Mind Aspect may supply context and rationale, but must not silently approve or veto the operation.
+4. Add explicit post-execution verification and preserve a provenance trail from originating request/intent through operation, result and verification.
+5. Before any autonomous-fire caller is considered, measure candidate trigger base rates read-only, define per-capability limits and observability, and obtain a separate explicit design decision. Do not arm or prototype autonomous tool calls as part of this documentation study.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `theory_x/stage_capability/tool_caller.py` blob `07ef6c7f044b0c26c3e8ba78f51e5cf285890402`; `theory_x/stage_capability/tools.py` blob `b00052d6286d23b58599bfc463ebf051b0c08668`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `tests/test_tools.py` blob `6afdbf3bd88c5b5463443947e02d4a5ef3fdf6ee`; `research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md` blob `a4481c09219e3c85c41df886f79449599c5929bc`; `observation_reports/fire_path_tools_SCOPE.md` blob `9b83406fbb00fc9e62908fec2a1e840a70473ccc`.
+
+**Unchanged boundaries:** no tool call was made against a live NEX instance; no tool was invoked, no Fountain integration, autonomous caller, typed-operation implementation, approval gate, feature flag, runtime setting, database, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority was changed.
+## 80. Typed operation-contract inventory — reuse existing RDO records without mistaking planning records for executable authority (28 November 2026)
+
+**Question studied:** does NEX already have a typed operation representation, or does it have typed planning/evidence records that stop before an executable operation contract?
+
+### Existing typed structures found
+
+The current RDO has substantial typed building blocks:
+- `Obligation`: canonical key, kind, classification, parent/depth, rationale, provenance, assumptions, reconciliation status/evidence, confidence, impact and evidence needs.
+- `Relationship`: source/destination, typed relationship kind, an authority descriptor (`none|bounded|strong`), reversibility and optional interface/operating-envelope/performance-margin evidence.
+- `WorkPackage`: obligation keys, advisory eligibility, blockers, priority dimensions, anti-requirements and reversibility.
+- `ContextRequirement` and `AcceptanceVerificationRecord`: source-linked context/criterion records with explicit mapping and verification evidence fields.
+- `CycleRecord`: durable planning, graph, frontier, evidence, learning and lineage snapshot.
+- Stage-7 handoff manifest: immutable binding to objective revision/digest, cycle, repository revision, work package, exact file scope, obligations, relationships, deliverables, constraints, exclusions, evidence requirements and separate decision records.
+
+These are real typed structures, but their meanings are not interchangeable. An Obligation describes work to be considered; a Relationship describes a graph relation; a WorkPackage groups advisory work; a CycleRecord records planning; a handoff manifest binds a reviewed proposal to a repository snapshot and bounded path scope. None is by itself a canonical executable operation request.
+
+### The current explicit lifecycle is already usefully staged
+
+The reviewed proposal bridge makes the separation concrete:
+
+1. `prepare_reviewed_selection()` requires an explicit approved proposal, verifies proposal/alternative identity and the raw-objective digest, recovers the exact approval event, validates objective.v1 and returns graph diagnostics plus a dual-chain lineage envelope. It writes neither ledger, starts no planning and creates no handoff.
+2. `submit_reviewed_selection()` is a separate explicit call. It persists the validated objective and lineage together in the objective ledger and runs advisory RDO planning. It does not create a Stage-7 handoff or authorize execution.
+3. `create_handoff()` binds a selected eligible work package to the exact clean repository snapshot and objective input digest. It preserves blockers and begins test evidence as not authorized, runtime as host-only unknown and human acceptance as not recorded.
+4. Human scope review permits only the enumerated preparation/edit/review-branch actions. It does not authorize tests, arbitrary commands, live NEX writes, database/experiment changes, runtime flags, service restarts or deployment.
+5. The independent Watcher verifies the source/path boundary without executing tests or project operations. Test verification, host runtime observation and human acceptance remain separate.
+
+### Authority metadata is not authority enforcement
+
+The `Relationship.authority` field and the typed `authority_boundary` evidence dimension are useful descriptive inputs to interface analysis. Their presence does not establish a capability validator, approval decision or execution gate. Similarly, a proposal's recorded `approved` state means the selected interpretation may be prepared for intake; it is not an approval to execute the work. A Stage-7 scope approval is a bounded preparation permission, not a general execution grant.
+
+This is exactly where the architecture principle must hold: Mind Aspects may interpret intent, estimate relevance, expose uncertainty and contribute rationale. They must not turn their cognitive state, map position, score or preference into capability permission or an action veto.
+
+### Gap: the missing typed operation envelope
+
+No single general-purpose operation record was found in the inspected RDO/capability path that unifies the following fields and lifecycle:
+- stable operation identity and schema version;
+- originating request/intent and provenance chain;
+- operation kind and typed, validated arguments;
+- target/resource and requested capability;
+- declared side-effect class and scope;
+- preconditions and expiry/staleness binding;
+- required capability checks and separately recorded approval requirements;
+- idempotency/replay identity where relevant;
+- execution attempt/result reference;
+- postconditions and independent verification evidence.
+
+The chat ToolCaller still selects a named tool and builds tool-specific kwargs. The RDO records a proposed work package and handoff, not a canonical operation envelope. Do not fill this gap by treating WorkPackage, Relationship.authority, a natural-language plan or a Mind Aspect output as an executable request.
+
+### Recommended reuse-first design sequence
+
+1. Map existing fields to a candidate envelope and identify what must remain separate. Reuse objective, lineage, obligation, work-package, handoff and evidence references; do not duplicate their full payloads.
+2. Define a small versioned operation schema as a proposal only. It should carry references to immutable source records rather than copy mutable prose into a second authority store.
+3. Define deterministic capability validation against the requested operation and target. Validation answers “is this capability technically available and within its declared boundary?”, not “should the system want to do it?”
+4. Keep human/owner approval as a separate authority event where required. An approved proposal, an eligible work package and a valid capability are three different facts.
+5. Execute only through a separately authorized adapter; record attempt/result without rewriting the originating plan.
+6. Verify postconditions independently and retain UNKNOWN when required evidence is absent. Human acceptance remains a further distinct judgement.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `rdo/model.py` blob `11bb372469145d828d8163905b50afa63effc3ec`; `rdo/orchestrator.py` blob `e9dad9a11e8e09444b4ee2e7d77f60d580f7b104`; `rdo_adapters/reviewed_seed_bridge.py` blob `5b8580b0dabfa1f533301c18d86bf222ceb67114`; `rdo_adapters/handoff.py` blob `c0fe2afc90d3e5fe948c7555bde1cf1675d7c0be`; `rdo/REVIEWED_SEED_BRIDGE.md` blob `680791eb82ea29c43e54d875f4e522b624e351f6`; `rdo/OBJECTIVE_INTAKE.md` blob `4067c075e85f797a6555d06ce6e0d37cc7c8ae46`.
+
+**Unchanged boundaries:** no operation schema, capability validator, approval policy, runtime adapter, tool integration, database, flag, execution permission, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed. This is a source inventory and design study only.
+## 81. Recursive expansion growth and graph-analysis bounds — taming combinatorial propagation (28 November 2026)
+
+**Question studied:** what currently contains the growth of NEX's recursive development network, and is depth alone a sufficient resource bound?
+
+### Existing containment mechanisms
+
+The RDO Extrapolator uses breadth-first expansion and has several meaningful controls:
+- Objective v1 accepts 1–200 initial seed obligations, at most 1,000 relationships, and `max_depth` from 0 through 4.
+- The generic expansion catalogue has a finite number of child rules per kind; the largest inspected fan-out is six children for `persistence`. Many generated kinds are terminal.
+- A canonical-key map converges repeated discoveries. Compatible same-kind obligations merge provenance/evidence needs and preserve the stronger classification. A kind collision or build/anti-requirement contradiction raises `MergeConflict`; it is not silently collapsed.
+- Anti-requirements stop development; terminal kinds stop decomposition; depth budget stops further expansion; valid independently reviewed reuse can stop expansion.
+- Every stopping point is preserved in the frontier with its reason. A source-signature match alone does not prove semantic satisfaction, so the obligation continues conservatively.
+- The expansion catalogue digest helps identify stale rule-proposal requests; novel kinds produce candidate-only rule proposals and do not activate new rules automatically.
+
+The graph layer is also careful about expensive cyclic analysis. Tarjan SCC discovery is used to identify components. The reviewed-seed bridge limits detailed cycle enumeration to cyclic SCCs no larger than 7 nodes and 18 internal cycle edges. If any cyclic SCC exceeds either bound, detailed classification/system assessment is skipped and the graph remains `bounded_unknown`. A test with an 8-node cycle asserts that no cycles are enumerated and no system verdict is fabricated.
+
+### The important remaining gap: no total expansion budget observed
+
+The inspected `expand()` loop enforces depth and stopping rules but does not expose a separate maximum for total unique obligations, total generated relationships, total queue work or elapsed planning budget. The objective schema bounds initial input size and depth, but those are not the same as a hard cap on the expanded graph.
+
+A deliberately loose theoretical illustration shows why this matters: with up to 200 seeds, a maximum six-child rule at each of four expansion levels gives a naive tree upper bound of 1 + 6 + 36 + 216 + 1,296 = 1,555 nodes per seed before accounting for actual rule-kind restrictions, terminal kinds and canonical convergence. That is not a prediction of actual RDO output; it is a warning that a depth cap alone is not a strict total-work budget. Actual expansion rules and convergence reduce the result, but no explicit total-node/edge ceiling was found in the inspected function.
+
+### Design implication
+
+The right response is not to suppress recursion or flatten the network. It is to bound the *resources spent exploring it* while preserving the unresolved network honestly.
+
+A future, separately reviewed increment should consider:
+1. A deterministic per-cycle unique-obligation budget and relationship budget, with explicit configuration/version provenance.
+2. A frontier stop reason such as `node_budget_exhausted` or `edge_budget_exhausted`, preserving the unexpanded parent and remaining candidate rule outputs for later continuation.
+3. A deterministic breadth-first ordering and stable canonical keys so the same snapshot/budget produces reproducible partial graphs.
+4. No partial result may be described as complete merely because the budget was reached. Completeness must expose budget exhaustion separately from terminal, anti-requirement, semantic reuse and novel-kind stops.
+5. Tests for adversarial fan-out, convergence-heavy graphs, incompatible key collisions, deterministic replay, budget-boundary off-by-one behaviour and persistence/resume of deferred frontier.
+6. Separate limits for graph cycle enumeration and expansion generation; one must not be mistaken for the other.
+
+This would tame combinatorial growth without denying the network's capacity to reveal relationships. The system retains the frontier instead of pretending to have completed the exploration.
+
+### Research conclusion
+
+NEX already has depth, fan-out-by-rule, terminal, reuse, convergence and SCC-enumeration controls. It does not yet demonstrate a strict total expansion-work budget in the inspected path. A deterministic total-node/edge budget is therefore a credible next RDO improvement candidate, but it must be designed against the frozen roadmap/specification boundaries and tested as an additive control. No budget value is invented here.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `rdo/extrapolator.py` blob `330e1aaec7504fdc1315b1b88b9c304942318c17`; `rdo/schemas/objective.v1.schema.json` blob `118ff013bfdb1193c4630ab5a3d07b2c05d0dc5b`; `rdo_adapters/seed_proposals.py` blob `4bebbba632cedef1bd74127dd0a152dfb45badb5`; `rdo/graph.py` blob `65d5443c2fa874e4408c563bccc8e5b88793699d`; `rdo/tests/test_stage2_extrapolator_mvp.py` blob `4f3642d7f90485ff3ab22d05e9f09c22a0989465`; `rdo/tests/test_reviewed_seed_bridge.py` blob `fef4fe2363f29cef3d8fc7a700e099095584ace5`.
+
+**Unchanged boundaries:** no expansion rules, max depth, graph algorithms, proposal limits, runtime data, flags, database, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority is changed. No tests were executed; existing test source was inspected only.
+
+## 82. Durable frontier persistence versus true planning continuation — reload is not resume (28 November 2026)
+
+**Question studied:** when RDO documentation and tests say a cycle can be resumed, does loading a saved cycle actually continue its unfinished recursive expansion?
+
+### What persistence demonstrably does
+
+The CycleStore in **rdo/memory.py** writes a complete CycleRecord.to_dict() payload to a per-cycle JSON file. Its write path uses a temporary file, flush + fsync, atomic os.replace, and a directory fsync. load(cycle_id) reconstructs a CycleRecord from that JSON. The record retains obligations, relationships, counts and the full frontier, including stop reasons.
+
+The Stage-2 tests establish useful durability properties:
+- a saved cycle reloads with an equal to_dict() representation;
+- a fresh interpreter can load the persisted record;
+- unresolved and max-depth frontier entries survive save/reload unchanged;
+- counts and frontier classifications survive persistence.
+
+These are real persistence and recovery-of-record guarantees. They should not be discounted.
+
+### What the current code does not demonstrate
+
+The word *resume* is broader than the implementation evidence. In the inspected source:
+- CycleStore exposes save(), load() and list_ids(); it does not expose a continuation method.
+- load() deserializes a record. It does not reconstruct the Extrapolator's BFS queue, a queue cursor, pending rule outputs, or a partially completed expansion transaction.
+- run_cycle() accepts a new set of seed Obligation objects and calls expand(seeds, reconciler, max_depth=...). It does not accept a prior CycleRecord as a resumable execution state.
+- expand() creates fresh local obligations, relationships, frontier and queue collections on each call. Its returned frontier is a record of where that run stopped, not a persisted continuation cursor.
+- A frontier entry generally identifies a key and a reason; it does not by itself preserve all scheduler state required to restart at the exact point of interruption.
+
+Therefore, the source and tests prove **durable cycle reload**, not **automatic continuation of an interrupted recursive planning run**. A caller could potentially reconstruct selected obligations from a loaded record and submit a new planning cycle with new parameters, but that is a new/reconstructed run and would need explicit handling of prior relationships, reconciliation evidence, rule-catalogue version, repository snapshot and duplicate accounting. It must not be described as exact resume without tests proving those semantics.
+
+### Why this distinction matters
+
+A saved frontier can be complete as an *audit record* while still being insufficient as an *execution cursor*. Confusing the two can create false confidence that no work is lost after a process interruption. It can also cause duplicated expansion, stale reconciliation, changed rule interpretation or loss of deterministic ordering if a future continuation mechanism is improvised.
+
+The correct status vocabulary should distinguish at least:
+- **record_reloaded**: the durable cycle and its frontier were reconstructed;
+- **continuation_prepared**: a validated continuation state was assembled from a prior cycle and pinned inputs;
+- **continuation_executed**: additional expansion actually ran from that state;
+- **continuation_verified**: resulting obligations/edges were reconciled against the prior record without silent loss or duplication.
+
+These are proposed descriptive states, not existing NEX enums or flags.
+
+### Reuse-first design for a future continuation capability
+
+Before adding a new scheduler or persistence subsystem:
+1. Define whether continuation means *retry unresolved frontier*, *increase depth*, or *resume an interrupted in-flight expansion*. These are different operations.
+2. Reuse the immutable prior cycle as the parent evidence record. Give the continuation its own cycle/run identity and explicit parent-cycle reference rather than silently overwriting history.
+3. Persist a versioned continuation descriptor: source cycle ID and digest, repository/source snapshot, expansion-catalogue digest, max-depth and resource-budget settings, deterministic queue order/cursor, pending obligation identities and relationship state.
+4. Revalidate reconciliation against the current source snapshot. Do not carry forward a prior REUSE_EXISTING assertion as authority; the current Extrapolator already invalidates caller-supplied reuse claims and requires fresh semantic review.
+5. Make replay idempotent and convergence explicit. Detect key-kind and build/anti-requirement conflicts exactly as the existing _merge() does.
+6. Preserve the original frontier and record which entries were continued, superseded, intentionally closed or remain unresolved. Never convert an unknown frontier into completion by omission.
+7. Test process termination at queue boundaries, duplicate replay, repository drift, catalogue drift, reconciliation changes, depth extension, budget exhaustion and fresh-process continuation.
+
+This continuation study also sharpens the previous section's proposed total-work budget: a deterministic node/edge budget is only useful if the frontier carries enough versioned state to continue safely, or if the system explicitly declares that a later run is a fresh reconstruction rather than a resume.
+
+### Research conclusion
+
+NEX has robust cycle-record persistence and tests for reload across process boundaries. The inspected implementation does not yet show a first-class resumable BFS execution state or a continuation API. Treat "resume" in current documentation as **reload/recover the recorded cycle**, unless a separate, tested continuation path is identified. This is a precise capability boundary, not a criticism of the existing atomic persistence mechanism.
+
+**Source anchors inspected at main 18c8f06171e1de35c3210831a49b63d0e2487af0:** rdo/memory.py blob ff0abb6d6ebdd91c4567362e238363d41ddb57e1; rdo/model.py blob 11bb372469145d828d8163905b50afa63effc3ec; rdo/orchestrator.py blob e9dad9a11e8e09444b4ee2e7d77f60d580f7b104; rdo/extrapolator.py blob 330e1aaec7504fdc1315b1b88b9c304942318c17; rdo/tests/test_stage2_extrapolator_mvp.py blob 4f3642d7f90485ff3ab22d05e9f09c22a0989465.
+
+**Unchanged boundaries:** no CycleStore format, continuation API, queue algorithm, expansion rule, budget, runtime data, database, flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority is changed. This is a source-and-test study only; no tests were executed in this turn.
+
+## 83. Mind-map policy enforcement and the cognitive/capability boundary (28 November 2026)
+
+**Question studied:** how is the descriptive-only mind-map doctrine protected in code, and does that protection itself establish the full separation between cognitive interpretation and action authority?
+
+### What is explicitly enforced
+
+The mind-map source states that it is a descriptive index, not a runtime decision authority. The YAML doctrine is explicit: no node may gate, score, block or veto an action. Its node schema also distinguishes evidence/status modifiers such as dark and blocked from permission semantics.
+
+The Python policy checker in mind_map/mind_map.py implements several concrete protections:
+- It requires the descriptive-only/no-action-authority doctrine to remain in the map metadata.
+- It rejects node fields whose names imply action authority, including gate, veto, authority, permission, priority, score, action_gate and execution_authority.
+- It deliberately permits the blocked field because it describes evidence/status, not permission to block an action.
+- It scans a declared set of runtime roots (including run.py, gui, theory_x, substrate, speech, voice, admin and strikes) and parses Python source with the AST.
+- It rejects direct imports of mind_map and non-docstring string constants containing MIND_MAP.yaml in those scanned runtime files.
+- It allows RDO/Watcher and developer tooling outside the runtime roots to read the map as evidence.
+
+The policy tests characterize these rules: current map passes; action-authority fields and missing doctrine fail; runtime import and YAML loading fail; an external RDO reader is allowed; and selected boot-imported roots are included in the scan.
+
+This is stronger than a comment-only doctrine. It is a source-level CI guard against the most direct route by which the map could become a runtime dependency.
+
+### What this guard does not prove
+
+The checker is a bounded static policy check, not a universal proof about every possible execution path:
+- Its coverage depends on the declared RUNTIME_ROOTS. A new runtime root must be added deliberately.
+- It looks for direct AST imports and literal string constants. Indirect loading, dynamically assembled paths, generated code or other non-Python mechanisms are not established as covered by these checks.
+- It does not by itself prove that every other cognitive faculty is unable to influence action selection through a separate runtime pathway.
+- It does not validate the semantics of every capability validator, approval event, executor or postcondition verifier.
+
+Therefore the correct conclusion is narrow: **the mind-map artefact is guarded against direct runtime consumption through the currently scanned source roots**. Do not inflate this into a claim that all NEX action authority is already completely formalized.
+
+### Cross-check against the current bounded capability route
+
+The current Stage-B ToolCaller selects among three named capabilities: web_fetch, python_exec and beliefs_query. It constructs tool-specific arguments; ToolRegistry dispatches only names in its fixed registry. The arithmetic path interprets a deliberately small AST language rather than arbitrary Python source. This is a bounded capability surface, but the ToolCaller/Registry route is not a general approval system.
+
+The inspected ToolCaller and ToolRegistry contain no mind_map import and do not consult the mind-map YAML. This is consistent with the policy. It does not mean a cognitive preference is an approval, nor does the presence of a registered tool mean every possible caller has permission to execute it.
+
+The architecture must continue to keep these concepts separate:
+1. **Cognitive interpretation:** Mind Aspects contribute perception, relevance, appraisal, uncertainty, memory and rationale.
+2. **Operation representation:** a typed request names the intended operation, target and declared side effects.
+3. **Capability validation:** deterministic checks establish whether that operation is technically available and within scope.
+4. **Approval authority:** the required owner/human/system authority is recorded independently of cognitive preference.
+5. **Execution:** a separately authorized adapter performs the operation.
+6. **Verification:** independent evidence establishes what actually happened; human acceptance remains distinct where required.
+
+A Mind Aspect may inform the first layer and provide evidence to later reviewers. It must not silently become any of layers 3–5, or veto an operation merely because of its map position or score.
+
+### Design and maintenance implications
+
+- Treat mind_map/mind_map.py and tests/test_mind_map_policy.py as an architectural invariant, not cosmetic diagram tooling.
+- When runtime roots are added or renamed, update the policy scan and add a regression test for the new path.
+- Consider adversarial tests for indirect/dynamic map loading if future runtime code introduces plugin discovery, generated modules or dynamic imports. Do not add brittle source heuristics without a concrete bypass case.
+- Keep mind-map evidence/status terms distinct from executable permission vocabulary. In particular, blocked remains descriptive status, never an action switch.
+- Keep separate tests for cognitive influence, capability validation, approval provenance, execution scope and post-execution verification. A passing mind-map policy test cannot substitute for those tests.
+
+### Research conclusion
+
+The repository has an explicit, tested descriptive-only doctrine and a static AST policy checker that prevents direct mind-map imports or literal YAML loads in its declared runtime roots. The Stage-B capability route is separately bounded and does not read the mind map. This supports the intended cognitive/action separation, while leaving the broader operation-envelope and approval formalization as separate work. No runtime policy or capability behavior was changed in this study.
+
+**Source anchors inspected at main 18c8f06171e1de35c3210831a49b63d0e2487af0:** mind_map/MIND_MAP.yaml blob d569d6e50e5541f1845581b052ffdb9db8e2857f; mind_map/mind_map.py blob 6eda2aa414802374e18db242d8ccbc26c9ee06ad; tests/test_mind_map_policy.py blob de6a30f6d4ce92b28b70e9b5ef1d318c3844ed6c; theory_x/stage_capability/tool_caller.py blob 07ef6c7f044b0c26c3e8ba78f51e5cf285890402; theory_x/stage_capability/tools.py blob b00052d6286d23b58599bfc463ebf051b0c08668.
+
+**Unchanged boundaries:** no Mind Aspect policy, mind-map schema, capability registry, approval rule, runtime code, tool behavior, database, flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority is changed. This is a source-and-test study only; no tests were executed in this turn.
+
+## 84. Approval provenance: tamper-evident history is not authenticated identity (28 November 2026)
+
+**Question studied:** what does a Stage-7 scope-review event actually prove, and what trust does the Watcher place in it?
+
+### What the handoff boundary enforces
+
+The immutable handoff manifest is canonicalized and SHA-256 digested. It records execution_authority=none, tests_execution_authorized=false, runtime_operations_authorized=false and the other explicit non-execution boundaries. Its creation binds the planning cycle, objective revision/digest, repository snapshot, work package and exact path scope.
+
+Scope-review events are appended to a manifest-digest-bound JSONL ledger. The append path:
+- validates the decision and restricts approved actions to a fixed allowlist of non-executing preparation actions;
+- refuses unknown and forbidden actions such as run_tests, execute_code, deploy, live database writes and runtime-flag changes;
+- requires an explicit permitted-action list for approval;
+- records sequence, previous-event digest, timestamp and event digest;
+- uses a file lock, append, flush and fsync;
+- verifies the sequence and hash chain when history is read.
+
+The Watcher independently rechecks the manifest digest, decision-event chain, current approved scope review, Git ancestry, changed paths and exact-file/symlink boundaries before recording source/path evidence. This is a meaningful integrity and scope-control design. It is not merely a human-readable approval note.
+
+### The identity boundary is intentionally weaker
+
+The code explicitly labels reviewer identity as caller-attributed, not authenticated. The API accepts reviewer and source_reference strings supplied by its caller. The event hash is an unkeyed SHA-256 digest over canonical event content; the chain detects accidental edits and ordinary tampering when the attacker cannot rewrite the chain, but it does not establish who supplied the event or provide a cryptographic signature from that person.
+
+Consequently:
+- a valid hash chain proves internal consistency of the recorded event sequence, not the real-world identity of the reviewer;
+- a reviewer label is an attribution claim, not an authenticated principal;
+- a source_reference preserves a pointer/claim about an approval source, not proof that the referenced source was checked or controlled by that reviewer;
+- the Watcher can independently validate that the ledger contains a structurally valid, digest-bound, current approval event, but it cannot turn caller-attributed data into authenticated identity merely by validating the hashes.
+
+This is not a defect hidden by the implementation: the limitation is explicitly documented in the adapter and Stage-7 manual. The important engineering requirement is to preserve it in every downstream status and UI. Never label this event “cryptographically signed approval” or “identity verified”.
+
+### What the current approval actually authorizes
+
+A successful scope review authorizes only the explicitly named non-executing preparation actions and only within the exact manifest path scope. It does not launch an agent. It does not authorize tests, arbitrary commands, runtime operations or deployment. The separate human-acceptance event is recorded only after scope approval and remains a distinct judgement; source/test/runtime evidence dimensions remain separate.
+
+This fits the core architecture: planning eligibility is not permission; scope approval is not execution approval; evidence verification is not human acceptance. Mind Aspects remain interpretive and cannot manufacture or substitute for any of these authority records.
+
+### Reuse-first path to stronger provenance, if ever required
+
+Do not retrofit a home-grown identity system into this adapter. First define the actual threat model and operational principal:
+1. Is the concern accidental misattribution, another local process writing the ledger, a compromised user account, or a remote reviewer?
+2. Identify the trusted identity provider and the exact signed assertion format it can issue.
+3. Bind the signed assertion to the handoff ID, manifest digest, decision, permitted actions, reviewer principal, expiry/nonce and policy version so it cannot be replayed against another handoff or scope.
+4. Verify signatures in the trusted Watcher boundary using pinned trust roots; record both the original assertion reference and verification result.
+5. Preserve a compatibility distinction between legacy caller-attributed events and newly authenticated events. Never silently upgrade historical records.
+6. Test expired assertions, wrong-manifest replay, altered actions, wrong principal, key rotation/revocation, duplicate nonce, missing trust roots and clock uncertainty.
+
+If the deployment has only a single trusted local operator and the explicit limitation is acceptable, retaining caller-attributed append-only events may be the simpler and more honest choice. Authentication is a threat-model decision, not a decorative feature.
+
+### Research conclusion
+
+Stage-7 provides strong manifest binding, bounded non-executing scope review, append-only hash-chained decision history and independent Watcher validation of that history. It deliberately does **not** authenticate reviewer identity. The system proves that a consistent attributed decision was recorded, not that a particular human cryptographically made it. Preserve that boundary; any stronger identity assurance requires a separately designed trust root and signed, replay-resistant approval assertion.
+
+**Source anchors inspected at main 18c8f06171e1de35c3210831a49b63d0e2487af0:** rdo_adapters/handoff.py blob c0fe2afc90d3e5fe948c7555bde1cf1675d7c0be; rdo/tests/test_handoff.py blob [test file inspected]; rdo/execution.py blob c4c3bb9b8c0dab5c16091c0ca3146921cf569c15; rdo/tests/test_stage7_execution_watcher.py blob 832b6290a45c793274e0890037618a7fb5eeea36; rdo/STAGE7_HANDOFF.md and rdo/STAGE7_EXECUTION_WATCHER.md.
+
+**Unchanged boundaries:** no identity provider, signing key, authentication mechanism, approval rule, event schema, execution capability, Watcher behavior, database, flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or runtime authority is changed. This is a source-and-test study only; no tests were executed in this turn.
+
+## 85. Cognitive feedback loops: attention, quality attribution and stale reinforcement signals (28 November 2026)
+
+**Question studied:** which NEX cognitive pathways feed their own future prominence, and what prevents a useful adaptive loop from becoming a self-reinforcing attention bias?
+
+### 1. The demonstrated Bonsai feedback path
+
+The external-event A–F pipeline matches events to branches, calculates magnitude, applies the membrane aperture, derives valence and calls BonsaiTree.attend(). Bonsai focus is then consumed independently by:
+- Fountain hot-branch selection, normally the highest-focus branch; optional positive-temperature selection can choose a lower-focus branch.
+- Global Workspace framing, where the hottest branch becomes a candidate when focus exceeds 0.1 and receives salience focus × 0.50.
+- Other downstream attention/carry attribution paths described in the existing Bonsai/Fountain trace.
+
+This is a real shared-state coupling, not evidence of an uncontrolled infinite loop. Bonsai focus is bounded to [0,1], receives weighted increments, and has decay, recency penalties, cadence-aware decay and a starvation bonus. The current test characterization proves the shared state reaches both Fountain branch selection and Workspace framing, but it does not prove better reasoning or output quality.
+
+### 2. Quality Synthesis creates a second-order reinforcement loop
+
+When NEX5_QUALITY_SYNTH=1, Fountain startup launches Quality Synthesis. Every 30 minutes, it:
+1. Reads recent genius_tags from the previous three hours.
+2. Joins each tagged fire to fountain_events.hot_branch.
+3. Computes per-branch score fractions.
+4. Classifies branches as high, low or neutral.
+5. Writes data/quality_signal.json.
+
+Attention reloads that file every five minutes. A high branch receives a 1.20 multiplier on external-event magnitude; a low branch receives 0.82. That changes future Bonsai focus increments, which influence later branch selection and framing, which changes which branch receives the next fire's genius attribution.
+
+The loop is therefore endogenous in part: branch prominence influences which outputs are attributed to the branch, and those attributed scores can then influence future branch prominence. This does not invalidate the signal, but it means the score is not a fully independent measure of branch quality. Exposure, selection and evaluator judgement are coupled.
+
+### 3. Existing safeguards are meaningful but incomplete
+
+The implementation already includes several protections:
+- Minimum sample size is eight tagged fires per branch.
+- Quality window is three hours.
+- High requires at least 45% of scores >= 0.55; low requires at least 55% <= 0.25.
+- No more than two low branches are dampened in one pass.
+- Multipliers are bounded and modest (1.20 and 0.82).
+- Internal telemetry streams are explicitly prevented from steering Bonsai attention, avoiding the previously observed systems-focus saturation.
+- Bonsai focus is capped and decays; recent hot branches receive extra decay and starved branches receive a limited bonus.
+
+These reduce runaway behavior and starvation. They do not remove the attribution feedback or establish that the score signal is calibrated, independent or causally beneficial.
+
+### 4. A concrete lifecycle edge: the consumer is not gated by the producer flag
+
+The producer loop is started only when NEX5_QUALITY_SYNTH=1. However, attention._quality_multiplier() reads quality_signal.json without checking that flag. The JSON file lives in the data directory and is not cleared by the inspected startup path. Thus, if a prior run wrote a signal and a later run disables the producer, the consumer can still apply the previously written high/low verdicts.
+
+There is a related cache behavior: when file loading fails, the exception is swallowed and the old in-memory cache is retained. The cache reload timestamp is not advanced on failure, so the consumer retries on subsequent calls, but the last successfully loaded verdicts can continue to apply until a successful read replaces them. A deleted or malformed file therefore does not immediately mean neutral influence.
+
+This is a source-level lifecycle finding, not proof that a particular host currently has a stale file or that the feature flag is enabled. Host/runtime state remains UNKNOWN.
+
+### 5. SelfNarrative is another feedback path, but not the same kind
+
+The current SelfNarrative implementation writes event-triggered entries and reads up to five recent entries into prompt context. Its rut mirror reads genius-tag striking-rate and, when a sustained trough is observed, writes a first-person observation at most once every two hours. That note is a prompt-visible reflection, not a command or a direct attention multiplier.
+
+The distinction matters: SelfNarrative can influence future interpretation through language context, while Quality Synthesis directly changes a numeric attention multiplier. Both can create feedback, but they require different measurements and safeguards. The separate stage_self_narrative implementation and its older draft specification must not be conflated with the Stage-TOM implementation instantiated by Fountain.
+
+### 6. Recommended study and design direction — no runtime change yet
+
+Before changing weights, measure the loop as a causal system:
+1. Record per-fire branch candidates, selected branch, score provenance, sample age/count and effective quality multiplier.
+2. Compare branch quality under matched exposure, not only raw score averages. At minimum report fires per branch, score distribution, evaluator version and time window.
+3. Run offline counterfactual replay with quality multiplier neutralized, then with current multipliers, keeping input events and evaluator tags fixed.
+4. Measure winner-kind share, branch entropy/Gini, cold-branch exposure, repeated-branch streaks and output-quality outcomes separately.
+5. Test the stale-signal lifecycle: producer flag off with an old file, file deleted, malformed JSON, old timestamp, partial write and a fresh valid file.
+
+A conservative future consumer contract would require an explicit enable condition, a versioned signal schema, a bounded max-age check and neutral behavior for missing/invalid/stale signals. On load failure, stale cached values should not silently remain active beyond their declared validity. Any such change needs focused tests and exact-head CI before implementation is treated as complete.
+
+Do not simply remove feedback. Adaptive cognition needs feedback. The objective is to make the feedback observable, bounded, freshness-aware and resistant to exposure bias—so useful signals can shape attention without becoming self-validating.
+
+### Research conclusion
+
+NEX already contains bounded attention dynamics and a real quality-to-attention feedback loop. Its safeguards limit magnitude and protect some diversity, but branch attribution makes the quality signal partly endogenous. The most actionable source-level issue is that the quality-signal producer is feature-flagged while its consumer is not, and the consumer retains its last cache after read failure. The next responsible step is characterization and measurement, not speculative weight tuning. No runtime code, feature flag, database, schema, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority was changed. No tests were run in this study.
+
+**Source anchors inspected at main:** `theory_x/stage2_dynamic/pipeline.py` blob `fbac28e96ffc34dbf59c60242d3ac635835e6e06`; `theory_x/stage2_dynamic/attention.py` blob `d2765c7618e8421bb3e60c8898f749f2370f0344`; `theory_x/stage2_dynamic/bonsai.py` blob `d0389d6036deecf27dcf636771ef817c685b1e7c`; `theory_x/stage_tom/quality_synthesis.py` blob `284d37ef654eb2e43783e3cb6200e3f995229d75`; `theory_x/stage_tom/global_workspace.py` blob `39d833d4a88ed3ad371daf7b62e7295d0dda6637`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `research/NEX_BONSAI_FOUNTAIN_WORKSPACE_TRACE_2026-11-28.md` blob `2e0b856b3cadd1c2c3e2152a5be865492f9447cb`.
+
+**Host/runtime unknowns:** actual NEX5_QUALITY_SYNTH, NEX5_SELF_NARRATIVE and NEX5_BRANCH_TEMP settings; whether data/quality_signal.json exists on any deployment; current contents/timestamp; live per-branch sample distributions and actual runtime outcomes.
+
+## 86. Prompt-level self-reinforcement: the active Fountain SelfNarrative path (28 November 2026)
+
+**Question studied:** what does the SelfNarrative feature actually feed back into the next Fountain generation, and which implementation is active on the generator path?
+
+### Correct implementation identity
+
+The Fountain generator imports `SelfNarrative` from `theory_x.stage_tom.self_narrative` when `NEX5_SELF_NARRATIVE=1`. Before each relevant generation prompt is sent, it calls `get_narrative()` and appends the returned living narrative to prompt parts. This is the implementation that matters for the Fountain path.
+
+It is not the same class as `theory_x.stage_self_narrative.self_narrative.SelfNarrative`, which is an event-log reader/writer with a five-row prompt formatter and a separate rut-notice tick. Do not use tests for one class as evidence that the other is tested.
+
+### What the Fountain narrative composes
+
+The Stage-TOM `build_narrative()` reads:
+- recent real Fountain fires, excluding short, bracket-prefixed and near-duplicate items;
+- the three most recent promoted T6 beliefs, filtered to avoid self-referential template residue;
+- the three currently active branches over a two-hour window;
+- the most recent HOT self-observation below the tombstone tier;
+- an aggregate self-model summary;
+- the current carried momentum thread, prepended as the leading line when present.
+
+It then assembles a prompt block describing what NEX has actually been attending to. It is generated from existing records and statistics, not from a separate LLM call at prompt assembly time.
+
+### The feedback path
+
+The cycle is:
+
+1. Fountain selects attention and context, then generates a thought.
+2. The resulting fire is recorded with its hot branch and related evidence.
+3. Later narrative assembly reads recent fires, active branches, beliefs, self-model statistics and momentum.
+4. The composed narrative is injected into a later Fountain prompt when the feature flag is enabled.
+5. That next thought can influence future branch attribution, memory, beliefs and momentum.
+
+This is a prompt-level feedback loop. It can improve continuity by reminding NEX of recent activity and carried intent. It can also create self-confirmation: a branch is attended, appears in the narrative because it was attended, and is then presented as evidence of what NEX is currently about. Momentum can reinforce this effect by leading the narrative.
+
+The implementation contains some useful anti-contamination choices: near-duplicate filtering for recent fires, filtering of known self-referential template residue, tier filtering for HOT observations, and a separation between aggregate pattern summary and specific recent events. These reduce some noise; they do not establish causal independence or prevent all repeated-theme amplification.
+
+### Test and rollout boundary
+
+The generator constructor and prompt insertion both check `NEX5_SELF_NARRATIVE=1`. The host's actual flag value is unknown. The inspected `tests/test_self_narrative.py` targets the separate `theory_x.stage_self_narrative` class, not the Stage-TOM `build_narrative()` implementation used by Fountain. Therefore it must not be cited as direct coverage of the Fountain prompt-injection path.
+
+A focused test suite for the actual path should cover:
+- feature flag off: no instance and no narrative prompt block;
+- feature flag on with no fires: no block and no generation failure;
+- branch diversity and stale records: narrative reflects the intended bounded time windows;
+- repeated identical fires: near-duplicate filtering is deterministic;
+- momentum present/absent: carry appears only when valid and does not dominate all other evidence;
+- self-referential template filtering: both positive and negative examples;
+- adversarially long narrative inputs: bounded prompt contribution;
+- prompt provenance: record which source rows contributed, so the narrative can be audited after a fire.
+
+### Reuse-first design recommendation
+
+Do not remove continuity. Instead, make the narrative an evidence-balanced summary rather than a mirror of whichever branch happened to win most recently:
+- preserve source diversity and explicit timestamps/ages;
+- cap contribution per source category, not only total recent-fire count;
+- distinguish observed history from current hypotheses and carried intentions;
+- expose branch exposure counts alongside branch names, so frequency is not mistaken for merit;
+- prevent a momentum item from silently becoming a persistent identity claim;
+- retain provenance from each prompt fragment back to its source records.
+
+These are proposed measurement and design improvements, not current behavior or new policy authority. The narrative remains interpretive context. It cannot approve, block or execute operations.
+
+### Research conclusion
+
+The active Fountain SelfNarrative path is a bounded-by-source, prompt-injected composition of recent fires, active branches, T6 beliefs, HOT observations, aggregate self-model and momentum. It creates a meaningful continuity loop, but also risks reflecting prior attention back as evidence for future attention. The correct next step is direct tests and provenance/exposure measurement for the Stage-TOM implementation—not assumptions based on the similarly named event-log class. No runtime code, feature flag, database, schema, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. No tests were run in this study.
+
+**Source anchors inspected at main:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/self_narrative.py` blob `5fbc617fadc177ade59b45acf118b77c43ef2e84`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `tests/test_self_narrative.py` blob `a293b97d46a7db14fb9302e2c3206b4516eefdb1`.
+
+**Host/runtime unknowns:** actual `NEX5_SELF_NARRATIVE` setting, current Fountain prompt composition, recent-fire distribution, branch exposure skew, actual momentum quality and production effects.
+
+## 87. Momentum lifecycle correctness: resolution belongs to a thread, not to the singleton row (28 November 2026)
+
+**Question studied:** when one carried thought ends and a genuinely new thought begins, does momentum persistence reset all state that belongs to the old thread?
+
+### 1. Confirmed persistence behavior
+
+The momentum table is a singleton row (`id=1`). `capture_momentum()` reads the prior fragment and carry count, uses distinctive-word overlap to decide whether the new thought is the same thread, and sets:
+- same thread: prior carry count + 1;
+- different thread: carry count = 1.
+
+It then upserts updated time, branch, fragment, surprise score/note and carry count. The conflict-update list does **not** include the `resolved` column.
+
+`stamp_resolution()` writes `resolved` on that singleton row. `read_momentum()` reads the value later and, when `NEX5_CARRYOVER=1`, renders a clause saying the prior cycle settled into a belief or stalled.
+
+### 2. Lifecycle defect: new thread inherits old resolution
+
+A concrete sequence follows from the code:
+1. Thread A is captured.
+2. Thread A is stamped `resolved=1` (or `resolved=0`).
+3. A genuinely different Thread B is captured. Its carry count resets to one, but the upsert leaves `resolved` untouched.
+4. A subsequent read of Thread B can report Thread A's resolution outcome.
+
+At the function boundary, this is stale provenance: the outcome is stored on the singleton row, but the row's identity has moved to a new fragment. Important call-site qualification: the inspected Fountain generator captures momentum around line 2812 and, when NEX5_CARRYOVER=1, stamps the current fire's outcome later around line 3150. In a normal successful full fire with that flag enabled, the later stamp should overwrite the inherited value before the next fire reads it. The inheritance remains observable for direct callers that do not stamp, when the feature is off and later enabled against an existing row, when capture succeeds but the later stamp is skipped/fails, or when capture rejects a short thought but the later stamp still applies to the previous row. The existing unit test verifies resolution rendering for one thread and a legacy schema migration; it does not test thread transitions or the full generator ordering.
+
+### 3. Rendering inconsistency
+
+The base prompt line always says: `this thread isn't finished.` If `NEX5_CARRYOVER=1` and `resolved` is non-NULL, the renderer appends either `last cycle it settled into a belief` or `last cycle it stalled; nothing settled.`
+
+For a resolved thread, the prompt can therefore say both that it is unfinished and that it settled into a belief. For a stalled thread, "isn't finished" may be semantically compatible, but it still conflates a thread's current state with the generic carry wording. Resolution is currently an optional annotation, not a state transition that changes the base sentence.
+
+### 4. Important nuance: the resolution flag is not used as a read gate
+
+The inspected `read_momentum()` rejects stale rows older than 30 minutes, empty fragments and carry counts above three. It does not suppress a resolved thread. That may be intentional: a resolved topic can remain useful context briefly. Therefore the appropriate correction is not automatically "hide every resolved thread". It is to make the resolution status accurate, thread-bound and coherently phrased.
+
+### 5. Reuse-first correction proposal — not implemented
+
+Keep the singleton storage design unless a broader event-history requirement justifies a schema change. At minimum:
+- When a new thread is detected, explicitly reset `resolved` to NULL in the same upsert that replaces the fragment and resets carry count.
+- Keep same-thread captures' resolution behavior explicit: decide whether a new materially changed continuation clears a previous resolution or whether a resolved thread is considered closed and should not be recaptured. Encode that policy in tests.
+- Render the base line according to resolution: unresolved/unknown, resolved, or stalled; do not state "unfinished" unconditionally.
+- Treat resolution as evidence about the exact fragment/version that was evaluated. If the fragment changes, the old result must not silently follow it.
+- Consider a stable thread fingerprint or monotonically increasing thread generation only if needed for audit/replay; do not introduce schema complexity without evidence.
+
+### 6. Required regression tests
+
+1. Capture A, stamp resolved true, capture dissimilar B; assert B has carry_count 1 and resolved NULL.
+2. Repeat with A stamped false; assert B does not inherit false.
+3. Capture same-thread continuation after resolution and assert the chosen policy explicitly.
+4. With carryover enabled, assert resolved text never also says "this thread isn't finished".
+5. With carryover disabled, verify the legacy prompt contract is intentionally specified.
+6. Verify old/stale rows remain silent after 30 minutes and exhausted rows remain silent after the carry limit.
+7. Verify all state transitions through injected Reader/Writer handles, preserving the one-pen persistence model.
+
+### Research conclusion
+
+The anti-rut design has a good core: similarity-based carry counting, a three-carry limit and a 30-minute expiry directly address a previously observed self-reinforcing loop. But the singleton row combines current-thread content with a resolution field whose value is not reset when the thread changes. This creates a specific stale-outcome inheritance bug and a contradictory prompt clause. Fixing the lifecycle is safer than changing carry thresholds or removing continuity. No runtime code, database schema, feature flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. No tests were run in this study.
+
+**Source anchors inspected at main:** `theory_x/stage_tom/momentum.py` blob `45d0249fe445871ebb2bfbcdb2da6e131a229e18`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `tests/test_momentum_writer.py` blob `fdbab169457a9ebe8c3c451c69b635e200127bd6`.
+
+**Host/runtime unknowns:** whether `NEX5_CARRYOVER` is enabled on any deployment; actual momentum row contents; frequency of distinct-thread transitions after a resolution stamp; live database state.
+
+## 88. Momentum call-site sequencing: capture, persistence and outcome stamping (28 November 2026)
+
+**Question studied:** does the momentum lifecycle finding survive inspection of the full Fountain call sequence, or is it corrected by a later stage?
+
+### Actual ordering in Fountain
+
+The inspected `generator.py` path performs these operations in this order:
+1. Optional HOT observation is written.
+2. If `NEX5_MOMENTUM` is enabled (default "1"), `capture_momentum()` stores the generated thought and selected carry branch.
+3. The Fountain event pair and downstream attribution/crystallization work proceed.
+4. If `NEX5_CARRYOVER=1` and the generator is not stopping, `stamp_resolution(bool(crystallized_id))` stamps the outcome onto the current momentum row.
+
+The narrative prompt assembly reads momentum earlier in the generation path, so it consumes the prior fire's state. The end-of-fire capture and optional outcome stamp prepare the state for a later fire.
+
+### Revised interpretation of section 87
+
+The stale-resolution issue is real at the `capture_momentum()` function boundary, because the upsert replaces the thread but omits `resolved`. However, a successful ordinary Fountain cycle with `NEX5_CARRYOVER=1` will normally call `stamp_resolution()` later in that same fire and overwrite the inherited result before the next fire reads it.
+
+Therefore it would be inaccurate to claim that every normal feature-enabled full cycle necessarily exposes stale resolution to the next prompt. The edge cases that still merit direct testing are:
+- direct use of `capture_momentum()` without a subsequent stamp;
+- a prior resolved row surviving while carryover is disabled, then the flag being enabled later;
+- capture succeeds but the later stamp is skipped by shutdown or fails;
+- capture rejects the new thought (for example, fewer than six words), but the later stamp still runs and may stamp the prior row with the current fire's outcome;
+- exception and writer-failure paths where capture/stamp do not complete as a pair.
+
+The short-thought case is especially important: `capture_momentum()` returns false before replacing the old row, while the generator does not inspect that return value before the later `stamp_resolution()` call. Thus the outcome stamp can refer to the old momentum thread rather than the current thought.
+
+### Revised recommendation
+
+Do not treat the function-level finding as proof of a routine production failure. Test the whole transaction boundary. A robust design would make the thread identity explicit and ensure that outcome stamping is conditional on a successful capture of the same thread identity in the current fire. At minimum, reset `resolved` when a distinct thread is stored and make the generator check capture success before stamping. If adding a thread identifier is too invasive, a local success boolean plus a stable fragment/version check may be sufficient; choose only after examining the writer contract and concurrency assumptions.
+
+Tests should exercise the generator ordering, not just isolated helpers: successful capture + stamp; failed/short capture + attempted stamp; shutdown between capture and stamp; stamp exception; feature flag off/on transition; and next-fire read. Assert that an outcome is never attached to a different fragment.
+
+### Research conclusion
+
+The right lesson is not "momentum is broken". The design already separates capture from later outcome evaluation, and the normal enabled path attempts to pair them. The weakness is that the pair is not explicitly bound by a thread identity or capture-success token. This is a lifecycle-integrity and edge-case problem, best solved with transaction-aware tests and explicit association—not by removing continuity or changing its thresholds. No runtime code, database schema, feature flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. No tests were run in this study.
+
+**Source anchors inspected at main:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/momentum.py` blob `45d0249fe445871ebb2bfbcdb2da6e131a229e18`; `tests/test_momentum_writer.py` blob `fdbab169457a9ebe8c3c451c69b635e200127bd6`.
+
+**Host/runtime unknowns:** actual `NEX5_MOMENTUM` and `NEX5_CARRYOVER` settings; stop timing and writer failure rates; actual short-thought rate; current deployed momentum row.
+
+## 89. Self-model aggregation: bounded time window, unbounded row scan (28 November 2026)
+
+**Question studied:** is the prompt-injected self-model computationally bounded in both time and work, or only by a lookback window?
+
+### Source behavior
+
+The active Stage-TOM SelfNarrative calls `aggregate_self_model(beliefs_db)` during narrative construction. The aggregator:
+- uses a default 24-hour lookback;
+- queries all `beliefs` rows where `source='hot_observer'` and `created_at > cutoff`;
+- orders newest first but has no SQL `LIMIT`;
+- fetches the entire result set into memory;
+- returns no summary until at least five rows exist;
+- scans every fetched row to count template/grounded observations and per-branch rates.
+
+The HOT observer currently attempts one write every third eligible call, using process-local counter state. This reduces write volume but is not a hard work bound: restart behavior resets the counter, and the actual eligible fire rate is host/runtime-dependent.
+
+### What is bounded and what is not
+
+The 24-hour predicate is a semantic time window, not a strict maximum row count. If NEX runs at higher fire rates, or multiple producers write HOT observations, the aggregator's query and Python loop grow with the number of rows in that window. The prompt output itself is short (a few summary sentences), but the work required to produce it is proportional to the full row count.
+
+No evidence was found in the inspected aggregator source of a row cap, pagination, incremental roll-up or cached aggregate. The database index coverage for the exact `source + created_at` predicate was not established by this inspection and remains unknown.
+
+This is a potential scaling/latency concern, not proof of a current performance failure. At the documented design rate of one observation per three eligible calls, the expected daily row count may be modest; actual host rate is unknown.
+
+### Reuse-first design direction
+
+Before introducing a cache or summary table:
+1. Measure actual HOT rows per 24 hours, query latency, returned row count and aggregation time.
+2. Inspect the beliefs schema/indexes for the exact predicate.
+3. Add a deterministic row-count/latency benchmark at realistic and adversarial volumes.
+4. If a hard cap is needed, define the statistical semantics first. A simple newest-N limit changes the denominator and can bias branch comparisons; use explicit windowed sampling or incremental sufficient statistics only if they preserve the intended interpretation.
+5. Keep the natural-language summary bounded and provenance-aware: observation count, lookback, cutoff and any sampling method should be visible or auditable.
+6. Preserve the minimum-five-observations rule and ensure branch rates still require at least three classified observations.
+
+A possible first implementation may be a bounded read with an explicit sample/aggregation contract, but it should not be chosen until measurement shows whether the current 24-hour scan is actually costly.
+
+### Test coverage boundary
+
+The inspected tests include broad self-model and behavioural-propagation tests, but the repository tree did not expose a dedicated test module named for `self_model_aggregator`. This is not proof that no indirect coverage exists. Add direct tests for empty/under-five samples, exact 24-hour cutoff, high-volume windows, unknown/unclassified observation text, branch minimum counts, deterministic ordering and output provenance.
+
+### Research conclusion
+
+The self-model aggregator has a bounded temporal horizon and a bounded textual output, but no explicit row/work budget. The next responsible step is to measure row volume and query cost, then preserve statistical meaning if a cap is introduced. Do not mistake a time filter for a computational bound. No runtime code, schema, indexes, feature flags, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. No tests were run in this study.
+
+**Source anchors inspected at main:** `theory_x/stage_tom/self_model_aggregator.py` blob `f05a03e8450c05bc92975bb668feb4baa7220488`; `theory_x/stage_tom/self_narrative.py` blob `5fbc617fadc177ade59b45acf118b77c43ef2e84`; `theory_x/stage_tom/hot_observer.py` blob `67ca7e3662ec15a05072544500761822471d43fb`; `tests/test_behavioural_self_model_propagation.py` blob `991f1766d003d94d21fcc8bdf73214a1e8d2de15`; `tests/test_self_model.py` blob `70817f1ba5aa371ee7f008967b45c16f27d6380d`.
+
+**Host/runtime unknowns:** actual HOT observer write rate, 24-hour row volume, query plan/index use, aggregation latency, and whether multiple processes write HOT observations to the same beliefs database.
+
+
+## 90. Belief formation, promotion, revision and prompt selection: separate the signals (28 November 2026)
+
+**Question studied:** does NEX distinguish a belief's origin, confidence, corroboration, promotion, repeated use, contradiction and prompt exposure—or collapse them into one undifferentiated notion of "knowing"?
+
+### 90.1 The belief record carries several different dimensions
+
+The canonical beliefs schema stores content, tier, confidence, created_at, promotion/demotion timestamps and promotion_log, source, source_stream, source_kind, branch_id, locked, paused, corroboration_count, last_referenced_at, reinforce_count, use_count and erosion_stage. It also defines typed belief_edges: supports, opposes, synthesises, cross_domain and refines.
+
+These fields are not interchangeable:
+- **Origin/provenance** answers who or what produced the row, and what kind of source it came from.
+- **Confidence** is a numeric signal used directly by retrieval.
+- **Tier** is an ordinal lifecycle/strength category used by promotion, decay and retrieval eligibility.
+- **Corroboration count** is a counter used by a tier-promotion rule.
+- **Use/reinforcement** record different kinds of interaction.
+- **Edges** represent typed relationships between belief rows.
+- **Paused/locked** alter eligibility or mutability.
+
+The schema therefore supports a richer lifecycle than a single scalar "belief strength." Any future unification must preserve these distinctions rather than flatten them.
+
+### 90.2 Confidence controls retrieval, while tier promotion follows a different path
+
+BeliefRetriever.retrieve() currently admits rows with tier <= 6, paused = 0, and (locked = 1 OR confidence >= 0.15). Keyword relevance is multiplied by confidence. The isolated Stage-5 pathway audit built a throwaway database from the real schema and exercised the real retriever: an unlocked 0.10-confidence matching belief was excluded, the same belief at 0.50 was admitted, and equally matching 0.90/0.30 beliefs ranked in that order. This is isolated mechanism evidence, not confirmation of the live population or deployment.
+
+BeliefPromoter.corroborate() is a separate mechanism. It increments corroboration_count transactionally and promotes a tier when the configured threshold for that tier is reached. It stamps last_promoted_at and appends an event to promotion_log; the promotion itself does not directly increase confidence. survive_challenge() also has a tier-promotion path, while decisive_contradiction() demotes by two tiers and records the demotion. decay_pass() demotes idle unlocked Tier 5–7 beliefs based on COALESCE(last_referenced_at, created_at) and the configured idle window.
+
+Therefore, **tier promotion is not proof that confidence was independently recalibrated**, and confidence changes are not the same thing as promotion. Keep both event histories explicit.
+
+### 90.3 Repeated reinforcement can change confidence—but through provenance erosion
+
+ProvenanceErosion advances an unprotected, unlocked belief through external → nex_absorbed → nex_integrated → nex_core when its reinforce_count reaches 10, 30 and 80 respectively. Each stage transition resets the reinforcement counter and adds 0.02 to confidence, capped at 1.0. record_use() increments use_count; it does not itself apply the confidence increment. In the inspected corroborate() path, a successful tier promotion calls record_reinforce() after the promotion transaction commits.
+
+This is a meaningful distinction: confidence can rise through an assimilation/reinforcement lifecycle, not only through new external evidence. The code's name "erosion" describes provenance becoming internalised; it must not be interpreted as a truth-verification score. A belief becoming more "NEX-owned" is not, by itself, evidence that its proposition is more accurate.
+
+### 90.4 Contradiction handling is multi-stage, not immediate truth adjudication
+
+The Harmonizer's first paradox pass writes an opposes edge and records a paradox event without immediately pausing or retiring either belief. Escalated resolution after an incubation interval pauses both beliefs, then follows the configured resolution path: held tension when its feature flag is enabled, otherwise synthesis/retirement logic. The promoter's decisive-contradiction path demotes a belief by two tiers; the decay path separately demotes on inactivity.
+
+These mechanisms show that NEX has machinery for preserving conflict and changing belief status. They do not establish that every contradiction is detected, that every opposes edge is semantically correct, or that the system has a universal evidence-adjudication procedure. The live feature flags and actual conflict-resolution outcomes remain host/runtime unknowns.
+
+### 90.5 A prompt-selection label is stronger than the actual query
+
+theory_x/stage_tom/self_narrative.py::_recent_t6() is documented as returning the "most recently promoted T6 deep beliefs." The actual query selects rows where tier=6, orders by created_at DESC, and considers up to n * 4 candidates before returning at most three. It does not order by last_promoted_at or consult promotion_log.
+
+Consequently, the selection is most-recently-created among current Tier-6 candidates, not most-recently-promoted. A belief promoted to Tier 6 long after creation can be missed in favour of a newer-created belief that has been Tier 6 all along. This is a concrete semantic mismatch between the docstring and query. It is not proof that the current prompt is harmful, but it means prompt continuity can be based on the wrong temporal notion.
+
+**Reuse-first correction direction:** decide whether the narrative wants "recently created", "recently promoted", or "recently changed"; then make the query and tests express that exact concept. If promotion recency is intended, order by last_promoted_at with an explicit NULL policy and stable tie-breaker, and test promotion-after-creation, null timestamps, demotion/re-promotion, paused/tombstoned candidates, and the bounded candidate scan. Do not change the query until that semantic choice is explicit.
+
+### 90.6 The missing distinction: evidence quality versus reinforcement history
+
+The inspected schema and pathways provide provenance, typed relations, confidence, tier transitions, reinforcement and contradiction handling. They do not, in the inspected pathway, amount to a single calibrated evidence ledger that records for each proposition:
+- the exact supporting or opposing observations and their source identities;
+- whether sources are independent or merely repeated copies;
+- observation time versus ingestion time;
+- the prediction or condition that would falsify the proposition;
+- how much each observation changed confidence, and why;
+- whether a later observation is genuinely new evidence or merely reuse/retrieval of an existing belief.
+
+The typed edge graph can express supports and opposes, and source-kind stamping can classify origin, but these are not by themselves a proof of independent corroboration or calibrated probability. The Stage-4 audit also records provenance completeness as host-only unknown. Avoid describing NEX as having fully evidence-grounded belief revision until that gap is measured and tested.
+
+### 90.7 Development direction: preserve a traceable belief state machine
+
+Before adding another belief engine or schema:
+1. Map every producer and updater to the existing fields and event log; distinguish creation, source stamping, corroboration, challenge survival, decay, contradiction, pause, synthesis, retirement and provenance erosion.
+2. Define a proposition-level evidence event as a candidate design, not a new authority: stable belief identity, observation identity, source/provenance, support/opposition relation, independence group, event time, ingestion time, and rationale.
+3. Keep confidence calibration separate from tier promotion and provenance assimilation. Any confidence update should state which evidence event caused it and whether the event is independent.
+4. Make prompt selection semantics explicit: created, promoted, revised, referenced, or recently supported are different questions.
+5. Test counter-evidence and revision symmetrically with reinforcement; include repeated identical sources, copied content, delayed observations, conflicting evidence, and replay/idempotency.
+6. Measure actual source-kind completeness and live promotion/revision distributions only through the authorised host-side read-only gate. Do not infer live operation from source presence or isolated fixtures.
+
+### Research conclusion
+
+NEX already has distinct mechanisms for provenance, retrieval confidence, tier promotion/demotion, reinforcement-based assimilation, contradiction edges and prompt-level belief selection. The important design risk is not that these mechanisms are absent; it is that their meanings can be conflated. The clearest source-level mismatch found in this pass is _recent_t6() calling its result "most recently promoted" while ordering by creation time. The deeper architectural opportunity is a traceable, proposition-centred evidence history that separates independent evidence from repeated reinforcement and separates truth confidence from internal ownership.
+
+No runtime code, database schema, indexes, feature flags, tests, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. This was source research and manual documentation only; no tests were run in this study.
+
+**Source anchors inspected at main:** substrate/schema/beliefs.sql blob 44a3f95dbf4c522d84dd030c9c825afffe760b6b; substrate/source_kind.py blob 11b052d529defefecd16caafae5b95a3b251c0f0; theory_x/stage3_world_model/retrieval.py blob aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3; theory_x/stage3_world_model/promotion.py blob 035f89c34d0bd9391bc531107f7689f14a529042; theory_x/stage3_world_model/erosion.py blob 93a80b9105d7510c58f793e40cecbb1364832d5b; theory_x/stage3_world_model/harmonizer.py blob e72008ec21ad91e20cbdcfc73bacf14263e34382; theory_x/stage_tom/self_narrative.py blob 5fbc617fadc177ade59b45acf118b77c43ef2e84; tests/test_belief_confidence_retrieval_pathway.py blob b2505f2494db8fcd2453f7f5ee28184906e83daa; tests/test_promotion_atomicity.py blob 503cfb9f130391245a2b99746080cf3ae3c5cfd7; tests/test_erosion.py blob 530191ab3252a632ec077eaed8988ae5a4819357; tests/test_source_kind.py blob d54ea4cb30b8d8315b1e3f34903f6088198c5374.
+
+**Host/runtime unknowns:** live source-kind completeness; active confidence/tier distributions; which producers and promotion/contradiction loops are firing; feature flags governing semantic retrieval, tier climb, held tension and related pathways; whether the live prompt is using this Stage-TOM narrative; and whether the source-level selection mismatch is currently exercised.
+
+
+## 91. Corroboration provenance: similarity is not source independence (28 November 2026)
+
+**Question studied:** what exactly increments a belief's corroboration count, and does the mechanism distinguish independent evidence from repeated, related or self-generated signals?
+
+### 91.1 Two observed routes call the same corroboration counter
+
+The Stage-3 PipelineHooks route is registered as the DynamicState pipeline hook and is called after step F. It ignores events below magnitude 0.6, forms query tokens from sensation_source and branch_id, scans a bounded set of recent eligible beliefs, and calls BeliefPromoter.corroborate() when token overlap reaches 0.7. The default candidate scan is the 50 newest unlocked, unpaused beliefs through Tier 7. With NEX5_TIER_CLIMB=1, it additionally considers up to 500 Tier-6 rows.
+
+The WorldConsolidator route is separate and dark unless NEX5_WORLD_CONSOLIDATE=1 (dry/report modes do not arm writes). It samples a bounded recent Tier-7 window, filters apparent world beliefs, embeds and clusters them by cosine similarity, then calls corroborate() on eligible cluster members, subject to a maximum of three promotions per run. The inspected code does not attach a distinct observation/source identity to each corroboration call.
+
+Both routes therefore feed the same corroboration_count and tier-promotion mechanism, but their triggering evidence is not equivalent:
+- PipelineHooks uses a high-magnitude event plus lexical overlap with a stored belief.
+- WorldConsolidator uses similarity among stored beliefs in a cluster.
+- Neither call signature passes an explicit independent-source group, observation identity or evidence-event record into corroborate().
+
+This does not prove that the current system double-counts a particular event or that these routes are both enabled. It establishes that the shared counter itself does not enforce source independence.
+
+### 91.2 Why this matters
+
+A threshold such as three, five or eight corroborations is only meaningful as an evidence threshold if the counted events have a defined relationship to independent observations. If several events derive from one upstream feed, or several clustered beliefs are paraphrases/copies of one source, the counter can rise without the same number of independent confirmations.
+
+The opposite risk also exists: overly strict deduplication could discard genuinely independent observations that happen to share content. Independence therefore cannot be inferred from text similarity alone. It needs source lineage and event identity.
+
+The source_kind trigger classifies each belief's broad origin (authored, self, seeded, world, other_mind or received), and source_stream can preserve a sense-stream identity. Those fields are valuable foundations, but a broad kind such as world does not identify a particular feed, publisher, upstream event or copied source chain. Nor does source_kind by itself prove that two records are independent.
+
+### 91.3 The current promotion threshold is tier-dependent, not evidence-calibrated
+
+The current corroboration thresholds are Tier 7→6: 3; Tier 6→5: 5; Tier 5→4: 8; Tier 4→3: 12; Tier 3→2: 20. Tier 2→1 is reserved for reseed ceremony. The atomicity tests verify that concurrent calls do not lose increments and that threshold crossing promotes exactly once. That is a concurrency guarantee, not a guarantee that the increments represent independent evidence.
+
+The promotion transaction itself increments the counter and records the tier event. After a promotion commits, the code writes a supports edge to a high-overlap peer and may record provenance reinforcement. The edge is a useful relationship record, but it is not a substitute for the source evidence that justified the count.
+
+### 91.4 A safer evidence contract
+
+Reuse the existing source_kind, source_stream, belief_edges and promotion_log before proposing a new subsystem. The next evidence-quality layer should make each corroboration attributable to a stable event:
+- observation/event ID and upstream source identity;
+- source lineage or copy/derivation group;
+- source_kind and source_stream where available;
+- time observed and time ingested;
+- target belief ID and support/opposition rationale;
+- whether this event has already contributed to this belief's count;
+- whether it is independent of prior contributing events.
+
+A deduplication key should be deterministic and scoped to the target belief plus evidence event, so replay does not increment twice. Independence groups should be explicit and conservative: unknown lineage remains unknown, not silently independent. Keep the existing tier thresholds unchanged until a measurement study demonstrates what their counts currently mean.
+
+### 91.5 Test and measurement plan
+
+- Unit-test same event replay, distinct events from the same upstream source, independent sources with similar text, copied/paraphrased source material, missing provenance, and source-stream inheritance.
+- Test PipelineHooks with repeated events from one source and distinct source events; assert exactly which events can increment the count.
+- Test WorldConsolidator clusters containing paraphrases from one source versus independently sourced observations; verify cluster membership alone is not labelled independent evidence.
+- Preserve the existing concurrent atomicity tests; add provenance/idempotency tests rather than replacing them.
+- Report raw corroboration count separately from independent-source count and unknown-lineage count. Do not silently reinterpret historical counts as independent evidence.
+- Confirm actual feature flags and producers only through the authorised host-side read-only gate.
+
+### Research conclusion
+
+The existing code has two concrete corroboration feeders and a transactionally safe counter. The counter's concurrency correctness is established by tests, but independence of the counted evidence is not enforced at the shared API boundary. The next meaningful improvement is not a more elaborate promotion formula: it is provenance-aware, replay-safe evidence accounting that makes "five corroborations" mean something inspectable.
+
+No runtime code, database schema, indexes, feature flags, tests, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. This was source research and manual documentation only; no tests were run in this study.
+
+**Source anchors inspected at main:** theory_x/stage3_world_model/pipeline_hooks.py blob 6750bb427ed493a3310d9ea69d0e82207d0d38f1; theory_x/stage3_world_model/world_consolidation.py blob 192550c20c7b8e776dfa55f4f82d80fd4cc7ce69; theory_x/stage3_world_model/promotion.py blob 035f89c34d0bd9391bc531107f7689f14a529042; substrate/source_kind.py blob 11b052d529defefecd16caafae5b95a3b251c0f0; tests/test_promotion_atomicity.py blob 503cfb9f130391245a2b99746080cf3ae3c5cfd7; tests/test_source_kind.py blob d54ea4cb30b8d8315b1e3f34903f6088198c5374.
+
+**Host/runtime unknowns:** NEX5_TIER_CLIMB, NEX5_WORLD_CONSOLIDATE and related flags; actual PipelineHooks event/source mix; whether WorldConsolidator is armed; upstream lineage quality; number of distinct independent sources represented by historical corroboration counts; and live promotion rates by source kind.
+
+
+## 92. SelfNarrative belief injection: a second path can bypass retrieval eligibility (28 November 2026)
+
+**Question studied:** does the prompt's "What has consolidated deeply" section obey the same eligibility rules as ordinary belief retrieval?
+
+### Source behavior
+
+The ordinary BeliefRetriever explicitly filters for tier <= 6, paused = 0, and (locked = 1 OR confidence >= 0.15). Its docstring states those filters, and the SQL enforces them before scoring.
+
+The Stage-TOM SelfNarrative has a separate direct query in _recent_t6(). It selects content from beliefs where tier=6, orders by created_at DESC, and considers a bounded candidate set (n * 4) before returning at most n results. It does not filter paused, confidence, locked, or erosion_stage. build_narrative() then inserts up to two of those results under "What has consolidated deeply" whenever the narrative is built.
+
+This is a distinct prompt-injection path; it does not call BeliefRetriever and does not inherit its eligibility contract.
+
+### Consequence
+
+A Tier-6 belief that is paused by the Harmonizer can still be selected by _recent_t6() and inserted into SelfNarrative. Likewise, an unlocked Tier-6 belief below the ordinary retrieval confidence floor can be included. The direct query therefore has a wider eligibility set than ordinary retrieval.
+
+This is a source-level possibility, not evidence that a specific paused or low-confidence belief has actually appeared in a live prompt. The path is also conditional on SelfNarrative being enabled and on at least one substantive fire existing, because build_narrative() returns None when there are no fires.
+
+The mismatch matters because pausing is a deliberate state change in the contradiction-resolution lifecycle. If a belief is paused to prevent ordinary retrieval while a conflict is being resolved, a separate prompt path should not silently reintroduce it as a settled deep belief.
+
+### Reuse-first direction
+
+Do not duplicate a second definition of belief eligibility. Prefer one shared read-only eligibility predicate/query contract used by ordinary retrieval and narrative selection, with explicit exceptions documented where they are genuinely intended. Before changing the query, decide whether SelfNarrative is intended to include:
+- only beliefs eligible for ordinary retrieval;
+- paused beliefs as explicit unresolved tensions, labelled as such;
+- low-confidence candidates as hypotheses, clearly distinguished from established beliefs.
+
+If unresolved tensions should remain visible, they should be rendered in a separate, explicitly qualified section—not silently placed under "What has consolidated deeply."
+
+### Tests required
+
+Add direct tests for the active Stage-TOM module, not just the older separate Stage-SelfNarrative implementation:
+- paused Tier-6 belief is excluded from the "deeply consolidated" section, or appears only in a dedicated unresolved-tension section;
+- unlocked confidence 0.149 versus 0.150 boundary;
+- locked low-confidence behavior if ordinary retrieval eligibility is the intended shared contract;
+- Tier-6 creation-time ordering and the separate promotion-time semantic question from §90;
+- no substantive fires returns None and performs no prompt injection;
+- stable ordering and bounded candidate selection;
+- prompt provenance identifies whether each line came from ordinary retrieval, recent creation, promotion, or unresolved tension.
+
+The repository tree contains tests/test_self_narrative.py for the older Stage-SelfNarrative path, while the active Stage-TOM implementation is theory_x/stage_tom/self_narrative.py. Do not treat the older test module as coverage of this direct Stage-TOM query. This inspection did not establish a dedicated direct test module for the active path; indirect coverage may still exist.
+
+### Research conclusion
+
+NEX has two belief-to-prompt routes with different eligibility contracts. The ordinary retriever excludes paused beliefs and applies a confidence floor; Stage-TOM SelfNarrative's direct Tier-6 query does neither. The safest next step is to define a shared eligibility contract and explicitly model unresolved tensions, then test the active prompt path. No runtime code, database schema, indexes, feature flags, tests, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. This was source research and manual documentation only; no tests were run in this study.
+
+**Source anchors inspected at main:** theory_x/stage3_world_model/retrieval.py blob aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3; theory_x/stage_tom/self_narrative.py blob 5fbc617fadc177ade59b45acf118b77c43ef2e84; theory_x/stage3_world_model/harmonizer.py blob e72008ec21ad91e20cbdcfc73bacf14263e34382; tests/test_self_narrative.py (older Stage-SelfNarrative test path; blob SHA to be resolved if exact test evidence is later needed).
+
+**Host/runtime unknowns:** NEX5_SELF_NARRATIVE setting; whether this Stage-TOM narrative is used in the live generator; live Tier-6 paused/low-confidence population; whether any such rows have entered prompts; and actual Harmonizer resolution flags/outcomes.
+
+
+## 93. Reification retrieval override: current-main eligibility and test gap (28 November 2026)
+
+**Question studied:** does the special `reification_recognition` inclusion path preserve the ordinary belief-eligibility and membrane boundaries, and is the word “always” in its comment an accurate description of the resulting retrieval?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. This is a static source/test/PR comparison. No host, live database, feature flag or runtime was inspected.
+
+### Current source path
+
+In `theory_x/stage3_world_model/retrieval.py`, the ordinary candidate query applies:
+
+- `tier <= 6`;
+- `paused = 0`;
+- `locked = 1 OR confidence >= 0.15`.
+
+It does **not** currently include `erosion_stage != 'retired'` in the mainline query.
+
+When `side_filter == "INSIDE"`, the normal candidate rows are first passed through the membrane classifier. After that filtering, the code performs a separate lookup for `source = 'reification_recognition'` and appends the row if its ID is not already present. That second lookup currently has no tier, paused, confidence, retirement or membrane-classification predicate. It can therefore reintroduce a row that the ordinary query would exclude, and it is appended after the membrane side filter has already run.
+
+This is a source-level eligibility bypass, not evidence that a particular inactive row is present in a live prompt. It is also important not to overstate the comment “Always include”: after the row is appended, it still enters the ordinary scoring/selection path. With query tokens, zero-overlap candidates are dropped unless the optional semantic fallback admits them; with an empty-token query, the appended row is still subject to the final `rows[:limit]` slice. The special path is an extra candidate opportunity, not a guaranteed final result.
+
+### Independent test coverage
+
+- `tests/test_belief_confidence_retrieval_pathway.py` builds an isolated database from the real schema and tests the ordinary retriever's confidence floor, locked exception, paused exclusion and tier ceiling. It does not exercise `side_filter="INSIDE"` or the reification override.
+- The mainline `tests/test_retrieval.py` exercises FountainGenerator's own-content/seed context path; it does not currently contain the reification-override regression tests.
+- PR **#117 — Apply eligibility to reification retrieval override** contains the targeted tests and a proposed source correction. Its head `1dd1985f797bb218dd2aa10d077c092589ac6e63` passed workflow `45803079139` (1,611 passed, 5 skipped, 30 subtests), but the PR remains **open and draft**, based on the older `claude/nex-continuity-wire` commit `de93134f34adac07a3a41c2a05b33720510a2bfc`, not current main `18c8f06171e1de35c3210831a49b63d0e2487af0`. The commit graph is diverged: the #117 branch is 7 commits ahead and 1,016 behind current main, with merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. Its green run is not current-main validation and its changes are not present on current main.
+
+PR #117 proposes to add `tier < 8`, `paused = 0` and `erosion_stage != 'retired'` to the special lookup, and to exclude retired-marker rows from the ordinary pool. It does not add the ordinary confidence-floor condition to the special lookup. That remaining difference must be an explicit policy decision: should reification recognition be a deliberate confidence-floor exception, or should the same eligibility contract apply? Do not silently assume either.
+
+### Consequence and bounded disposition
+
+There are two separate issues to keep distinct:
+
+1. **Eligibility integrity:** the special candidate lookup currently bypasses ordinary active-state checks and the membrane classifier; the main pool also lacks the independent retired-marker predicate.
+2. **Selection semantics:** the comment promises “always include,” but scoring, zero-overlap handling and the result limit can still omit the candidate.
+
+The safest next step is a current-main replay of #117's targeted tests and narrowly scoped filters, but only after the owner confirms the intended treatment of reification beliefs and whether the confidence floor is an exception. Add tests for paused, Tier-8, lower-tier retired, low-confidence, membrane-side mismatch, zero-overlap, empty-query and limit-boundary cases. Keep “eligible candidate” distinct from “selected result” in test names and documentation.
+
+**Disposition:** verified current-main source gap; proposed correction remains unmerged and stale-base. No code, test, schema, index, flag, retrieval policy, mind-map authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or runtime state was changed in this study. No tests were run for this documentation pass.
+
+**Source anchors inspected:** `theory_x/stage3_world_model/retrieval.py` blob `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3`; `tests/test_belief_confidence_retrieval_pathway.py` blob `b2505f2494db8fcd2453f7f5ee28184906e83daa`; current-main `tests/test_retrieval.py` blob `efd27b50c3cdc5ef64769fefcbb5529cc44ea90e`; PR #117 diff and metadata; exact-head workflow `45803079139`.
+
+**Host/runtime unknowns:** effective `NEX5_SELF_NARRATIVE` and retrieval flags; whether INSIDE self-inquiry calls occur in the deployed process; live reification row tier/pause/confidence/retirement state; actual membrane classification of that row; whether it has been selected into any prompt; and whether the draft #117 fix is intentionally superseded or simply awaiting a current-main replay.
+
+
+## 94. Held-tension prompt injection depends on a separate paradox counter (28 November 2026)
+
+**Question studied:** when the optional held-tension path preserves contradictory beliefs, does the INSIDE chat route reliably surface the explicit tension description, independently of the historical paradox counter?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and fixture-test review only; no host/runtime flags or live databases were inspected.
+
+### Lifecycle observed in source
+
+- `mark_paradox()` writes an `opposes` edge and a `harmonizer_events` row with resolution `paradox`. It explicitly does not pause or retire either belief.
+- After the incubation interval, `resolve()` transiently sets both beliefs to `paused=1`.
+- With `NEX5_HELD_TENSION` unset (the source default), the ordinary resolution path either synthesizes or retires both originals. The retirement updates set `tier=8` and `paused=0`.
+- With `NEX5_HELD_TENSION=1`, `_hold_as_tension()` instead unpauses both beliefs, preserves their original content and tier, and writes an unresolved `held_tensions` row. Thus both can again qualify for ordinary retrieval if their tier/confidence otherwise qualifies. The separate `Harmonizer.format_for_prompt()` can render a content-specific “I notice I hold both…” line.
+
+### Caller-level reachability mismatch
+
+The GUI's INSIDE route in `gui/server.py` calls `harmonizer.tick()`, reads `active_paradox`, and only calls `format_for_prompt()` when `active_paradox > 0`.
+
+But `format_for_prompt()` itself checks the open held-tension row first, before consulting the cached paradox count. Its content-specific line therefore does not intrinsically require an active paradox pair; the GUI caller imposes that extra precondition.
+
+The count's meaning depends on `NEX5_HARMONIZER_TENSION_COUNT_FIX`:
+
+- **Flag OFF (source default):** `tick()` counts all historical `resolution='paradox'` events. This can leave `active_paradox > 0` after a pair has been resolved as a held tension, allowing the GUI to reach the content-specific line for the wrong reason. The counter is historical, not a count of currently open paradox pairs.
+- **Flag ON:** `tick()` uses the latest event per pair. Once the latest event is `held_tension`, that pair is no longer an open paradox pair. If no other open paradox pair exists, `active_paradox == 0` and the GUI skips `format_for_prompt()` entirely—even though an unresolved held-tension row exists and the formatter would have returned its content-specific line.
+
+This is a caller/formatter contract mismatch. It means the explicit held-tension narration is not independently reachable from the GUI based on the existence of an open held tension; it is accidentally coupled to a separate paradox-count value.
+
+### Test coverage and disposition
+
+`tests/test_held_tension.py` verifies that the two beliefs survive unpaused, the held-tension row is written, and a direct call to `format_for_prompt()` returns the content-specific line. It does not exercise the GUI caller's `active_paradox > 0` guard. The source-level gap is therefore at the integration boundary, not in the formatter's isolated test.
+
+**Disposition:** verified conditional integration gap; no runtime correction made. A bounded follow-up should add a GUI-level or extracted caller-contract test with (a) an open held tension and zero open paradox pairs, and (b) an open held tension plus unrelated historical paradox events. The eventual caller should gate tension formatting on the existence of a relevant tension signal, not on an unrelated count, while preserving the separate generic paradox summary semantics. Do not alter flag defaults or resolution policy as part of that test.
+
+**Source anchors inspected:** `theory_x/stage3_world_model/harmonizer.py` blob `e72008ec21ad91e20cbdcfc73bacf14263e34382` (mark/resolve/hold, counter and formatter); `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67` (INSIDE caller guard); `tests/test_held_tension.py` blob `7acc6e6d0d98c2f8c252dd74d0a9eda42ec5179a` (direct formatter tests).
+
+**Host/runtime unknowns:** effective `NEX5_HELD_TENSION` and `NEX5_HARMONIZER_TENSION_COUNT_FIX`; whether any unresolved held tensions exist in the deployed database; whether any INSIDE route has attempted to surface them; and the actual prompt-injection frequency. No tests were run in this documentation pass.
+
+No runtime code, test, schema, flag, mind-map authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority was changed.
+
+
+## 95. Per-stream provenance: stamping, ranking and identity-floor audit are separate mechanisms (28 November 2026)
+
+**Question studied:** once NEX stamps each belief with `source_stream` and `source_kind`, where does that provenance actually affect retrieval, prompt composition and identity-claim review?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and fixture-test review only. No host database or runtime state was accessed.
+
+### Three separate mechanisms
+
+**1. Write-time provenance stamping**
+
+`substrate/source_kind.py` defines six origin kinds (`authored`, `self`, `seeded`, `world`, `other_mind`, `received`) and the stream/source mapping. SQLite insert triggers stamp `source_stream` and `source_kind` at the belief write boundary. A verbatim copy can inherit the earliest existing source stream for identical content; absent a stream, the producer name supplies the kind. This makes provenance available even to producers that do not explicitly pass a kind.
+
+The trigger runs only when `NEW.source_kind IS NULL`; an explicitly supplied kind is therefore trusted at insertion. The separate audit can detect some stream/kind disagreements where source-stream evidence exists. The trigger is a metadata-stamping mechanism, not a policy gate.
+
+**2. Downstream ranking and retrieval**
+
+The ordinary `BeliefRetriever.retrieve()` query selects `id, content, tier, confidence, branch_id, source, locked`; it does not select `source_kind` or `source_stream`. Its relevance score is keyword overlap multiplied by confidence, with branch and optional boilerplate adjustments, then optional spreading-activation blending. The provenance kind is not part of this ordinary retriever's eligibility or score.
+
+`NEX5_SOURCE_KIND` is consumed separately by `theory_x/life/affinity_loop.py` to choose provenance bands for affinity scoring. That is a distinct consumer and a separate flag. Do not infer that because source_kind is stamped, every retrieval or prompt pathway uses it.
+
+**3. Identity-floor audit**
+
+`theory_x/stage_tom/source_kind_audit.py::identity_floor()` scans identity-claim fires in `fountain_events`, joins their recorded `fountain_retrieval_log` belief IDs, and checks whether identity-claim beliefs among those retrieved supports are `authored` or `seeded`. It reports violations and sample IDs; `run_and_record()` writes the audit result to `source_kind_audit_log`. The daily-life schedule assigns this housekeeping audit to 03:00 local time.
+
+This is retrospective measurement, not a pre-generation filter: it runs after a fire and records whether the observed retrieved-belief support met the floor. The tests prove that the audit catches a headline carrying an identity claim; they do not show that the audit blocks the prompt or prevents the fire.
+
+### Prompt-source coverage limitation
+
+The Fountain generator has additional identity-related prompt paths:
+
+- `NEX5_IDENTITY_BLOCK` is explicitly default OFF. When enabled, `identity_block.append()` adds a standing floor selected from identity/self-location sources plus optional affinity extras.
+- Separately, the generator reads the latest `identity_log` statement and appends it to the prompt (subject to the identity-ablation arm). This is not a belief row and is not represented as a belief ID in `fountain_retrieval_log`.
+
+Consequently, the identity-floor audit's recorded population is specifically **identity-claim beliefs among logged retrieved belief IDs**. It is not a complete inventory of every identity-bearing prompt component, nor an enforcement boundary over all prompt text. This is a scope limitation, not evidence that the separate identity-log statement is incorrectly sourced; the identity-loop producer and its actual statement provenance need their own source-to-prompt check if a broader claim is desired.
+
+### Research conclusion and next step
+
+NEX now has useful provenance metadata at the write boundary, an optional provenance-aware affinity consumer, and a daily output audit. These are complementary but non-equivalent:
+
+- stamping answers “where did this row come from?”;
+- affinity answers “how does this origin band affect affinity?”;
+- the audit answers “did logged retrieved identity-claim beliefs supporting an identity-claim fire meet the authored/seeded floor?”;
+- none of these, as inspected, establishes a universal provenance gate over every prompt source.
+
+A future design review should first decide whether the identity floor is intended as an observational quality metric or a hard prompt-admission rule. If it is meant to be a hard rule, define its coverage over all relevant prompt sources and place the check before generation, with explicit treatment of identity-log and identity-block material. Do not convert the current nightly audit into an enforcement mechanism by assumption, and do not silently alter the ordinary retriever's ranking.
+
+**Source anchors inspected:** `substrate/source_kind.py` blob `11b052d529defefecd16caafae5b95a3b251c0f0`; `theory_x/stage3_world_model/retrieval.py` blob `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3`; `theory_x/stage_tom/source_kind_audit.py` blob `ac98a6562d9b8247d3ecbcd9610438463340f702`; `theory_x/life/affinity_loop.py` blob `f6567537658be1d7e56ac29c951285f6e70c6b11`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage6_fountain/identity_block.py` blob `d1f710d26f8eeb451ba71ce3b0a5a2dc683697f5`; `theory_x/life/daily_life.py` blob `3325a62b76aeaa50148c92706a0548e8f67448bf`; `tests/test_source_kind.py` blob `d54ea4cb30b8d8315b1e3f34903f6088198c5374`.
+
+**Host/runtime unknowns:** effective `NEX5_SOURCE_KIND` and `NEX5_IDENTITY_BLOCK`; whether daily_life's 03:00 audit runs on the deployed host; live audit results; current identity-log content and producer path; and whether the intended identity floor is observational or a hard prompt-admission requirement. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, indexes, feature flags, identity policy, mind-map authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority was changed.
+
+
+## 96. Fountain own-thought feedback: retrieved candidate, activation touch and rendered prompt are not the same event (28 November 2026)
+
+**Question studied:** when NEX has already crystallized its own thoughts, do those thoughts actually return as words to the next Fountain generation, or are they only selected and touched as activation metadata?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and isolated fixture-test review. No live Fountain process, production database or environment flags were inspected.
+
+### Observed source path
+
+`FountainGenerator._retrieve_context_beliefs()` builds a context candidate set. Its own-content pool includes sources such as `fountain_insight` and `synergized`, selects recent non-retired rows (`tier < 8`), applies per-source/per-branch caps and can optionally use associative recall or edge-weighted re-ranking. Seed material is selected separately.
+
+`_build_prompt()` then:
+
+1. Splits candidates into own content, own sense and seed groups.
+2. Calls `bump_activation()` for every selected context belief when a beliefs Writer is available.
+3. Renders own-sense rows into the prompt as “Things you've been reading about lately”.
+4. Renders seed rows into the prompt as “Things you've read that sometimes come to mind”.
+5. Renders distilled own-content beliefs as words only when `NEX5_OWN_CONTENT_RENDER=1`.
+
+The generator's own comment explicitly records the historical correction: since the removal of raw fountain-event exemplars (commit `ea6fe74`), distilled own thoughts can remain in the retrieved context and activation path without being rendered into prompt text. The opt-in own-content block excludes `hot_observer` and applies first-sentence deduplication before rendering.
+
+### What the activation touch means
+
+`theory_x/substrate/activation.py::bump_activation()` upserts `belief_activation`, adding 1.0 after lazy exponential decay with a 30-minute half-life (and a cap of 10). This is a record that a belief was retrieved into a Fountain context. It is not, by itself, proof that its words were presented to the language model, nor proof that it changed the resulting thought.
+
+This distinction matters because the current path can select a distilled belief, touch its activation record, and still omit its text from the prompt when the render flag is unset. Conversely, own-sense and seed entries have explicit text-rendering paths. The retrieval manifest records prompt slots; do not treat every candidate or every activation touch as a rendered prompt item.
+
+### Independent test evidence
+
+`tests/test_retrieval.py` contains three relevant characterizations:
+
+- `test_build_prompt_includes_own_content_section`: with `NEX5_OWN_CONTENT_RENDER=1`, the section and the inserted belief's text appear.
+- `test_build_prompt_default_off_skips_own_content`: with the flag unset, an available `fountain_insight` belief does not produce the “Some of what you've been thinking recently” section.
+- `test_own_content_dominates_retrieval`: own-content beliefs can dominate the selected candidate set over seed material.
+
+This is not an accidental inference from an absent block: the default-off behaviour is explicitly pinned by a test. The feature remains opt-in. The prior Bonsai-to-Fountain/Global Workspace characterization demonstrates a separate attention-state route into branch choice and workspace framing; it does not establish that distilled own-thought words are rendered by default.
+
+### Causal interpretation and bounded next experiment
+
+The current source supports three different claims, which must not be collapsed:
+
+- **Candidate continuity:** the generator can select its previously crystallized thoughts.
+- **Activation continuity:** selected beliefs can receive a decaying activation touch.
+- **Verbal continuity:** those thoughts become text in the next generation prompt only under the explicit render flag (or through some other separately evidenced prompt source).
+
+Therefore, “the thought was retrieved” is not enough to claim “the thought was fed back into the next thought”. The default configuration preserves a gap between candidate/activation continuity and direct verbal self-feedback.
+
+The next safe experiment is a controlled, isolated A/B replay, not a production flag change: hold candidate IDs, ordering, model request settings, branch/workspace state and all other prompt blocks constant; compare default-off against the own-content render path; record exact prompt inclusion, retrieval-manifest slots, output similarity/relevance, repeated-phrase rate, and whether the generated result later crystallizes and is retrieved again. Include a no-own-content negative control and a deliberately unrelated own-belief control. Use multiple paired seeds/fires, preregister outcome measures and stop criteria, and inspect for self-reinforcing repetition or groove amplification. The source's own deduplication is a guard, not evidence that the feedback is beneficial.
+
+Do not enable `NEX5_OWN_CONTENT_RENDER` in production on the strength of this source review. First establish the paired effect and ensure the test isolates textual feedback from activation, candidate selection, Bonsai branch choice and Global Workspace arbitration.
+
+**Source anchors inspected:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51` (candidate retrieval, activation touch, own-sense/seed rendering and opt-in own-content rendering); `theory_x/substrate/activation.py` blob `16a8e4265b9280a04cbfe038b8e58d1c36698b25` (30-minute activation record); `tests/test_retrieval.py` blob `efd27b50c3cdc5ef64769fefcbb5529cc44ea90e` (default-off and opt-in fixture tests); `theory_x/stage3_world_model/retrieval.py` blob `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3` (separate query retriever and spreading activation path); `research/NEX_BONSAI_FOUNTAIN_WORKSPACE_TRACE_2026-11-28.md` blob `2e0b856b3cadd1c2c3e2152a5be865492f9447cb` (Bonsai attention consumers and fixture limits).
+
+**Host/runtime unknowns:** effective `NEX5_OWN_CONTENT_RENDER`, `NEX5_ASSOC_RECALL`, `NEX5_EDGE_WEIGHTED_FOUNTAIN`, `NEX5_GLOBAL_WORKSPACE` and other relevant prompt flags; which own-content sources are selected in actual fires; whether their text is rendered by any other independent prompt block; current activation distribution; and whether a paired replay has a positive, neutral or harmful behavioural effect. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
+
+
+
+## 97. Substrate retrieval activation: attention record, sidecar rendering and opt-in emission are distinct (28 November 2026)
+
+**Question studied:** does the activation touch written when Fountain retrieves its own thoughts feed back into ordinary retrieval or subsequent generation, or do they only create an auxiliary attention record?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source review and test-file inspection only. No live process, production database, host environment or feature flags were inspected.
+
+### First distinction: two mechanisms both called activation
+
+The ordinary world-model retriever uses `theory_x/stage3_world_model/activation.py::ActivationEngine`. It spreads scores from the current query's top keyword seeds through `belief_edges`, computes an epistemic-temperature summary and supplies normalized scores to `BeliefRetriever.retrieve()`. When scores exist, the retrieval blend is `keyword * 0.4 + spreading_activation * 0.6`; otherwise it falls back to keyword scoring. This is query-local graph spreading, not the persistent `belief_activation` table.
+
+The Fountain context builder separately calls `theory_x/substrate/activation.py::bump_activation()` for each selected context belief. That function writes/upserts `belief_activation`, adding 1.0 after lazy exponential decay (30-minute half-life, cap 10). Its module docstring defines this as how recently/frequently a belief was retrieved into a Fountain prompt. This is a persistent retrieval-history/recency signal; it is not the same calculation as query-local spreading activation.
+
+### Where the persistent activation is consumed
+
+The inspected production call sites in `theory_x/stage6_fountain/generator.py` show two distinct downstream paths:
+
+1. **Optional hot-belief emission:** when `NEX5_SUBSTRATE_EMIT=1`, the generator calls `get_top_activated(..., n=4)`, formats the four highest effective-activation belief contents into a `[substrate emit]` thought, marks the candidate as `fresh_model_generation: False`, and sets it as the thought output. This is a real output-selection route, but it is explicitly environment-gated and the source comment labels it default OFF. It is not evidence that the beliefs were inserted into a language-model prompt or that a new model-generated thought causally incorporated them.
+
+2. **Periodic parallel substrate fire:** on the main path, every fifth-fire schedule condition (`_total_fires % 5 == 1`) runs when the beliefs Writer exists. It calls `render_substrate_fire()`, reads the top activated belief, and persists the rendered output plus the top belief ID/activation value to the dynamic database's `substrate_fires` table. This is a separate sidecar/parallel output path. It is not guarded by `NEX5_SUBSTRATE_EMIT`; it is also not shown by the inspected call site to be inserted into the next Fountain prompt.
+
+`theory_x/substrate/renderer.py` confirms that the sidecar is template-rendered without an LLM: it reports the most activated belief, up to three connected beliefs, and the latest recent synergy result. The old open-arcs prompt block remains commented out with an explicit historical note about a repetition regression. Thus the renderer's output is a graph-native observation, not a fresh language-model synthesis.
+
+### What this does—and does not—establish
+
+The current source supports the following distinctions:
+
+- **Persistent activation write:** records that a belief was selected into Fountain context.
+- **Ordinary retrieval influence:** the separately named world-model spreading-activation engine contributes to query-local retrieval scoring; the inspected implementation does not read the persistent `belief_activation` table for that blend.
+- **Substrate sidecar:** the periodic renderer reads persistent activation and stores a graph-native parallel-fire output.
+- **Optional direct emission:** the explicit `NEX5_SUBSTRATE_EMIT=1` route can choose hot beliefs as Fountain output without a fresh model generation.
+- **Verbal prompt feedback:** none of the inspected persistent-activation consumers proves that the sidecar output is fed into a later Fountain prompt. Nor does an activation touch alone prove that a belief's text was rendered to the model.
+
+This sharpens §96: own-thought continuity has at least four separable channels—candidate selection, persistent activation history, optional substrate output, and direct prompt-text rendering. The system has real activation consumers; describing the table as a passive, write-only counter would be inaccurate. But describing it as ordinary retrieval control or default verbal self-feedback would also overstate the evidence.
+
+### Evidence limits and next bounded trace
+
+GitHub code search for the exact table and reader names returned no results and marked its API response incomplete; therefore this pass does **not** claim an exhaustive repository-wide consumer census. The source-verified call sites above are positive evidence, not proof that no additional readers exist. The downstream read path from `substrate_fires` into GUI/observability or any later prompt path remains to be checked against the complete consumer set.
+
+The next safe step is a repository-wide static consumer census using the complete tree/blob set or a local checkout, then a caller-to-prompt trace for any `substrate_fires` reader. If the user later authorizes a behavioural experiment, isolate default periodic sidecar output from `NEX5_SUBSTRATE_EMIT` and `NEX5_OWN_CONTENT_RENDER`; record exact prompt slots, output provenance, repeated-phrase/groove measures and downstream crystallization. Do not enable either opt-in flag in production on this source review.
+
+**Source anchors inspected:** `theory_x/substrate/activation.py` blob `16a8e4265b9280a04cbfe038b8e58d1c36698b25` (persistent activation write/read/ranking); `theory_x/stage3_world_model/activation.py` blob `509a021671c7f698fb740086dfffa170d2543b84` (query-local spreading activation); `theory_x/stage3_world_model/retrieval.py` blob `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3` (0.4 keyword / 0.6 spreading-activation blend); `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51` (activation touch, optional hot-belief emission and periodic parallel fire); `theory_x/substrate/renderer.py` blob `fce3bce13e48c4ac989b58db7b8241ca0f304fc1` (template sidecar); `tests/test_retrieval.py` blob `efd27b50c3cdc5ef64769fefcbb5529cc44ea90e` (no direct `belief_activation` or substrate-emission coverage found in this file).
+
+**Host/runtime unknowns:** effective `NEX5_SUBSTRATE_EMIT`; whether the periodic parallel-fire path is active in the deployed process; actual activation distribution and decay; whether `substrate_fires` is consumed elsewhere; whether any consumer inserts sidecar output into a later prompt; and the behavioural effect of optional direct emission. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, indexes, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
+
+
+
+## 98. World-model spreading activation: it reranks the candidate pool; it does not independently widen recall (28 November 2026)
+
+**Question studied:** does the graph activation engine actually bring connected beliefs into retrieval, or does it only change the order of beliefs that already passed the retriever's candidate-building stage?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and fixture-test review only. No runtime or production database was accessed.
+
+### The candidate boundary comes before graph activation
+
+`BeliefRetriever.retrieve()` first builds `row_map` and `keyword_scores` from eligible rows. A row enters this candidate map when it has literal token overlap with the query, or—when `NEX5_SEMANTIC_RETRIEVAL=1`—when the separate semantic fallback gives a zero-overlap candidate a qualifying score. Only after this candidate map exists does the retriever take the top five keyword-score IDs as graph activation seeds.
+
+The graph engine can return connected belief IDs that were not in that candidate map. But when the retriever merges the activation scores, it looks each ID up in `row_map` and skips it if no candidate row exists. Therefore, **graph connectivity alone cannot introduce a previously ineligible or zero-overlap belief into the returned retrieval set**. It can affect the ranking of a connected belief only when that belief has independently entered the candidate map through keyword overlap or semantic fallback.
+
+This is a meaningful constraint on the architecture: the graph is currently a relevance re-ranker over an independently constructed candidate pool, not a graph-based recall expansion mechanism.
+
+### How graph influence is calculated
+
+`ActivationEngine.activate()` starts each seed at 1.0 and traverses outgoing `belief_edges` for up to three hops by default, with hop decay 0.55. Edge multipliers are:
+
+- `supports` and `refines`: 1.0;
+- `cross_domain`: 0.8;
+- `synthesises`: 1.2;
+- `opposes`: a negative delta equal to half the source score × edge weight × hop decay.
+
+Only positive next-frontier values continue to the following hop. A negative opposing target remains in the returned score map but is not propagated as a new frontier. When an edges Writer is supplied, actually traversed edges receive a best-effort `last_traversed_at` stamp; that stamp is observational metadata, not the score itself.
+
+The retriever normalizes activation values by the maximum absolute activation and blends them with normalized keyword relevance at 60% activation / 40% keyword whenever graph activation is available. It attaches typed-role metadata and a shared epistemic-temperature value to returned candidate records. The final result is sorted and limited; the inspected code does not convert a `TENSION` role into a veto or action-control decision.
+
+### What tests prove—and what remains unproved
+
+`tests/test_edges.py` characterizes direct support propagation, hop decay, a negative score from an `opposes` edge, typed-role categorization (including `tension`), keyword-only fallback when no edges exist, and presence of activation metadata when edges do exist.
+
+Those tests do not establish that a connected but zero-overlap belief can enter `BeliefRetriever.retrieve()` through graph activation. The retriever's `row_map` guard shows the opposite for the inspected implementation. The existing integration test verifies metadata presence, not graph-only recall expansion or ranking changes under a controlled competing-candidate fixture. The direct opposing-edge test is one hop; no inspected test characterizes whether an inhibitory target should or should not propagate onward (the source currently stops negative values at the next-frontier boundary).
+
+### Architectural interpretation and bounded next step
+
+The current mechanism is a bounded influence channel, not an unconstrained spreading network:
+
+- graph edges influence scores only after the query has produced seeds;
+- candidate admission remains controlled by the retriever's independent eligibility and keyword/semantic candidate construction;
+- activation affects relative ranking, but does not itself authorize, veto or execute anything;
+- negative/tension semantics are represented as scores and role metadata, not as a separate approval authority.
+
+This is compatible with keeping cognitive interpretation distinct from typed operation representation, capability validation, approval, execution and verification. A Tibetan mind-map or Mind Aspect label must not be substituted for any of those authorities.
+
+Before broadening graph recall, decide whether connected zero-overlap nodes are intended to become candidates at all. If yes, design a bounded expansion policy with explicit hop, candidate-count, confidence/paused/tier eligibility, deduplication and provenance rules, then test it against a no-graph control and query-relevant/irrelevant connected nodes. If not, document that the graph is intentionally a re-ranker. Do not silently widen recall or change edge semantics during Phase 0.
+
+**Source anchors inspected:** `theory_x/stage3_world_model/activation.py` blob `509a021671c7f698fb740086dfffa170d2543b84` (edge propagation, inhibitory frontier and role classification); `theory_x/stage3_world_model/retrieval.py` blob `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3` (candidate construction, row_map guard, 0.4/0.6 score blend and result limit); `tests/test_edges.py` blob `24dd0f065d649faf80ebbeb26626a64393892f53` (direct edge and retriever fixture tests); `tests/test_semantic_retrieval.py` blob `b746afa3a3cb7d16b4529175bd1db5eaa54d1eda` (separate opt-in semantic candidate path).
+
+**Host/runtime unknowns:** effective `NEX5_SEMANTIC_RETRIEVAL`; actual edge-type distribution and weights; how often graph-activated IDs are absent from the lexical/semantic candidate map; live ranking changes; and whether graph-only recall expansion is a desired product behaviour. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, indexes, feature flags, retrieval policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
+
+
+
+## 99. Fountain stillness duplicate guard appears disconnected from the retrieval manifest (28 November 2026)
+
+**Question studied:** does Fountain's low-readiness duplicate-retrieval stillness guard receive the own-belief IDs it expects, given the actual slot labels emitted by prompt construction?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and related test-file inspection only. This is a candidate defect, not a runtime-observed failure.
+
+### The consumer's expected slot
+
+In `FountainGenerator.fire()`, after `_build_prompt()` returns the prompt and retrieval manifest, the stillness detector builds `_own_belief_ids` using:
+
+```python
+_own_belief_ids = frozenset(
+    bel_id for bel_id, slot, *_ in retrieval_manifest
+    if bel_id and slot == "own"
+)
+```
+
+The Jaccard duplicate check and stillness counter are reached only when this set is non-empty (and readiness is below `_STILLNESS_READINESS_CAP`). If the set is empty, this entire own-retrieval duplicate guard is skipped.
+
+### The producer's actual slot vocabulary
+
+A full scan of every `retrieval_manifest.append(...)` occurrence in the inspected `generator.py` shows these emitted slot labels:
+
+- `spectrum` for standing-point rows;
+- `own_sense` for `precipitated_from_sense` beliefs, which are explicitly rendered into the prompt;
+- `seed` for seed/reference rows;
+- `disturbance_a` and `disturbance_b` for the two sides of an unresolved tension;
+- `own_render` for distilled own-content rows when `NEX5_OWN_CONTENT_RENDER=1`.
+
+There is no `retrieval_manifest.append(..., "own", ...)` in the inspected file. The stillness consumer expects `own`, while the producer labels the rendered own-sense and opt-in distilled own-content slots `own_sense` and `own_render`. Consequently, on the inspected implementation, `_own_belief_ids` is empty for manifests built by this function and the guard appears unreachable through this path.
+
+This is a producer/consumer contract mismatch, not merely a question of whether own-content text is enabled. Even with `NEX5_OWN_CONTENT_RENDER=1`, the distilled rows use `own_render`, not `own`.
+
+### Why it matters
+
+The nearby comments describe the stillness check as a mechanism to suppress repeated own-slot retrieval when readiness is low. The current slot mismatch means the intended Jaccard comparison may never receive the relevant own-belief set. That could leave repeated retrieval patterns unfiltered by this particular guard. It does **not** prove that Fountain necessarily repeats, that the stillness counter never changes through another path, or that another independent suppression mechanism is absent.
+
+Relatedly, the stillness detector's intended comparison population needs an explicit decision: should it include all retrieved own-content candidates, only items actually rendered as text, or both `own_sense` and optional `own_render` but not seed/spectrum/disturbance? Candidate selection, prompt inclusion and activation touch must not be treated as interchangeable evidence.
+
+### Test coverage and confidence
+
+The inspected `tests/test_fountain.py`, `tests/test_fountain_arc_awareness.py`, and `tests/test_fountain_shutdown.py` contain no references to the stillness guard, its Jaccard helper, or the `own` slot contract. `tests/test_retrieval.py` does test the default-off and opt-in rendering of distilled own content, but it does not exercise the stillness consumer against the returned manifest. `tests/test_fountain_crystallizer.py` tests crystallizer near-duplicate rejection, which is a different mechanism and does not cover retrieval-set stillness.
+
+The source mismatch is high-confidence for the inspected producer and consumer, but the behavioural consequence is unverified because no test or live process was run.
+
+### Safe next step
+
+Before any fix, add a focused caller-contract test that builds representative manifests through `_build_prompt()` in both default-off and `NEX5_OWN_CONTENT_RENDER=1` modes, then verifies the intended own-slot IDs reach the stillness comparison. Decide and document the exact population semantics first. The test should also prove that seed, spectrum and disturbance entries do not accidentally count as own-content continuity. A separate regression should demonstrate the Jaccard guard's below-cap and at/above-threshold behaviour.
+
+If confirmed, the smallest likely correction is to align the consumer with the producer's explicit slot vocabulary (or centralize slot classification in one helper); do not rename slots casually because they also feed retrieval provenance and write-back logic. Re-scan every slot reader and the prompt-block manifest before changing labels. This remains a Phase 0 defect candidate pending caller-contract verification; no production fix is made here.
+
+**Source anchors inspected:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51` (all manifest append sites, `_build_prompt`, and stillness consumer); `tests/test_fountain.py` blob `4ea682443e4997e7cbbf02f795df8d2c43605299`; `tests/test_fountain_arc_awareness.py` blob `fc52380998f707a5f8cf61a544c3cc100725ef78`; `tests/test_fountain_shutdown.py` blob `83b9323802678db3f2fc219366dca4fc1a57b48f`; `tests/test_retrieval.py` blob `efd27b50c3cdc5ef64769fefcbb5529cc44ea90e`; `tests/test_fountain_crystallizer.py` blob `aa8b666f4bfe1afa0338a6993b14cf8d2d4a4d50`.
+
+**Host/runtime unknowns:** actual readiness distribution; whether the stillness branch is reached in deployment; actual repeated-retrieval Jaccard values; whether any external wrapper transforms manifest slots (none was found in the inspected call path); and behavioural impact of a corrected slot classifier. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, indexes, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
+
+
+## 100. Fountain retrieval slot contract disables both stillness and historical duplicate comparison (28 November 2026)
+
+**Question studied:** does the §99 producer/consumer mismatch stop at the in-memory stillness guard, or does the persisted retrieval-log comparison share the same incompatible slot assumption?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and test-file inspection only. This strengthens §99 from a single-consumer mismatch to a shared slot-contract defect candidate; no runtime exercise or tests were run.
+
+### Second consumer: persisted previous-fire comparison
+
+`FountainGenerator._check_retrieval_duplicate(current_ids)` selects the last three real fires from `fountain_retrieval_log`, then reads each fire's belief IDs using the literal SQL predicate `slot = 'own'`. It calculates Jaccard against the current ID set only when a prior set is non-empty.
+
+The caller in `FountainGenerator._generate()` constructs that current set from the returned `retrieval_manifest` using the same literal `slot == "own"` predicate. Therefore the current and historical sides share the same expected label. The manifest writer later persists each tuple's slot verbatim to `fountain_retrieval_log`; it does not normalize or translate slot names. A manifest containing only the inspected producer labels cannot populate either side of this comparison.
+
+This is more consequential than a skipped in-memory guard alone: even if a caller supplied a non-empty current ID set by some other means, the persisted comparison would still find no prior IDs for fires whose logged slots are `own_sense`, `own_render`, or another label.
+
+### Complete producer/reader vocabulary found in the inspected path
+
+The scan includes the helper passed the manifest, not only direct `retrieval_manifest.append()` calls in `generator.py`:
+
+- `own_sense`: prompt-rendered sense-derived beliefs.
+- `own_render`: optional distilled own-content lines, emitted only when `NEX5_OWN_CONTENT_RENDER=1`.
+- `identity_block`: authored/self-location identity rows appended by `theory_x/stage6_fountain/identity_block.py` when `NEX5_IDENTITY_BLOCK=1`.
+- `seed`, `spectrum`, `disturbance_a`, `disturbance_b`: other explicit context classes.
+
+No inspected producer emits the literal `own` label. The separate `identity_block.append()` helper confirms that the manifest has another own-related class which §99's direct-generator scan did not enumerate. That does not mean identity rows should automatically count as retrieval continuity: their semantics differ from retrieved own-content candidates and the intended comparison population must be decided explicitly.
+
+The other inspected readers are deliberately more specific: crystallization retains the top-ranked `own_sense` entry; trace metadata records the slot vocabulary; the retrieval-log writer stores the raw slot; and the stillness/current-ID and historical-ID comparison both require `own`. These readers should not be collapsed into one vague “own” category without deciding what each mechanism is measuring.
+
+### Tests and confidence
+
+The inspected `tests/test_fountain.py`, `tests/test_fountain_arc_awareness.py`, `tests/test_fountain_shutdown.py`, and `tests/test_retrieval_teeth.py` contain no Fountain retrieval-stillness or retrieval-duplicate contract tests. `tests/test_retrieval.py` covers ordinary own-content retrieval and the default-off/opt-in distilled rendering path, but does not exercise the stillness caller, the persisted log slot query, or a manifest-to-log-to-next-fire comparison. `tests/test_identity_block.py` verifies the optional identity block's prompt presence and `identity_block` manifest slot, but does not test its interaction with either duplicate guard. `tests/test_stillness.py` does cover stillness by name, but it tests the separate Stage-9 Metacognition `stillness_log` and the crystallizer's active-stillness response; it does not cover Fountain's retrieval-manifest/Jaccard guard. The crystallizer's near-duplicate tests are likewise a separate output-content mechanism.
+
+**Confidence:** high that the inspected current producer labels and both literal-`own` consumers are incompatible; high that the writer persists labels without normalization; behavioural impact remains source-inferred because no tests or live database were run. Existing persisted rows from older implementations, if any, do not establish current-path correctness. Runtime startup/migration behaviour and effective host flags were not inspected in this pass.
+
+### Safe next step: specify the measurement population before repairing the contract
+
+Add a focused integration test around the actual producer → manifest → persisted log → next-fire reader path. It should prove both current and previous ID sets are populated for the intended class, and prove seed/spectrum/disturbance are excluded. Exercise `own_sense`, optional `own_render`, and optional `identity_block` separately so the policy is explicit rather than accidentally inherited from a broad label.
+
+Then centralize slot classification or give each consumer a purpose-specific set. A single shared helper is appropriate only if the stillness detector and historical comparison are meant to compare the same population. Keep the crystallizer's `own_sense` selection and trace/provenance slot labels stable unless their separate contracts are deliberately reviewed. Add boundary tests for below-cap readiness, high readiness, Jaccard below/at threshold, empty previous history, and the three-consecutive-stillness force-fire escape.
+
+This remains a Phase 0 defect candidate. No production slot renaming, behavioural fix, schema change, flag change, or test change is made in this documentation study.
+
+**Source anchors inspected:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51` (stillness caller, literal-`own` historical reader, raw manifest persistence, crystallizer's separate `own_sense` reader, and all direct manifest producers); `theory_x/stage6_fountain/identity_block.py` blob `d1f710d26f8eeb451ba71ce3b0a5a2dc683697f5` (additional `identity_block` producer); `tests/test_fountain.py` blob `4ea682443e4997e7cbbf02f795df8d2c43605299`; `tests/test_fountain_arc_awareness.py` blob `fc52380998f707a5f8cf61a544c3cc100725ef78`; `tests/test_fountain_shutdown.py` blob `83b9323802678db3f2fc219366dca4fc1a57b48f`; `tests/test_retrieval.py` blob `efd27b50c3cdc5ef64769fefcbb5529cc44ea90e`; `tests/test_identity_block.py` blob `405ae22f8491b1952fd361ade14d16d05019248a`; `tests/test_stillness.py` blob `9a855ee570dcc2e1f0b7b1da6c61cfd072de8ea7` (separate Stage-9 stillness mechanism); `tests/test_retrieval_teeth.py` blob `b917244ef6f467ab2b4a7085977c1c2209b02cd0`; `tests/test_fountain_crystallizer.py` blob `aa8b666f4bfe1afa0338a6993b14cf8d2d4a4d50`.
+
+**Host/runtime unknowns:** effective `NEX5_OWN_CONTENT_RENDER` and `NEX5_IDENTITY_BLOCK`; actual slot distribution in live manifests/log rows; whether old persisted rows contain legacy `own` labels; actual Jaccard distributions; readiness distribution; and whether the two guards would change firing behaviour if correctly wired. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, indexes, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
+
+
+## 101. Fountain stillness slot mismatch — historical origin narrowed (28 November 2026)
+
+**Question studied:** was the literal `own` expectation always wrong, or was it a valid contract that later drifted away from the manifest producer?
+
+**Evidence snapshot:** current source `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`, plus Git commit history and patches for the original manifest and stillness work. Static archaeology only; no runtime or tests run.
+
+### Historical sequence
+
+1. **30 April 2026 — manifest and first stillness detector.** Commit `41b3516b8d2f2fe87a82a4444dcfcb6d5c25183b` introduced `fountain_retrieval_log` and the `retrieval_manifest`. Its documented slot vocabulary was `own/seed/spectrum/disturbance_a/disturbance_b`; the own-belief producer appended slot `own`. Commit `ac6e4032e2b115f34ca86fbff8778a5cc51d14ca` added the first stillness detector and compared all manifest IDs with the prior fire's log.
+2. **1 May 2026 — own-only Jaccard became intentional.** Commit `251cd797579aa08b8b848a5e95cd58c4c3e22b72` explicitly narrowed both current and historical sets to slot `own`, because random seed/spectrum draws diluted the overlap signal. It set the threshold to 0.7 and made the reader return a Jaccard value. At this point, the producer and both readers agreed: this was not an accidental string in the first implementation.
+3. **15–16 May 2026 — the old `own` producer was explicitly disabled.** Commit `60732402f92c10819591072cd7c13d1688a21351` changes the `own_thoughts` prompt block from `if own_thoughts:` to `if False and own_thoughts:` (the comment dates the disable to 15 May). At that exact commit snapshot, the only `retrieval_manifest.append(..., "own", ...)` producer is inside that disabled block. The separate active `own_sense` loop appends `"own_sense"`, but source inspection shows it represents `precipitated_from_sense` items — things NEX has been reading from the sense feed — not her distilled own thoughts. The stillness caller and historical SQL reader still require `own`. This locates the producer-side change: disabling the old own-thoughts prompt/manifest path left the readers without their intended class. It does **not** establish that `own_sense` should replace it.
+4. **10 October 2026 — distilled own-content rendering was restored behind a default-OFF flag.** Commit `7c90e1a0bf6aaa5f030bef606e90a483ccd4f5b8` adds a bounded render of own distilled beliefs, excluding `precipitated_from_sense` and `hot_observer`, under `NEX5_OWN_CONTENT_RENDER=1`. Its manifest slot is `own_render`, not `own`. The current stillness caller does not count this slot either. The flag's default-off status means it does not establish an always-present own-content prompt population.
+5. **26 October 2026 — a new own-related class was added separately.** Commit `a90a76cd1783a1f725dcb0c73cd8ffce1ba0a5eb` adds the optional guaranteed identity block with its explicit `identity_block` manifest slot and dedicated tests. This is a distinct semantic class, not evidence that it belongs in the retrieval-duplication set.
+6. **15 November 2026 — smṛti uses `own_sense` for a different purpose.** Commit `231059a12439b0c10e0d92dcea79b6567c03d621` selects the top-ranked `own_sense` entry for observational retention-through-crystallization. That consumer's choice does not make sense-feed items equivalent to distilled own thoughts for stillness comparison.
+
+### Revised diagnosis
+
+This is best described as **a legacy stillness detector whose original input producer was disabled during an echo-loop intervention**. The original own-only comparison was deliberate; the May 15–16 change removed the prompt block that emitted that class because it was feeding contemplative beliefs back into the speaking layer. `own_sense` is not a safe alias: it represents sense-feed material. Later, `own_render` restored a separate, bounded own-distilled-content block behind a default-OFF flag, but the stillness detector does not consume that slot. The source mismatch is certain; whether this is a defect or an intentionally retired detector is unresolved. No behavioural fix should be selected until that design intent is recovered or explicitly decided.
+
+This distinction matters: a repair should preserve the original intent (compare the intended own-content retrieval population, not random seeds/spectrum) while deciding whether `own_render`, `identity_block`, and any other future classes are in or out. It should not simply broaden to all manifest IDs, nor rename every producer slot to `own`.
+
+### Next bounded archaeology/test task
+
+Inspect the May 15–16 echo-loop decision and the October own-content-render restoration to determine whether the stillness detector was intentionally retired, or whether it should compare the optional `own_render` population when that flag is enabled. Do not substitute `own_sense` merely because it is currently active. Then write the integration-test contract before proposing a patch:
+
+- the current-fire set and prior-fire set must use the same explicitly defined retrieval population;
+- `own_sense` is sense-feed material (`precipitated_from_sense`), not automatically the own-thought population;
+- `own_render` is the bounded distilled own-content block, emitted only when `NEX5_OWN_CONTENT_RENDER=1`; decide explicitly whether stillness should observe it when enabled;
+- `identity_block` is an explicit identity injection, not automatically the same retrieval population;
+- `seed`, `spectrum`, and disturbance classes remain excluded from the own-retrieval Jaccard;
+- old persisted `own` rows need an explicit compatibility decision (read both labels, migration, or time-bounded handling), informed by actual database distribution rather than guesswork.
+
+Only after that contract is evidenced should a minimal source fix be considered. No code/test/schema/flag change is authorised or made by this research note.
+
+**Source anchors:** `41b3516b8d2f2fe87a82a4444dcfcb6d5c25183b` (original manifest producer and slot vocabulary); `ac6e4032e2b115f34ca86fbff8778a5cc51d14ca` (first stillness detector and all-ID comparison); `251cd797579aa08b8b848a5e95cd58c4c3e22b72` (own-only current/historical Jaccard); `60732402f92c10819591072cd7c13d1688a21351` (15–16 May: disables the sole `own` manifest producer while active sense-feed producer remains); `7c90e1a0bf6aaa5f030bef606e90a483ccd4f5b8` (10 Oct: restores bounded distilled own-content rendering under default-OFF `own_render`); `33476505eff8ec740d31ece7af78eeb95b7df865` (R37 documentation of `own_sense` vocabulary); `a90a76cd1783a1f725dcb0c73cd8ffce1ba0a5eb` (identity block slot); `231059a12439b0c10e0d92dcea79b6567c03d621` (smṛti consumes top-ranked `own_sense`).
+
+**Evidence level:** source/history-observed for the original and current contracts; exact producer-rename commit UNKNOWN; live database slot distribution and behavioural impact UNKNOWN; no test verification or runtime observation.
+
+
+## 102. Fountain echo-loop intervention — what was removed, and what later returned (28 November 2026)
+
+**Question studied:** did the May echo-loop work establish a blanket rule against feeding NEX's own prior content into the speaking prompt, or did it distinguish dangerous raw exemplars from bounded distilled content?
+
+**Evidence snapshot:** commit history and source diffs for ea6fe744fdd247f9d6ee3f183c2f6f2ee7f73008 (12 May, Mechanism A), 60732402f92c10819591072cd7c13d1688a21351 (15–16 May prompt cleanup), 7e71935c015d4e14005fb05589455e5da7141bc2 (26 July dead-block removal), and 7c90e1a0bf6aaa5f030bef606e90a483ccd4f5b8 (10 October bounded restoration). Static source/history study; no live runtime or tests run in this pass.
+
+### What the intervention actually targeted
+
+1. **12 May — raw recent-event exemplars were identified as a repetition amplifier.** Commit ea6fe744 describes the Fountain prompt injecting the last N fountain_events as “Your recent thoughts” exemplars before asking for another thought. The recorded diagnosis was that the model was being few-shot-prompted with five copies of an already-dominant cicada/hum motif. A separate sense-grounding intervention had not broken the pattern: the commit reports 3/3 post-restart fires still on the same surface pattern. Mechanism A removed that raw recent-thoughts block rather than reordering prompt calls. Its stated design principle was: substrate provides; speaking layer composes freely.
+2. **15–16 May — the intervention widened to four inward-feedback blocks.** Commit 60732402 records disabling own_thoughts, ongoing_threads, recent-closed arc context, and the thread-extension prompt. Its commit message records a 15-fire repetition of “clock ticks, and my mind drifts to the hum of the servers nearby”. The own_thoughts block was changed to if False and own_thoughts; this was not a mere slot rename. The later 26 July cleanup commit 7e71935 confirms the block was dead since 15 May, removes its unreachable body and orphaned local computation, and preserves a recovery pointer. It also confirms the other dead prompt blocks were removed as dead code, not silently restored.
+3. **The May decision was specifically anti-loop, not a general ban on every self-derived input.** The contemporaneous mechanism description distinguishes raw fountain_events exemplars from distilled belief sources. The later code history shows that distinction was revisited rather than treated as permanently closed.
+
+### October restoration: a different input contract
+
+Commit 7c90e1a0 explicitly corrects a stale comment: own distilled beliefs (synergized, fountain_insight, and related sources) continued to enter _retrieve_context_beliefs(), but after Mechanism A and the session-49 cleanup they were not rendered into prompt text by default. They could affect activation/residue without being spoken-layer words.
+
+The October change restored a deliberately narrower path:
+
+- controlled by NEX5_OWN_CONTENT_RENDER=1, default OFF;
+- selects distilled own-content candidates while excluding precipitated_from_sense and hot_observer;
+- caps rendered lines at three;
+- deduplicates first-sentence 5-grams at Jaccard threshold 0.5;
+- writes the explicit manifest slot own_render, not the legacy own;
+- leaves the live prompt unchanged when the flag is unset;
+- records a live-measurement requirement before making the flag default-ON: re-measure groove-token probability against the R76 hot-slot baseline (13.2%).
+
+The same change keeps own_sense in its separate “Things you've been reading about lately” block. That population is sense-feed material, not the distilled own-content population. The commit also excludes hot_observer because earlier R75/R76 work had traced a live repetition groove to that source. The design is therefore selective: it rejects raw/repetitive feedback, but permits a bounded, deduplicated, distilled channel behind an explicit default-OFF flag.
+
+### What this changes in the stillness diagnosis
+
+This history strengthens the §101 interpretation but does not resolve the detector's intended future contract:
+
+- The old stillness own population was disabled as part of an anti-echo intervention.
+- The October restoration deliberately uses own_render; it does not revive the old own contract or automatically reconnect the detector.
+- The detector should not be repaired by relabelling own_sense as own, nor by indiscriminately including all manifest slots.
+- If stillness is intended to measure repetition in the actual distilled words reintroduced to the prompt, own_render is the only currently evidenced candidate population. That is a design hypothesis, not an approved change. If the detector was intentionally retired, the correct outcome may instead be to document it as dormant.
+- Any experiment must preserve the October safeguards and separately measure whether the detector itself changes firing/selection behaviour. Prompt inclusion, retrieval activation, and duplicate detection are different effects.
+
+### Research conclusion and next falsifier
+
+**Conclusion:** the historical rule is not “never feed own content back”. It is closer to: do not replay raw event exemplars or unbounded self-referential context as few-shot material; if distilled own content is allowed into the speaking layer, bound it, deduplicate it, exclude known groove-amplifying sources, and keep it opt-in until measured. This is source/history-observed, not a claim that the October path is safe in live operation.
+
+Next bounded work is to inspect the exact _build_prompt() producer and both stillness readers at one consistent source snapshot, then specify a paired-fire integration contract for own_render under flag OFF and ON. The contract must show that current-fire and prior-fire sets use the same population, preserve historical own rows deliberately, exclude own_sense/seed/spectrum/disturbance/identity classes unless explicitly justified, and demonstrate that the guard cannot count material that was not actually rendered. Live groove-token rates and historical slot distributions remain runtime unknowns.
+
+**Source anchors:** ea6fe744fdd247f9d6ee3f183c2f6f2ee7f73008 (Mechanism A: raw recent-event exemplars removed after 3/3 repeated-pattern fires); 60732402f92c10819591072cd7c13d1688a21351 (four inward-feedback blocks disabled; 15-fire hum-lock recorded); 7e71935c015d4e14005fb05589455e5da7141bc2 (dead blocks removed, recovery pointer retained); 7c90e1a0bf6aaa5f030bef606e90a483ccd4f5b8 (bounded distilled own-content restoration, default OFF, slot own_render, live-check requirement).
+
+**Evidence level:** source/history-observed for the intervention and restoration design; test-verified only for the October unit tests described in that commit (not rerun here); live behavioural safety and actual flag/slot distribution UNKNOWN. No runtime code, tests, schema, indexes, feature flags, prompt policy, or execution authority changed.
+
+## 103. Fountain own-content restoration — producer-to-manifest test gap (28 November 2026)
+
+**Question studied:** do the October tests prove the whole path from opt-in distilled-content selection through manifest recording, persistence, and the stillness reader, or only prove prompt text rendering?
+
+**Source snapshot:** main at the §102 source snapshot. Static inspection of tests/test_retrieval.py and theory_x/stage6_fountain/generator.py; no tests executed.
+
+### Verified coverage boundary
+
+- tests/test_retrieval.py::test_build_prompt_includes_own_content_section sets NEX5_OWN_CONTENT_RENDER=1, calls _build_prompt(), and asserts that the own-content heading and a sample belief string appear in prompt text.
+- test_build_prompt_no_own_content_skips_section verifies that enabling the flag with no eligible own-content belief does not add the section.
+- test_build_prompt_default_off_skips_own_content inserts an eligible distilled belief with the flag unset and verifies that the section is absent.
+- The inspected test file contains no assertion about retrieval_manifest contents, no assertion that the rendered belief is recorded under own_render, and no invocation of the stillness/Jaccard caller using that manifest.
+- Current generator source confirms the renderer appends (belief_id, own_render, rank, None) only for retained rendered lines. The stillness caller separately filters its current manifest for slot == own; _check_retrieval_duplicate() separately queries prior rows with SQL slot = 'own'.
+- The tests therefore verify prompt text inclusion/default-off behaviour, not the full producer → manifest → persistence → next-fire consumer contract. The gap is a test-coverage finding, not evidence that the code should be changed.
+
+### Proposed contract tests (design only)
+
+1. With NEX5_OWN_CONTENT_RENDER unset, an eligible distilled belief does not appear in the prompt and does not produce an own_render manifest entry.
+2. With the flag set, a retained eligible belief appears in the prompt and exactly the same belief ID is represented in the manifest as own_render; excluded hot_observer and precipitated_from_sense rows do not enter that rendered population.
+3. The renderer's cap and deduplication are reflected consistently in both prompt text and manifest; skipped candidates must not appear in the manifest.
+4. The test must explicitly encode the stillness policy decision: either own_render is intentionally outside the stillness detector and that detector is documented dormant/legacy, or both current and historical stillness sets consume a clearly defined matching population. Do not make this choice implicitly through a string rename.
+5. If own_render is included, exercise the persisted prior-fire reader with historical own rows present and verify the compatibility rule (dual-read, migration, or bounded legacy handling) rather than silently dropping historical comparisons.
+
+**Disposition:** retain as a Phase 0 evidence/test-contract gap. No production code, tests, schema, slot labels, flags, or runtime behaviour changed. The October tests remain useful and intentional for their narrower text-rendering contract; they simply do not establish downstream manifest or stillness integration.
+
+**Source anchors:** tests/test_retrieval.py blob efd27b50c3cdc5ef64769fefcbb5529cc44ea90e (three opt-in/default-off prompt-render tests); theory_x/stage6_fountain/generator.py blob 26061914b1dd80858c3568217cd1ef0c49ce2c51 (own_render manifest producer, own-only current-set filter, and own-only historical SQL reader).
+
+**Evidence level:** source-observed test coverage and source-observed producer/consumer mismatch; test execution not performed in this pass; persisted live slot distribution and intended stillness policy UNKNOWN.
+
+## 104. Stillness detector — historical operation versus current source reachability (28 November 2026)
+
+**Question studied:** was the stillness/Jaccard mechanism merely abandoned code, or is there evidence that it operated before the own-slot producer was disabled?
+
+**Evidence:** historical commit messages for ac6e4032e2b115f34ca86fbff8778a5cc51d14ca, 251cd797579aa08b8b848a5e95cd58c4c3e22b72, and f18e859f11820326cb7698fa30003410d728835f; current main source snapshot already documented in §§101–103. Historical measurements are reported by the repository's own commit records, not independently recomputed here.
+
+### Evidence that the detector once operated
+
+- The original stillness implementation (ac6e4032) created the duplicate-retrieval skip path, with a retrieval-manifest Jaccard comparison against the last three real fires, readiness below 0.85, and a force-fire escape after three consecutive stillness events.
+- The first all-slot comparison did not trigger reliably: commit 251cd797 records observed Jaccard around 0.2 because random spectrum and seed draws diluted repeated own content. The implementation was then deliberately narrowed to the own slot on both current and historical sides, and thresholded at 0.7.
+- A later self-prediction audit (f18e859) reports 4,965 duplicate_retrieval cycles in the persistent fountain event history. It explicitly distinguishes these empty-thought stillness cycles from real speech, and reports that all 1,526 force_fires were included in the readiness analysis. This is strong historical evidence that duplicate-retrieval stillness was not merely a never-used stub during that measured period.
+- This does not establish the date on which the detector stopped operating, nor the exact live distribution of manifest slots today. It does establish that the mechanism had meaningful historical operational use before the later source state now inspected.
+
+### Current source reachability
+
+At the inspected current source snapshot, the stillness caller's current set includes only manifest entries whose slot equals own. The historical reader likewise selects only rows with slot = 'own'. The complete manifest-producer census recorded in §§99–103 found no active producer emitting own: own_sense is sense-feed material; own_render is the optional bounded distilled-content render; identity_block, seed, spectrum and disturbance slots are separate classes.
+
+Therefore, on the inspected source:
+- with NEX5_OWN_CONTENT_RENDER unset (the default), the bounded own-content render is absent and no active producer supplies own; the stillness current set is empty and its Jaccard check is skipped;
+- with NEX5_OWN_CONTENT_RENDER=1, the producer emits own_render, but the stillness caller still filters for own; the current set remains empty;
+- even if historical rows contain own, the guard is not reached unless the current set is non-empty.
+
+This is a source-level reachability conclusion, not a live runtime observation. It is stronger than saying the two readers are mismatched: the current producer inventory plus exact filters imply the detector's duplicate-retrieval branch cannot be entered through the inspected manifest path. The original force-fire escape does not change that because it is nested inside the duplicate-detection branch.
+
+### Revised classification
+
+Record this as a **high-confidence source-level dormant path / historical operational regression candidate**, not yet a confirmed behavioural defect. The historical evidence argues against assuming the detector was always intentionally retired. The May echo-loop intervention disabled the original own-content producer for a clear safety reason; October restored a different, bounded own-content population behind a default-OFF flag. No evidence located so far states that the stillness detector itself was deliberately retired, or authorises reconnecting it to own_render.
+
+### Next evidence needed before any repair
+
+1. Establish the chronology between the last measured duplicate_retrieval activity and the May producer disable; identify whether the historical 4,965 count predates or postdates that change using source/commit chronology and retained logs if available.
+2. Inspect any explicit decision record for retiring or retaining the stillness mechanism. Absence of a note is not proof of intent.
+3. If a controlled runtime dataset is available, count retrieval_manifest slot values and stillness_reason values over the same bounded period; distinguish no producer, no duplicate candidates, and guard-not-reached.
+4. Only then decide whether stillness remains retired, is reactivated against own_render when that flag is on, or receives a separate opt-in measurement-only path. Preserve the historical own rows and compare current/prior populations symmetrically.
+5. If a future contract includes own_render, test the full paired-fire lifecycle, including rendered-only membership, historical compatibility, threshold boundaries, readiness cap, empty history, and force-fire escape. A detector measurement must not be conflated with prompt selection or a new cognitive authority.
+
+**Disposition:** no code/test/schema/flag changes. Phase 0 evidence work only. No Gate 0 claim.
+
+**Source anchors:** ac6e4032e2b115f34ca86fbff8778a5cc51d14ca (initial stillness path); 251cd797579aa08b8b848a5e95cd58c4c3e22b72 (own-only Jaccard narrowing because all-slot overlap was too low); f18e859f11820326cb7698fa30003410d728835f (historical 4,965 duplicate_retrieval cycles and 1,526 force_fires); theory_x/stage6_fountain/generator.py blob 26061914b1dd80858c3568217cd1ef0c49ce2c51 (current source filters); tests/test_retrieval.py blob efd27b50c3cdc5ef64769fefcbb5529cc44ea90e (prompt-render-only coverage).
+
+**Evidence level:** historical operational counts as reported in repository commit evidence; current source-level reachability; no current live database/runtime verification and no tests run in this pass. Intended retirement policy UNKNOWN.
+
+## 105. Stillness records — two distinct mechanisms and the missing chronology (28 November 2026)
+
+**Question studied:** do the historical duplicate-retrieval counts date the stillness detector's operation after the May anti-echo change, and are all repository records named `stillness_log` describing the same mechanism?
+
+### Chronology now established
+
+- **30 April 2026 22:22 UTC —** commit `ac6e4032e2b115f34ca86fbff8778a5cc51d14ca` introduced the Fountain duplicate-retrieval stillness path. It compared retrieval-manifest belief IDs against the last three real fires, required readiness below 0.85, and included a force-fire escape after three consecutive stillness skips.
+- **1 May 2026 05:11 UTC —** commit `251cd797579aa08b8b848a5e95cd58c4c3e22b72` changed the detector to compare only slot `own`, because random spectrum/seed draws diluted all-slot Jaccard to roughly 0.2. Both the current set and prior-fire SQL reader were narrowed to the same slot.
+- **16 May 2026 15:21 UTC —** commit `60732402f92c10819591072cd7c13d1688a21351` disabled the `own_thoughts` prompt/manifest producer as part of the anti-echo intervention. This is the producer-side break described in §§101–104.
+- **9 July 2026 13:58 UTC —** commit `f18e859f11820326cb7698fa30003410d728835f` reported 4,965 `duplicate_retrieval` rows among 26,299 fountain cycles, and 1,526 `force_fires`. The same commit distinguishes empty-thought stillness cycles from actual speech and uses the historical counts in its self-prediction audit.
+
+The July commit date is the date the aggregate was reported, **not the event-window boundary**. The commit does not supply timestamps or an ID/time range for those 4,965 rows. Therefore it cannot establish whether the counted duplicate-retrieval events occurred before or after the 16 May producer disable. The apparent chronology gap remains unresolved; do not infer post-May operation from the July report date.
+
+### A second, separate stillness mechanism
+
+The repository also has a different stillness mechanism with a table of the same name in a different database:
+
+- Commit `c4b005f32e931047711ef6cdbe03e84a00183885` (11 May 2026) introduced **Row 9 Stillness**. Metacognition writes a time-bounded stillness row to **`conversations.db`** after at least three groove events in a 1,800-second window; the FountainCrystallizer reads the active row and suppresses crystallization for 60 seconds. Its tests are `tests/test_stillness.py` and concern Metacognition/Crystallizer behaviour.
+- The duplicate-retrieval detector's `stillness_log` and `fountain_events.stillness_reason` belong to the **dynamic fountain retrieval/stillness path**, not the conversations.db Row 9 path.
+- A 23 May journal commit (`a20968e6c7517b0fd491e8676ed9d2aa549a7761`) records a 90-minute fountain pause and says the relevant stillness log was empty in that window. Its narrative concerns the substrate/Row 9 mechanism and does not date the duplicate-retrieval event population.
+
+This name collision matters: a search for `stillness_log`, or a statement that “stillness was active”, is not enough to identify which database, producer, consumer, or suppression effect was involved. Treat these as separate mechanisms unless a concrete cross-database caller proves otherwise.
+
+### Revised conclusion
+
+1. The duplicate-retrieval detector was introduced and deliberately refined to own-only comparison in late April/early May.
+2. Its original `own` producer was disabled on 16 May as part of a documented anti-echo intervention.
+3. A July audit reports substantial historical duplicate-retrieval/force-fire counts, but does not date those events. The source-level dormant-path finding in §104 remains valid for the inspected current source; whether the detector became dormant immediately on 16 May, later, or after a runtime-only transition remains UNKNOWN.
+4. Row 9 Stillness is a distinct conversations.db mechanism. Its existence or tests do not validate the Fountain duplicate-retrieval detector, and vice versa.
+
+### Next evidence step
+
+The decisive artifact would be a retained, time-indexed `dynamic.db` snapshot or exported rows for `fountain_events`, `fountain_retrieval_log`, and the dynamic `stillness_log`, sufficient to align event timestamps/IDs with the May 16 change and identify the last `duplicate_retrieval` and `force_fire` events. If unavailable, retain the chronology as UNKNOWN; do not fabricate a date range from aggregate totals. Continue the repository-wide caller census separately for both stillness mechanisms.
+
+**Disposition:** documentation/evidence refinement only. No runtime code, tests, schema, flags, or cognitive authority changed. No tests run. No Gate 0 claim.
+
+**Source anchors:** `ac6e4032e2b115f34ca86fbff8778a5cc51d14ca` (initial duplicate-retrieval detector); `251cd797579aa08b8b848a5e95cd58c4c3e22b72` (own-only Jaccard); `60732402f92c10819591072cd7c13d1688a21351` (May anti-echo producer disable); `f18e859f11820326cb7698fa30003410d728835f` (July aggregate counts); `c4b005f32e931047711ef6cdbe03e84a00183885` (separate conversations.db Row 9 stillness); `a20968e6c7517b0fd491e8676ed9d2aa549a7761` (23 May journal observation).
+
+**Evidence level:** commit-dated source/history evidence for code changes; July aggregate operational counts as reported by commit message; event-level chronology and current runtime state UNKNOWN.
+
+
+## 106. Metacognition groove alerts — repeat-on-turn and false sustained-groove candidate (28 November 2026)
+
+**Question studied:** does Stage 9 convert one persistent unacknowledged GrooveSpotter alert into multiple metacognition events across chat turns, and can those repeated rows satisfy Row 9's “sustained groove” threshold without three distinct groove episodes?
+
+### Source path and cadence
+
+- `theory_x/__init__.py` defines the SentienceNode contract as `tick()` called once per chat turn.
+- `gui/server.py` calls `state.metacognition.tick()` inside the INSIDE chat request path, before calling `format_for_prompt()`. This is a per-chat-turn call, not a dedicated periodic daemon.
+- `Metacognition._detect_groove(now)` reads up to three rows from `beliefs.db.groove_alerts` where `detected_at > now - 600s` and `acknowledged_at IS NULL`. It does not record a last-seen alert ID or update `acknowledged_at` in the inspected method.
+- `tick()` writes every returned alert through `_write_event()`. The inspected `_write_event()` inserts a new `meta_cognition_events` row each time; it does not persist the source `groove_id` or acknowledge the source alert. The instance field `_last_groove_at` is initialized but has no read/write use in the inspected module snapshot.
+- When any groove rows are returned, `tick()` calls `_maybe_engage_stillness(now)`. That method counts `event_type='groove'` rows in the preceding 1,800 seconds and writes a 60-second Row 9 stillness window when the count reaches three.
+
+### Why this may matter
+
+If the same source alert remains unacknowledged and within the 600-second lookback across multiple INSIDE chat turns, the same alert can be converted repeatedly into separate `meta_cognition_events` rows. Three chat turns could therefore create three “groove” rows from one source alert and satisfy the Row 9 threshold, even though the intended phrase is “three groove events in a 30-minute window”. The code currently does not prove those are three distinct episodes.
+
+This is a **source-level repeat-on-turn candidate**, not yet a confirmed runtime defect. A separate actor may acknowledge alerts outside the inspected producer/consumer files; a complete repository-wide writer census for `groove_alerts.acknowledged_at` is still required. The July 22 GrooveSpotter fingerprint fix (commit `543e4ce957f2e3ad8e3ebf9fb25cd1bf977fed1a`) prevents the same detector fingerprint from being re-inserted every 60-second GrooveSpotter tick, but it does not, by itself, show that an already persisted alert is consumed only once by Metacognition on successive chat turns.
+
+### Existing tests and gap
+
+- `tests/test_metacognition.py` covers one unacknowledged alert becoming an event, prompt formatting, acknowledged alerts being ignored, and alerts outside the 600-second lookback being ignored.
+- `tests/test_stillness.py` tests Row 9 threshold/window behaviour using a mocked groove-event count, and tests the crystallizer's read of the conversations.db stillness window.
+- The inspected tests do not call `Metacognition.tick()` repeatedly against the same still-unacknowledged source alert and assert that only one durable event is created. They also do not prove that three distinct source episodes, rather than repeated reads of one alert, are required to engage Row 9 stillness.
+- The July 22 GrooveSpotter fix was verified in an isolated controlled test for repeated detector ticks, but that is a different boundary: GrooveSpotter insertion deduplication does not test Metacognition's source-alert consumption semantics.
+
+### Bounded next evidence
+
+1. Complete the repository-wide census for writers/updates to `groove_alerts.acknowledged_at`, and determine whether any separate acknowledgement path exists.
+2. Inspect `DiversityLoop` construction/lifetime and GrooveSpotter scheduling to confirm the fingerprint state lifetime relative to the per-chat Metacognition instance lifetime.
+3. Add a test proposal only: seed one unacknowledged alert, call `tick()` repeatedly at distinct times within the lookback, and assert the chosen once-only or repeat semantics explicitly. Add a separate test with three genuinely distinct alert IDs/episodes to establish the Row 9 threshold contract.
+4. Before any fix, decide whether the event should be once per source alert, once per distinct fingerprint/episode, or intentionally repeated per chat turn. Do not silently redefine Row 9's meaning or mutate source acknowledgement state without an authority review.
+
+**Disposition:** Phase 0 source/test-contract finding only. No code, tests, schema, flags, or runtime behaviour changed. No tests run. No Gate 0 claim. Confidence: plausible source-level repeat path; live frequency and any external acknowledgement path UNKNOWN.
+
+**Source anchors:** `theory_x/stage9_metacognition/metacognition.py` (current main blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`); `theory_x/diversity/groove.py` (current main blob from this pass); `gui/server.py` and `theory_x/__init__.py` (per-chat tick contract); `tests/test_metacognition.py` blob `e2604f7baf113999b89e8c66c8bdf4fae22f5a8d`; `tests/test_stillness.py` blob `9a855ee570dcc2e1f0b7b1da6c61cfd072de8ea7`; `543e4ce957f2e3ad8e3ebf9fb25cd1bf977fed1a` (GrooveSpotter fingerprint dedup).
+
+**Evidence level:** source-observed caller cadence and read/write path; test-coverage inspection; no runtime measurement and no test execution in this pass. Repository-wide acknowledgement writer census incomplete.
+
+
+## 107. Groove alert re-consumption can manufacture the sustained-groove count (28 November 2026)
+
+**Question studied:** does the current Metacognition path consume a GrooveSpotter alert once, or can repeated chat turns convert the same still-unacknowledged source row into multiple durable events and thereby satisfy Row 9's threshold?
+
+### Source trace
+
+- DiversityLoop._run() calls GrooveSpotter.detect_all() on its background loop, then waits 60 seconds. GrooveSpotter inserts a groove_alerts row when a new detector fingerprint appears. Its in-memory fingerprints suppress unchanged detector output within that process; they are not an acknowledgement or consumption record for Metacognition.
+- Metacognition.tick() is called on the INSIDE chat path once per chat turn. Each tick calls _detect_groove(now).
+- _detect_groove() selects up to three rows newer than 600 seconds with acknowledged_at IS NULL. It returns their IDs but does not update acknowledged_at, persist a last-consumed ID, or deduplicate against prior meta_cognition_events.
+- For every returned row, tick() calls _write_event(). _write_event() inserts a new meta_cognition_events row and does not persist the source groove_id; the source ID is used only in the optional narrative call.
+- If any groove rows are returned, tick() calls _maybe_engage_stillness(). That method counts all event_type='groove' rows in the preceding 1,800 seconds. It counts derived event rows, not distinct source alert IDs or detector episodes.
+
+### Consequence and confidence
+
+The same source alert can therefore be re-read and re-written on successive chat turns while it remains within the 600-second lookback and unacknowledged. Three such turns can create three groove event rows from one source alert; the Row 9 threshold can then be reached without three distinct alerts. This is a deterministic source-level pathway under those conditions, not merely a hypothetical race.
+
+This does not establish that the pathway has occurred in the live runtime, how often it occurs, or whether another uninspected component acknowledges alerts. The 14 November investigation reported 0 acknowledged rows among 1,198 sampled groove_alerts and said the column appeared unwritten, but its repository-wide writer census was not demonstrated. The current source inspection confirms the known producer and consumer paths; the complete tracked-repository acknowledgement writer census remains open.
+
+### Existing coverage and bounded next evidence
+
+- Existing tests prove one unacknowledged alert creates a groove event and an acknowledged alert is ignored. They do not call tick() repeatedly against the same alert ID.
+- Existing Row 9 tests exercise the count threshold with mocked groove-event counts; they do not establish that three distinct source alert IDs are required.
+- Add test proposals only at this stage: (1) repeated ticks against one unchanged alert ID; (2) three distinct alert IDs; (3) a source alert becoming acknowledged between ticks; and (4) multiple alert rows returned in one tick. Assert source IDs and derived event counts separately.
+- Before a fix, resolve the intended semantic unit: one event per source alert, per distinct detector episode/fingerprint, or per chat-turn observation. If once-only consumption is intended, choose an explicit durable/idempotent mechanism and review its cross-database implications; do not casually add a beliefs/conversations cross-database transaction or mutate source acknowledgement state without authority review.
+- Complete the tracked-source writer census for groove_alerts.acknowledged_at, then inspect historical database evidence if an appropriately retained snapshot is available. Do not access or alter the live database as part of this source study.
+
+**Disposition:** Phase 0 source/test-contract finding. Documentation only; no runtime code, tests, schema, flags, or behaviour changed. No tests run. No Gate 0 claim. No live host, database, process, or service accessed.
+
+**Source anchors:** theory_x/diversity/loop.py (60-second detector cadence); theory_x/diversity/groove.py (in-memory detector fingerprints and alert inserts); theory_x/stage9_metacognition/metacognition.py (tick(), _detect_groove(), _write_event(), _maybe_engage_stillness()); gui/server.py (INSIDE chat call site); tests/test_metacognition.py; tests/test_stillness.py; journal/INVESTIGATION_2026-11-14_groove_facts.txt (historical 0/1,198 acknowledgement observation).
+
+**Evidence level:** source-observed caller cadence and write/read/count path; test-coverage inspection; historical database aggregate reported in a journal; live event chronology and complete acknowledgement writer census UNKNOWN.
+
+
+## §108 — Groove alert identity, producer semantics, and idempotency boundary (2026-11-28)
+
+### Additional source inspection
+
+This follow-on inspection uses the current `main` snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`. It narrows the producer/consumer contract but does not close the repository-wide acknowledgement-writer census.
+
+- `DiversityLoop._run()` invokes `GrooveSpotter.detect_all()`, then the other diversity stages, then waits 60 seconds. This is a detector cadence, not proof that each alert is consumed once by Metacognition.
+- The inspected GrooveSpotter detectors insert rows into `groove_alerts` for n-gram repetition, exact repetition, template repetition, and centroid tightening. Their duplicate suppression is held in per-instance fields such as `_last_ngram_pattern`, `_last_exact_content`, `_last_template_ids`, and `_last_centroid_ids`. These are process-memory comparisons, not durable acknowledgement of a database row. A process restart therefore resets those in-memory comparisons; whether this produces a repeated alert depends on the next detector window and remains a separate runtime question.
+- `Metacognition._detect_groove()` selects the three newest unacknowledged source rows within its 600-second lookback. It returns the source row ID as transient `groove_id`, but the inspected `_write_event()` persists only event type, description, severity, source, and timestamp into `meta_cognition_events`; the source row ID is not stored in that derived event.
+- `_maybe_engage_stillness()` counts derived `event_type='groove'` rows, not distinct source alert IDs. The threshold is three derived events in 1,800 seconds. Consequently, the same eligible source row being returned on multiple Metacognition ticks can increment this count repeatedly. This is a source-level causal pathway; no live occurrence is asserted.
+- `substrate.Writer` documents and implements one writer worker per SQLite database. The observed source alert producer writes through the beliefs writer, while Metacognition writes derived events through the conversations writer. A future once-only design must therefore make its cross-database failure semantics explicit rather than assume an atomic transaction spans both stores.
+
+### What the evidence does and does not establish
+
+**Established from inspected source:** detector inserts; in-memory fingerprint suppression; 60-second detector loop; unacknowledged-row selection; transient source ID; derived-event insertion without persisted source ID; stillness count over derived rows; separate per-database Writer instances.
+
+**Not established:** every tracked or dynamically loaded writer of `groove_alerts.acknowledged_at`; whether another maintenance path acknowledges rows; the exact production cadence of chat-triggered `tick()`; whether a live database has repeated derived rows from one source alert; whether restart has caused duplicate alert production; and the intended semantic unit of a groove event.
+
+The GitHub code-search endpoint returned no matches for the acknowledgement field in this pass, so that result is not treated as a negative writer census. Targeted inspection of the core substrate, detector, metacognition, GUI, and tests also did not prove the absence of writers elsewhere. Census remains OPEN.
+
+### Research refinement — identity must survive the boundary
+
+The central design question is not simply “where should we set acknowledged_at?” It is “what identity is the system promising to preserve as a signal crosses components?” Keep these identities separate:
+
+1. **Detector observation** — one detector evaluated one evidence window.
+2. **Alert row** — one persisted GrooveSpotter output with a stable database ID.
+3. **Episode/fingerprint** — a semantic pattern that may span multiple observations or rows.
+4. **Metacognitive observation** — one act of Metacognition noticing an alert.
+5. **Stillness evidence** — the distinct observations that satisfy the Row 9 threshold.
+
+A future implementation must explicitly choose which of these is counted, deduplicated, acknowledged, and retained. Do not collapse them into a single “event” label. A stable provenance key on the derived event (or a separately justified consumption ledger) may be necessary if the intended unit is once per alert, but this remains a design candidate, not an approved change. The correct solution must define crash windows, retries, replay, retention, and cross-database partial failure before code is touched.
+
+### Bounded next actions
+
+1. Continue a tracked-source census for all SQL and wrapper-based writes that could target `groove_alerts` or `acknowledged_at`; record exact files and line ranges, including indirect SQL builders.
+2. Inspect the table's authoritative creation/migration path and all consumers of `groove_id` before proposing a schema or transaction change.
+3. Extend the proposed regression matrix to distinguish repeated observation of one alert from three distinct alert IDs and from repeated detector episodes with different row IDs.
+4. Only after the census and semantic contract are complete, decide whether a bounded test-only probe is authorised. No production fix is justified yet.
+
+**Disposition:** Phase 0 source-level refinement; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors:** `theory_x/diversity/loop.py`; `theory_x/diversity/groove.py`; `theory_x/stage9_metacognition/metacognition.py`; `substrate/writer.py`; `gui/server.py`; `tests/test_metacognition.py`; `tests/test_stillness.py`. Snapshot: `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed producer and consumer path; source-observed database boundary; test-coverage inspection. Complete writer census, runtime chronology, and semantic event identity remain UNKNOWN.
+
+
+## §109 — Groove source identity survives through the narrative side-path (2026-11-28)
+
+### Correction and qualification to §§107–108
+
+The earlier statement that the groove source ID was not persisted applies specifically to the `meta_cognition_events` row written by `Metacognition._write_event()`. It must not be read as saying that no downstream record retains the source identity. A second, separately persisted path exists and is wired at runtime:
+
+- `run.py` constructs `SelfNarrative(writers["conversations"], readers["conversations"])` and passes it as `narrative=self_narrative` to `Metacognition`.
+- `Metacognition.tick()` passes `ev.get("groove_id")` to `write_narrative()` for each groove event returned by `_detect_groove()`.
+- `SelfNarrative.write_narrative()` inserts `content, trigger, source_id, created_at` into `narrative_log`; the source ID is the originating `groove_alerts.id`.
+- The canonical `narrative_log` DDL is in `substrate/init_db.py`'s conversations migrations. It contains a nullable integer `source_id` and an index on `created_at`; no uniqueness constraint on `(trigger, source_id)` or `source_id` is present in the inspected schema.
+- `theory_x/SELF_NARRATIVE_SPEC.md` explicitly defines a groove narrative's `source_id` as the source `groove_alerts.id`, and describes a write for each row returned by `_detect_groove()`.
+
+Therefore, when the optional narrative writer is constructed and its write succeeds, the same source alert can be correlated across repeated observations by querying `narrative_log`. This is useful forensic provenance. It is not idempotency: the write is a plain `INSERT`, and neither the table schema nor the inspected writer enforces one narrative row per source alert. A repeated Metacognition tick can add another narrative row with the same `source_id`.
+
+### The two derived streams must remain distinct
+
+| Stream | Destination | Source ID retained? | Duplicate prevention shown? |
+|---|---|---|---|
+| Metacognitive event | `meta_cognition_events` in conversations.db | No; `_write_event()` persists no `groove_id` column | No source-ID idempotency shown |
+| Self-narrative record | `narrative_log` in conversations.db | Yes, via `source_id` when narrative is wired and write succeeds | No; plain insert, no source-ID uniqueness |
+
+Both streams are downstream of the same `groove_events` list in `tick()`. Stillness counts only the first stream's `event_type='groove'` rows. The narrative stream can aid source-level auditing, but it does not currently constrain or correct the count used by Row 9.
+
+### Schema and migration finding
+
+The source table's canonical DDL is `substrate/schema/beliefs.sql`:
+
+```sql
+CREATE TABLE IF NOT EXISTS groove_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    detected_at REAL NOT NULL,
+    alert_type TEXT NOT NULL,
+    severity REAL NOT NULL,
+    pattern TEXT,
+    sample_belief_ids TEXT,
+    window_size INTEGER NOT NULL,
+    acknowledged_at REAL
+);
+```
+
+`substrate/init_db.py` maps the beliefs database to `beliefs.sql`; `init_all()` applies that schema before additive migrations. Thus a fresh database receives the current table definition. The current `_MIGRATIONS["beliefs"]` inspection did not locate an `ALTER TABLE groove_alerts ADD COLUMN acknowledged_at` migration. Since `CREATE TABLE IF NOT EXISTS` does not add a column to an already-existing older table, an installation whose pre-existing `groove_alerts` table predates this column would need separate migration evidence. The 2026-11-14 live-database journal records the column present in its sampled database (0/1,198 rows acknowledged); that historical observation does not prove every extant copy has the same schema.
+
+### Test coverage and limits
+
+- `tests/test_self_narrative.py` verifies that `source_id` is written and that independent calls produce independent rows. It does not test repeated ticks against one unchanged groove alert ID.
+- `tests/test_metacognition.py` builds Metacognition without a narrative dependency in its shared helper; its one-alert test verifies a derived event but not the live paired narrative write.
+- The static schema guards in `tests/test_schema_indexes.py` scan static SQL references/compilability against a fresh initialized store. They establish useful table/column coverage, not once-only consumption semantics or distinct-source counting.
+- No tests were run in this source-only pass. No live database was queried.
+
+### Revised next evidence
+
+1. Add a read-only forensic query to a retained snapshot (not the live DB) that groups `narrative_log` by `trigger, source_id` and compares distinct source IDs with repeated row counts; separately group `meta_cognition_events` by time/source description where attribution is possible. Preserve limitations: event rows lack source IDs, so descriptions are not a robust join key.
+2. Characterize repeated `tick()` calls with one alert and a wired `SelfNarrative`: assert counts and IDs in both destination tables. Then compare with three distinct source alert IDs.
+3. Complete the full tracked-code census for writes to `groove_alerts.acknowledged_at`; this targeted pass still does not establish that no indirect or dynamically assembled writer exists.
+4. Decide the semantic unit before any code change: detector observation, alert row, detector episode/fingerprint, metacognitive observation, or distinct evidence for stillness. Then specify retry/crash/retention behaviour separately for event and narrative streams.
+
+**Disposition:** Phase 0 source-level correction and provenance refinement; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors and main snapshot:** `run.py` (SelfNarrative construction/injection); `theory_x/stage9_metacognition/metacognition.py` (tick and source ID pass-through); `theory_x/stage_self_narrative/self_narrative.py` (narrative insert); `theory_x/SELF_NARRATIVE_SPEC.md`; `substrate/schema/beliefs.sql`; `substrate/init_db.py` (schema map, apply path, conversations migration); `substrate/schema/conversations.sql`; `tests/test_self_narrative.py`; `tests/test_metacognition.py`; `tests/test_schema_indexes.py`; `journal/INVESTIGATION_2026-11-14_groove_facts.txt`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed initialization, runtime dependency injection, source ID pass-through, and narrative persistence; test-coverage inspection; historical DB observation from journal. Full acknowledgement-writer census, present runtime chronology, and installed-schema distribution remain UNKNOWN.
+
+
+## §110 — Active versus dormant readers; GrooveBreaker is not a live wire (2026-11-28)
+
+### Reader inventory correction
+
+A broader source search found `theory_x/auto_probe/groove_breaker.py`, which reads `groove_alerts`. It is a real code-level reader, but it is **not an active runtime consumer on the current main snapshot**:
+
+- The module sets `ENABLED = False` and returns immediately from `check_and_maybe_log()` while disabled.
+- The module docstring records that its live construction/call wiring was removed on 2026-07-26.
+- `run.py` records that GrooveBreaker instantiation was removed.
+- `theory_x/stage6_fountain/__init__.py` records removal of the `check_and_maybe_log()` call.
+- `theory_x/stage6_fountain/generator.py` records removal of probe injection because `self._groove_breaker` was never non-None and the class was disabled.
+
+If reactivated, `GrooveBreaker._fetch_active_alert()` currently selects the newest alert above a severity threshold within a freshness window; it does not filter `acknowledged_at`. Its `GrooveContext` retains `alert_id`, and its observation logger writes that ID into `auto_probe_log.groove_alert_id`. Those are dormant source-level behaviours, not current live effects. Do not add GrooveBreaker to the active causal path unless its enable flag and construction/call/injection chain are restored and verified.
+
+### Schema introduction history narrows the migration concern
+
+The schema-history check refined §109's conditional legacy concern:
+
+- Commit `a396dda08e8861e22029ceef813c69211671a37e` (2026-04-26 12:51:58 UTC) added `theory_x/diversity/groove.py` and added the `groove_alerts` DDL to `substrate/schema/beliefs.sql`; the DDL included nullable `acknowledged_at` from its first observed tracked introduction.
+- Its parent `db41da3faa03ea7cf96c999495190c5d4b463824` has no `groove_alerts` table in `beliefs.sql`, no `groove_alerts` reference in `init_db.py`, and no `theory_x/diversity/groove.py` file.
+- This makes an official earlier tracked schema containing `groove_alerts` without `acknowledged_at` unlikely: the feature table and column entered together. The remaining uncertainty is limited to manually altered, partially upgraded, or otherwise non-standard installed databases; no current host database was inspected.
+
+### Test evidence — detector suppression remains uncharacterized
+
+`tests/test_diversity.py::TestGrooveSpotter` covers n-gram alert generation, no alert for diverse content, and cooldown-fragment filtering. It does not cover the later per-instance stale-rescan fingerprints (`_last_ngram_pattern`, `_last_exact_content`, `_last_template_ids`, `_last_centroid_ids`), repeated `detect_all()` calls on the same unchanged window, or restart/replay behaviour. The source comments document the intended suppression and historical incident, but the current tests do not independently prove those properties.
+
+This is separate from the Metacognition repeat-read gap. There are therefore two unverified idempotency boundaries:
+
+1. Detector -> `groove_alerts`: in-memory suppression of unchanged detector observations, reset on process restart.
+2. `groove_alerts` -> derived metacognition/narrative rows: repeated reads of an unacknowledged alert, with source ID retained only on the narrative side-path and without source-ID uniqueness.
+
+Neither boundary should be changed until the intended semantic identity is specified. The alert-row ID is durable within the database; the detector fingerprint is process-local; a detector episode can span multiple alert rows; a metacognitive observation may occur on each chat tick. These are not interchangeable units.
+
+### Research–develop–observe refinement: prove reachability, not just existence
+
+Add a required step to the NEX development scan:
+
+**Source existence → construction → enablement → call site → data path → observable effect.**
+
+For every apparent reader/writer, classify it as active, conditionally active, disabled, removed from runtime wiring, test-only, or unknown. A class that imports successfully or contains SQL is not evidence that the running process calls it. A flag set false plus removed construction/call sites is positive evidence of a dormant path. Conversely, a class may be active through dependency injection even without a direct call in its own module, so trace its object owner and caller before disposition.
+
+This avoids two opposite errors: treating dead code as a live influence, and overlooking a live wire merely because its call is indirect. It is the next practical layer of the “3D scan of a dark artifact”: map not only the physical wire but also whether current is actually flowing through it.
+
+**Disposition:** Phase 0 source-level classification and test-gap finding; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors:** `theory_x/auto_probe/groove_breaker.py`; `run.py`; `theory_x/stage6_fountain/__init__.py`; `theory_x/stage6_fountain/generator.py`; `tests/test_diversity.py`; commit `a396dda08e8861e22029ceef813c69211671a37e` and parent `db41da3faa03ea7cf96c999495190c5d4b463824`; current snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed dormant flag and removed live wiring; source-observed historical introduction of table/column; targeted detector-test inspection. Complete repository-wide acknowledgement-writer census, all installed database schemas, and live runtime chronology remain UNKNOWN.
+
+
+## §111 — GrooveBreaker reachability and detector regression boundary (2026-11-28)
+
+### Reachability result
+
+The earlier reader inventory is now closed for the known GrooveBreaker path. It is not a live consumer on current main:
+
+- `theory_x/auto_probe/groove_breaker.py` has `ENABLED = False`; `check_and_maybe_log()` returns before reading the alert when disabled.
+- `run.py` explicitly records its instantiation removed on 2026-07-26.
+- `theory_x/stage6_fountain/__init__.py` explicitly records removal of the fountain-tick call.
+- `theory_x/stage6_fountain/generator.py` explicitly records removal of the probe injection path and notes that `self._groove_breaker` was never non-None.
+- `gui/server.py` has no GrooveBreaker call site in the inspected current source.
+
+If reactivated, its existing alert query does not consult `acknowledged_at`; its context and observation log preserve `alert_id/groove_alert_id`. This should be treated as a reactivation review item, not a present runtime defect. The current active metacognition path is separate and remains wired through `run.py` and the chat handler.
+
+### Detector test boundary
+
+`tests/test_diversity.py::TestGrooveSpotter` contains tests for n-gram firing, diverse-content non-firing, and signal-cooldown fragment quality. It does not exercise `detect_all()` repeatedly against the same unchanged detector window. The current code's four in-memory fingerprint guards are therefore source-observed but not regression-test-verified by this class. The test inventory contains no separate GrooveBreaker test file in the current tree; the module is disabled and uninstantiated, consistent with the runtime classification above.
+
+### Historical table/schema result
+
+The schema's tracked introduction can be bounded to the April 26, 2026 change `a396dda08e8861e22029ceef813c69211671a37e` (12:51:58 UTC): the commit added `theory_x/diversity/groove.py` and added `groove_alerts` to `substrate/schema/beliefs.sql`, including `acknowledged_at` in the initial table DDL. The commit's parent `db41da3faa03ea7cf96c999495190c5d4b463824` has neither the table in the schema nor the GrooveSpotter module. Therefore, there is no evidence of a prior official tracked `groove_alerts` schema lacking the acknowledgement column. The earlier §109 concern is narrowed to manually modified/non-standard databases, not the ordinary tracked upgrade path.
+
+### Development-practice rule added
+
+For every apparent component, trace six gates: **source exists → object constructed → enabled → call site reachable → data actually passed → effect persisted/observed**. Mark each gate with evidence. Do not classify a component as an active influence because its source file contains a SELECT, nor as absent because a direct call is not in the file itself. Constructor injection, feature flags, removed runtime wiring, and process-local state all affect reachability.
+
+This is now a reusable scan rule, not just a GrooveBreaker finding. It prevents dormant code from inflating the active architecture and helps expose live indirect wires.
+
+**Disposition:** Phase 0 source-level refinement; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors:** `theory_x/auto_probe/groove_breaker.py`; `run.py`; `theory_x/stage6_fountain/__init__.py`; `theory_x/stage6_fountain/generator.py`; `gui/server.py`; `tests/test_diversity.py`; commit `a396dda08e8861e22029ceef813c69211671a37e` and parent `db41da3faa03ea7cf96c999495190c5d4b463824`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed flag, deleted runtime wiring, and feature-table introduction; targeted unit-test inspection. Repository-wide acknowledgement-writer census and installed runtime chronology remain UNKNOWN.
+
+
+## §112 — Active groove readers and the raw-row / episode distinction (2026-11-28)
+
+### Current reader inventory (main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0)
+
+The inspected active and dormant paths are now separated:
+
+| Component | Reachability | Query/output | Writes acknowledgement? |
+|---|---|---|---|
+| `Metacognition._detect_groove()` | Active through `run.py` dependency injection and the chat handler's `tick()` call | Up to 3 newest rows in 600 seconds where `acknowledged_at IS NULL` | No writer found in this component |
+| `DiversityLoop` → `ClockRunner._run_medium()` | Active: `run.py` constructs and starts the loop; medium clock runs at 200-fountain-fire intervals | Counts unacknowledged rows detected in the previous 7,200 seconds; stores the number under `consolidations.findings.active_groove_alerts` | No; read plus aggregate observation write only |
+| `GET /api/diversity/overview` → `panel.overview()` | Request-activated endpoint in `gui/server.py` | Returns the latest 5 rows with `acknowledged_at IS NULL` | No; read-only panel data |
+| `GrooveBreaker` | Dormant: disabled and runtime construction/call/injection removed (see §111) | Would select a recent high-severity row if reactivated | No acknowledgement write found; not active |
+| `scripts/trajectory.py` | Standalone offline/read-only analysis | Reads historical rows and collapses consecutive matches into episodes | No; analytical read only |
+
+This targeted inventory found several independent readers of the same alert table. They do not share one consumption cursor. The medium clock and panel count/show raw alert rows; Metacognition derives events and narratives; the trajectory script derives analytical episodes. These are different uses of the same source data, not evidence that one reader owns or consumes the row for all others.
+
+### A current analytical episode definition already exists — but only in an instrument
+
+`scripts/trajectory.py::_groove_episodes()` collapses consecutive rows with the same `(alert_type, sample_belief_ids)` signature into one episode, retaining the first row's timestamp and severity. The script explicitly treats raw rows as re-scans rather than independent events and uses deduplicated episodes for its groove-health calculation.
+
+This gives NEX an existing, source-bounded analytical candidate for an episode signature. It does **not** establish that this signature is the product-level or cognitive semantic identity that Metacognition or Row 9 must use. Its algorithm is read-only, order-dependent, and does not share the in-memory detector fingerprint object. Keep it as an empirical measurement lens until its equivalence to current detector behaviour is validated.
+
+### Why raw counts can diverge across the active system
+
+The same set of source rows can produce at least four different measurements:
+
+1. **Raw alert rows:** number of persisted `groove_alerts` records.
+2. **Recent unacknowledged rows:** clock and panel filters over raw records.
+3. **Metacognitive observations:** number of times an eligible source row is read and written as a derived `groove` event; repeated ticks can create repeat observations.
+4. **Deduplicated episodes:** offline trajectory metric using consecutive `(alert_type, sample_belief_ids)` matches.
+
+Do not compare these counts as though they measure the same thing. In particular, the current Row 9 stillness rule counts derived metacognition events, while the medium clock and panel expose source alert rows, and the offline instrument counts deduplicated episodes.
+
+### Writer census status and search-index limitation
+
+The targeted source inspection of the producer, schema/init path, Metacognition, SelfNarrative, diversity clock, diversity panel, GrooveBreaker, offline trajectory instrument, core substrate files, relevant tests, and maintenance/tool candidates found no active write to `groove_alerts.acknowledged_at`. GrooveSpotter writes new alert rows; the other located paths read them. This is not a repository-wide proof.
+
+The GitHub repository metadata currently reports `is_code_search_indexed=false`. Exact code-search requests returned no matches with `incomplete_results=true`; they cannot establish absence. A direct repository clone could not be completed in the current environment because the host could not resolve `github.com`. Therefore the all-source acknowledgement-writer census remains OPEN. Do not convert the targeted no-match result into “no writer exists.”
+
+### Updated causal map
+
+```text
+beliefs → GrooveSpotter → groove_alerts
+                            ├─ Metacognition chat tick
+                            │    ├─ meta_cognition_events (no groove_id stored)
+                            │    └─ narrative_log (source_id stored; no uniqueness)
+                            ├─ ClockRunner medium observation (raw row count)
+                            ├─ Diversity overview endpoint (latest raw rows)
+                            ├─ GrooveBreaker (dormant; not current runtime)
+                            └─ trajectory.py (offline episode aggregation)
+```
+
+**Disposition:** Phase 0 source-level reader inventory and measurement-semantics refinement; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors:** `run.py` (active DiversityLoop startup and Metacognition injection); `theory_x/diversity/loop.py`; `theory_x/diversity/consolidation.py`; `theory_x/diversity/panel.py`; `gui/server.py` (`/api/diversity/overview`); `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/auto_probe/groove_breaker.py`; `scripts/trajectory.py`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed active startup/call paths and read queries; source-observed derived write paths; offline episode heuristic; targeted code-path scan. Repository-wide acknowledgement writer census, production database chronology, and actual event-to-episode cardinality remain UNKNOWN.
+
+
+## §113 — Row-9 threshold contract and bounded-read behaviour (2026-11-28)
+
+### Direct source consequence
+
+The combined source path now exposes a second-order threshold ambiguity:
+
+1. `Metacognition._detect_groove()` selects at most the 3 newest unacknowledged alert rows inside a 600-second lookback.
+2. `Metacognition.tick()` writes one `meta_cognition_events(event_type='groove')` row for every item returned.
+3. After processing the returned list, `tick()` invokes `_maybe_engage_stillness()` once if the list is non-empty.
+4. `_maybe_engage_stillness()` counts every `meta_cognition_events` row with `event_type='groove'` created within the previous 1,800 seconds. The threshold is 3.
+
+Consequences derived from those source statements:
+
+- A single tick returning 3 eligible source rows writes 3 derived groove rows and can meet the stillness threshold immediately, even though no repeated chat observation was needed.
+- If only 1 source alert remains eligible, 3 separate chat-triggered ticks can write 3 derived rows from that same source alert and meet the threshold.
+- If more than 3 unacknowledged source rows exist in the 600-second lookback, the query returns only the newest 3. Older rows wait behind them; because the query has no consumption cursor and no acknowledgement update in this path, sufficiently high arrival volume can cause some older rows to age out before selection. This is a source-level bounded-read/starvation possibility, not a confirmed live incident.
+- The non-reentrant stillness check prevents overlapping active stillness rows; it does not deduplicate the evidence used to cross the threshold.
+
+### Test-contract gap
+
+`tests/test_stillness.py` tests that mocked groove counts at/above 3 write a stillness row, below-threshold counts do not, and expiry math is correct. The helper supplies the count as a mock result; it does not seed source alert IDs or prove that the counted derived events correspond to distinct alerts or episodes.
+
+`tests/test_metacognition.py` verifies one seeded unacknowledged alert can create one derived event and that an acknowledged alert is ignored. Its shared Metacognition helper does not pass a SelfNarrative object, and the groove tests do not invoke repeated ticks against one source row.
+
+The current tests therefore establish the numeric threshold and a single-read happy path, but not the threshold's intended semantic unit.
+
+### Required distinction before implementation
+
+The name `sustained_groove` and the constant `_STILLNESS_THRESHOLD = 3` do not specify whether three means:
+
+- three alert rows;
+- three distinct detector fingerprints/episodes;
+- three distinct source alert IDs;
+- three independent metacognitive observations; or
+- three observations of the same continuing pattern over time.
+
+Each interpretation has different producer and consumer requirements. The 600-second source lookback, 1,800-second derived-event count window, maximum of three returned rows per tick, and 60-second stillness duration are separate time/volume controls; none of them alone defines what counts as independent evidence.
+
+### Phase 0 characterization matrix (proposal only)
+
+| Scenario | Source setup | What to record |
+|---|---|---|
+| Repeat one alert | One alert ID, call `tick()` three times with controlled clock | Source ID read count; metacognition row count; narrative rows per source ID; stillness trigger time |
+| Three alerts in one tick | Three distinct source IDs inside lookback | Whether one tick writes three events and triggers stillness |
+| More than three alerts | Four or more eligible rows | Which three are returned; whether older rows enter or expire under controlled arrival times |
+| Episode versus row | Multiple rows with same alert type/sample IDs, then a changed signature | Compare detector fingerprints, source row IDs, trajectory episode count, and Row 9 input count |
+| Acknowledgement transition | Mark one source row acknowledged between controlled ticks in an isolated test DB | Confirm it leaves the selection set; do not modify any live database |
+
+This is a characterization plan, not a permission to alter production semantics. Do not add a deduplication rule until the intended unit is explicitly justified against the frozen specification and Founder authority.
+
+**Disposition:** Phase 0 causal/test-contract finding; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors:** `theory_x/stage9_metacognition/metacognition.py` (`_detect_groove`, `tick`, `_maybe_engage_stillness`); `tests/test_metacognition.py`; `tests/test_stillness.py`; `substrate/schema/conversations.sql`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed query limit, per-row event write, stillness count/threshold, and mocked test contract. Distinct-episode semantics and runtime event chronology remain UNKNOWN.
+
+
+## §114 — Row 9 stillness scope, duplicate table names, and output-path boundary (2026-11-28)
+
+### The historical Row 9 design intent versus current source
+
+The older `theory_x/SYNTHESIS_PLAN_V2.md` §3 describes stillness as a response when groove alerts reach at least three within 30 minutes **on the same topic**. It says the activation should be substrate-resident and non-reentrant, and that Fountain should suppress re-serving beliefs whose topic matches the grooved topic until expiry. The plan is useful design provenance because the current crystallizer labels its guard “Row 9 extension”; it is not, by itself, authority to reinterpret or amend the frozen S-01–S-25/M1.8 register or Founder sign-off.
+
+Current main source differs in scope:
+
+- `Metacognition._maybe_engage_stillness()` counts all `meta_cognition_events` rows with `event_type='groove'` inside the 1,800-second window. It does not group by topic, source alert ID, or detector episode.
+- The Row 9 `conversations.stillness_log` schema has `started_at, duration_s, expires_at, trigger, groove_count`; it has no topic or source identity field.
+- `FountainCrystallizer.crystallize()` checks whether **any** unexpired row exists in the conversations database. It does not compare the incoming thought, focal item, belief, or topic with the triggering groove. An active row therefore holds all crystallization through this path, not only crystallization related to the grooved topic.
+- The stillness guard returns before the belief insert, the `fountain_crystallizations` link insert, and the speech queue enqueue code that follows a successful belief write.
+- In contrast, `FountainGenerator.generate()` has already generated and recorded the fire in the dynamic stream before it calls the crystallizer. It does not return early when `crystallize()` returns `None`; it logs “Fountain fired” and returns the thought. The stage-6 loop receives and logs that returned thought. Therefore the Row 9 guard is not a generation pause: it blocks belief crystallization and the normal TTS queue path while the generated fire remains in the dynamic record.
+
+### Two unrelated tables share the name `stillness_log`
+
+This name collision must stay explicit in every trace:
+
+| Database | Schema | Producer / consumer | Meaning |
+|---|---|---|---|
+| `conversations.db` | `started_at, duration_s, expires_at, trigger, groove_count` | Metacognition writes it; FountainCrystallizer reads it; GUI status endpoint reports it | Row 9 timed global crystallization hold |
+| `dynamic.db` | `ts, reason, retrieval_signature, consecutive_stillness_count, jaccard` | FountainGenerator writes it during duplicate-retrieval stillness/force-fire instrumentation | Fountain retrieval-duplication observation and cadence recovery |
+
+They are separate tables in separate SQLite databases with different schemas and different semantics. A generic search for `stillness_log` without database context is not a valid causal trace.
+
+### What the existing tests establish
+
+- `tests/test_stillness.py` verifies that an active conversations stillness row makes `FountainCrystallizer.crystallize()` return `None` and prevents belief writing; absent/expired rows allow the crystallizer to proceed.
+- Those tests do not establish topic matching, because the current row has no topic field and the guard query has no topic predicate.
+- They do not verify the full Generator consequence: the fire is already recorded, `generate()` returns the thought, and the normal speech queue is not populated because queue insertion sits later in the crystallizer after belief creation.
+- The tests for the dynamic stillness table cover a different mechanism and must not be cited as Row 9 coverage.
+
+### Existing finding linkage and authority boundary
+
+This evidence refines existing backlog item **G-83 (OPEN)**; it is not a newly invented defect ID. G-83 already covers repeated reads of unacknowledged alerts and event-row counting. Its expanded evidence now includes (a) no distinct-source/topic evidence for the threshold, (b) a per-topic design description in an older plan versus a global implementation, (c) a global crystallizer hold, and (d) the fact that generation/dynamic event capture continues while belief/TTS persistence is held.
+
+Before any behavioural change, compare this discrepancy with the actual Founder Sign-Off and frozen specification text. The older `SYNTHESIS_PLAN_V2.md` is historical provenance, not a new authorization. Preserve the known status of the frozen register and Master Roadmap; where the controlling Row 9 requirement or approval cannot be located, say UNKNOWN rather than filling the gap from this plan.
+
+### Updated source-to-effect chain
+
+```text
+FountainGenerator
+  ├─ generates thought; records dynamic fountain fire
+  └─ calls FountainCrystallizer
+       ├─ active conversations.stillness_log row?
+       │    └─ YES: return None (no belief / crystallization-link / speech-queue write)
+       └─ NO: quality checks → belief write → crystallization link → speech governor → TTS queue
+
+Metacognition
+  └─ global count of derived groove rows → conversations.stillness_log
+
+Separate dynamic.stillness_log
+  └─ records Fountain duplicate-retrieval stillness/force-fire observations
+```
+
+**Disposition:** Phase 0 source-to-effect and design-provenance refinement under G-83. Documentation only; no runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** `theory_x/SYNTHESIS_PLAN_V2.md` §3; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage6_fountain/crystallizer.py`; `theory_x/stage6_fountain/generator.py`; `theory_x/stage6_fountain/__init__.py`; `substrate/init_db.py` (separate dynamic and conversations migrations); `gui/server.py` stillness status endpoint; `tests/test_stillness.py`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed end-to-end generation/crystallization/queue order and two database-specific schemas; historical design-plan text; targeted test inspection. Founder Sign-Off correspondence and frozen requirement's Row 9 semantic definition remain UNKNOWN.
+
+
+## §115 — Row 9 implementation-history comparison (2026-11-28)
+
+### What the tracked history shows
+
+Two commits on 11 May 2026 bracket the original implementation:
+
+- `36e7ed40661db58d83214b40aebde7a33fdb2519` at 11:29:57 UTC added `theory_x/SYNTHESIS_PLAN_V2.md` and updated `theory_x/DOCTRINE.md`. The detailed plan's §3 Row 9 says that stillness should follow at least three groove alerts **on the same topic** in 30 minutes and that Fountain should suppress re-serving beliefs matching that topic.
+- `c4b005f32e931047711ef6cdbe03e84a00183885` at 13:21:14 UTC implemented Row 9. Its commit message describes a count of at least three groove events in 1,800 seconds. Its patch counts all `meta_cognition_events.event_type='groove'` rows, writes a topic-free `stillness_log` row, and adds a crystallizer query for any unexpired row. The added tests mock a scalar count; they contain no topic or source-ID fixture.
+
+The Row 9 summary in the updated `theory_x/DOCTRINE.md` describes timed suppression on sustained groove and a non-reentrant substrate-resident timestamp for Fountain, but does not repeat the detailed plan's same-topic wording. The implementation commit message/patch does not explain whether the same-topic clause was deliberately deferred, simplified, or accidentally omitted. No separate decision record was located in this pass.
+
+### Inference boundary
+
+This history establishes that the more specific same-topic design text preceded the global-count/global-hold implementation by less than two hours on the same day. It establishes a **design-to-implementation scope divergence in the tracked artifacts**. It does not establish which document had controlling authority, whether Founder sign-off approved the simplification, or whether another decision record exists outside the inspected files. The current implementation's global behaviour is Runtime Truth; intended authority remains unresolved until the actual Founder Sign-Off/frozen requirement is located.
+
+The finding stays under G-83. Do not create a new defect ID and do not “restore” same-topic semantics from the older plan without authority review. The next useful Phase 0 evidence is to locate the approval/decision record or explicitly retain UNKNOWN, then characterize source identity and topic semantics with isolated tests once such work is authorized.
+
+**Disposition:** Phase 0 historical provenance refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** `theory_x/SYNTHESIS_PLAN_V2.md` §3; `theory_x/DOCTRINE.md` Row 9 table; design commit `36e7ed40661db58d83214b40aebde7a33fdb2519`; implementation commit `c4b005f32e931047711ef6cdbe03e84a00183885`; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage6_fountain/crystallizer.py`; `tests/test_stillness.py`.
+
+**Evidence level:** commit-dated design and implementation patches; current-source match to implementation; no documented rationale found in the inspected commit message/patch. Founder authorization and frozen Row 9 semantic definition remain UNKNOWN.
+
+ 
+## §116 — Metacognition tick is chat-driven, not part of the 60-second diversity loop (2026-11-28)
+
+### Caller and registry trace
+
+The current boot/caller path separates background alert production from metacognitive consumption:
+
+- run.py constructs the production Metacognition instance, injects SelfNarrative, assigns it to state.metacognition, and separately constructs/starts the DiversityLoop.
+- DiversityLoop._run() calls GrooveSpotter, DormancyScanner, and ClockRunner every 60 seconds. It does not call Metacognition.tick().
+- The production chat handler in gui/server.py calls state.metacognition.tick() while assembling chat context, then calls format_for_prompt().
+- theory_x/__init__.py defines the SentienceNode protocol and a process-lifetime registry. Its protocol docstring explicitly describes tick() as being called once per chat turn. register() only appends a node; all_nodes() only returns the registered nodes. No periodic tick dispatcher is implemented in this registry.
+- The alternate gui.server.build_state() path can construct a Metacognition instance when with_tools=True; that instance likewise uses the same chat handler tick path. It is not evidence of a background metacognition scheduler.
+
+### Cadence consequence
+
+GrooveSpotter may create alerts on its 60-second background cycle while Metacognition does not consume them until the next chat turn. At that turn it reads at most the three newest unacknowledged rows from the preceding 600 seconds. This produces a burst/recency consumer, not a paired detector-observation loop:
+
+- if more than three alerts accumulate, the query returns only the newest three;
+- if chat turns recur while the same rows remain unacknowledged, the same source rows can be re-read and re-written as derived events;
+- if there is no chat turn, the current source path does not call _maybe_engage_stillness(), even if the background detector has produced alerts.
+
+The Row 9 stillness mechanism therefore depends on chat-triggered observation frequency. The 60-second diversity cadence, 600-second detector lookback, 1,800-second event count window, and 60-second stillness duration are four separate controls, not one continuous observation cadence.
+
+### What this does not establish
+
+This does not prove that chat-driven ticking is wrong. The interface contract itself says tick is per chat turn. It does establish that the DiversityLoop is not a second periodic metacognition caller, and that a background GrooveSpotter alert does not automatically cause a Row 9 evaluation while the user is absent. Any expectation of background stillness response would need a distinct, authorized scheduler/caller contract; do not introduce one based on inference.
+
+**Disposition:** Phase 0 caller/cadence refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** run.py (construction, injection, DiversityLoop startup); gui/server.py (chat handler tick and alternate build_state construction); theory_x/__init__.py (SentienceNode tick contract and passive registry); theory_x/diversity/loop.py; theory_x/stage9_metacognition/metacognition.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** source-observed boot construction, chat caller, background loop calls, and passive registry implementation. Exact user chat cadence and live alert accumulation remain UNKNOWN.
+
+
+## §117 — Re-consumed groove rows can renew the Row 9 hold (2026-11-28)
+
+### Derived source-level timeline
+
+The combination of G-83's repeat-read path and the Row 9 non-reentrant window implies a repeatable renewal sequence. Let A be one still-unacknowledged groove alert, or A/B/C three such alerts, all still inside the 600-second source lookback:
+
+1. At chat tick T0, _detect_groove() returns the eligible row(s). tick() writes one derived groove event per returned source row. If three events are now present in the rolling 1,800-second count, _maybe_engage_stillness() inserts a stillness row expiring at T0 + 60 seconds.
+2. At later chat ticks before expiry, the same source row(s) may be returned again and more derived groove events written. The active-row check prevents another stillness insert, but it occurs after these event writes.
+3. At a chat tick after the stillness row expires, if the same source alert(s) are still inside the 600-second lookback, _detect_groove() returns them again. The new derived groove event(s) are written before the stillness count. The count still includes at least three recent derived events, so a new 60-second stillness row can be inserted without a new detector episode.
+4. The sequence can repeat while a source alert remains eligible and chat turns continue. New alerts can extend the eligibility period. Once no eligible groove alerts are returned, tick() does not call _maybe_engage_stillness(), so this particular renewal path stops creating new holds.
+
+The threshold window is 1,800 seconds, longer than the 600-second alert lookback and the 60-second stillness duration. Re-consuming an unchanged source row replenishes the derived-event count before the next hold check. This means the repeated derived writes can both cross the threshold initially and keep it crossed when a prior stillness row expires.
+
+### Separate starvation effect
+
+The source query orders by detected_at DESC and LIMIT 3, with no cursor or acknowledgement in this consumer. If three or more unacknowledged rows remain eligible, the same newest three can be returned repeatedly. Older eligible rows remain behind them and, absent another removal path, can age out of the 600-second lookback without ever being selected. This is a deterministic query-order consequence under a static set of more than three eligible rows; no live accumulation has been asserted.
+
+### Evidence boundary and test proposal
+
+This is a source-derived renewal possibility, not a runtime incident. It depends on the chat caller being invoked while the same alert remains in the lookback. Exact chat cadence and live source-row chronology remain UNKNOWN.
+
+Add a focused characterization scenario to the G-83 matrix: one alert ID (then three IDs), repeated chat ticks at controlled times inside and outside 60-second expiry boundaries, and no new detector writes. Record the source IDs selected, derived event row count, stillness activation timestamps, and the first tick at which the hold cannot renew. Also test four eligible alerts to expose LIMIT 3 starvation. Use an isolated test database and controlled clock; do not touch live state. Assertions must distinguish repeated observation from new alert/episode identity.
+
+**Disposition:** Phase 0 causal consequence and regression-proposal refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** theory_x/stage9_metacognition/metacognition.py (_detect_groove, tick, _maybe_engage_stillness); gui/server.py (chat tick caller); tests/test_metacognition.py; tests/test_stillness.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** source-derived temporal sequence from inspected query ordering, write ordering, thresholds, and caller cadence; not test-verified and not runtime-observed.
+
+
+## §118 — Sentience 5.5 StillnessNode prior art versus NEX Row 9 (2026-11-28)
+
+### Original prior-art behaviour
+
+The referenced file exists in the user's separate repository: kron777/Sentience_5.5, main snapshot 1767acf1fdb321d046261eb3c3059084c85fc0c8, Stillness_Node.py blob f290b17451974614d74881ea7e491b2ec4e9a252.
+
+Its relevant design is deliberately simple:
+
+- one process-wide is_still boolean and one stillness_until timestamp;
+- enter_stillness(duration, trigger) returns immediately if already still, otherwise marks the global node still, awaits the duration, clears the state and writes a stillness_events row;
+- the persisted row contains start_time, end_time, duration and trigger only;
+- neither the live state nor the persisted event carries a topic, groove-alert ID, episode fingerprint or belief identity;
+- it is trigger-driven through an HTTP handler; the module itself does not decide that a particular topic has become repetitive.
+
+The file's role text says deterministic cognitive pauses/system-wide quiescence and no emotion, bias or interpretation. Its actual implementation exposes a global timed state/status and an event log; it does not itself contain a topic-aware suppression algorithm.
+
+### Three layers of semantics must not be collapsed
+
+1. **Sentience 5.5 prior art:** a global non-reentrant timed pause state, triggered externally, without topic or alert identity.
+2. **NEX synthesis-plan extension:** at least three groove alerts on the same topic in 30 minutes; a substrate-resident non-reentrant activation; Fountain suppresses beliefs matching that topic.
+3. **Current NEX implementation:** globally counts derived groove event rows, creates a topic-free conversations stillness row, and globally blocks crystallization while any such row is active. Fountain still generates/records the fire; the crystallizer returns before belief/link/TTS-queue persistence.
+
+The current implementation is structurally closer to the prior art's global non-reentrant state than to the plan's same-topic refinement. However, it is not a full system-wide pause: the observed gate is at the crystallizer boundary, not at thought generation or all system activity.
+
+### What can and cannot be concluded
+
+The prior-art file helps explain the source shape and why a global state was an available starting point. It does not prove why the same-topic NEX plan was not carried into implementation. The implementation commit cites the Row 9 extension and StillnessNode prior art; its patch does not record an explicit decision to defer the topic refinement. The exact intended NEX semantics remain authority-sensitive and must be checked against Founder Sign-Off/frozen specifications before any behavioural change.
+
+This research also yields a reusable porting lesson: when adapting prior art, write down the inherited behaviour, the NEX-specific semantic delta, and the tests that prove the delta. A copied non-reentrant state machine is not equivalent to a later topic-aware design just because both are called “stillness”.
+
+**Disposition:** Phase 0 comparative design-provenance refinement under G-83; documentation only. No changes were made to Sentience_5.5 or NEX runtime. No tests run. No live host/database/process/service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** Sentience_5.5/Stillness_Node.py at 1767acf1fdb321d046261eb3c3059084c85fc0c8; NEX theory_x/SYNTHESIS_PLAN_V2.md §3; theory_x/DOCTRINE.md Row 9; NEX implementation commit c4b005f32e931047711ef6cdbe03e84a00183885; current NEX snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** directly inspected original prior-art source; compared with the NEX design-plan text, doctrine summary, implementation patch and current runtime source. Reason for omitting the topic-specific refinement and controlling Founder authority remain UNKNOWN.
+
+
+## §119 — Row 9 does not pause the existing speech queue (2026-11-28)
+
+### Speech producer/consumer boundary
+
+The earlier conclusion that the Row 9 guard prevents the current fire's normal speech enqueue is correct, but it must not be generalized into “stillness pauses speech”:
+
+- A new Fountain thought reaches the speech enqueue code only after successful crystallization and belief creation. When the Row 9 guard returns None at the start of crystallization, that fire does not create the corresponding belief or speech_queue row.
+- The SpeechQueueConsumer is a separate daemon thread. run.py constructs it with only the beliefs Writer/Reader (plus voice configuration/state/backend). It does not receive a conversations Reader.
+- The consumer polls beliefs.db for speech_queue rows with status='pending', orders by queued_at, and speaks them when not paused and outside configured quiet hours.
+- Its inspected polling and _speak_one() paths have no read of conversations.stillness_log and no Row 9 gate. The consumer can therefore continue consuming entries that were already pending when a Row 9 stillness row became active.
+- The consumer's own pause/quiet-hours controls are independent. They are not set by Metacognition._maybe_engage_stillness().
+
+### Effective Row 9 boundary
+
+Current source behaviour is therefore:
+
+| Output stage | Effect of active Row 9 conversations stillness row |
+|---|---|
+| Thought generation | Continues; Generator returns the thought |
+| Dynamic fountain fire record | Already written before crystallizer call; remains |
+| Belief crystallization | Blocked at Crystallizer precondition |
+| New speech_queue item for that fire | Not created, because enqueue follows belief creation |
+| Existing pending speech_queue items | Not held by the Row 9 code; consumer can continue speaking them |
+| Other non-Fountain producers of speech_queue rows | Not shown to consult Row 9 in this source pass; their behaviour remains outside this specific path |
+
+This is another reason not to call the current mechanism a global speech pause. It is a crystallization precondition whose side effect is to prevent new speech entries from that Fountain fire; it does not quiesce the already-running speech consumer or drain/hold its backlog.
+
+### Test coverage and next characterization
+
+tests/test_speech.py exercises queue creation, duplicate enqueue prevention, the consumer pause flag, and shutdown during synthesis. It does not activate a Row 9 conversations stillness row while a pending speech_queue item exists. tests/test_stillness.py verifies the crystallizer guard but does not start a consumer with pre-existing queued audio.
+
+A bounded isolated characterization should seed a pending speech row, activate a conversations stillness row, and verify the consumer's current behavior separately from the new-enqueue path. This is a descriptive test of the existing boundary; it is not an authorization to make Row 9 control the consumer. Any new consumer gate would affect voice output policy and requires authority review.
+
+**Disposition:** Phase 0 output-path refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, audio device, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** run.py (SpeechQueueConsumer construction and beliefs-only dependencies); speech/queue_consumer.py (pending poll, pause/quiet-hours checks, synthesis/playback); theory_x/stage6_fountain/crystallizer.py (belief and speech enqueue ordering); theory_x/stage6_fountain/generator.py (post-crystallizer return); tests/test_speech.py; tests/test_stillness.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** source-observed independent consumer, its dependencies, poll/write path and absence of Row 9 query in inspected consumer code; targeted test inventory. Runtime queue state/audio chronology remains UNKNOWN.
+
+
+## §120 — Groove reader census: active prompt wires, conditional readers, and observation-only paths (2026-11-28)
+
+### Direct alert-table producer and acknowledgement-writer result
+
+The direct producer remains GrooveSpotter in theory_x/diversity/groove.py. Its four detector branches INSERT rows into beliefs.db.groove_alerts. The schema defines acknowledged_at as a nullable REAL field. In the tracked-source inspection, no direct UPDATE/assignment to acknowledged_at, trigger, or acknowledgement-owning service was located. All direct references located to that column are SELECT filters (Metacognition, ClockRunner, panel, Probe ContextSnapshot). The search service still reports this repository as not code-indexed, so empty code-search results are not evidence; this classification is from file-by-file source reads.
+
+**Census disposition:** no tracked direct acknowledgement writer was found in the inspected Python, SQL, UI and launch/config source paths. This narrows the open question from “where is the writer?” to “is the column intentionally read-only, or is an external/untracked/dynamically assembled writer expected?” No live DB, host, or running process was inspected. Do not mark the field unwritten in all deployments as a runtime fact; no such runtime fact has been measured.
+
+### Active prompt and drive influence
+
+Two additional consumers are real runtime wires, rather than just references in files:
+
+1. **CompetingDrives — active, indirect drive/prompt influence.**
+   - run.py constructs and starts CompetingDrives on its 600-second loop.
+   - FountainGenerator also calls compute_now() on the per-fire path.
+   - _compute_weights() reads MAX(groove_alerts.severity) across the trailing 24 hours, without an acknowledged_at filter.
+   - That value contributes 0.30 × groove to the raw coherence-drive weight. The active opposing pairs include coherence↔exploration and curiosity↔coherence.
+   - format_for_prompt() emits a tension block when the opposing-pair set changes and qualifying weights exceed the threshold; FountainGenerator appends that block to the prompt.
+   - This is an indirect, conditional influence on prompt framing through a drive measurement. It is not an action-authority gate, and it does not consume or acknowledge the source alert.
+
+2. **Recent STRIKING feedback — default-on conditional prompt filter.**
+   - FountainGenerator._build_recent_striking_block() retrieves recent STRIKING-tagged fire candidates, removes near-duplicates, then reads the newest groove_alerts.pattern with severity ≥0.5 from the preceding hour.
+   - It splits that pattern into terms and removes sampled candidate fires containing those terms before building the “Recent voice of yours that landed as itself” prompt block.
+   - The prompt builder invokes this block when conversations/dynamic readers exist and NEX5_GENIUS_PROMPT_OFF != 1. The tracked keepalive launch line does not set that disable flag; the default source path is therefore enabled, subject to inherited environment and the presence of eligible STRIKING rows.
+   - This is an active/conditional prompt-selection influence, not an acknowledgement or action veto. It does not change previously stored alerts or beliefs.
+
+### Conditional and dormant readers
+
+| Path | Source condition / reachability | Effect and classification |
+|---|---|---|
+| Substrate-as-Voice in FountainGenerator | Reads max severity over 24h; caller only invokes it when NEX5_RECONCILE != 1. The tracked keepalive launch line sets NEX5_RECONCILE=1. | Dormant under the documented launch profile; if re-enabled, severe groove can shorten cooldown and select a stored anchor instead of normal generation. Do not include it in the current active path. |
+| Stakes readiness appraisal | NEX5_STAKES=1 is required; module documents default OFF and shelving pending a dominance-out gate. The tracked keepalive line does not set NEX5_STAKES; inherited environment is not host-verified. | Conditional readiness penalty based on the rate of template_repetition alert rows in the trailing hour. Not part of the stated default launch profile; runtime environment remains UNKNOWN. |
+| Topic Gate Shadow | NEX5_TOPIC_GATE_SHADOW=1 required; source documents default OFF and telemetry-only. | Dormant telemetry path; reads groove severity for topic_gate_shadow_log and does not block or replace prompt content. |
+| GrooveBreaker | ENABLED=False; run.py construction, stage-6 tick call and prompt-injection wiring removed. | Dormant; its recent-alert reader is not a current runtime wire (see §111). |
+| Raga detector | Standalone diagnostic CLI; its detect() can read one recent groove alert. FountainGenerator imports only its recent-thought/repetition helpers for another path; no booted Raga detector or current runtime call to its groove reader was located. | Manual diagnostic/measurement only in the inspected boot graph. |
+| ContextSnapshot / ProbeRunner | ProbeRunner is constructed at boot; /api/probes/run calls it on request. ContextSnapshot reads the newest 10 unacknowledged rows before the requested probe and stores them in probe_context. | User/request-triggered research capture; no source acknowledgement and no autonomous action path. |
+| SubstrateHarmonic | Active 300-second worker reads max groove severity over 24h and writes substrate_coherence. Module explicitly defines this phase as LOG-ONLY and says future consumers do not yet exist. | Active measurement only; no current behavioral consumer identified. |
+| StateSnapshotWriter | ENABLED=True; run.py constructs/passes it to Fountain; the stage-6 loop calls write_snapshot(). The JSON snapshot includes the newest five groove alert rows. Its module states Phase A has no read-back. | Active forensic snapshot only; no current NEX read-back path. |
+| Diversity overview / UI | GUI endpoint calls panel.overview(), which reads the latest five unacknowledged rows; app.js displays at most two. | Request/UI presentation only; no mutation. |
+| trajectory.py | Standalone read-only monitor; collapses consecutive matching (alert_type, sample_belief_ids) rows into offline episodes. | Offline analysis only; not the live Row 9 identity contract. |
+
+A small placeholder in coincidence/context_capture.py stores a groove_alerts field as None with a comment that it is not yet captured from the DB; it is not a direct alert-table read or acknowledgement writer.
+
+### Revised causal inventory
+
+The current alert table therefore has several distinct downstream semantics:
+
+- **Detection:** GrooveSpotter emits alert rows.
+- **Chat reflection:** Metacognition turns eligible source rows into derived groove events and can repeat them (G-83).
+- **Timed crystallization hold:** Row 9 counts derived events globally and blocks new belief crystallization, with the generation/speech boundaries described in §§114–119.
+- **Drive/prompt shaping:** CompetingDrives consumes severity as a coherence input; recent STRIKING feedback uses the alert pattern to filter prompt candidates.
+- **Observation:** harmonic score, state snapshot, GUI, probe snapshot, trajectory analysis.
+- **Dormant/conditional:** GrooveBreaker, substrate voice in the current launcher, topic shadow, and stakes penalty unless their relevant gates are active.
+
+These routes do not share one acknowledgement cursor or one episode identity. They must not be added together as though they are one causal consumer. In particular, a prompt filter or drive weighting may read the same alert while Metacognition later re-reads it; neither reader's read is a global consume.
+
+### Development-method refinement: trace the signal to all effect classes
+
+Extend the “one wire is never local” scan from producer→reader to:
+
+**producer → direct readers → transformed measures → runtime reachability → prompt/drive effects → observation-only sinks → independent consumers → authority boundary.**
+
+For every read, record whether it (a) gates, (b) selects/reorders, (c) alters a prompt, (d) changes a drive/score, (e) records telemetry, or (f) only displays. Then trace the exact owner/caller and relevant flag. The same SQL SELECT can be observational in one module and behavior-shaping in another; the effect classification depends on the sink and reachability, not the query alone.
+
+**Disposition:** Phase 0 reader-census and influence-classification refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, API request, audio device, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** theory_x/diversity/groove.py; theory_x/stage9_metacognition/metacognition.py; theory_x/diversity/consolidation.py; theory_x/diversity/panel.py; theory_x/stage_drives/competing_drives.py; run.py; theory_x/stage6_fountain/generator.py; theory_x/stage6_fountain/readiness.py; theory_x/harmonic/substrate_harmonic.py; theory_x/memory/snapshot_writer.py; theory_x/probes/context_snapshot.py; theory_x/probes/probe_runner.py; gui/server.py; gui/static/app.js; theory_x/stage_tom/raga_detector.py; theory_x/stage_tom/stakes_appraisal.py; scripts/trajectory.py; nex_keepalive.sh; substrate/schema/beliefs.sql; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** source-observed boot construction, loop/caller paths, feature-flag conditions, SQL reads/writes and sink behaviour; exact host environment, live event chronology, external DB clients, and dynamically assembled/untracked SQL remain UNKNOWN.
+
+
+## §121 — GrooveSpotter's detector identity is process-local and type-specific (2026-11-28)
+
+### Four detector fingerprints, four different meanings of “same”
+
+The current GrooveSpotter implementation has four independent in-memory fingerprints:
+
+| Detector | Fingerprint stored in the GrooveSpotter instance | What unchanged means |
+|---|---|---|
+| Exact repetition | Exact repeated sentence content | The top repeated sentence is unchanged |
+| N-gram repetition | Top repeated trigram text | The most-common trigram remains the same |
+| Template repetition | frozenset of all participating templated belief IDs | The participating belief-ID set is unchanged |
+| Centroid tightening | Ordered tuple of all current-window belief IDs | The complete current-window order is unchanged |
+
+Each detector clears its fingerprint when its own condition falls below its threshold (or, for the centroid detector, when the required previous window/spread is unavailable). A still-present unchanged fingerprint skips insertion on the next 60-second scan. This addresses the historical stale-rescan flood recorded in the module comments.
+
+The fingerprints are **not durable**. They live on the GrooveSpotter instance created by DiversityLoop. The instance is recreated on process restart, so all four fingerprints start as None. The module comment explicitly allows one fresh emission after restart if the same condition is still present. Therefore:
+- repeated scans in one process can be suppressed;
+- a restart can create a new alert row for a still-present detector condition;
+- a new alert row after restart is not necessarily a new underlying groove episode;
+- the in-memory fingerprint is not available to Metacognition, the GUI, the probe snapshot, or the offline trajectory tool.
+
+### Stored alert fields do not preserve every detector fingerprint
+
+The four alert writers populate the common columns, but their sample_belief_ids fields are not a uniform identity contract:
+
+- N-gram alerts store the first five rows of the current 20-belief window, while the in-memory fingerprint is the top trigram string.
+- Exact-repetition alerts store IDs of the rows with the repeated exact content.
+- Template-repetition alerts store the participating templated IDs; this broadly corresponds to its frozenset fingerprint.
+- Centroid alerts store the first five current-window IDs, while the in-memory fingerprint includes the complete ordered current window.
+
+The common table does not store a dedicated detector fingerprint, detector process/boot ID, episode ID, or durable “already emitted” record. Thus the original detector-level identity cannot always be reconstructed exactly from a persisted row.
+
+### Offline trajectory grouping is a different equivalence relation
+
+scripts/trajectory.py groups consecutive rows by (alert_type, sample_belief_ids) and treats the first row of each run as an episode. This is useful for historical analysis, but it is not identical to the detector's internal identity:
+
+- For n-gram alerts, two different top trigram patterns can share the same alert_type and the same first-five sample IDs, causing the offline grouping to merge them.
+- For centroid alerts, the current-window fingerprint can change outside the first five IDs while the persisted sample_belief_ids stays the same, so the offline grouping can merge detector states that the producer treated as different.
+- A process restart can re-emit the same detector condition as a new row; the offline grouping may merge or separate it depending on adjacency and sample IDs, not on restart or process identity.
+
+The trajectory episode count therefore remains an analytical estimate, not the canonical detector episode count. It should not be used as a drop-in replacement for alert-row IDs or source fingerprints in Row 9.
+
+### Test boundary
+
+tests/test_diversity.py::TestGrooveSpotter tests individual detector conditions and cooldown-fragment filtering. It does not currently characterize repeated detect_all() calls against the same unchanged window for all four detector types, fingerprint clearing when each condition stops holding, or new-instance/restart replay. The current tests therefore do not prove the in-memory stale-rescan suppression contract or its restart boundary.
+
+### Bounded characterization matrix
+
+| Case | Expected property to characterize |
+|---|---|
+| Same unchanged window, same instance | First qualifying scan emits; subsequent identical scans do not reinsert for each detector type |
+| Condition clears, then returns | The detector resets its fingerprint and emits a new alert on the later recurrence |
+| New GrooveSpotter instance, same unchanged window | The new instance may emit once again; this is restart replay, not necessarily a new episode |
+| Same n-gram window, different top pattern | Producer fingerprint changes even if sample-belief window IDs remain the same |
+| Same centroid first-five IDs, changed remaining window | Producer fingerprint changes even if the persisted sample-belief summary does not |
+| Four or more eligible alerts downstream | Metacognition's independent LIMIT 3 selection remains separately characterized; detector dedup does not fix consumer replay |
+
+These are characterization expectations from the inspected implementation, not executed test results. No source code or tests were changed in this pass.
+
+**Disposition:** Phase 0 producer-identity refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** theory_x/diversity/groove.py (GrooveSpotter.__init__, detect_all, four detector methods); theory_x/diversity/loop.py (one per-loop instance and 60-second scan); run.py (loop startup); tests/test_diversity.py::TestGrooveSpotter; scripts/trajectory.py::_groove_episodes; theory_x/stage9_metacognition/metacognition.py; snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** source-observed in-memory fingerprint rules and persistence fields; targeted test inventory; offline metric comparison. Restart chronology and actual production alert cardinality remain UNKNOWN.
+
+
+## §122 — Test-only GrooveSpotter fingerprint characterization candidate (2026-11-28)
+
+### Separate PR #448
+
+A separate, test-only branch has been opened as draft PR #448:
+https://github.com/kron777/Nex_v5.0/pull/448
+
+Head commit: f4447ad5b243b97c91c28fc00abbef88fe7c51f9. Base: current main 18c8f06171e1de35c3210831a49b63d0e2487af0. One file added: tests/test_groove_spotter_fingerprints.py (177 lines, no deletions).
+
+The tests exercise the four existing GrooveSpotter detector fingerprints independently:
+- n-gram top-pattern string;
+- exact repeated sentence content;
+- template participating-belief-ID set;
+- centroid ordered current-window ID tuple.
+
+For each detector, the characterization checks: first qualifying observation emits, unchanged repeat in the same instance is suppressed, loss of the qualifying condition clears the fingerprint, the same condition can emit again after clearing, and a new GrooveSpotter instance can emit once again because fingerprints are process-local.
+
+### Scope and validation boundary
+
+This is characterization of existing source behaviour only. It does not change GrooveSpotter, thresholds, detection logic, alert schema, acknowledgement semantics, Metacognition, Row 9, feature flags, or NEX cognitive behaviour. It does not choose a canonical groove episode identity and does not claim that restart replay is a new semantic episode.
+
+The repository's GitHub Actions workflow for this exact head was created as run 46173749707, event pull_request, status queued at the time of this snapshot. Commit status reports pending with zero completed status contexts. No test result is available yet. No local tests were run. Keep PR #448 draft until exact-head CI, review and evidence interpretation are complete.
+
+### Next evidence after CI
+
+If the workflow passes, record only that the characterization tests pass on this exact head; do not upgrade it to live runtime observation. If it fails, inspect the precise failure and correct the test fixture without touching runtime detector semantics. Then consider separate characterization of detect_all() call ordering and integration with the background loop, again without changing behaviour.
+
+**Disposition:** Phase 0 test-characterization candidate under G-83. One test file only; no runtime source or behaviour change. G-83 remains OPEN. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Evidence anchors:** PR #448; commit f4447ad5b243b97c91c28fc00abbef88fe7c51f9; tests/test_groove_spotter_fingerprints.py; theory_x/diversity/groove.py; tests/test_diversity.py; workflow run 46173749707; main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Evidence level:** test source committed; exact-head CI queued, not yet test-verified; no runtime observation.
+
+
+## §123 — Historical runtime anchor: November 14 groove alert population and episodes (2026-11-28)
+
+### What the contemporaneous investigation recorded
+
+The tracked journal journal/INVESTIGATION_2026-11-14_groove_facts.txt contains a direct, read-only observation of the then-live beliefs.db:
+
+- COUNT(*) was 1,198 on the first check and 1,199 about 20 minutes later; the underlying NEX process was not stopped or touched during the investigation.
+- Earliest recorded alert: 2026-10-26 22:29:46.
+- Type distribution in the 1,198-row sample: template_repetition 1,136 (94.8%); ngram_repetition 62 (5.2%); exact_repetition 0; centroid_tightening 0.
+- acknowledged_at IS NOT NULL was 0 of 1,198 at that historical observation time.
+
+This is historical runtime-observed evidence preserved in the repository journal. It is not a measurement of the current host or current database. The journal also notes that its “never written” conclusion was based on what that investigation found; the current tracked-source census likewise has not located a direct writer, but neither source proves that no external, untracked, or dynamically constructed writer has ever existed.
+
+### The historical 30-minute episode calculation
+
+The journal grouped all 1,199 alert rows by a 30-minute gap between consecutive rows (chosen because other code uses a 1,800-second freshness window). That analysis produced:
+- 55 gap-clustered groups;
+- alerts per group: minimum 1, median 14, p90 54, maximum 102;
+- group span: median approximately 106.7 minutes, p90 approximately 376.7 minutes, maximum approximately 837.3 minutes.
+
+For the November 10 “Aligned Model” incident, the two specifically matched source alerts were IDs 751 and 752, both template_repetition at severity 1.0. The same historical gap analysis put that incident's alert group at 8 rows over 56.4 minutes. The journal also records that GrooveSpotter pushed a signal_cooldown entry and a later crystallization reject matched “aligned model”. These are source-journaled database observations, not a current replay.
+
+### How this relates to today's identity analysis
+
+Keep four identities distinct:
+
+1. **Persisted alert row:** one row in groove_alerts, with its database ID and common alert columns.
+2. **GrooveSpotter in-memory detector fingerprint:** one of four type-specific per-instance fingerprints (§121); not durable across restart.
+3. **Historical 30-minute gap cluster:** an offline grouping of consecutive rows by time gap, across alert types. It is an analytical estimate, not the producer's fingerprint.
+4. **Row 9 derived event:** a meta_cognition_events row created each time Metacognition reads an eligible source alert; repeats of the same source row can create multiple derived events.
+
+The November 14 report's phrase “one alert” refers to a fresh detector emission after stale-rescan suppression, not to a universally defined episode. Its gap-clustering distribution is useful operational history, but cannot supply the missing canonical identity needed by G-83 or Row 9. In particular, the 55 historical gap groups must not be compared directly with current derived event counts or detector fingerprints.
+
+### What this historical anchor supports — and what it cannot
+
+It supports that:
+- the historical source table was growing during the investigation;
+- none of the sampled historical rows had acknowledged_at set;
+- template_repetition overwhelmingly dominated that sample;
+- long-lived repetition patterns were observed in the historical gap-cluster analysis;
+- at least one specific live incident generated maximum-severity template alerts and a real cooldown effect.
+
+It does not establish current alert frequency, present acknowledgement state, restart replay frequency, current host status, or whether all historical alert rows were distinct semantic episodes. The original journal itself flags that raw-fire topic dwell beyond crystallized beliefs was not computed; no estimate of raw-fire repetition duration should be inferred from this table.
+
+**Disposition:** Phase 0 historical runtime evidence reconciliation under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No live host/database/process/service accessed in this pass. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchor:** journal/INVESTIGATION_2026-11-14_groove_facts.txt, especially its Q2 alert count/type/acknowledgement breakdown, 30-minute gap-clustering distribution, Q3 incident rows/cooldown evidence, and final evidence limitations. Current implementation comparison: theory_x/diversity/groove.py, theory_x/diversity/loop.py, theory_x/stage9_metacognition/metacognition.py; manual §§112–123.
+
+**Evidence level:** historical runtime-observed counts and event rows as reported by the contemporaneous read-only journal; source-observed current identity model; retrospective 30-minute grouping method. Current live database state and cross-restart episode identity remain UNKNOWN.
+
+
+## §124 — Dual G-83 characterization candidates: producer and consumer (2026-11-28)
+
+### Producer-side characterization: PR #448
+
+Draft PR #448, head f4447ad5b243b97c91c28fc00abbef88fe7c51f9, adds tests/test_groove_spotter_fingerprints.py. It characterizes all four producer fingerprints (ngram, exact, template, centroid) for same-instance unchanged suppression, clearing/re-emission after the condition disappears, and fresh-instance replay. Exact-head full test workflow run 46173749707 is IN_PROGRESS; no result yet.
+
+### Consumer-side characterization: PR #449
+
+Draft PR #449, head 50c2e083de1dab3e40301b37dc14b614a0d08f23, adds one controlled-clock test to tests/test_metacognition.py. It seeds exactly one unacknowledged source alert and calls Metacognition.tick() five times. The assertions characterize the current path:
+- one source alert remains singular and unacknowledged;
+- five derived groove events are written from that same source alert;
+- the third event starts a 60-second Row 9 stillness window;
+- the fourth event is written while the hold is active but does not stack a hold;
+- after expiry, the fifth event causes a second stillness activation without a new source alert.
+
+Exact-head full test workflow run 46174148899 is IN_PROGRESS; no result yet.
+
+### Combined scope and interpretation
+
+Both are test-only Phase 0 characterization candidates. Neither changes runtime code, thresholds, schemas, feature flags, detector or Metacognition behaviour, the frozen specifications, or the roadmap. Together they test the two separate replay boundaries documented in §121 and G-83: detector instance identity and downstream consumer re-observation. They do not settle what should count as a semantic episode or whether the Row 9 threshold should be global/topic-specific/source-based. G-83 remains OPEN.
+
+No test has been run locally and no CI pass is claimed. Keep both PRs in draft until each exact-head workflow completes and the test results are reviewed. A failure must be diagnosed before updating the evidence status; do not treat queued/in-progress as validation.
+
+**Disposition:** Phase 0 test-characterization evidence candidates only. No live host, database, process, API, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Evidence anchors:** PR #448 / run 46173749707 / commit f4447ad5b243b97c91c28fc00abbef88fe7c51f9; PR #449 / run 46174148899 / commit 50c2e083de1dab3e40301b37dc14b614a0d08f23; main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+
+## §125 — Producer fingerprint tests pass exact-head CI (2026-11-28)
+
+### PR #448 result
+
+Producer-side characterization PR #448 was tested at exact head f4447ad5b243b97c91c28fc00abbef88fe7c51f9 against base main 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+GitHub Actions run 46173749707 completed successfully on 2026-11-28:
+- 3,081 passed;
+- 7 skipped;
+- 86 subtests passed;
+- 0 known-intentional deselections;
+- baseline gate: OK;
+- mind-map verification: 30 nodes, 0 unverified, 12 dark, 2 blocked.
+
+The workflow also completed the disposable test-image build and sandbox probe successfully. The mind-map verifier retained existing warnings: missing VIRTUE_SLATE.md and mental_factors_inventory_alobha_spec.txt doctrine references, and the overdue p13_finitude UNBLOCK marker dated 2026-11-21. These are recorded as verifier warnings, not new test failures or authorization to rearm any node.
+
+### What this validates
+
+It validates that the four new tests pass against the current GrooveSpotter implementation on this exact commit:
+- unchanged per-instance n-gram, exact, template and centroid observations are suppressed;
+- the tested fingerprint clears when that detector condition is absent;
+- a fresh GrooveSpotter instance can emit again because its process-local fingerprint begins empty.
+
+It does not prove live restart frequency, canonical semantic episode identity, persistence across processes, or correct downstream interpretation by Metacognition/Row 9. The test PR remains draft pending review; passing CI is not approval to merge or change runtime behaviour.
+
+### Consumer test still pending
+
+Separate draft PR #449 (head 50c2e083de1dab3e40301b37dc14b614a0d08f23) is testing the controlled-clock Metacognition replay/Row 9 renewal characterization. Run 46174148899 was still in progress at this snapshot, in the disposable image-build step; no result is claimed.
+
+**Disposition:** producer-side test characterization is now test-verified on the exact PR #448 head; G-83 itself remains OPEN. No runtime code, schema, flags or cognitive behaviour changed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Evidence anchors:** PR #448; exact head f4447ad5b243b97c91c28fc00abbef88fe7c51f9; run 46173749707; job 141067710930; full log; tests/test_groove_spotter_fingerprints.py; main base 18c8f06171e1de35c3210831a49b63d0e2487af0. Pending separate PR #449/run 46174148899.
+
+**Evidence level:** exact-head full-suite CI test-verified; no production runtime observation.
+
+
+## §126 — G-83 consumer replay verified; trace the repeated observation into chat prompt paths (28 November 2026)
+
+**Question studied:** after one unacknowledged GrooveSpotter alert is repeatedly re-read, what actually reaches the chat prompt, what is persisted separately, and which downstream effects count the repeats?
+
+**Evidence snapshot:** current code main at `18c8f06171e1de35c3210831a49b63d0e2487af0`; test-only PR #449 exact head `50c2e083de1dab3e40301b37dc14b614a0d08f23`. Static source trace plus exact-head isolated CI. No live host, process, database or feature-flag state was inspected.
+
+### Exact-head consumer characterization result
+
+PR #449 adds one controlled-clock test to `tests/test_metacognition.py`. Exact-head workflow **46174148899** completed successfully:
+
+- 3,079 passed;
+- 7 skipped;
+- 86 subtests passed;
+- baseline gate OK;
+- disposable test sandbox probe OK;
+- mind-map verifier: 30 nodes, 0 unverified, 12 dark, 2 blocked.
+
+The test seeds one unacknowledged source alert, invokes `Metacognition.tick()` five times at controlled timestamps, and observes five derived groove events plus two 60-second stillness activations (at 1020 and 1081) from that same source row. This is test-verified current behaviour, not approval of its semantics and not a live-host frequency measurement. PR #449 remains a test-only characterization candidate; exact-head CI is not a merge or runtime-authority decision.
+
+### Source-to-prompt trace
+
+The repeated source row has more than one downstream path:
+
+1. **Boot wiring:** `run.py` constructs Stage-SelfNarrative using the conversations Writer/Reader and passes that instance to `Metacognition(..., narrative=self_narrative)`.
+2. **Chat-turn caller:** `gui/server.py` calls `state.metacognition.tick()` on the chat path, immediately calls `format_for_prompt()`, and appends any returned text to `belief_text`. This is request-driven, not evidence of an independent 60-second Metacognition worker.
+3. **Repeated source read:** `Metacognition._detect_groove()` selects up to three rows with `acknowledged_at IS NULL` and `detected_at > now - 600`, newest first. It does not mark the source row acknowledged.
+4. **Derived event write:** each selected row becomes a new `meta_cognition_events` row. `_write_event()` invalidates the recent-event cache; `tick()` refreshes it before returning.
+5. **Generic prompt observation:** `format_for_prompt()` reads only the newest cached event. For event type `groove`, it returns the fixed sentence “Self-observation: I notice repeated patterns in my recent thinking.” It does not include the specific alert pattern.
+6. **Pattern-specific narrative side path:** for each repeated event, `tick()` also calls `self_narrative.write_narrative()` with “I noticed I am repeatedly returning to {pattern}”, storing the source alert ID. Later in the same GUI route, the separate Stage-SelfNarrative formatter receives `current_topic=prompt[:100]` and performs a substring `LIKE` filter over narrative content. The alert-derived narrative is therefore conditionally eligible; its presence in `narrative_log` does not prove it is injected into every chat prompt.
+
+This separates three things that must not be collapsed: repeated source observation, generic Metacognition prompt text, and topic-filtered pattern-specific narrative.
+
+### Downstream effect classification
+
+- **Row 9 stillness:** counts all `meta_cognition_events` rows of type `groove` in the preceding 1,800 seconds. Three events trigger a 60-second `stillness_log` hold. If the hold expires while repeated source reads continue, a later chat tick can renew it. PR #449 verifies this in an isolated fixture.
+- **Fountain crystallization:** the FountainCrystallizer reads the active stillness window and returns a HOLD before writing a belief. This is a crystallization hold, not proof that thought generation, the speech queue, or all other output paths are paused (see §§114–119).
+- **CompetingDrives and Recent STRIKING:** these inspected consumers read the original `groove_alerts` table directly (severity and pattern respectively), not the derived repeated `meta_cognition_events` count. Do not multiply their effects by the number of Metacognition re-reads. Their distinct prompt/drive effects remain as classified in §120.
+- **Recent self-observation slots:** the default recent-event query selects the three newest unresolved rows. Repeated groove events can therefore occupy multiple recent slots when they are the newest events; the formatter still emits one generic line based on the top row.
+
+### Interpretation and next bounded trace
+
+The feedback is **chat-turn-triggered repetition**, not an established autonomous exponential loop. One unchanged source row can be counted again on successive chat requests while it remains unacknowledged and inside the ten-minute lookback. Those repeats can renew Row 9 and populate recent self-observation history. The exact host request cadence, alert population, and prompt exposure remain UNKNOWN.
+
+The next safe characterization is a separate fixture-level test of the complete prompt boundary: pass the real Stage-SelfNarrative instance into Metacognition; assert repeated pattern-specific narrative rows; compare matching and non-matching `current_topic` filters; assert the generic Metacognition line independently; and verify whether repeated groove rows displace an older independent event from the three-row recent window. Do not change acknowledgement semantics, episode identity, Row 9 threshold/duration, prompt policy or feature flags in that test.
+
+**Disposition:** G-83 consumer replay is now exact-head test-verified. The prompt/narrative consequences above are source-observed; the additional combined formatter/caller test remains a candidate. G-83 remains OPEN pending an explicit semantic decision about source-alert acknowledgement and the unit counted as one groove episode. Documentation and test characterization only; no runtime source, schema, flags, cognitive behaviour, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. No live host, database, process or service accessed.
+
+**Source anchors:** `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `theory_x/stage6_fountain/crystallizer.py` blob `c0a5cf1388825e7fc9438cf1188aedd8e2ed8959`; PR #449 exact head `8132db2a338727e580e3269ad148277db727b0d4`; workflow 46174972385, job 141071494762.
+
+**Evidence level:** source-observed caller/reader/writer/prompt paths; exact-head full-suite CI test-verified for repeated source-row re-consumption and Row 9 renewal; combined narrative/prompt formatter exposure is exact-head test-verified; route-to-transport fixture is separately pending PR #450; production runtime observation remains absent.
+
+
+## §127 — G-83 prompt assembly and LLM-entry boundary (28 November 2026)
+
+**Question studied:** after Metacognition and Stage-SelfNarrative format a repeated groove observation, does that text necessarily reach the language model, or can the chat route return before prompt assembly?
+
+**Evidence snapshot:** source files on main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`; test candidate PR #449 head `8132db2a338727e580e3269ad148277db727b0d4`. Static caller/branch trace. PR #449 exact-head workflow `46174972385` passed the combined formatter fixture (3,079 passed, 7 skipped, 86 subtests). Route-level test PR #450 exact head `b33022cfaf47cc34dc8eec316cd583c15e6d880e`, workflow `46175227754`, passed (3,078 passed, 7 skipped, 86 subtests).
+
+### The actual prompt route
+
+The inspected `gui/server.py` chat handler establishes this order:
+
+1. Metacognition is ticked. Its generic `format_for_prompt()` text, when non-empty, is appended to `belief_text`.
+2. Stage-SelfNarrative receives `SimpleNamespace(current_topic=prompt[:100])`. Its topic-filtered result, when non-empty, is also appended to `belief_text`.
+3. Other faculty, tool, workspace and context blocks are assembled later.
+4. The route computes `belief_count = belief_text.count("- [Tier")`. This counts tier-tagged belief lines, not arbitrary reflective text.
+5. Unless the request is a probe, social query, or uses a register in `_ALLOW_THIN_REGISTERS`, a count below `CHAT_GAP_MIN_BELIEFS` causes a persisted gap-refusal response and an immediate return. No voice prompt is assembled and `state.voice.speak()` is not called on that path.
+6. On the surviving path, the reflective text remains part of `belief_text`; the route later embeds the complete belief text under `Your interior right now:` in `voice_prompt`, records a `chat_prompt_ready` trace when tracing is enabled, then calls `state.voice.speak(VoiceRequest(prompt=voice_prompt, register=register), ...)`.
+
+### Consequence
+
+A reflective observation being appended to `belief_text` is **not sufficient evidence that the LLM receives it**. It is eligible for prompt inclusion only on requests that pass the separate thin-belief gap gate. Since the Metacognition and narrative strings do not themselves contain the `- [Tier` marker, they do not increase the measured `belief_count`. They cannot, by themselves, rescue a request that otherwise falls below the gate.
+
+The gate is a chat-reply availability rule, not a cognitive authority or action veto. Do not conflate it with the Tibetan mind map or Mind Aspects; this trace concerns only the existing chat route's thin-belief response branch. No proposal is made to bypass, weaken or modify the gate.
+
+### Next bounded question
+
+The route-level distinction is now exact-head test-verified in draft PR #450: under Technical with a deterministically insufficient-belief threshold, the route returns before voice transport; under Philosophical, both reflective strings appear in the exact transport user-message content. Workflow `46175227754` passed 3,078 tests, 7 skipped, 86 subtests. This establishes fixture-level route delivery only; it does not establish provider acceptance or semantic model use.
+
+**Disposition:** source-observed prompt assembly and early-return boundary; combined Metacognition/SelfNarrative formatter fixture is exact-head test-verified in PR #449; route-to-transport fixture is exact-head test-verified in PR #450. Both PRs remain draft pending review. Production prompt-log observation remains UNKNOWN. Production prompt-log observation remains UNKNOWN. G-83 remains OPEN; no source-alert acknowledgement, episode identity, Row 9 threshold/duration, prompt policy, flags, runtime code, schema, frozen S-01–S-25/M1.8, Master Roadmap, Gate 0 or action authority changed.
+
+**Source anchors:** `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; PR #449 candidate head `8132db2a338727e580e3269ad148277db727b0d4`; workflow `46174972385`.
+
+**Evidence level:** source-observed branch/caller/prompt composition; combined formatter behaviour exact-head test-verified; GUI route-to-transport behaviour under exact-head CI in PR #450; no production runtime observation.
+
+
+### Voice transport boundary refinement
+
+The final source edge is now inspected too. `VoiceClient.speak()` calls `build_system_prompt()`, then constructs the request payload with two messages: the generated system prompt and a user message whose `content` is exactly `req.prompt`. It passes that payload to `_request_fn(self.url, payload)`. Therefore, on a route that reaches `state.voice.speak()`, the assembled `voice_prompt` is handed to the model transport as the user-message content without an additional rewrite in `VoiceClient.speak()`. The separate `belief_count` argument is recorded in response deflection metadata; it does not add or remove prompt text in this method.
+
+This closes the static source chain from `belief_text` → `voice_prompt` → `VoiceRequest.prompt` → transport payload. It still does not prove the remote/local model server accepted the request, that a particular backend was active, or that the generated reply semantically used the reflective material. Those require runtime/request-level evidence. Source anchor: `voice/llm.py` blob `a41e04db8569393dc2ae2ebe622cf1e67ae3de66`.
+
+
+### Route-level G-83 characterization candidate
+
+A separate draft test PR #450 exercises the real `/api/chat` route with isolated SQLite and a mocked VoiceClient transport. It seeds one groove alert and installs the real Metacognition and Stage-SelfNarrative instances. Technical with a deterministically raised threshold returns before voice transport; Philosophical carries both the generic self-observation and topic-matched pattern narrative into the exact transport user-message content. Exact head `b33022cfaf47cc34dc8eec316cd583c15e6d880e`; workflow `46175227754` passed 3,078 passed, 7 skipped, 86 subtests. This establishes route-to-transport string delivery in a fixture, not provider acceptance or semantic use. PR #450 is test-only and remains draft; no runtime or policy change.
+
+
+### §127 side-effect boundary — gap refusal happens after cognitive updates
+
+The route-level PR #450 fixture also clarifies the order of side effects: the handler calls Metacognition.tick() and formats both reflection strings before calculating the thin-belief gap refusal. The Technical request in the test returns before VoiceClient transport, but the Metacognition update has already run; the following Philosophical request reaches transport with the generic and topic-matched narrative text. Therefore, “no voice call” does not mean “no cognitive/persistence side effects.” Repeated low-belief/Technical chat requests can still re-consume an eligible unacknowledged GrooveSpotter alert, write groove events and narrative rows, and contribute to Row 9's count even when the chat reply is refused before model transport. PR #450 verifies the route branch and transport boundary; the full repeated-blocked-request threshold consequence remains source-derived, not separately counted by that test.
+
+The thin-belief gate is a response/transport availability rule. It does not roll back Metacognition writes and is not a Mind Aspect, Tibetan map or action-authority gate.
+
+## §128 — G-83 upstream provenance: Fountain output → GrooveSpotter → two distinct feedback controls (28 November 2026)
+
+**Question studied:** what information creates the source alert that Metacognition later re-reads, and does the producer itself suppress unchanged alerts?
+
+**Evidence snapshot:** source files on main at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static trace through Fountain generator, crystallizer, DiversityLoop, GrooveSpotter and crystallizer cooldown reader. No live host, DB or runtime observation.
+
+### Upstream source provenance
+
+- `FountainGenerator` calls `FountainCrystallizer.crystallize(thought=..., ...)` for a generated thought when the crystallizer is present and the fire is not burst-suppressed.
+- `FountainCrystallizer` writes surviving thoughts into `beliefs` as Tier 6 rows. The source/category is the active mode's `crystallization_category`, defaulting to `fountain_insight`.
+- `DiversityLoop` constructs `GrooveSpotter` over the beliefs Writer/Reader, invokes `detect_all()`, then runs dormancy and clock work, and waits 60 seconds before the next pass.
+- `GrooveSpotter.detect_all()` reads only the latest `WINDOW_SIZE * 2` beliefs whose source is `fountain_insight` or `synergized`; it takes the newest `WINDOW_SIZE=20` as the active detection window. It does not query the chat `messages` table or direct user prompt.
+- N-gram repetition uses `NGRAM_REPEAT_THRESHOLD=3`: the top trigram must occur at least three times across the window. An unchanged top pattern matching the in-memory `_last_ngram_pattern` is not emitted again. If the condition drops below threshold or the window has no trigrams, that fingerprint is cleared. The in-memory fingerprint resets on process restart, so one re-emission after restart is possible by design.
+- The emitted alert stores its pattern and sampled belief IDs in `groove_alerts`. This is an alert derived from NEX's own Fountain/Synergized substrate records, not a direct re-read of the user's last sentence.
+
+### Two different downstream feedback controls
+
+**Producer-side targeted cooldown:** for an n-gram alert with severity at least 0.5, GrooveSpotter calls `_push_cooldown()`. With the current n-gram severity floor of 0.5, this normally writes a meaningful pattern fragment into `signal_cooldown` with a two-hour expiry. The FountainCrystallizer later reads unexpired cooldown rows and rejects a candidate thought if a normalized stored fragment occurs within that thought. This is a content-specific future-crystallization filter.
+
+**Consumer-side Row 9 stillness:** separately, Metacognition reads the unacknowledged `groove_alerts` row on chat ticks and re-emits derived `groove` events. Those derived events can accumulate into Row 9's 60-second stillness hold, which is global to crystallization while active. The consumer replay does not require GrooveSpotter to emit a new alert each time.
+
+These controls must not be collapsed. One is a producer-side, pattern-specific two-hour cooldown; the other is a consumer-side, event-count-driven global crystallization hold. Both may originate from the same GrooveSpotter alert, but their data, timing, scope and triggering paths differ.
+
+### Architectural interpretation
+
+This is a real recurrent substrate feedback path at source level:
+
+`Fountain thought → crystallized belief → GrooveSpotter pattern detection → groove alert → targeted cooldown + Metacognition observation → (when the chat route passes its gate) reflective prompt context → next language-model generation`.
+
+It is not an established autonomous exponential loop. GrooveSpotter's producer scan is 60-second periodic; Metacognition's consumer read is chat-turn-triggered. The alert producer has an in-memory unchanged-pattern fingerprint, while the consumer does not acknowledge the source row in the inspected path. Runtime rates and the actual effect of prompt text on subsequent model output remain UNKNOWN.
+
+### Next bounded investigation
+
+Trace the other GrooveSpotter alert types (exact repetition, template repetition and centroid tightening) through their fingerprints, cooldown writes and consumer formatting; verify which have a pattern string that can actually be topic-matched into Stage-SelfNarrative. Then compare the alert's `sample_belief_ids` with the beliefs actually selected by the subsequent Fountain fire. Do not alter alert acknowledgement, thresholds, fingerprints, cooldown duration, stillness semantics or prompt policy before the controlling authority and full consumer effects are established.
+
+**Disposition:** source-observed producer/consumer loop; upstream source set and producer-side fingerprint are source-verified; targeted cooldown and global Row 9 hold are separate source-verified effects. Exact-head tests for consumer replay and prompt boundary are pending CI in PRs #449 and #450. No live runtime observation. G-83 remains OPEN; no runtime source, schema, flags, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed.
+
+**Source anchors:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage6_fountain/crystallizer.py` blob `c0a5cf1388825e7fc9438cf1188aedd8e2ed8959`; `theory_x/diversity/loop.py` blob `186a1979283394a53154b609855b80f1fcfe0247`; `theory_x/diversity/groove.py` blob `1174b9001c7ffc876cec78ae677cb664481ad04e`; Metacognition source in §126; GUI/voice boundary in §127.
+
+**Evidence level:** source-observed generator/crystallizer/producer/consumer paths; exact-head CI pending for the consumer and route tests; no production runtime observation or semantic model-effect evidence.
+
+
+### §128 audit note — exact-repetition threshold remains ambiguous
+
+One small producer detail is not yet closed: `groove.py` defines `EXACT_REPEAT_MIN = 2`, and `_detect_exact_repetition()` uses that constant, but the method docstring says the same sentence must appear at least three times. The current PR #448 fingerprint test uses three repeated rows, so it proves fingerprint behaviour but does not discriminate between a threshold of two and three. The inspected `tests/test_diversity.py` contains no explicit exact-repeat threshold assertion. Treat the implemented threshold as two for source-trace purposes, but leave the intended threshold UNKNOWN; do not change it or encode it as a normative requirement without locating the decision/history. This is a documentation/test-coverage discrepancy, not yet a new verified defect ID.
+
+
+### §128 cadence refinement — two producer clocks, one consumer trigger
+
+The Fountain loop itself is not fire-on-every-chat. `build_fountain()` starts a dedicated worker; each pass waits for the active mode's `fountain_interval_seconds`, evaluates readiness, and calls `generator.generate()`. The mode definition defaults to 120 seconds; the named `chat` mode sets 300 seconds; `silent` disables Fountain. The actual host mode was not inspected and remains UNKNOWN. Separately, DiversityLoop waits 60 seconds between GrooveSpotter scans. Metacognition remains request-driven by the chat handler, not by either periodic worker.
+
+Thus the source-level cadence is: Fountain candidate generation at mode-dependent intervals (default 120s / chat 300s) → GrooveSpotter scan every 60s → Metacognition replay on a subsequent chat request. This is a multi-clock feedback path, not a single synchronous loop and not evidence of exponential autonomous growth.
+
+
+## §129 — G-83 source-identity loss at the Metacognition event boundary (28 November 2026)
+
+**Question studied:** when one source alert is consumed repeatedly, does the derived Metacognition event preserve the identity needed to distinguish a new episode from another observation of the same episode?
+
+**Source trace:**
+
+- _detect_groove() selects the source groove_alerts.id and places it in the transient event dictionary as groove_id.
+- The same dictionary is sent down two branches during Metacognition.tick().
+- **Narrative branch:** SelfNarrative.write_narrative() receives ev["groove_id"] as source_id. The narrative_log row therefore retains the source alert identity. PR #449's exact-head test verifies five narrative rows all reference the same source alert ID.
+- **Metacognition event branch:** _write_event() inserts only event_type, description, severity, source and created_at into meta_cognition_events. It does not persist groove_id or another source-row/episode identity. The source string is only groove_spotter/{alert_type}.
+- **Row 9 branch:** _maybe_engage_stillness() counts every meta_cognition_events row with event_type='groove' in the rolling window. It does not group by source, alert ID, pattern or episode. It therefore counts repeated observations as separate rows even when their narrative source IDs are identical.
+
+### Consequence
+
+The system preserves source identity in the narrative side table but drops it at the Metacognition event boundary used by Row 9. The aggregate counter then has no information with which to distinguish:
+
+- one alert observed on several chat turns;
+- several different alerts of the same type;
+- several genuinely distinct recurrence episodes.
+
+The exact-head test establishes the first case: five rows from one source alert can count as five groove events and trigger/renew stillness. It does not establish the intended semantic unit. This is stronger evidence for G-83's identity/episode ambiguity, not authority to add a source ID or deduplication rule.
+
+**Next bounded investigation:** trace event decay/resolution and any readers of meta_cognition_events.source; determine whether adding identity to this table would require a migration and identify every consumer before proposing a schema change. Then locate the controlling approval for the intended Row 9 counting unit. No runtime, schema, acknowledgement or threshold change is authorised by this finding.
+
+**Disposition:** source-observed identity is retained in narrative_log.source_id but not in meta_cognition_events; Row 9 counts aggregate rows without identity deduplication. PR #449 exact-head tests verify repeated same-source events; PR #450 verifies route-to-transport strings. G-83 remains OPEN. No new schema, source code, flags, frozen specification, roadmap or Gate 0 authority changed.
+
+**Source anchors:** theory_x/stage9_metacognition/metacognition.py blob de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08; theory_x/stage_self_narrative/self_narrative.py blob 15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3; PR #449 head 8132db2a338727e580e3269ad148277db727b0d4, workflow 46174972385.
+
+
+### §129 downstream-reader refinement — two optional second-order reflection paths
+
+The event stream has two additional readers beyond the ordinary chat formatter and Row 9 counter:
+
+1. **Built-in Stage-9 digest — dark unless NEX5_METACOG_DIGEST=1.** _detect_digest() groups meta_cognition_events by event_type, requires at least three rows in its adaptive lookback (seven-day cap, tightening once 100 rows exist), excludes metacog_digest from its own count, and applies a one-hour per-event_type cooldown. If enabled, three repeated groove rows from one source alert are sufficient to create a metacog_digest row; format_for_prompt() can then surface the digest description on that same tick. Its self-exclusion prevents digest rows from recursively counting themselves, but it does not distinguish distinct source alert IDs. Existing tests verify flag-off inertness, threshold, cooldown and self-exclusion; no runtime flag state is known.
+2. **Manual M1 reflection script — dark unless NEX5_METACOG_REFLECT=1 and explicitly invoked with --live.** tools/metacog_digest.py reads every meta_cognition_events row in its lookback regardless of severity, plus high-surprise events, without source-ID deduplication. It makes one VoiceClient reflection call and stores a metacog_summaries row. Its tests verify flag-off no-op and that repeated manual runs create additional summaries. Static searches of gui/server.py, run.py and nex_keepalive.sh find no import or invocation; it is not part of the live periodic/chat path.
+
+These are optional, distinct second-order consumers, not evidence that reflective LLM calls are currently running. The ordinary Metacognition generic line and topic-filtered narrative path remain the only confirmed chat-path readers. Do not conflate the built-in template/count digest with the separate manually invoked LLM reflection script.
+
+
+## §130 — Metacognition decay lifecycle: implementation exists, production dispatch not located (28 November 2026)
+
+**Question studied:** how do unresolved Metacognition events age out, and who calls the decay method?
+
+- `Metacognition.decay(now)` marks unresolved `meta_cognition_events` older than `_STALE_DAYS=14` as resolved and invalidates the recent-event cache.
+- Unit tests in `tests/test_metacognition.py` directly call `decay()` and verify stale resolution, fresh-event preservation and cache invalidation.
+- The production chat handler calls `state.metacognition.tick()`; it does not call `decay()`.
+- `run.py` constructs and registers Metacognition but contains no call to `decay()`.
+- `theory_x/__init__.py` defines the SentienceNode protocol and a registry. Its `all_nodes()` returns the registered list; it contains no dispatcher that invokes `tick()` or `decay()`. The inspected `run.py` and `gui/server.py` contain no `all_nodes()` call or generic node-decay dispatch.
+
+**Disposition:** the decay method is implemented and unit-tested, but no production invocation was located in the inspected boot/chat/registry paths. Treat automatic 14-day resolution as unverified, not as an established runtime behaviour. If no other caller exists, unresolved rows may remain eligible for `get_recent()` and continue occupying reflective slots after their intended stale horizon; this does not affect Row 9's separate 30-minute count, which filters by `created_at`.
+
+**Next bounded investigation:** complete a repository-wide call-site census for `Metacognition.decay`, generic `.decay(now)` dispatch and writes to `meta_cognition_events.resolved_at`. Then establish whether a lifecycle caller exists in the active host. Do not add a scheduler or alter retention until ownership and cadence are established.
+
+**Authority boundary:** no code, schedule, decay horizon, event resolution policy, schema, flags, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed. This is a source-path gap, not yet a new verified defect ID.
+
+**Source anchors:** `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/__init__.py` blob `661dc737f54c88f763588606867ae1b9cd7e6654`; `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; tests `tests/test_metacognition.py`.
+
+
+### §130 call-site sweep refinement
+
+A targeted 24-file sweep across Theory X life loops, scheduler, world/signal/diversity loops, registry/protocol and monitor modules found no `Metacognition.decay()`, generic `.decay()` dispatch, `all_nodes()` dispatch, or `UPDATE meta_cognition_events` writer outside the already-inspected Metacognition implementation. This is not a whole-repository proof; the exact unresolved scope is any remaining caller/writer outside those paths. The current boot/chat/registry evidence still contains no lifecycle dispatcher.
+
+
+## §131 — G-83 second prompt rail: optional Metacognition → Fountain feedback (28 November 2026)
+
+**Question studied:** does the Metacognition observation only reach the GUI chat route, or is the same cached observation also wired into the next internal Fountain generation?
+
+### Shared-object wiring
+
+- `run.py` constructs one `Metacognition` instance with the shared conversations Writer/Reader, beliefs Reader and Stage-SelfNarrative instance.
+- That same object is assigned to `state.metacognition` for the GUI route and passed to `build_fountain(..., metacognition=metacognition)`.
+- `build_fountain()` passes it into `FountainGenerator`, which retains it as `self._metacognition`.
+- In the Fountain prompt builder, when `NEX5_METACOG_VOICE == "1"` and the object exists, the generator calls `format_for_prompt()`; a non-empty line is appended to `focus_block` and `_wide_fac`. The code comment explicitly says this gate is OFF by default.
+- This Fountain call site does **not** call `Metacognition.tick()`. It reads the existing cached observation; the inspected production tick remains the GUI chat handler.
+
+### Two prompt surfaces, one shared observation object
+
+The same Metacognition formatter therefore has two distinct prompt consumers:
+
+1. **GUI chat:** chat handler calls `tick()`, then `format_for_prompt()`; injection is subject to the thin-belief early-return boundary in §127.
+2. **Internal Fountain:** generator reads `format_for_prompt()` and appends the cached line only when `NEX5_METACOG_VOICE=1`; it does not itself refresh Metacognition's event cache.
+
+This creates a possible recurrent path when the Fountain flag is enabled: a prior Fountain thought is crystallized, GrooveSpotter detects a pattern, a later chat tick converts the alert into a Metacognition observation, and a subsequent Fountain fire can receive that cached observation as prompt context. The Fountain fire may then produce another crystallized belief that re-enters the GrooveSpotter source window. This is a source-level feedback route, not proof that the host flag is enabled or that the model's output changes in the intended direction.
+
+### Evidence boundary and next test
+
+The inspected `tests/test_metacognition.py` verifies formatter output, but `tests/test_fountain.py` contains no explicit `NEX5_METACOG_VOICE` assertion. No dedicated test was located for the shared-object, flag-off/flag-on Fountain prompt boundary.
+
+Next bounded characterization: seed a controlled Metacognition cache, inject the same object into FountainGenerator, assert the line is absent with the flag unset and present with the flag set, and assert the prompt read does not call `tick()` or write additional events. Use a fake VoiceClient/request function and isolated databases. Do not enable the flag on the host or change prompt policy.
+
+**Disposition:** source-observed second prompt rail; default-off by source; runtime flag state UNKNOWN; dedicated Fountain injection test not located. No feature flag, runtime code, schema, frozen S-01–S-25/M1.8, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+**Source anchors:** `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `theory_x/stage6_fountain/__init__.py` blob `64405fab88dd831f735705b388cf85c0bfd1cdee`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; Metacognition formatter/tick in §126–§127.
+
+
+## §132 — G-83 acknowledgement ownership: nullable field, no writer located in the active path (28 November 2026)
+
+**Question studied:** what sets GrooveSpotter alerts as acknowledged, and is the repeated read an explicit queue/acknowledgement protocol?
+
+### Source facts
+
+- `substrate/schema/beliefs.sql` defines `groove_alerts.acknowledged_at REAL`, nullable.
+- `GrooveSpotter` inserts alert rows without setting `acknowledged_at`, leaving it NULL.
+- `Metacognition._detect_groove()` selects `acknowledged_at IS NULL` and `detected_at > now - 600`, newest first, with a maximum of three rows per chat tick. It does not update the source row after consuming it.
+- The inspected `GrooveBreaker` reads recent alerts but is disabled (`ENABLED=False`) and its current live wiring was removed in session 49; it does not write `acknowledged_at`.
+- The inspected `gui/server.py`, `run.py`, `GrooveSpotter` and `DiversityLoop` contain no acknowledgement write path. No acknowledgement UI/API route was found in the inspected GUI file.
+
+### Consequence and limit
+
+The 600-second lookback, not acknowledgement, is the only source-row expiry mechanism observed in the Metacognition query. An unchanged alert may therefore be re-consumed on multiple chat turns while it remains within ten minutes of detection; after that it naturally falls out of the query even though its database field remains NULL. The exact-head PR #449 fixture demonstrates five re-consumptions under controlled timestamps.
+
+This is not yet proof that the column is globally unused or that auto-acknowledgement was intended. A manual/administrative writer or a separate uninspected path may exist. The intended owner and semantic meaning of acknowledgement remain UNKNOWN. Do not add auto-acknowledgement, change the lookback or redefine one alert as one episode without locating the controlling design/approval.
+
+**Next bounded investigation:** complete the repository-wide writer census for `groove_alerts.acknowledged_at`, inspect historical schema/commit provenance for why the column exists, and identify whether the 10-minute replay window is intended as a transient observation window or a missing queue acknowledgement contract.
+
+**Disposition:** no acknowledgement writer found in the inspected active producer/consumer/GUI paths; source-row replay within the 600-second window is test-verified; global absence of all writers and intended semantics remain UNKNOWN. G-83 stays OPEN. No source, schema, flags, thresholds, frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
+
+**Source anchors:** `substrate/schema/beliefs.sql` blob `44a3f95dbf4c522d84dd030c9c825afffe760b6b`; `theory_x/diversity/groove.py` blob `1174b9001c7ffc876cec78ae677cb664481ad04e`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/auto_probe/groove_breaker.py` blob `2eb856f9d9afa827d38fbcb86a503237082c10b9`; PR #449 exact head `8132db2a338727e580e3269ad148277db727b0d4`.
+
+
+### §132 history refinement
+
+The nullable `acknowledged_at` column is present when `groove_alerts` first appears in `substrate/schema/beliefs.sql` at commit `a396dda08e8861e22029ceef813c69211671a37e` (26 April 2026). That commit's message describes adding diversity/rut-detection mechanisms; its schema patch creates the table with the nullable field but does not document who acknowledges alerts, what acknowledgement means, or when it should occur. No separate acknowledgement decision was located in that commit message/patch. This confirms early schema provenance, not intended semantics or approval.
+
+
+### §132 producer/consumer distinction — prior stale re-fire fix
+
+The earlier producer-side stale re-fire defect was explicitly fixed in commit `543e4ce957f2e3ad8e3ebf9fb25cd1bf977fed1a` (22 July 2026): GrooveSpotter now keeps one in-memory fingerprint per detector and suppresses an unchanged rolling-window condition, clearing the fingerprint when that condition stops holding. The commit explicitly distinguishes this producer-side insert deduplication from `_push_cooldown()`, and records that the fix stops the cooldown from being refreshed every 60-second scan. It does **not** add an acknowledgement write to `groove_alerts.acknowledged_at`. Therefore, the current G-83 replay is a separate consumer-side phenomenon: one already-created alert row is read repeatedly by Metacognition during its 600-second window. Do not reopen the already-fixed producer stale-insert issue as if it were the same defect.
+
+
+### §131 cache-age refinement
+
+`Metacognition.format_for_prompt()` reads only `_cached_recent`; it does not query the database, call `tick()`, or check `_cache_ts`/`_CACHE_TTL`. The TTL refresh condition exists inside `tick()`, which the inspected production chat handler calls; Fountain's optional reader does not call tick. Consequently, with `NEX5_METACOG_VOICE=1`, repeated Fountain fires can reuse the last chat-refreshed observation without independently refreshing or expiring it. If no later chat tick refreshes the cache, the same cached line can remain eligible for Fountain prompt injection; the uncalled 14-day decay path in §130 does not clear it. Runtime flag/cadence and actual persistence duration remain UNKNOWN.
+
+This is a stale-context possibility, not evidence of a live host occurrence. The PR #451 test checks flag gating and no-tick behaviour; it does not test stale-cache age. A separate controlled-clock characterization should verify whether a cached event older than the intended horizon is still returned to Fountain, without changing the cache or decay policy.
+
+
+### §129 session-scope refinement
+
+The conversations schema also defines nullable `meta_cognition_events.session_id`, but `Metacognition.tick(context=None)` does not use its context argument and `_write_event()` does not insert `session_id`. The inspected GUI caller invokes `tick()` without a context. The Row 9 aggregate query has no session predicate. Thus the current source path is process/database-global rather than session-scoped: source-alert identity is lost in the event row, and session identity is not populated either. Whether this is intended for a single local NEX instance or a missing isolation boundary remains UNKNOWN; no session policy is changed.
+
+
+### §131 authority classification
+
+The Metacognition string is appended to Fountain's textual prompt context after workspace/focus composition; it is not consumed as a typed operation, capability grant, approval signal, execution command, or verification result. This source path is interpretive context only. It does not make the Tibetan mind map or a Mind Aspect an action gate, score, block or veto.
+
+
+### §131 chat-refresh cadence refinement
+
+The cache TTL is `_CACHE_TTL = 60.0` seconds. Every GUI chat request calls `Metacognition.tick()`, so detectors, source re-reads, event writes, narrative writes and Row 9 counting can run on every chat turn. But the recent-event cache is refreshed only when empty or older than 60 seconds. `format_for_prompt()` then reads the last cached snapshot. Thus database/Row 9 consequences can advance on a chat turn while the prompt line still reflects the previous cached top event until the 60-second refresh boundary. Fountain's optional consumer reads that same cache without triggering a refresh. This is a source-observed timing split; actual request cadence remains UNKNOWN.
+
+
+### §131 Fountain rail test result
+
+Draft PR #451 exact head `91739d131f21f3dd2c55d35ef2b23a07aa73c424` passed workflow `46176528182`: 3,078 passed, 7 skipped, 86 subtests (246.12s); baseline gate and disposable sandbox probe passed. The test verifies the `NEX5_METACOG_VOICE` off/on prompt-builder boundary and confirms Fountain reads the cached formatter without calling `Metacognition.tick()`. It does not test stale-cache age or host flag state. PR #451 remains test-only and draft pending review.
+
+
+## §133 — G-83 consolidated causal model and next investigation boundary (28 November 2026)
+
+The inspected source now supports this recurrent pathway, with explicit conditions:
+
+`Fountain generation` (mode interval; default 120s, chat mode 300s)  
+→ `VoiceClient` generates an internal thought  
+→ `FountainCrystallizer` stores a surviving thought as a `fountain_insight` belief  
+→ `DiversityLoop` scans every 60s; `GrooveSpotter` reads internal `fountain_insight`/`synergized` beliefs and emits a new alert only when a detector fingerprint changes  
+→ alert writes a targeted two-hour `signal_cooldown` for qualifying pattern types  
+→ on a later GUI chat request, `Metacognition.tick()` re-reads up to three unacknowledged alerts from the last 600s  
+→ each read writes a new `meta_cognition_events` groove row and a `narrative_log` row retaining the source alert ID  
+→ three derived groove rows in 1,800s can create a global 60-second Row 9 crystallization hold  
+→ the GUI may add generic reflection and topic-matched narrative to the chat prompt, subject to the thin-belief early-return gate  
+→ if `NEX5_METACOG_VOICE=1`, a later Fountain fire can also receive the last chat-refreshed Metacognition cache line  
+→ that Fountain output can return to the belief window and be observed by GrooveSpotter again.
+
+**What is established:** producer and consumer source paths; the producer's unchanged-pattern dedup; the 600-second consumer replay; source-ID loss in `meta_cognition_events`; narrative-side source-ID retention; aggregate Row 9 counting; both prompt surfaces; and fixture-level transport delivery. Exact-head CI passed for producer fingerprints (#448), consumer replay/narrative (#449), GUI chat transport (#450), and optional Fountain prompt gating (#451).
+
+**What is not established:** host feature-flag state; live Fountain/chat cadence; whether any optional digest/voice rail is active; whether the provider accepted a request; whether the model semantically used the reflection; intended acknowledgement/episode/session scope; automatic invocation of the 14-day decay method; or the founder-approved Row 9 counting unit.
+
+**Important distinctions:** the July producer stale-re-fire defect was fixed by fingerprints and is not the current consumer replay; pattern-specific two-hour cooldown is not the global Row 9 hold; generic prompt reflection is not a typed operation or action authority; the Tibetan mind map remains descriptive only.
+
+**Next bounded work:** (1) characterize the 60-second cache TTL and stale Fountain prompt reuse without changing policy; (2) finish the repository-wide acknowledgement/resolved_at writer census and locate the original episode/acknowledgement decision; (3) verify whether a production lifecycle caller invokes `Metacognition.decay()`; (4) after these, trace whether sample belief IDs from a groove alert intersect the next Fountain retrieval manifest. No behavioural experiment, schema change or Phase 1 work before Gate 0.
+
+**Disposition:** G-83 remains OPEN. Phase 0 continues. Gate 0 remains unestablished; Phase 1 remains unauthorized. No runtime code, schema, flag, cognitive policy, frozen S-01–S-25/M1.8, Master Roadmap or action authority changed.
+
+
+### §131 narrative-identity boundary
+
+The optional Fountain rail calls only `Metacognition.format_for_prompt()`, which returns the generic self-observation line (or a built-in digest description). It does not call the Stage-SelfNarrative formatter and does not read the pattern-specific `narrative_log` entries created by `Metacognition.tick()`. The GUI chat route is the inspected path that appends both the generic Metacognition line and topic-filtered Stage-SelfNarrative text. Do not conflate this with the separately named Stage-TOM `self_narrative` subsystem that FountainGenerator can construct behind its own flag.
+
+
+### §133 retrieval-lineage refinement
+
+The `groove_alerts.sample_belief_ids` payload is not selected by `Metacognition._detect_groove()`; that query carries only alert ID/type/severity/pattern/time. The disabled, de-wired GrooveBreaker selects the column but its current inspected logic does not use the IDs. FountainGenerator's context retrieval queries beliefs and does not query `groove_alerts` or consume `sample_belief_ids`. Therefore no direct source-alert → source-belief-ID → next-retrieval priority wire was found. The active feedback routes traced here are the pattern-specific producer cooldown and the generic cached Metacognition prompt line; the GUI-only Stage-SelfNarrative branch separately carries the alert pattern as text. This is why the next investigation proposes joining alert sample IDs to the next Fountain retrieval manifest rather than assuming such a link already exists.
+
+
+## §134 — G-83 control-point classification: generation versus crystallization (28 November 2026)
+
+The final order-of-operations check changes how the feedback controls should be described:
+
+1. `FountainGenerator.generate()` builds the prompt and calls `VoiceClient.speak(VoiceRequest(prompt=prompt, ...))`. The model returns a thought.
+2. The generator performs output checks and logs the fire.
+3. Only afterwards does it call `FountainCrystallizer.crystallize(thought=...)`.
+4. The crystallizer first checks the active Row 9 stillness window and returns `None` if one exists. If not, its quality checks include the active `signal_cooldown` fragment match; a match returns a cooldown rejection.
+5. The generator then records the fire and returns the generated thought regardless of whether `crystallized_id` was produced. The optional carryover stamp records the boolean resolution outcome, but does not undo the already completed model call.
+
+**Consequence:** both Row 9 stillness and GrooveSpotter's targeted cooldown operate at the post-generation persistence/crystallization boundary. They can prevent a thought from becoming a new stored belief (and therefore from re-entering GrooveSpotter's future belief window), but they do not prevent the current Fountain model request or stop the current thought from being generated. Calling them generation brakes or attention gates would be inaccurate.
+
+The only direct Metacognition-to-Fountain influence on the next model request found in this trace is the optional textual prompt rail gated by `NEX5_METACOG_VOICE=1` (§131), which is default-off by source. The GUI chat path is separately user-request-triggered. Neither prompt cue is a typed operation or action authority.
+
+**Disposition:** source-observed ordering of model generation before crystallization controls; no claim of a live enabled flag or measured generation reduction. This refines §§114, 128 and 133. No runtime code, schema, feature flag, thresholds, frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
+
+
+### §133 sample-ID provenance refinement
+
+The stored `sample_belief_ids` are not a uniform exact support set across alert types: exact repetition stores all rows with the repeated exact content; template repetition stores the detected templated fire IDs; n-gram repetition stores only `window[:5]` from the active 20-row window rather than the specific rows containing the top trigram; centroid tightening likewise stores `current_window[:5]` as a sample of the measured window. Therefore, for n-gram and centroid alerts these IDs must be treated as window samples, not exact causal parents. No active downstream consumer was found to use them as retrieval priorities.
+
+
+### §133 semantic-specificity refinement
+
+The optional Fountain rail receives only the generic Metacognition string for a groove event: “I notice repeated patterns in my recent thinking.” It does not receive the alert's pattern text, source alert ID, sample belief IDs or the GUI Stage-SelfNarrative narrative. Therefore the current internal Fountain feedback cue is not pattern-specific. The only pattern-specific path into future Fountain state found here is the post-generation `signal_cooldown` rejection at crystallization; that does not tell the model what pattern was detected before it generates. The pattern-specific natural-language narrative remains on the GUI chat path and is topic-filtered. This is a wiring/expressivity gap observation, not a proposal to change prompt policy before Gate 0.
+
+
+## §135 — G-83 lifecycle clarification: chat tick is live; decay dispatch remains unlocated (28 November 2026)
+
+The boot/chat trace is now explicit:
+
+- `run.py` constructs one Metacognition instance, registers it, assigns it into AppState, and passes the same object to `build_fountain(..., metacognition=...)`.
+- `gui/server.py` calls `state.metacognition.tick()` and `format_for_prompt()` during the chat request path. This is a real source-level production caller for observation/update, not merely registry membership.
+- Fountain retains the shared instance for an optional prompt rail, but its `format_for_prompt()` read does not itself call `tick()`.
+- The 14-day `decay(now)` method remains separately implemented and unit-tested; no production call to that method was found in the inspected boot/chat paths, registry, or targeted 24-file lifecycle sweep.
+
+**Corrected model:** Metacognition is connected to live chat observation and prompt assembly. The unresolved lifecycle question is specifically automatic stale-event resolution, not whether Metacognition is wired into NEX. The registry is registration/inspection only; it does not imply a generic tick/decay dispatcher.
+
+**Evidence limit:** the 24-file sweep was targeted to Theory X life loops, scheduler, world/signal/diversity loops, registry/protocol and monitor modules. It is not a whole-repository proof. Do not claim that every possible caller or SQL writer has been exhaustively ruled out.
+
+**Next step:** inspect AppState shutdown ownership and the complete production lifecycle surface for any scheduled cleanup path; then decide whether the remaining gap is only an uncalled method or a missing lifecycle owner. No scheduler, retention, schema or runtime behaviour change is authorised.
+
+**Authority boundary:** source characterization only. No frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
+
+
+### §134 downstream consequence refinement
+
+Because GrooveSpotter's source query reads only persisted `fountain_insight`/`synergized` belief rows, a thought rejected by crystallization does not enter the future GrooveSpotter scan window. The cooldown and stillness controls therefore limit the accumulation of new substrate beliefs and the future evidence available to the detector, while leaving the current model generation intact. They regulate what becomes durable input to the next cycle, not whether the current cycle generates text.
+
+
+## §136 — Lifecycle ownership split: cognitive registry versus worker shutdown registry (28 November 2026)
+
+**Question studied:** is the Metacognition decay gap explained by a general lifecycle owner elsewhere in AppState or the boot sequence?
+
+**Observed ownership model:**
+
+- `theory_x.register()/all_nodes()` is a process-lifetime node registry. It checks the SentienceNode protocol and returns registered nodes. No tick/decay scheduler is implemented there.
+- `gui.server.py` owns a separate, explicit AppState producer shutdown list. `_quiesce_producers()` signals named worker services and joins their threads against a deadline. Its own docstring calls it a bounded registry, not a complete process-thread registry.
+- Metacognition is not in that shutdown worker list because it has no autonomous thread in the inspected implementation. Its `tick()` is invoked directly by the chat route.
+- `AppState.close()` shuts down the sense scheduler, quiesces named producers, and drains Writers. It does not iterate Theory X nodes or call `decay(now)`.
+- `run.py` separately starts selected loops with explicit `_own_and_start()` ownership and stop methods. Metacognition is constructed/registered but is not started as a worker.
+
+**Consequence:** there are two distinct lifecycle mechanisms: (1) direct event-driven cognitive updates on chat turns; (2) explicitly owned background workers with shutdown signalling/joining. The SentienceNode registry is not the bridge between them. The 14-day Metacognition decay method currently has no located owner in either mechanism.
+
+**Evidence boundary:** source-level finding from `run.py`, `gui/server.py`, `theory_x/__init__.py` and the targeted 24-file lifecycle sweep. No live host process or runtime flag state was inspected. This does not prove no external supervisor or uninspected call site exists.
+
+**Next bounded step:** determine whether stale-event resolution is expected to be event-triggered, chat-turn-triggered or scheduled independently; identify the authority for that policy and inspect the full set of registered nodes for any similar implemented-but-unowned `decay()` methods. Do not introduce a generic dispatcher or alter node semantics before that comparison.
+
+**Authority boundary:** no code, schema, schedule, event retention, cognitive behaviour, frozen specification, roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §137 — Registered-node decay inventory: four persistent cleanup methods, different effects (28 November 2026)
+
+This expands §136 from Metacognition to the relevant persistent-node set. The distinction is between a method existing, a test invoking it, a worker running, and a production caller actually invoking the method.
+
+| Component | Decay rule | What the method changes | Observed production path |
+|---|---|---|---|
+| Metacognition | 14 days | Sets stale unresolved `meta_cognition_events.resolved_at`; invalidates recent cache | Chat calls `tick()`, not `decay()`; `get_recent()` selects unresolved rows without an age cutoff, so decay affects which old events can occupy the newest three slots |
+| GoalManager | 60 days | Cancels stale open goals; invalidates cache | Constructed and registered in `run.py`; chat calls `get_active()`, not `tick()` or `decay()`; `list_open()` has no age cutoff |
+| ProblemMemory | 30 days | Closes stale open problems; invalidates cache | Constructed in `run.py`; not registered there (the optional `create_app(with_tools=True)` fixture path does register it); chat `find_matching()` reads all open problems without an age cutoff, so stale open rows can remain eligible for matching |
+| NovelAssociation | 14 days | Marks stale unannotated association rows annotated | Constructed, registered and background-started in `run.py`; its worker calls `tick()`/scan, not `decay()`; prompt formatter independently excludes entries older than its 2-hour `_ANNOTATION_LOOKBACK_S` |
+
+### Test versus runtime evidence
+
+- `tests/test_metacognition.py`, `tests/test_goal_manager.py`, `tests/test_problem_memory.py` and `tests/test_novel_association.py` directly invoke their respective `decay()` methods to verify stale/fresh handling and cache effects.
+- These tests verify the methods' effects when called. They do not establish a production scheduler or call site.
+- The targeted lifecycle sweep plus inspection of `run.py`, `gui/server.py`, `theory_x/__init__.py` and NovelAssociation's own worker found no generic dispatcher or production call to these four decay methods.
+- Other inspected registered nodes use no-op `decay()` methods or explicitly perform their time updates inside their own tick/background loop (e.g. SelfNarrative, resolver, DriveEmergence, AffectState, FocalSet, ExecutiveControl, SubstrateHarmonic and GeniusTagger). They are not evidence of a universal decay scheduler.
+
+### Consequence and classification
+
+This is not one uniform bug. The missing invocation has different potential consequences:
+- **Metacognition:** unresolved old rows remain eligible for the three newest unresolved-event slots; this is a direct prompt-context freshness concern.
+- **ProblemMemory:** old open problems can remain eligible for GUI chat matching because `find_matching()` starts from all open rows.
+- **GoalManager:** stale goals remain in the open-goal set and can remain the reported active goal; the inspected GUI route currently reads/logs `get_active()` but no longer injects that goal text into chat.
+- **NovelAssociation:** the missing 14-day annotation cleanup is not the prompt freshness gate; the formatter's independent 2-hour cutoff already excludes old entries. Its unannotated stale rows can nevertheless persist in the log table.
+
+**Disposition:** source-observed inventory of implemented persistent cleanup methods and their distinct readers. The production dispatcher remains unlocated in inspected paths; the whole repository and active host have not been exhaustively proven free of other callers. Keep this as a Phase 0 lifecycle finding, not a new defect ID or permission to add a generic scheduler.
+
+**Next bounded step:** trace any existing scripts, service entrypoints or host cron/systemd units that may invoke cleanup externally, and establish the policy owner for each stale horizon. Then compare the intended retention semantics before considering any common lifecycle mechanism.
+
+**Authority boundary:** no runtime code, schema, retention horizon, feature flag, cognitive behaviour, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §138 — External retention backstop: nightly DB reaper deletes Metacognition rows after 30 days (28 November 2026)
+
+The wider repository contains a separate persistence-retention path that must be included in the Metacognition lifecycle model.
+
+- `nex_db_reaper.py` has a default `RETENTION_DAYS = 30` and includes `conversations.db:meta_cognition_events:created_at` in its target list.
+- The reaper deletes rows older than the computed cutoff in bounded batches. It does not set `resolved_at`; it physically deletes the rows.
+- The script's comments explicitly identify `meta_cognition_events` as append-only history previously written but not digested or bounded.
+- The versioned `deploy/systemd/nex5-db-reaper.timer` schedules a persistent nightly run at approximately 04:00; the paired service invokes `nex_db_reaper.py`.
+- `deploy/systemd/README.md` says these are reference copies and the active units live under `~/.config/systemd/user/`. It documents `systemctl --user enable --now nex5-db-reaper.timer` as the install/enable step.
+
+### Corrected Metacognition lifecycle
+
+The 14-day method and 30-day reaper are different controls:
+1. At 14 days, `Metacognition.decay()` is designed to mark an unresolved event as resolved, preserving the row while excluding it from `get_recent()`.
+2. At 30 days, the external reaper deletes the event row entirely if the reaper runs.
+3. If the 14-day method is never invoked but the reaper is active, an old event may remain eligible for the newest-three unresolved slots between day 14 and the next successful reaper run, but it is not retained indefinitely.
+4. The timer's presence in the repository does not prove that the user's active systemd unit is installed, enabled, healthy or has run. Runtime timer/service state remains UNKNOWN.
+
+The reaper target list does not include `goals`, `open_problems` or `novel_association_log`. Therefore this 30-day backstop is specific to Metacognition's event table; it does not resolve the other three decay ownership questions.
+
+**Disposition:** a scheduled external retention mechanism exists in source/configuration for Metacognition's table, but its deployment/runtime status is unverified. This narrows the earlier "unbounded" concern: the missing 14-day resolution and the 30-day deletion are separate lifecycle stages. No reaper code, retention value, systemd unit, or cognitive behaviour changed.
+
+**Next bounded step:** inspect the active host's user systemd timer/service status and last-run logs when host access is available; do not infer activation from the versioned unit files. Then continue tracing external cleanup paths for GoalManager, ProblemMemory and NovelAssociation.
+
+**Source anchors:** `nex_db_reaper.py` blob `5cfb609a8ad8a5f9bd0ab83729d8b42220700658`; `deploy/systemd/nex5-db-reaper.service` blob `d2930bf0737c4c021c94d1f8317ba61900fd11ee`; `deploy/systemd/nex5-db-reaper.timer` blob `9b454faea87fefa147825ebdbd516218eac2b7ae`; `deploy/systemd/README.md` blob `4866fbfda8a09bfad0bdbaf8e90de1d7b41cbdd5`.
+
+
+## §139 — External cleanup census: no second retention path located for goals, problems or novel associations (28 November 2026)
+
+A bounded scan of the repository's external maintenance entrypoints was performed after finding the nightly DB reaper.
+
+- `nex_db_reaper.py` targets `meta_cognition_events` but does not target `goals`, `open_problems` or `novel_association_log`.
+- `scripts/problem_persistence.py` is explicitly read-only; it measures problem-injection persistence and does not close, cancel or delete problem rows.
+- `theory_x/stage_gate/retention.py` prunes only `gate_decisions` and empty `throw_net_sessions`; it is not a GoalManager/ProblemMemory cleanup path.
+- `theory_x/signals/reaper.py` prunes only `signals`.
+- The inspected versioned systemd units comprise the DB reaper service/timer; the other tool timers found are vitals and r77 monitoring, not cleanup for these three tables. `nex_keepalive.sh` contains no reference to these decay methods or tables.
+
+**Disposition:** no second external retention mechanism was located for GoalManager's `goals`, ProblemMemory's `open_problems` or NovelAssociation's `novel_association_log` in the inspected maintenance entrypoints. This remains a bounded source census, not proof about arbitrary user-installed cron jobs or uninspected host scripts. Their actual stale cleanup therefore remains unverified at runtime.
+
+**Next bounded step:** when host access is available, inspect user crontab and user systemd timers/services alongside the active DB-reaper status. In parallel, source-trace all in-repository invocations of the three decay methods beyond the inspected production boot/chat paths. Do not schedule new cleanup until the policy and external ownership are established.
+
+**Authority boundary:** no cleanup code, data, retention horizons, timers, schema, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §140 — Doctrine intent versus runtime orchestration: interface conformance is not lifecycle execution (28 November 2026)
+
+`theory_x/DOCTRINE.md` §4 defines the SentienceNode interface and distinguishes:
+- `tick()`: called once per chat turn; applies time-based updates.
+- `decay(now)`: applies wall-clock degradation; tick-recency nodes may implement it as a no-op.
+- `state(now)`: monitoring/inspection snapshot.
+
+The same section describes `register()` and `all_nodes()` as process-lifetime registration/inspection, but does not specify a generic decay dispatcher, cadence, or lifecycle owner. Its test guidance asks for unit tests of mechanism and explicitly says not to test wiring as part of the node test.
+
+The implementation follows that split: node tests directly call `decay(now)` and prove its local DB/cache effect; registration verifies protocol shape; production callers are separately wired (chat route or background worker). None of those facts proves a runtime caller for the decay method.
+
+**Interpretation:** the present evidence establishes a gap between the protocol's declared decay capability and located runtime ownership for four persistent cleanup methods. It does not establish that a universal scheduler was ever specified or approved. The next decision is therefore not "add the missing dispatcher"; it is to locate the policy owner and intended lifecycle semantics for each method, including whether cleanup is meant to be chat-triggered, background-scheduled, externally scheduled, or merely callable by an operator.
+
+**Development-method finding:** keep four proof questions separate in future node work:
+1. Does the node implement the protocol?
+2. Do tests prove the method's local effect?
+3. Is there a production caller with a known trigger/cadence?
+4. Is that caller observed operating on the active host?
+
+Do not collapse these into a single "wired" or "complete" label.
+
+**Authority boundary:** Doctrine §4 is recorded as design intent, not elevated above the frozen specification/sign-off hierarchy. No lifecycle policy, scheduler, code, schema, flags, roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §141 — Registered-node lifecycle census: protocol membership is not tick/decay ownership (28 November 2026)
+
+The current `run.py` boot path registers nine objects with the Theory X protocol registry: SelfNarrative, HoldingZoneResolver, GoalManager, Metacognition, NovelAssociation, SubstrateHarmonic, GeniusTagger, DriveEmergence and AffectState. The registry validates/stores node objects and returns them through `all_nodes()`; it does not dispatch `tick()` or `decay()`.
+
+### Lifecycle classification
+
+| Node | Actual tick owner found | Public decay behaviour |
+|---|---|---|
+| SelfNarrative | Direct narrative methods are called by Metacognition/GUI; no owned loop found | No-op |
+| HoldingZoneResolver | AppState-owned 300-second loop calls tick; tick invokes `fade_stale()` | No-op; time decay is inside tick |
+| GoalManager | No normal boot/chat tick owner found; GUI uses `get_active()`/CRUD | Real 60-day stale-goal cancellation; no production caller located (G-60) |
+| Metacognition | GUI chat handler calls tick once per chat request | Real 14-day unresolved-event resolution; no production caller located (§130/G-83) |
+| NovelAssociation | AppState-owned 1,800-second loop calls tick | Real 14-day stale-log annotation; no decay caller located. Its prompt formatter independently limits reads to a two-hour lookback, so this is currently housekeeping rather than a stale prompt injection path |
+| SubstrateHarmonic | AppState-owned worker calls tick | No-op; state is DB-backed |
+| GeniusTagger | AppState-owned worker calls tick | No-op protocol stub |
+| DriveEmergence | AppState-owned worker calls `_background_tick()` | Public decay is no-op; internal `_decay()` runs inside its background tick |
+| AffectState | AppState-owned worker calls `_background_tick()` | Public decay is no-op; internal `_decay()` runs inside its background tick |
+
+**Important correction to G-60's earlier wording:** `run.py` constructs ProblemMemory and passes it to consumers, but does **not** register it with Theory X. GoalManager is registered. ProblemMemory nevertheless exposes a 30-day `decay()` method, and no caller was located in the reviewed normal boot/chat paths. G-60 remains the existing finding for ProblemMemory/GoalManager stale lifecycle ownership; do not create a duplicate ID.
+
+### Result
+
+There are three substantive unowned decay paths in the registered-node set: GoalManager (60-day goal cancellation), Metacognition (14-day event resolution), and NovelAssociation (14-day stale log annotation). ProblemMemory adds a fourth callable stale cleanup but is not a registered node. The first two affect open/reflective state and are tracked by G-60/G-83; NovelAssociation's two-hour prompt lookback limits the observed consequence of its uncalled 14-day housekeeping method.
+
+This confirms that the Protocol's `tick/decay/state` shape is an interface, not a scheduler. Background workers and GUI calls own their own tick cadence; no central lifecycle coordinator dispatches decay across all registered nodes.
+
+**Disposition:** source-observed registry membership and method ownership. No automatic decay is claimed where no caller was found. G-60 and G-83 remain OPEN; NovelAssociation's uncalled cleanup is recorded as a housekeeping gap, not promoted to a new defect ID without evidence of operational impact. No scheduler, code, retention policy, schema, flag, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+### Build-path scope refinement
+
+The nine-node list above is specifically the normal unified `run.py` boot path. The optional `gui/server.py::build_state(with_tools=True)` path separately constructs/registers ProblemMemory, GoalManager and Metacognition. Therefore ProblemMemory is absent from normal `run.py` registration but can appear in the process-lifetime registry through that optional GUI build path. This corrects G-60's earlier shorthand that `run.py` registers both ProblemMemory and GoalManager; the precise scope is now recorded in the verified defect backlog. The registry remains storage-only in either path.
+
+
+## §142 — DB-reaper test coverage boundary: generic deletion tested, Metacognition target not asserted (28 November 2026)
+
+The repository has one relevant test file, `tests/test_retention_reaper.py`. It imports `nex_db_reaper` and verifies that the generic `reap_table()` batch-delete helper removes old rows while preserving newer rows, including a per-target longer retention example.
+
+However, its `test_targets_include_the_two_logs` assertion checks only `drive_emergence_log` and `substrate_coherence`. It does not assert that `("conversations.db", "meta_cognition_events", "created_at")` remains in `TARGETS`, nor does it exercise `reap()` against a temporary `meta_cognition_events` table.
+
+**Evidence classification:**
+- Generic reaper batch-delete mechanics: unit-test-verified.
+- Presence of the Metacognition target: source-observed in `nex_db_reaper.TARGETS`, not explicitly regression-test-verified by the current target-list test.
+- Nightly systemd scheduling: configuration-observed.
+- Active timer installation, successful execution and actual deletion on the user's host: UNKNOWN.
+
+This does not invalidate the 30-day source-level backstop; it narrows the test evidence for its specific target. Do not add or alter tests in this documentation-only study unless a separate bounded test-only change is authorised and justified.
+
+**Authority boundary:** no reaper target, retention value, service/timer, test, database or runtime behaviour changed. See §138 for the retention semantics.
+
+## §144 — G-83 narrative retention: pattern-specific reflections outlive source-event eligibility (28 November 2026)
+
+**Question studied:** when a GrooveSpotter alert falls out of Metacognition's 600-second source query, what happens to the pattern-specific narrative rows created by repeated consumption?
+
+### Source facts
+
+- `substrate/init_db.py` creates `narrative_log(id, content, trigger, source_id, created_at)`. It has no expiry/retention column and no foreign key to `groove_alerts` (the tables live in different databases in any case).
+- `SelfNarrative.write_narrative()` performs a plain INSERT for each call; there is no deduplication by `source_id`, trigger or content.
+- `Metacognition._detect_groove()` calls `write_narrative()` on every eligible re-read of an unacknowledged source alert, passing the same GrooveSpotter alert ID as `source_id`.
+- PR #449 exact-head test `test_repeated_alert_reaches_generic_prompt_and_topic_filtered_narrative` verifies five `narrative_log` rows from five controlled chat ticks all carry the same source alert ID, and that `format_for_prompt()` returns all five on a matching topic but returns empty for an unrelated topic. This is fixture-level proof of duplicate prompt-slot occupancy, not a live host observation.
+- `SelfNarrative.format_for_prompt()` selects the newest `_DEFAULT_N=5` rows. When a topic is supplied, it filters only by case-insensitive substring match against `content`; it has no `created_at` cutoff, no `trigger` restriction and no source-ID deduplication. The GUI passes `prompt[:100]` as the topic. It selects only `content` and `created_at`, so the stored `trigger` and `source_id` are not passed into the prompt.
+- `SelfNarrative.decay()` is a no-op. `tests/test_self_narrative.py` verifies the no-op, topic matching and five-row cap; it does not test or establish an age-based expiry policy.
+- The external `nex_db_reaper.py` target list includes `meta_cognition_events` at 30 days but does not include `narrative_log` or `groove_alerts`. The 30-day reaper therefore does not bound these narrative rows.
+- The source alert itself falls out of Metacognition's consumer query after 600 seconds, but that does not delete the source row or its narrative rows. The 600-second value is `_GROOVE_LOOKBACK`; `_detect_groove()` reads only `detected_at > now - 600` and `acknowledged_at IS NULL`.
+
+### Additional writer paths and provenance loss
+
+The same `SelfNarrative.write_narrative()` INSERT is also called by inspected paths in ProblemMemory (problem opened/closed), GoalManager (goal completed), NovelAssociation (strong cross-domain crossing), and CoherenceGate (accepted insight tied to an open problem). The `SelfNarrative` rut-notice helper is called directly from `Metacognition.tick()`. These are distinct narrative triggers; they do not establish a common retention policy. The formatter strips `trigger` and `source_id` from its SELECT, so the LLM receives the narrative text and age label but not the stored provenance needed to distinguish a repeated groove alert from a problem, goal or association event.
+
+### Consequence
+
+A single alert re-consumed on several chat turns can occupy all five narrative prompt slots with repeated versions of the same pattern. After the alert has aged out of the ten-minute Metacognition query—and even after its corresponding `meta_cognition_events` rows are physically deleted by a successful 30-day reaper run—the matching `narrative_log` text can still be returned by a later chat prompt if the user's first 100 characters match the stored narrative.
+
+This is a distinct persistence path from the generic Metacognition cache:
+- Metacognition cache: in-memory, refreshed by chat ticks at a 60-second TTL.
+- `meta_cognition_events`: unresolved event rows, 14-day callable decay, 30-day external DB reaper if active.
+- `narrative_log`: persistent pattern-specific text, no formatter age cutoff, no cleanup path located.
+
+The user-level reaper timer's presence in the repository does not prove that it is installed or active. However, even if it is active, it does not currently bound `narrative_log`.
+
+**Next bounded investigation:** complete the external cleanup/writer census for `narrative_log` and `groove_alerts`; locate the intended narrative retention policy; characterize duplicate source-ID occupancy of the five prompt slots; and determine whether the pattern-specific narrative is meant to be durable autobiography or a short-lived reflective cue. Do not add pruning, deduplication or acknowledgement changes without the controlling design/approval.
+
+**Disposition:** source-observed repeated narrative insertion and no-age-cutoff prompt reader; exact-head fixture verifies same-source duplicate rows. No narrative cleanup path was located in the inspected SelfNarrative/reaper sources. Active host timer state and intended retention semantics remain UNKNOWN. G-83 remains OPEN; no new defect ID or behaviour change is introduced.
+
+**Source anchors:** `substrate/init_db.py` blob `494d0a86d2fc42053fd3005d6a6b4e19c376d262`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `nex_db_reaper.py` blob `5cfb609a8ad8a5f9bd0ab83729d8b42220700658`; PR #449 exact head `8132db2a338727e580e3269ad148277db727b0d4`.
+
+## §145 — Host-side DB-reaper deployment history: path repair observed, successful run not established (28 November 2026)
+
+The earlier host diagnostic record adds an important qualification to §138:
+
+- On 25 November 2026, the old loaded user-systemd units initially failed with `203/EXEC` because they pointed to `/home/rr/Desktop/Desktop/nex5`, which was no longer the actual checkout path.
+- The user's actual checkout was `/mnt/games/storage/Desktop/Desktop/nex5`.
+- A later host check verified that the loaded `nex5-db-reaper.service` had been corrected to the actual checkout path, and that `nex_db_reaper.py` existed there.
+- No service was deliberately started or restarted during that check. No successful service execution, timer activation state, last-run log or completed nightly retention pass was established.
+- The repository's versioned `deploy/systemd/nex5-db-reaper.service` still contains the old `/home/rr/Desktop/Desktop/nex5` paths. The active loaded unit had been corrected independently; copying the unchanged repository reference unit over it could reintroduce the old path.
+
+**Corrected operational status:** the earlier execution-path failure was diagnosed and the loaded unit path was later corrected. This is not evidence that the timer is enabled or that the reaper has completed a successful run. The 30-day Metacognition retention backstop remains runtime-unverified.
+
+**Configuration-drift classification:** versioned reference unit and historically corrected loaded unit diverge. This is a deployment reproducibility risk, not permission to edit or reinstall service units during this Phase 0 trace.
+
+**Next bounded observation:** inspect the current loaded unit and timer with `systemctl --user cat/status/list-timers nex5-db-reaper.timer nex5-db-reaper.service`, then inspect the last service journal entry and reaper log. Do not start/restart the service as part of an evidence-only check.
+
+**Authority boundary:** no unit, path, timer, service, database or runtime state changed. This records historical host evidence and the remaining unknowns only.
+
+
+## §146 — G-83 narrative retrieval is literal prompt-prefix matching, not semantic topic retrieval (28 November 2026)
+
+**Question studied:** how does the GUI choose which persistent Stage-SelfNarrative rows to surface, and what does “current topic” mean at the actual call site?
+
+### Source path
+
+- gui/server.py passes SimpleNamespace(current_topic=prompt[:100]) to SelfNarrative.format_for_prompt().
+- The formatter uses the entire supplied string as a case-insensitive SQL LIKE '%topic%' substring against narrative_log.content.
+- It does not extract keywords, normalize a semantic topic, embed the prompt, rank by similarity or consult the GrooveSpotter alert type.
+- The match is therefore literal substring containment. A short prompt phrase that appears inside the narrative can match; a paraphrase or a longer first-100-character prefix that does not occur verbatim in the stored narrative will not.
+- The formatter selects at most five matching rows, ordered newest first, with no age cutoff and no source/trigger deduplication. It returns narrative content and a relative age label, not the stored trigger/source ID.
+
+### Consequence
+
+The pattern-specific Stage-SelfNarrative path is not a general semantic retrieval mechanism. It is a narrow, user-prompt-conditioned string lookup. PR #450's fixture deliberately sends the exact phrase "same source pattern", which is contained in the stored narrative text; that proves the matching branch works for an exact phrase, not that ordinary paraphrased conversation will retrieve the narrative.
+
+This is distinct from the generic Metacognition self-observation line, which is produced from the cached top event without requiring the user to repeat the pattern phrase. The two prompt contributions have different retrieval rules and should not be conflated.
+
+**Next bounded characterization:** use controlled prompt variants (exact phrase, case variant, paraphrase, and a longer prompt whose first 100 characters contain the phrase only after the cutoff) against an isolated narrative fixture. Record which rows are returned without changing the matching policy. Then locate the approved intent for literal matching versus semantic retrieval. Do not replace substring matching with embeddings or alter prompt policy before Gate 0.
+
+**Disposition:** source-observed literal prefix-substring matching; exact-phrase route delivery test-verified in PR #450; paraphrase behaviour is source-derived and not separately tested. G-83 remains OPEN. No retrieval policy, narrative retention, runtime code, schema, flags, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §147 — SelfNarrative v1 intentionally unbounded; Phase 26b retention was deferred (28 November 2026)
+
+The original `theory_x/SELF_NARRATIVE_SPEC.md` materially qualifies §144:
+
+- §2 explicitly says there is **no fade logic in v1**; the `narrative_log` growth rate was unknown before production observation, so the table was intentionally unbounded.
+- It says a 90-day row-age cutoff or size-based cap *may* be added in Phase 26b **after observing actual write frequency**. This is a deferred candidate, not an approved current retention rule.
+- §5 specifies `SelfNarrative.decay()` as a no-op for v1 and says fade logic is deferred to Phase 26b.
+- §3 labels the v1 write triggers as two of five: Goal completion and Groove alert. Problem close, Gate ACCEPT and NovelAssociation crossing are listed as Phase 26b follow-ons.
+
+### Specification-to-runtime drift
+
+The current implementation contains the later trigger paths already:
+- ProblemMemory open/close writes;
+- CoherenceGate accepted insight writes;
+- NovelAssociation crossing writes.
+
+The original spec's trigger table has not been revised to reflect these additions. Git history for `SELF_NARRATIVE_SPEC.md` shows only its foundational 10 May 2026 creation commit; no later Phase 26b specification revision was located in the repository.
+
+### Correct interpretation
+
+1. The absence of `narrative_log` pruning is consistent with the original v1 design.
+2. The proposed 90-day/size-cap idea is not an active policy and must not be implemented as though it were approved.
+3. The expanded writer set in runtime code is beyond the original v1 trigger list, while the spec remains at its original Phase 26-spec state.
+4. Whether Phase 26b's production observation and approval occurred elsewhere remains UNKNOWN. No current production write-rate measurement or active-host narrative-table inspection was performed.
+
+**Disposition:** this narrows the §144 finding from "missing retention mechanism" to "v1 intentionally unbounded, with a deferred Phase 26b retention decision and unupdated trigger specification." The remaining issue is evidence/authority reconciliation: locate the Phase 26b observation or approval, or preserve UNKNOWN. Do not add pruning, deduplication or a 90-day cutoff on the strength of the old proposal alone.
+
+**Source anchors:** `theory_x/SELF_NARRATIVE_SPEC.md` blob `97b84c9198552d874ed5dea8026247cf67cf1edc`; file history contains foundational commit `6a591c936c49e5d0c136731e4a2fc9b22f4c92d2` (10 May 2026); `theory_x/stage_self_narrative/self_narrative.py`; `tests/test_self_narrative.py`.
+
+**Authority boundary:** this spec is historical design intent, not an elevation over frozen S-01–S-25/M1.8 or Founder Sign-Off. No retention horizon, trigger policy, schema, code, flags, roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §148 — SelfNarrative rut observer is indirectly invoked by chat Metacognition, not its own tick (28 November 2026)
+
+**Question studied:** is the rut observer actually reachable through normal source wiring, even though `SelfNarrative.tick()` itself has no demonstrated dispatcher?
+
+### Corrected source trace
+
+- `run.py` constructs and registers one `SelfNarrative` instance and injects it into Metacognition, GoalManager, ProblemMemory, CoherenceGate and NovelAssociation. It does not attach a dedicated loop to SelfNarrative.
+- `theory_x/__init__.py` registration is not a dispatcher: `register()` appends a node and `all_nodes()` returns the registered list.
+- The inspected GUI chat path calls `state.metacognition.tick()` when Metacognition is present. `Metacognition.tick()` directly obtains `self._narrative._maybe_notice_rut` and invokes it when the injected narrative object is present. This is an indirect call into the SelfNarrative implementation; it is not a call to `SelfNarrative.tick()`.
+- The direct helper checks for at least four recent `genius_tags` in a 90-minute window, writes a rut notice when the STRIKING rate is at most 5%, and throttles narrative rows using the most recent `rut_notice` row in `narrative_log` (two hours).
+- `run.py` separately constructs GeniusTagger and starts its own 60-second loop, which is the source-level producer for `conversations.db.genius_tags`. Successful host startup and fresh live tag production remain UNKNOWN.
+- The `NEX5_RUT_MIRROR_OFF=1` check is inside `SelfNarrative.tick()`; the inspected Metacognition direct-helper call does not pass through that check. The flag's effective scope therefore requires explicit characterization; it cannot be assumed to disable the chat-path helper.
+- Existing `test_tick_is_noop` uses an empty fixture and verifies only that no row is written when there are no qualifying tags. It does not prove that the method is intrinsically a no-op or establish the runtime call path.
+
+### Evidence classification and consequence
+
+- SelfNarrative construction/injection and GeniusTagger loop startup: source-observed in `run.py`.
+- Normal chat route to `Metacognition.tick()`: source-observed in `gui/server.py`.
+- Metacognition-to-`_maybe_notice_rut()` direct helper invocation: source-observed in `metacognition.py`.
+- `SelfNarrative.tick()` itself being dispatched: not demonstrated in the inspected boot/chat paths.
+- Rut helper live execution, deployed environment values, fresh host tags and actual narrative writes: UNKNOWN.
+
+**Correction to the previous §148 conclusion:** the observer is not unowned in the broad sense. Its helper has a normal source-level chat caller through Metacognition. What remains uncalled is the public `SelfNarrative.tick()` wrapper. The distinction matters because the wrapper contains the OFF-flag check while the indirect helper call bypasses it. See §150 for the separate flag and dual-writer analysis.
+
+**Next bounded investigation:** characterize the direct Metacognition caller under `NEX5_RUT_MIRROR_OFF=1`, inspect the independent Fountain governor writer, and establish whether the two stores/throttles are intended to be separate. Do not change either path or flag before the contract is known.
+
+**Disposition:** source-level chat reachability established; actual runtime execution and flag state remain UNKNOWN. No runtime fix or new defect disposition made yet. G-83 remains OPEN for its separate GrooveSpotter/narrative replay and provenance findings.
+
+**Source anchors:** `run.py`; `theory_x/__init__.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/stage9_metacognition/metacognition.py`; `gui/server.py`; `tests/test_self_narrative.py`; historical implementation commit `8bf08cbfb455303be5236612e1915813257d23c6`.
+
+**Authority boundary:** no runtime code, schema, flag, retention policy, lifecycle schedule, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §149 — Rut-mirror write/read asymmetry: fixed reflection is filtered by literal chat-prefix matching (28 November 2026)
+
+**Question studied:** if the rut-mirror hook writes its fixed self-observation, does the normal GUI chat reader actually retrieve it for an unrelated user prompt?
+
+### Source trace
+
+- `SelfNarrative._maybe_notice_rut()` writes one fixed note beginning "I notice my recent thinking has circled the same few frames...".
+- `gui/server.py` constructs the formatter context with `current_topic=prompt[:100]` on the inspected chat path.
+- `SelfNarrative.format_for_prompt()` applies that entire topic string as a case-insensitive SQL `LIKE '%topic%'` against `narrative_log.content`. It does not tokenize, summarize, embed, or semantically match the prompt.
+- Because the GUI supplies a topic, the formatter takes its topic-filtered branch. The unfiltered newest-five branch is used only when no topic is supplied.
+- Consequently, a rut note is returned on this GUI path only when the first 100 characters of the user's prompt occur as a literal substring in the fixed note. An unrelated prompt prefix produces no rut-note retrieval, even if the note exists in the database.
+- The note's own wording invites reflection, but that wording is not independently injected as a generic reflective cue. The reader's literal topic filter controls whether it reaches the assembled chat context.
+
+**Scope clarification:** this literal-topic restriction applies to rows read from `narrative_log` through SelfNarrative. The Fountain governor's separate rut mirror writes a belief row to `beliefs`; that second persistence path has its own retrieval chain and is not governed by this `current_topic` SQL filter.
+
+### Evidence classification
+
+- Fixed rut-note content and writer: source-observed.
+- GUI prompt-prefix handoff: source-observed.
+- Literal substring retrieval and no-topic fallback: source-observed and already characterized for general narrative rows by existing SelfNarrative tests.
+- Rut-note-specific exact-versus-unrelated prompt behaviour: additional isolated characterization added in draft PR #452; exact-head CI is pending at the time of this entry.
+- Live rut-note existence, deployed flag, and actual chat retrieval frequency: UNKNOWN.
+
+This is a second, independent boundary after §148. Even if a future approved path invokes the rut tick and the detector writes a row, that alone does not establish that the note is consumed by an ordinary chat turn. Producer execution, persistence, reader eligibility and prompt delivery are separate causal edges.
+
+**Next bounded investigation:** await exact-head CI for PR #452; then complete the reader call-site census and, if an approved read-only host observation is available, measure whether rut rows exist and whether real prompt prefixes retrieve them. Do not remove the topic filter, add a generic fallback, or change the note/flag on the strength of this source trace.
+
+**Disposition:** source-observed write/read asymmetry. PR #452 is test-only and draft; its test result is not yet verified. No new defect ID pending full reader census and evidence of operational impact. G-83 remains OPEN.
+
+**Source anchors:** `theory_x/stage_self_narrative/self_narrative.py`; `gui/server.py`; `tests/test_self_narrative.py`; draft PR #452.
+
+**Authority boundary:** no runtime code, database schema, flag, prompt policy, retrieval policy, lifecycle schedule, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §150 — Two rut-mirror persistence paths and a direct-caller flag bypass (28 November 2026)
+
+**Question studied:** is there one rut-mirror mechanism, or do chat Metacognition and the Fountain governor independently persist the same first-person observation?
+
+### Source trace
+
+1. **Chat / narrative path**
+   - `gui/server.py` calls `Metacognition.tick()` on the chat route.
+   - `Metacognition.tick()` directly invokes the injected `SelfNarrative._maybe_notice_rut()` helper.
+   - The helper reads recent `genius_tags`, applies the four-row minimum and <=5% STRIKING threshold, checks the latest `rut_notice` row, and writes the fixed note to `conversations.db.narrative_log`.
+   - Its two-hour throttle is database-backed (latest `created_at` for trigger `rut_notice`).
+
+2. **Fountain / belief path**
+   - `FountainGenerator._retrieve_context_beliefs()` contains a separate governor check over the same recent `genius_tags` signal.
+   - When `NEX5_GOVERNOR_OFF` is not `1`, at least four tags exist and the STRIKING rate is <=5%, the governor accelerates reanimation cadence and separately writes the same first-person rut text into `beliefs` with source `self_rut_notice`, tier 6, confidence 0.6 and branch `self`.
+   - Its two-hour throttle is a generator-instance in-memory timestamp (`_last_rut_notice_ts`), not the narrative database throttle.
+   - The historical implementation commit `8bf08cbfb455303be5236612e1915813257d23c6` introduced both the Fountain belief write and the Metacognition-to-SelfNarrative helper call in the same change.
+
+### Consequences
+
+- There are two source-level writers to different stores for substantially the same observation: `beliefs` and `narrative_log`.
+- Their throttles are independent and use different persistence scopes. A generator restart resets its in-memory throttle; the narrative path checks persisted history.
+- `NEX5_GOVERNOR_OFF` guards the Fountain governor block. `NEX5_RUT_MIRROR_OFF` is checked only by `SelfNarrative.tick()`; the normal chat caller invokes `_maybe_notice_rut()` directly and therefore bypasses that wrapper check.
+- The Fountain belief write occurs after the current call has already fetched its own-content and seed candidate rows. It cannot be in that same invocation's selected context. The explicit Fountain source allowlists also omit `self_rut_notice`; this does not rule out other generic retrieval paths or later reanimation.
+- The existing test `test_tick_respects_rut_mirror_off_flag` covers only the public wrapper. It does not cover the actual Metacognition caller. Draft PR #452 adds a test-only characterization of that direct-caller bypass; exact-head workflow 46181820624 completed successfully at e3e1e037f0769e66e62b84fe982abf37f49e1485. This verifies the isolated source interaction, not deployed host flag state or live execution.
+- No test coverage for the Fountain belief writer's governor/flag/throttle path was found in the inspected `tests/test_fountain.py` or `tests/test_metacognition.py`.
+
+### Evidence classification
+
+- Both writers, stores, conditions and throttle implementations: source-observed.
+- Metacognition chat caller and Fountain generation call path: source-observed.
+- Whether both paths execute in the current host, the deployed values of either flag, whether both rows have co-occurred, and whether the two-path design is intentional: UNKNOWN.
+- A global OFF guarantee cannot be claimed from the present source. Whether `NEX5_RUT_MIRROR_OFF` was intended as a wrapper-local switch or a system-wide kill switch is not documented in the inspected sources.
+
+**Next bounded investigation:** characterize the Fountain writer and its governor OFF boundary; inspect all readers of `source='self_rut_notice'` and `trigger='rut_notice'`; then compare provenance and co-occurrence using approved read-only host evidence if available. Do not unify the stores, alter flags, add shared deduplication, or change the thresholds without an authoritative design decision.
+
+**Disposition:** source-level dual-path and flag-scope mismatch recorded. Potential control-scope defect remains unconfirmed pending intended flag contract and live evidence. No new defect ID yet. G-83 remains OPEN.
+
+**Source anchors:** `run.py`; `gui/server.py`; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/stage6_fountain/generator.py`; `theory_x/stage3_world_model/retrieval.py`; `tests/test_self_narrative.py`; `tests/test_metacognition.py`; `tests/test_fountain.py`; commit `8bf08cbfb455303be5236612e1915813257d23c6`.
+
+**Authority boundary:** no runtime code, database schema, feature flag, prompt policy, persistence policy, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §151 — Fountain rut belief is written after candidate selection and omitted from its explicit source pools (28 November 2026)
+
+**Question studied:** once the Fountain governor writes `source='self_rut_notice'`, does the Fountain retrieval path actually select that belief for a subsequent prompt?
+
+### Source trace
+
+- `FountainGenerator._retrieve_context_beliefs()` first reads its `own_rows` using `_OWN_CONTENT_SOURCES`, and separately reads `seed_rows` using `_SEED_SOURCES`.
+- The Fountain governor's `self_rut_notice` INSERT occurs only after both candidate queries and after the initial own/seed selection work has begun. The newly written row cannot be present in the same invocation's already-fetched candidates.
+- `_OWN_CONTENT_SOURCES` is explicitly limited to `fountain_insight`, `synergized`, `precipitated_from_dynamic`, `precipitated_from_sense`, `behavioural_observation` and `auto_probe`. `_SEED_SOURCES` is a separate explicit allowlist; neither includes `self_rut_notice`.
+- The dedicated HOT-observer slot queries only `source='hot_observer'`; it does not select `self_rut_notice`.
+- The same generator method may prepend a pending reanimation result by ID, but the inspected code does not establish that every new `self_rut_notice` is marked dormant or enters that queue. Treat this as a possible alternate route, not a proven reader.
+- A separate generic `BeliefRetriever.retrieve()` used by the GUI fallback path loads all unpaused beliefs with `tier <= 6` and either `locked=1` or `confidence >= 0.15`. The rut belief's source-level write values (tier 6, confidence 0.6, locked 0) make it eligible for that candidate pool. Actual return still depends on query scoring, route selection, top-k and the GUI's shared-token filter; eligibility is not proof of delivery.
+
+### Consequence
+
+The Fountain writer's claim that the note enters the belief stream is source-supported. The stronger claim that the Fountain's own next prompt retrieves it is not supported by its explicit source allowlists. The GUI's generic retriever is a distinct possible consumer, with query-dependent selection. The narrative_log route is another distinct path and retains its literal prompt-prefix restriction from §149.
+
+This creates a producer/consumer split across two separate channels:
+- Fountain writes a belief after the current fire's candidates were fetched.
+- GUI generic retrieval may later select that belief by relevance.
+- Fountain's explicit own/seed/HOT source slots do not select it by source.
+- Chat SelfNarrative separately writes and retrieves a narrative_log row by literal topic match.
+
+### Evidence classification
+
+- Writer position relative to candidate reads: source-observed.
+- Fountain own/seed/HOT source allowlists: source-observed.
+- Generic GUI retriever eligibility for tier-6/confidence-0.6 belief rows: source-observed.
+- Actual belief-row existence, later query hit rate, any reanimation route, and prompt delivery: UNKNOWN.
+
+**Next bounded investigation:** trace `dormant_beliefs` eligibility and the generic GUI retrieval filter for this source; add isolated tests for the Fountain write timing/source eligibility only if they can be kept test-only and deterministic. Do not add `self_rut_notice` to Fountain allowlists or alter retrieval ranking without an approved contract.
+
+**Disposition:** Fountain self-rut belief's own-path consumption is not established; generic GUI retrieval is an eligible but query-dependent reader. No runtime change and no defect ID yet. G-83 remains OPEN.
+
+**Source anchors:** `theory_x/stage6_fountain/generator.py`; `theory_x/stage3_world_model/retrieval.py`; `gui/server.py`; `theory_x/diversity/reanimate.py`.
+
+**Authority boundary:** no runtime code, schema, retrieval policy, feature flag, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §152 — GeniusTagger backfill time and version multiplicity distort the rut observers' 90-minute sample (28 November 2026)
+
+**Question studied:** does genius_tags.tagged_at >= now - 5400 actually select Fountain events from the last 90 minutes, and does one Fountain event always contribute only one sample?
+
+### Source trace
+
+- GeniusTagger._backfill() loads Fountain events from the configured backfill horizon (14 days by default), then calls _write_tag(..., ts_now) for every event. _write_tag() stores that processing timestamp in genius_tags.tagged_at, not the original fountain_events.ts.
+- GeniusTagger._tag_window() also stores its processing timestamp as tagged_at; in continuous mode it only writes fires whose event timestamp is inside its 180-second lookback.
+- Both rut observers (SelfNarrative._maybe_notice_rut() and the Fountain governor block) query SELECT class FROM genius_tags WHERE tagged_at >= now - 5400. Neither query filters on the Fountain event timestamp, weights_version, nor distinct fountain_event_id.
+- The schema defines UNIQUE(fountain_event_id, weights_version), deliberately allowing one event to have rows under multiple weights versions. The tagger reloads weights when the file mtime changes; with the backfill already complete, continuous tagging can write a new-version row for a recent event. A new process/version backfill can also tag the same historical fire under a second version.
+- Consequently, during a 14-day backfill, a ten-day-old Fountain event can receive tagged_at=now and immediately enter the rut observers' 90-minute sample. During overlapping weights versions, the same event can contribute multiple rows to the denominator and potentially both classes if its classification changes.
+
+### Consequences
+
+The rut detector's nominal "recent 90-minute striking rate" is actually a rate over recently processed tag rows. During backfill it can represent up to 14 days of historical Fountain events stamped at one processing time. With multiple weight versions it can count one Fountain event more than once. This may distort both the minimum-row threshold and the <=5% STRIKING rate; whether it materially changes the decision depends on actual backfill volume, version overlap and class stability.
+
+This is a signal-definition issue, not proof that the score model is wrong. If the intended signal is recent Fountain activity, the current timestamp/query combination does not implement that contract. If the intended signal is recent tagging activity, the 14-day backfill burst and version multiplicity still need explicit treatment.
+
+### Evidence classification
+
+- Backfill horizon, _write_tag(..., ts_now), continuous-window timestamp and weights-version uniqueness: source-observed.
+- Rut readers' tagged_at query without version or event-ID deduplication: source-observed.
+- A historical event entering the 90-minute window after backfill and one event appearing twice across versions: deterministic fixture characterization in draft PR #453; exact-head workflow 46182191953 passed at 2d15c4d4c87881138c937c5600f1a281677d8391.
+- Actual host backfill history, current weights version, duplicate rate, class disagreement and resulting rut decisions: UNKNOWN.
+
+**Next bounded investigation:** validate PR #453 exact-head CI; inspect historical weights-version and tag timestamp distributions through an approved read-only host snapshot if available; compare tagged_at against joined fountain_events.ts and count distinct event IDs per rut window. Do not change timestamp semantics, deduplication, detector threshold or weights policy until the intended signal contract is established.
+
+**Disposition:** source-level sample-window mismatch and possible version-multiplicity weighting recorded. Potential detector-signal defect remains pending intended semantics and live impact evidence. No defect ID yet. G-83 remains OPEN.
+
+**Source anchors:** theory_x/genius/tagger.py; substrate/init_db.py (genius_tags schema); theory_x/stage_self_narrative/self_narrative.py; theory_x/stage6_fountain/generator.py; tests/test_genius_tagger.py; draft PR #453.
+
+**Authority boundary:** no runtime code, schema, feature flag, detector threshold, weights, retention policy, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §153 — Rut notices retain no explicit provenance to the GeniusTagger rows that triggered them (28 November 2026)
+
+**Question studied:** can a persisted rut notice be traced back to the exact Fountain events, tag rows and scoring version that caused its threshold decision?
+
+### Source trace
+
+- Both rut observers query only the class column from genius_tags within the 90-minute tagged_at window. They do not select fountain_event_id, score, weights_version or tagged_at for the contributing rows.
+- The SelfNarrative path writes the fixed note with trigger='rut_notice' and source_id=None. The narrative row therefore has no direct source-row identifier.
+- The Fountain governor path inserts a beliefs row with source='self_rut_notice', tier 6, confidence 0.6 and branch_id='self'. The INSERT carries no fountain_event_id, GeniusTagger row ID, weights_version, score summary or relation to the triggering tag set.
+- The genius_tags source rows remain in conversations.db and can be queried independently, but neither output row records the exact input IDs or a frozen input-window manifest. Because §152 established that tagged_at can represent backfill processing time and multiple versions can coexist, reconstructing the intended sample from output timestamp alone is ambiguous.
+
+### Consequence
+
+The system records that a rut notice was written, and its trigger/source label distinguishes the two persistence channels. It does not preserve a direct causal link from the observation to the tag sample that produced it. Later investigators may approximate the candidate set by re-running a time-window query, but cannot prove the exact rows/version set used at decision time from the notice row itself.
+
+This is a provenance limitation, not proof that the decision was incorrect. It becomes materially important when comparing detector output across weights refits, backfill, threshold changes or runtime sessions.
+
+### Evidence classification
+
+- Both class-only input queries and both output write shapes: source-observed.
+- Absence of explicit source IDs/version manifest in the rut output rows: source-observed.
+- Actual persisted rut rows and the exact input rows used on the host: UNKNOWN.
+
+**Next bounded investigation:** inspect whether any existing trace overlay or independent event log already captures the input row IDs for these rut decisions; if none does, record the evidence gap for Gate 0 review. Do not add a second event store, new trace schema or provenance writer under Phase 0 without authority.
+
+**Disposition:** causal provenance is not carried directly from GeniusTagger inputs into either rut output record. This compounds the sample-window ambiguity in §152. No new defect ID yet; operational impact and any external trace coverage remain to be checked. G-83 remains OPEN.
+
+**Source anchors:** theory_x/stage_self_narrative/self_narrative.py; theory_x/stage6_fountain/generator.py; theory_x/genius/tagger.py; substrate/schema/conversations.sql; substrate/init_db.py.
+
+**Authority boundary:** no runtime code, schema, event store, trace overlay, feature flag, detector threshold, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §154 — Rut readers have no backfill-completion gate and can observe a partial startup sample (28 November 2026)
+
+**Question studied:** do the chat and Fountain rut readers wait until GeniusTagger's initial backfill has completed before evaluating the 90-minute sample?
+
+### Source trace
+
+- run.py constructs GeniusTagger and passes it to _own_and_start() at the Phase 9g startup site.
+- _own_and_start() publishes the worker, calls its start method, then returns after the start call; it does not wait for the worker thread to finish its first tick or backfill.
+- GeniusTagger.start_loop() starts a daemon thread and immediately calls tick(), which enters _backfill() while _backfill_done is false. The worker sets _backfill_done only after _backfill() returns complete.
+- run.py later constructs Fountain through build_fountain(); the Fountain loop is independently started. No inspected boot path waits on GeniusTagger._backfill_done before Fountain construction or chat availability.
+- The Metacognition chat caller and Fountain governor query genius_tags directly. Neither reads _backfill_done, waits for tagger readiness, nor distinguishes a complete sample from rows already written by an in-progress backfill.
+- Combined with §152, the first rows written by a 14-day backfill are stamped with the current processing timestamp. A rut reader can therefore evaluate a partial, historical, still-growing sample as if it were a complete recent window.
+
+### Consequence
+
+The nominal sample may be both temporally mis-scoped and incomplete while it is being built. For example, if the first four rows are ordinary, the <=5% test can pass before later backfill rows change the aggregate rate. The persisted two-hour throttle can then suppress a later re-evaluation after the sample is complete. This is a possible startup race; it is not evidence that the host actually encountered one.
+
+### Evidence classification
+
+- Worker start returns without waiting for first tick/backfill completion: source-observed.
+- _backfill_done is set after successful completion: source-observed.
+- Rut readers do not check backfill readiness: source-observed.
+- Whether startup backfill overlaps a live chat/Fountain decision on the host, how long backfill takes, and whether a premature rut notice was written: UNKNOWN.
+
+**Next bounded investigation:** inspect host startup logs and tag timestamps through an approved read-only snapshot, if available, to determine backfill duration and whether any rut decisions occurred before completion. Do not add a readiness barrier or change startup order under Phase 0 without authority.
+
+**Disposition:** unguarded partial-backfill consumption is a source-level race possibility that compounds §§152–153. Live occurrence and behavioural impact remain UNKNOWN. No new defect ID yet. G-83 remains OPEN.
+
+**Source anchors:** run.py; _own_and_start() in run.py; theory_x/genius/tagger.py; theory_x/stage9_metacognition/metacognition.py; theory_x/stage_self_narrative/self_narrative.py; theory_x/stage6_fountain/__init__.py; theory_x/stage6_fountain/generator.py.
+
+**Authority boundary:** no runtime code, worker lifecycle, startup ordering, database schema, feature flag, detector threshold, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §155 — The generic GUI retriever classifies self_rut_notice as OUTSIDE and excludes it from self-inquiry retrieval (28 November 2026)
+
+**Question studied:** does the generic BeliefRetriever make the Fountain rut belief available to the self-inquiry route, given that it is a first-person observation about NEX's own thinking?
+
+### Source trace
+
+- MembraneClassifier.classify_belief() classifies a belief as INSIDE only when its source appears in the explicit _INSIDE_SOURCES set; all other sources are OUTSIDE.
+- The inspected _INSIDE_SOURCES set does not contain self_rut_notice.
+- QueryRouter._inside_route() calls BeliefRetriever.retrieve(..., side_filter="INSIDE"). BeliefRetriever applies CLASSIFIER.classify_belief() to each candidate and removes OUTSIDE rows.
+- QueryRouter._outside_route() calls the same retriever without an INSIDE side filter. Therefore the tier-6/confidence-0.6 self_rut_notice row can remain eligible for outside-query scoring, but is excluded from self-inquiry retrieval by source classification.
+- The narrative_log route remains separate: GUI calls SelfNarrative.format_for_prompt() after membrane routing, but its literal prompt-prefix match is constrained by §149.
+- The Fountain's explicit own/seed/HOT source pools continue to omit self_rut_notice as recorded in §151.
+
+### Consequence
+
+The Fountain rut belief is first-person in content, but the generic membrane retrieval contract classifies it as OUTSIDE because its source label is absent from the INSIDE allowlist. This does not mean the belief is globally unreadable: it can be considered by the OUTSIDE generic retriever if query scoring selects it. It does mean the source-level self-inquiry route does not retrieve it through that path.
+
+The content's first-person wording is not sufficient to establish its retrieval side; the source allowlist is authoritative for this classifier. Whether self_rut_notice was intentionally meant to be OUTSIDE is UNKNOWN.
+
+### Evidence classification
+
+- Source classification rule and _INSIDE_SOURCES contents: source-observed.
+- QueryRouter INSIDE/OUTSIDE side-filter behavior: source-observed.
+- Test-only characterization of OUTSIDE classification and INSIDE exclusion added in draft PR #454; exact-head workflow 46182737858 passed at 7b9ae6c3f0debbc87882b8d8e8c8932f79cb5c5e.
+- Actual host queries and whether a self_rut_notice row has ever been selected for an OUTSIDE prompt: UNKNOWN.
+
+**Next bounded investigation:** await PR #454 exact-head CI; inspect the original intended classification contract for self_rut_notice and any source-level rationale. Do not add the source to _INSIDE_SOURCES or alter membrane policy without an authoritative decision.
+
+**Disposition:** source-level retrieval-side mismatch recorded; intended side remains unresolved. No defect ID yet. This finding complements §§151–154: the Fountain's own explicit slots omit the row, generic GUI INSIDE retrieval excludes it, and OUTSIDE retrieval remains query-dependent. G-83 remains OPEN.
+
+**Source anchors:** theory_x/stage4_membrane/classifier.py; theory_x/stage4_membrane/router.py; theory_x/stage3_world_model/retrieval.py; gui/server.py; theory_x/stage6_fountain/generator.py; draft PR #454.
+
+**Authority boundary:** no runtime code, classifier allowlist, retrieval policy, schema, feature flag, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §156 — GeniusTagger is a passive producer, but its signal is no longer log-only at system level (28 November 2026)
+
+**Question studied:** does the current source still match GENIUS_SCORE_v2.md §7's statement that no behavioural consumers of genius_tags exist?
+
+### Specification and source-document comparison
+
+- GENIUS_SCORE_v2.md §7's "What the tagger does not do (yet)" says other components reading genius_tags and changing behaviour do not exist yet and are future builds. Git history shows the spec's latest commit is 2026-05-24.
+- TRACK_THEORY.md's 2026-05-27 afterword later says tag-then-favor in retrieval, tag-then-include in the next prompt and tag-then-feed-back into Fountain readiness are the actual builds, not the older drive-based Phase 10 sequence. This newer design note anticipates the consumer layer; GENIUS_SCORE_v2.md's final paragraph and the tagger/run.py log-only comments were not reconciled with it.
+- The GeniusTagger module docstring and run.py Phase 9g comment likewise call the producer "LOG-ONLY" and say it has no behavioural effect on other nodes.
+- Those statements may accurately describe the tagger class in isolation: GeniusTagger itself scores and writes rows. They do not describe the integrated system at the inspected source revision, where multiple consumers already read those rows and change downstream state or prompts.
+
+### Current consumer inventory
+
+1. **Readiness consumer C — source-present and normally wired**
+   - FountainGenerator constructs ReadinessEvaluator with the injected conversations_reader.
+   - run.py passes the conversations reader through build_fountain().
+   - ReadinessEvaluator._genius_modulation() reads the last hour of genius_tags, requires at least five rows, targets a 40% STRIKING rate and subtracts up to 0.15 from Fountain readiness when the rate is lower.
+   - NEX5_FOUNTAIN_READINESS_MOD_OFF=1 disables it. With the normal reader wiring and no OFF flag, this is a behavioural cadence influence, not merely logging.
+
+2. **Recent STRIKING prompt consumer B — source-present**
+   - FountainGenerator._build_recent_striking_block() reads STRIKING tags from the last 24 hours, joins the corresponding Fountain thoughts, deduplicates similar first sentences and injects up to two examples into the Fountain prompt.
+   - _build_prompt() includes this block unless NEX5_GENIUS_PROMPT_OFF=1.
+   - The tag-time filter excludes rows tagged in the last five minutes, but it does not bound the original fountain_events.ts age. A 14-day-old event backfilled with a recent tagged_at can therefore enter the block after the five-minute tag-age delay, subject to scoring/deduplication.
+
+3. **Fountain governor / rut mirror — source-present**
+   - The governor reads the last 90 minutes of tag rows; with at least four and <=5% STRIKING it changes reanimation cadence from every 20th fire to every 5th fire and writes a self_rut_notice belief.
+   - NEX5_GOVERNOR_OFF=1 disables this block. See §§150–154 for the separate writer, flag, timestamp, startup and provenance boundaries.
+
+4. **Chat Metacognition rut observer — source-present**
+   - The GUI chat route calls Metacognition.tick(), which directly invokes SelfNarrative._maybe_notice_rut() and may write a rut_notice row into narrative_log.
+   - The direct helper call bypasses the NEX5_RUT_MIRROR_OFF check inside SelfNarrative.tick(). See §§148–150.
+
+5. **Continuity prompt layer — optional, default OFF**
+   - When NEX5_CONTINUITY_N is positive, FountainGenerator reads the top-scoring genius_tags rows and injects the corresponding prior Fountain thoughts as a continuity stream. The source query is not time-bounded and does not filter class.
+
+### Consequence
+
+The correct distinction is: **GeniusTagger is a write-only producer; the integrated Genius signal is not system-level log-only.** At least four consumer paths are source-present, and the normal Fountain wiring activates readiness modulation and the recent-STRIKING prompt block unless their respective OFF flags are set. Governor and Metacognition paths also have their own conditions and flags. The optional continuity layer is separately env-gated.
+
+This is a specification/documentation drift finding, not proof that every consumer is enabled or active on the host. It also means §152's backfill timestamp semantics can influence more than the rut observers: readiness modulation samples the last hour, while the prompt consumer samples the last 24 hours. A backfilled historic event can therefore affect readiness and later prompt content.
+
+### Test coverage
+
+- Existing tests/test_genius_tagger.py characterize the producer but do not cover the downstream consumer network.
+- Existing tests/test_fountain.py had no GeniusTagger consumer characterization at the inspected base.
+- PR #452 covers the Metacognition rut helper and wrapper flag boundary; exact-head CI passed.
+- PR #454 covers the Fountain governor writer and its explicit retrieval/membrane boundary; exact-head CI pending.
+- PR #455 adds test-only coverage for readiness modulation and the recent-STRIKING prompt block; exact-head workflow 46182908854 passed at b74798e87174cfa1f74c740066bcd9c0904a4341.
+
+### Evidence classification
+
+- GENIUS_SCORE_v2.md latest commit date and the "consumers do not exist yet" text: document/history observed.
+- Readiness, prompt, governor, Metacognition and optional continuity consumer source paths: source-observed.
+- Normal Fountain reader wiring for readiness and prompt consumers: source-observed.
+- Actual deployed flags, host worker activity, live readiness penalties, prompt injections and rut writes: UNKNOWN.
+
+**Next bounded investigation:** validate PRs #454 and #455 exact-head CI; compare GENIUS_SCORE_v2.md and runtime source as separate evidence layers; then inspect the full consumer set's flag ownership and current host settings through approved read-only evidence. Do not change the spec's authority status, enable/disable flags or alter consumer behaviour in Phase 0.
+
+**Disposition:** stale "no behavioural consumers yet" specification text and system-level log-only description recorded. The producer remains passive; downstream consumers are not. No new defect ID pending authoritative intent and live activation evidence. G-83 remains OPEN.
+
+**Source anchors:** GENIUS_SCORE_v2.md; theory_x/genius/tagger.py; run.py; theory_x/stage6_fountain/readiness.py; theory_x/stage6_fountain/generator.py; theory_x/stage6_fountain/__init__.py; theory_x/stage9_metacognition/metacognition.py; gui/server.py; tests/test_genius_tagger.py; tests/test_fountain.py; draft PRs #454 and #455.
+
+**Authority boundary:** no runtime code, weights, schema, feature flag, consumer policy, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §157 — GeniusTagger consumers independently sample different windows, thresholds and control flags (28 November 2026)
+
+**Question studied:** do the downstream GeniusTagger consumers share one defined sample/decision contract, or does each consumer independently interpret the same table?
+
+### Consumer comparison
+
+| Consumer | Sample and decision | Downstream effect | Control |
+|---|---|---|---|
+| ReadinessEvaluator | tagged_at > now-1h; minimum 5; target 40% STRIKING; max penalty 0.15 | subtracts from Fountain readiness | NEX5_FOUNTAIN_READINESS_MOD_OFF |
+| Recent STRIKING prompt block | STRIKING rows tagged in last 24h and older than 5 minutes by tagged_at; top 200, content dedup to 10, sample 2 | injects prior Fountain thoughts into next prompt | NEX5_GENIUS_PROMPT_OFF |
+| Fountain governor | tagged_at >= now-90m; minimum 4; <=5% STRIKING | changes reanimation cadence 20->5 and writes self_rut_notice | NEX5_GOVERNOR_OFF |
+| Metacognition rut observer | tagged_at >= now-90m; minimum 4; <=5% STRIKING; 2h DB throttle | writes rut_notice to narrative_log | NEX5_RUT_MIRROR_OFF (wrapper-local; direct caller bypasses) |
+| Continuity prompt layer | all-time top score rows; no time or class filter | injects prior high-scoring thoughts | NEX5_CONTINUITY_N (default 0) |
+
+### Source trace
+
+- Each consumer owns its own SQL query, window, sample minimum, threshold, cache/throttle and flag. There is no shared query helper or common decision snapshot in the inspected source.
+- All time-window consumers use tagged_at, so the backfill semantics from §152 affect their samples differently: one hour, 90 minutes and 24 hours. The continuity layer is not time-bounded.
+- The rut readers and readiness reader do not filter weights_version or distinct fountain_event_id. The recent STRIKING prompt block deduplicates similar thought text after retrieval, but its SQL candidate rows can still contain multiple versions of one event. The optional continuity layer has no explicit event/version deduplication.
+- The controls are separate. Turning off one consumer does not disable the others. The NEX5_RUT_MIRROR_OFF wrapper check does not protect the actual Metacognition direct-helper path (§150).
+- The consumers do not persist a common sample manifest, decision record or set of input tag-row IDs (§153).
+
+### Consequence
+
+GeniusTagger is not one central control loop. It is a fan-out signal feeding several independent controllers and prompt paths. The same underlying rows can produce different decisions because each consumer uses a different time horizon, minimum sample, target/threshold and OFF flag. During backfill, the same historical event may enter several windows as if newly tagged. Across weights versions, some consumers may count duplicate rows while others partially collapse duplicate text.
+
+This may be intentional specialization, but the present source does not establish a shared contract explaining why the windows and thresholds differ, which consumer owns the canonical interpretation, or whether flags are intended to operate independently.
+
+### Evidence classification
+
+- Each consumer's query, thresholds, effect and flag: source-observed.
+- Separate test-only characterization is in draft PRs #452–#455; #452, #453, #454 and #455 exact-head CI passed at this entry.
+- Host flag values, active consumer set, observed sample divergence and actual behavioural impact: UNKNOWN.
+
+**Next bounded investigation:** complete exact-head CI for PRs #454/#455; create a read-only comparison specification of each consumer's sample on one identical captured tag-row set; determine whether different windows/thresholds are intentional before proposing shared logic. Do not centralize or harmonize the consumers during Phase 0.
+
+**Disposition:** independent consumer contracts and sample divergence recorded. No defect ID yet; the question is whether the variation is intended and whether the host's current flag set activates all paths. G-83 remains OPEN.
+
+**Source anchors:** theory_x/stage6_fountain/readiness.py; theory_x/stage6_fountain/generator.py; theory_x/stage9_metacognition/metacognition.py; gui/server.py; nex_config.py; tests/test_fountain.py; tests/test_self_narrative.py; draft PRs #452–#455.
+
+**Authority boundary:** no runtime code, consumer threshold, time window, flag, shared event store, schema, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §158 — Genius HUD and provenance reports aggregate tag rows, not unique Fountain events/current-version samples (28 November 2026)
+
+**Question studied:** do the human-facing Genius metrics report unique Fountain fires and the current weights version, or do they aggregate every stored tag row?
+
+### Source trace
+
+- genius_tags permits one row per (fountain_event_id, weights_version), so a single Fountain fire can have multiple tag rows.
+- theory_x/genius/panel.py overview() returns the latest N tag rows, not distinct fountain_event_id values. Its stats query groups all rows by class across all weights versions. The reported current_version is taken from the most recent row, but the reported total/striking/striking_rate are calculated across the entire table.
+- The /api/genius/recent endpoint uses that overview() result, so the HUD can display a latest/current version label beside a rate aggregated across older and current versions.
+- scripts/genius_tag_cli.py rate groups all tag rows by branch and class; top selects all STRIKING rows without version or event deduplication.
+- theory_x/genius/genius_provenance.py joins all STRIKING tag rows to fountain_events and classifies each row. It does not filter weights_version or deduplicate fountain_event_id before calculating bucket percentages.
+- theory_x/genius/genius_provenance_tag.py backfills provenance on every selected tag row, not on a unique event. Multiple version rows for one event can therefore contribute multiple times to its report.
+- By contrast, the /api/fountain/recent route explicitly uses ORDER BY tagged_at DESC and first-wins per fountain_event_id when attaching a score badge. The two user-facing views therefore use different row/event aggregation semantics.
+
+### Consequence
+
+The HUD's striking_rate is a row-weighted all-version rate, not a current-version unique-fire rate. The provenance report's percentages are also row-weighted. When weights versions overlap, the same Fountain thought may count more than once. This can distort human interpretation of current model quality, provenance proportions and comparisons across versions.
+
+This is a measurement/reporting issue. It does not establish that the live HUD is currently showing duplicated events or that a user has acted on a misleading rate.
+
+### Evidence classification
+
+- Table uniqueness, panel queries, CLI aggregation and provenance joins: source-observed.
+- Actual duplicate-version distribution, live HUD values and any decisions made from those values: UNKNOWN.
+
+**Next bounded investigation:** compare panel/CLI/provenance outputs against a unique-fountain_event_id, version-scoped read-only calculation on an approved snapshot. Preserve both row-level and event-level denominators; do not silently rewrite historical metrics or change the tag schema.
+
+**Disposition:** row-level versus event-level metric semantics recorded. No defect ID yet; intended metric denominator and version-selection policy need confirmation. G-83 remains OPEN.
+
+**Source anchors:** substrate/init_db.py; theory_x/genius/panel.py; gui/server.py; scripts/genius_tag_cli.py; theory_x/genius/genius_provenance.py; theory_x/genius/genius_provenance_tag.py.
+
+**Authority boundary:** no runtime code, schema, HUD output, analytics script, weights, feature flag, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §159 — Two different SelfNarrative classes serve different prompt channels; one write interface is not consumed by its own narrative builder (28 November 2026)
+
+**Question studied:** is the SelfNarrative referenced by the Fountain prompt the same object that CoherenceGate and Metacognition write to?
+
+### Source trace
+
+1. **Persistent StageSelfNarrative**
+   - run.py imports theory_x.stage_self_narrative.self_narrative.SelfNarrative and constructs one instance with conversations writer/reader.
+   - That instance is passed to CoherenceGate, ProblemMemory, GoalManager, Metacognition and NovelAssociation, and stored as state.self_narrative.
+   - Metacognition uses this instance's _maybe_notice_rut() helper and the GUI chat path uses its format_for_prompt() method. Its persistent output is in conversations.db.narrative_log.
+
+2. **Fountain Stage-TOM SelfNarrative**
+   - FountainGenerator.__init__ independently imports theory_x.stage_tom.self_narrative.SelfNarrative and constructs a second instance only when NEX5_SELF_NARRATIVE=1.
+   - FountainGenerator._build_prompt() calls this second instance's get_narrative() and appends the returned living narrative before the static standing-points section.
+   - Its build_narrative() composes context from recent substantive fountain_events, recent tier-6 beliefs, active branches, latest hot_observer belief, aggregate self-model and momentum. This is a separate Fountain prompt channel, not the persistent narrative_log formatter.
+   - The two classes share a class name but have different modules, constructors, storage and consumers. They are not one shared instance.
+
+3. **Stage-TOM write_narrative interface**
+   - The Stage-TOM class docstring says CoherenceGate calls its write_narrative() method when a thought connects to an open problem.
+   - In the inspected run.py wiring, CoherenceGate receives the StageSelfNarrative instance from theory_x.stage_self_narrative, not the Stage-TOM instance created privately inside FountainGenerator.
+   - Stage-TOM write_narrative() only appends to its private in-memory _log. Its get_narrative() calls build_narrative(), which reads the databases and does not read _log.
+   - No normal-path caller to the Stage-TOM instance's write_narrative() was found in the inspected construction/prompt path. Its interface description is therefore not consistent with that wiring.
+
+### Consequence
+
+There are two distinct reflective narrative channels:
+- a persistent chat/metacognition channel using narrative_log and literal topic retrieval;
+- an optional Fountain prompt channel composed from recent fires, T6 beliefs, HOT observation, self-model and momentum.
+
+The same class name can obscure this separation. Searching for "SelfNarrative.tick()" or a generic class name is insufficient; trace module identity, object construction, injection and the exact consumer. The Stage-TOM instance's private write log is not part of the narrative returned by get_narrative() in the inspected code.
+
+### Evidence classification
+
+- Distinct imports, construction sites, injected object identity and consumers: source-observed.
+- Stage-TOM prompt injection gated by NEX5_SELF_NARRATIVE=1: source-observed; deployed flag value UNKNOWN.
+- Stage-TOM write_narrative call reachability in any external/manual path: UNKNOWN; no call found in inspected normal construction path.
+- Existing tests/test_self_narrative.py targets the StageSelfNarrative module; no dedicated test file for theory_x.stage_tom.self_narrative was found in the inspected tests tree.
+
+**Next bounded investigation:** complete a call-site census for the Stage-TOM SelfNarrative class and inspect the intended ownership of its write_narrative interface. If no caller exists, preserve it as an unverified/dead interface rather than wiring it speculatively. Do not unify the two classes or change either prompt channel without authority.
+
+**Disposition:** distinct dual narrative channels and Stage-TOM write-interface reachability gap recorded. Actual host activation of NEX5_SELF_NARRATIVE remains UNKNOWN. No defect ID yet. G-83 remains OPEN.
+
+**Source anchors:** run.py; theory_x/stage_self_narrative/self_narrative.py; theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; theory_x/stage_gate/coherence_gate.py; gui/server.py; tests/test_self_narrative.py.
+
+**Authority boundary:** no runtime code, prompt policy, narrative storage, feature flag, cognitive authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §160 — Stage-TOM SelfNarrative: generic T6 retrieval and the actual Fountain prompt seam (28 November 2026)
+
+**Question studied:** under what conditions can a self_rut_notice belief enter the optional Stage-TOM narrative, and does the narrative actually reach the Fountain prompt?
+
+### Source findings
+
+- theory_x/stage_tom/self_narrative.py::_recent_t6() selects the newest tier-6 beliefs whose content does not begin with "["; it does not restrict source, impose a time window, or apply a paused/retired eligibility filter in this query. It reads up to 12 candidate rows and returns at most three after its text filter. A self_rut_notice belief is therefore eligible, but not guaranteed to survive the bounded candidate set and filters.
+- build_narrative() also requires at least one substantive recent Fountain fire. If _real_fires() returns no fire, the function returns None even if a tier-6 rut belief exists. The narrative is a composition of multiple database readers, not a direct mirror of the StageSelfNarrative narrative_log.
+- FountainGenerator.__init__() constructs the Stage-TOM SelfNarrative only when NEX5_SELF_NARRATIVE=1. _build_prompt() independently checks the same flag and a non-null instance, calls get_narrative(), and appends its result before the spectrum standing-points section. This is prompt context, not a capability check, approval, action gate or execution mechanism.
+- The tracked nex_keepalive.sh launch command sets NEX5_SELF_NARRATIVE=1 but also sets NEX5_GOVERNOR_OFF=1. The governor's self_rut_notice writer is inside the NEX5_GOVERNOR_OFF != 1 block. Thus, if this tracked launcher is used, it enables the Stage-TOM consumer while disabling that specific Fountain producer. Existing stored self_rut_notice rows can still be read; actual host launcher/service selection and persisted rows are UNKNOWN.
+- The Stage-TOM instance's write_narrative() appends only to its private _log; get_narrative() calls build_narrative() and does not read that list.
+- Targeted normal-path caller review found the generic write_narrative() calls in CoherenceGate, ProblemMemory, GoalManager, Metacognition and NovelAssociation operate on the persistent StageSelfNarrative object injected by run.py. The Stage-TOM class is separately constructed inside FountainGenerator; no normal-path caller to its private write_narrative() was found in the inspected construction and consumer paths. This is not proof that no external/manual caller exists.
+
+### Characterization tests
+
+- **PR #456** adds a test that inserts a tier-6 self_rut_notice plus a substantive Fountain fire and verifies build_narrative() can include the note; it also verifies the Stage-TOM private _log sentinel is not returned by get_narrative(). Its first exact-head run failed because the test expected the full note while the composer intentionally truncates T6 content to 80 characters. The assertion was corrected to the 80-character prefix. Corrected head 7996f5d091ffc0a45f77484bd4b3c7d6e6cb391b passed workflow 46184315945: 3,078 passed, 7 skipped, 86 subtests; baseline and sandbox checks OK; mind-map check 30 nodes / 0 unverified / 12 dark / 2 blocked, with existing warnings.
+- **PR #457** adds prompt-builder tests for the enabled/disabled NEX5_SELF_NARRATIVE boundary. Initial head 75a042e07aa69ce8f41fd72082de157dfd3f6772 passed workflow 46183886214: 3,079 passed, 7 skipped, 86 subtests; baseline and sandbox OK. The expanded head adds constructor-gate coverage (reader constructed only when enabled) and passed workflow 46184425657 at 1751a45a853c9ceff89653c006c8436c87d47b00: 3,080 passed, 7 skipped, 86 subtests; baseline and sandbox OK; mind-map 30 nodes / 0 unverified / 12 dark / 2 blocked, existing warnings unchanged.
+- These fixture tests establish source-level composition and prompt-string assembly only. They do not establish host flag values, live Fountain execution, model-provider acceptance or semantic influence on generated output.
+
+### Evidence boundary and next step
+
+The source path is now traced through belief retrieval, narrative composition and optional prompt insertion. The remaining runtime question is whether the host has the flag enabled and whether this path executes in real Fountain fires; repository evidence cannot answer that. Do not enable the flag, unify the two SelfNarrative classes, wire the Stage-TOM private log, or alter retrieval/prompt policy during Phase 0. Preserve the two channels and their distinct consumers unless authoritative direction changes.
+
+**Disposition:** Stage-TOM's generic tier-6 reader can consume the Fountain governor's self_rut_notice belief under bounded retrieval conditions; its optional Fountain prompt seam is source-wired. The private write_narrative() interface remains without a demonstrated normal-path caller. Host activation and semantic effect remain UNKNOWN. G-83 remains OPEN.
+
+**Source anchors:** theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; run.py; theory_x/stage_gate/coherence_gate.py; theory_x/stage7_sustained/problem_memory.py; theory_x/stage8_goal_manager/goal_manager.py; theory_x/stage9_metacognition/metacognition.py; theory_x/stage10_imagination/novel_association.py; PRs #456 and #457.
+
+**Authority boundary:** no runtime code, feature flag, database, schema, prompt policy, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §161 — Stage-TOM recent-T6 reader does not filter the paused column (28 November 2026)
+
+**Question studied:** does the optional Fountain narrative reader distinguish paused tier-6 beliefs from active tier-6 beliefs?
+
+### Source observation
+
+- substrate/schema/beliefs.sql defines beliefs.paused as an explicit INTEGER column with NOT NULL DEFAULT 0.
+- theory_x/stage_tom/self_narrative.py::_recent_t6() filters tier=6 and content NOT LIKE '[%', then orders by created_at and limits the candidate set. It does not include paused=0 or otherwise inspect the paused column.
+- The Harmonizer source sets paused=1 during resolve() while contradictory beliefs are being resolved. Its normal conflict scan excludes paused rows; the resolve path then either unpauses them for a held tension or retires/unpauses them on the normal path. The paused interval is therefore source-transient in the inspected implementation, not evidence of a stable paused population.
+- A Fountain narrative read concurrent with that resolve interval could still select the paused tier-6 row and present it under 'What has consolidated deeply', because the Stage-TOM query does not check paused. This is a concurrency possibility; live overlap and actual prompt delivery are UNKNOWN.
+- This is a read-path fact, not yet a policy violation. SPECIFICATION.md describes Pause as suspending confident assertion during conflict resolution, but that April document is not the recovered Frozen V2.1 authority. The intended treatment of a temporarily paused belief in reflective prompt context remains unresolved; do not infer that every paused row must be absent from every descriptive or reflective view.
+
+### Characterization
+
+- **PR #458** adds a test-only fixture with one substantive Fountain fire and one tier-6 self_rut_notice belief inserted with paused=1. It asserts whether the current Stage-TOM narrative includes that row; the assertion respects the 80-character T6 rendering limit. The fixture models the paused interval as a stable row for predicate characterization, not as evidence of normal steady-state persistence or live Fountain/Harmonizer overlap. Exact-head workflow 46184447225 passed at 58bf679c2a8e799dce5d02dd059adb4a5f7f692a: 3,078 passed, 7 skipped, 86 subtests; baseline and sandbox OK; mind-map 30 nodes / 0 unverified / 12 dark / 2 blocked, existing warnings unchanged.
+- The test does not change pause state, retrieval, prompt policy or runtime behavior and does not establish host incidence.
+
+### Disposition and next step
+
+Record as a source-level eligibility question adjacent to the wider paused-belief consumer census. Compare the intended paused-state contract with the specific purpose of Stage-TOM narrative composition before assigning a defect ID or proposing a filter. Keep descriptive/reflective context separate from operational eligibility and action authority. Do not modify the reader in Phase 0 without the necessary authority.
+
+**Evidence classification:** schema column and SQL predicate are source-observed; PR #458 is a pending characterization test; host rows, paused prevalence, live prompt delivery and intended policy are UNKNOWN. G-83 remains OPEN; no new defect ID assigned.
+
+**Source anchors:** substrate/schema/beliefs.sql; theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; PR #458.
+
+**Authority boundary:** no runtime code, pause state, schema, retrieval policy, feature flag, prompt policy, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §162 — Phase 26 SelfNarrative has two distinct design lineages (28 November 2026)
+
+**Question studied:** is the optional Stage-TOM living narrative the implementation specified by the Phase 26 SelfNarrative design, or a separate later prompt-composition mechanism?
+
+### Historical and documentary evidence
+
+- theory_x/SELF_NARRATIVE_SPEC.md was authored in commit 6a591c936c49e5d0c136731e4a2fc9b22f4c92d2 on 10 May 2026. It remains marked DRAFT — awaiting Phase 26-build and has no later file-history amendment in the inspected repository history.
+- That spec defines autobiographical accumulation: event writers persist entries in conversations.db narrative_log; format_for_prompt() reads existing entries as-is; no synthesis or LLM inference at output time. It locates the class at theory_x/stage_self_narrative/self_narrative.py.
+- The persistent StageSelfNarrative implementation is in that path. run.py constructs it once and injects it into CoherenceGate and other consumers; it writes/reads narrative_log.
+- A separate theory_x/stage_tom/self_narrative.py was first introduced on 28 June 2026 in commit 84e7d5daf345f75d6c6d0431223a2d2dfff70f5c. Its commit message describes a living identity account assembled afresh from recent Fountain fires, tier-6 beliefs and active branches, then inserted into the Fountain prompt before static spectrum standing-points.
+- The Stage-TOM implementation is not a read-only narrative_log formatter. It composes prompt context from several live database readers (later extended with HOT observation, aggregate self-model and momentum). Its own class has a write_narrative() method, but its private _log is not read by get_narrative().
+- The 28 June introduction also added NEX5_SELF_NARRATIVE=1 to the then-current launcher. The current tracked nex_keepalive.sh still exports NEX5_SELF_NARRATIVE=1 in launch_nex(), and in the same launch command sets NEX5_GOVERNOR_OFF=1. FountainGenerator's self_rut_notice belief writer is inside the NEX5_GOVERNOR_OFF != 1 block. Therefore, if the tracked launcher is used, it enables the Stage-TOM consumer while disabling that particular producer; old persisted rows remain eligible. nex_config.py registers the narrative flag as boolean. This is launcher-source evidence, not proof that the host invokes this launcher or of the effective process environment.
+- theory_x/DOCTRINE.md remains marked DRAFT awaiting Jon's review/approval. The Phase 26 spec is also marked DRAFT. Neither document is the missing Frozen V2.1 artifact or a recovered Founder Sign-Off.
+
+### Interpretation boundary
+
+Two distinct implementations and two different design descriptions coexist under the same SelfNarrative name:
+1. Persistent event-written narrative memory in StageSelfNarrative.
+2. Optional Fountain-time narrative composition in Stage-TOM.
+
+The later Stage-TOM mechanism may have been intended as an experiment or extension, but the inspected history does not show an amendment to SELF_NARRATIVE_SPEC.md or an explicit authority decision reconciling the two. This is a design/provenance ambiguity, not proof of unauthorized behavior or a reason to delete either implementation.
+
+### Disposition and next step
+
+Keep the two paths separate in architecture maps, tests and evidence. Do not unify them, retire one, or infer that the later Stage-TOM implementation supersedes the Phase 26 spec. Any normative reconciliation belongs to the appropriate founder/specification authority. Host activation remains UNKNOWN despite the tracked launch command setting the flag.
+
+**Evidence classification:** file contents and commit history are source/history-observed; tracked launcher flag is source-observed; host service selection, effective environment, live execution and semantic output effect are UNKNOWN. No new defect ID assigned. G-83 remains OPEN.
+
+**Source anchors:** theory_x/SELF_NARRATIVE_SPEC.md; theory_x/DOCTRINE.md; theory_x/stage_self_narrative/self_narrative.py; theory_x/stage_tom/self_narrative.py; theory_x/stage6_fountain/generator.py; nex_keepalive.sh; nex_config.py; commits 6a591c936c49e5d0c136731e4a2fc9b22f4c92d2 and 84e7d5daf345f75d6c6d0431223a2d2dfff70f5c.
+
+**Authority boundary:** no runtime code, launcher, feature flag, narrative store, schema, prompt policy, cognitive authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §163 — Fountain's Stage-TOM narrative is a conditional text-feedback loop, not sentence-to-code synthesis (28 November 2026)
+
+**Question studied:** does the living narrative prompt form a closed source-level feedback loop, and what does that loop actually encode?
+
+### Causal path
+
+1. On the normal Fountain path, _generate() calls _build_prompt(); when NEX5_SELF_NARRATIVE=1 and the Stage-TOM object exists, _build_prompt() calls get_narrative() and appends the composed text before the static spectrum standing-points.
+2. The normal route calls VoiceClient.speak() with that prompt. The returned response text is stripped and passed through the existing output filters.
+3. The completed fire is persisted as a sense_events row with stream internal.fountain and a dynamic.fountain_events row containing thought, readiness, hot_branch, word_count, droplet, stillness_reason, mode and focal_item. The event row is written before optional post-fire attachments.
+4. On a later eligible fire, Stage-TOM _real_fires() reads recent substantive thought/hot_branch pairs from fountain_events. build_narrative() can then compose those prior outputs into a later prompt. This is a source-level natural-language feedback loop: prompt context -> model text -> structured event row -> later prompt context.
+
+### Important bypasses and conditions
+
+- The Stage-TOM injection is part of the normal _build_prompt() route, not every Fountain fire.
+- The every-fifth-fire quiescent branch writes a bare sense/tick event and returns before _build_prompt().
+- The RECONCILE branch uses its own problem-pair prompt and can emit before the normal _build_prompt() route when NEX5_RECONCILE=1 and at least two eligible open problems are selected. The tracked nex_keepalive.sh sets NEX5_RECONCILE=1, so this bypass is eligible; actual frequency depends on host problem state.
+- Substrate-voice replay and early shutdown can also return before the normal prompt path. Voice failure after prompt construction can produce a fallback event rather than a model-generated narrative response.
+- The tracked launch profile also sets NEX5_GOVERNOR_OFF=1, disabling the specific self_rut_notice belief producer while leaving Stage-TOM prompt composition enabled. Other recent fires and tier-6 beliefs remain possible inputs.
+
+### What this does and does not establish
+
+The stored Fountain event is structured data around a natural-language thought; the Stage-TOM reader later reuses selected text as prompt context. It does not parse the sentence into an AST, typed operation, executable Python, capability request, approval or verified action. It is therefore a genuine text/database feedback wire, but not yet the requested human-sentence-to-machine-code synthesis.
+
+The feedback loop is source-observed, not runtime-observed. Repository source and tests do not establish how often the normal path runs on the host, whether the model attends to the injected text, whether a later output is semantically caused by it, or whether the effect persists across repeated cycles. PR #457 characterizes construction and prompt-string insertion; it does not prove semantic influence or the full output-to-next-fire round trip.
+
+**Disposition:** source-level conditional natural-language feedback loop confirmed. Its route conditions and bypasses are recorded. No runtime change or new defect ID. The next evidence step is a controlled, read-only host trace that correlates one exact prompt injection to the resulting Fountain event and the next prompt, if/when host access is available. Do not enable flags, alter cadence, add execution semantics or claim behavioural integration during Phase 0. G-83 remains OPEN.
+
+**Source anchors:** theory_x/stage6_fountain/generator.py; theory_x/stage_tom/self_narrative.py; substrate/schema/dynamic.sql; nex_keepalive.sh; PR #457.
+
+**Authority boundary:** no runtime code, feature flag, prompt policy, execution path, database, schema, cognitive authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §164 — Existing sentence-to-capability bridge is bounded arithmetic/retrieval, not general code execution (28 November 2026)
+
+**Question studied:** does NEX already translate a human sentence into a machine-readable operation, and where are capability validation, approval and execution separated?
+
+### Source path
+
+1. run.py constructs ToolRegistry and ToolCaller and passes them into GUI AppState.
+2. The GUI chat route calls ToolCaller.should_use_tool(prompt), then build_tool_kwargs(), then ToolRegistry.execute() synchronously when a tool is selected.
+3. Successful ToolResult output is wrapped by build_tool_prompt() and injected into belief_text for the voice model to compose the response.
+4. The current registry contains exactly three capabilities: web_fetch, python_exec and beliefs_query.
+
+### Safety and representation boundary
+
+- The arithmetic caller recognises explicit sentence prefixes such as "calculate" and "what's", extracts only a bounded numeric expression, checks allowed characters and AST-node count, then supplies a print(expression) wrapper.
+- python_exec does not call eval() or exec(). It parses a small AST and interprets numeric literals, approved arithmetic operators, bounded powers, a narrow math constant/function allowlist and print(expression). Natural-language query text is explicitly rejected as executable source.
+- web_fetch is an HTTP GET reader restricted to an explicit domain allowlist, HTTP(S), no URL credentials and no redirects; response bytes and returned text are bounded.
+- beliefs_query retrieves and formats a small number of existing beliefs. It does not write to the belief graph.
+- ToolResult is a typed result dataclass (tool_name/input/output/success/error), but the caller passes plain kwargs dictionaries. No separate durable typed Operation record, approval record or post-action verification stage is present in this path.
+- The GUI route executes the selected tool immediately; there is no human approval step. For the three current read-only/pure capabilities this is a bounded low-impact design. It must not be generalized to state-changing tools, robotics, filesystem writes or external commitments without a distinct typed-operation, capability-validation, approval, execution and verification boundary.
+- Tool selection is regex/target based; it does not consult Mind Aspects or the Tibetan mind map. No Mind Aspect or descriptive map node is acting as an action gate here.
+
+### Test evidence
+
+- tests/test_tools.py covers the three-tool registry, arithmetic allowlist, rejected imports/file access/dunder import, natural-language-as-code rejection, tool selection, URL restrictions and a calculation sentence traced through caller -> registry -> prompt.
+- tests/test_gui.py::test_chat_calculation_uses_safe_tool_wire verifies that a chat sentence selects python_exec and that the numeric result 555 is injected into the voice prompt.
+- These are source/fixture tests, not proof of live host use or general action authority.
+
+### Post-merge status — PR #369
+
+PR #369 merged on 28 November 2026 at 07:21:56 UTC (merge commit 194c75c313e695b60f61d1f02b16f99434e2847d). Its exact head passed workflow 46119302748: 2,930 passed, 7 skipped, 62 subtests; baseline and disposable sandbox checks passed. The later main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0 passed pytest workflow 46153028417 at 14:13 UTC. Current main therefore contains the bounded in-process AST interpreter; the old query-to-code/subprocess path is historical and fixed.
+
+The research note's earlier statement that should_use_tool(prompt, []) received an empty belief list was inaccurate for current main and has been withdrawn. Current ToolCaller.should_use_tool() takes one query argument; gui/server.py calls it with one argument. Retrieved belief_text is assembled separately and injected into response context after tool execution. This is not an established empty-belief-list defect.
+
+The current research trace and fire-path scope note have been updated to distinguish historical pre-PR #369 behavior from current main.
+
+### Separate manual observation path
+
+StrikeProtocol is a different path: run.py constructs it with a separate StrikeCatalogue, and the GUI exposes POST /api/strikes/fire with an explicit StrikeType enum and optional custom_input. A human-triggered strike sends observation text to the voice model (or waits during SILENCE), captures a context snapshot, and stores a StrikeRecord in a separate strikes_catalogue.db. It does not execute an external action or convert the strike text into a machine operation. SELF_PROBE/RECURSIVE may retrieve belief context through the membrane, but this is context routing, not action approval or authority. tests/test_strikes.py covers the protocol and GUI route.
+
+### Interpretation and next step
+
+This is a genuine but narrow sentence-to-capability bridge: a human arithmetic sentence becomes a bounded numeric expression, is interpreted by a constrained machine evaluator, and the result returns to natural-language composition. It is not arbitrary Python execution, natural-language code generation, a general operation planner or an approval pipeline.
+
+The next study is to map the exact boundary between this read-only Stage-B capability set and any state-changing or embodied action path. Preserve the existing safety constraints; do not add capabilities or approval bypasses in Phase 0. If future tools can mutate state, require explicit typed operation data, independent capability validation, a separate approval authority, execution records and post-execution verification. Keep interpretive cognition separate from all of these.
+
+**Disposition:** limited natural-language-to-capability route confirmed and strongly constrained at source/test level. No defect ID for the current three-tool set. Host execution frequency and any external invocation remain UNKNOWN. G-83 remains OPEN.
+
+**Source anchors:** run.py; gui/server.py; theory_x/stage_capability/tool_caller.py; theory_x/stage_capability/tools.py; tests/test_tools.py; tests/test_gui.py.
+
+**Authority boundary:** no runtime code, tool registry, capability, approval policy, feature flag, schema, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §165 — Autonomous Fountain tool reachability remains unbuilt and unapproved (28 November 2026)
+
+**Question studied:** can the current chat capabilities be reached from NEX's autonomous Fountain/fire loop, and has that been authorized?
+
+### Source facts
+
+- run.py constructs ToolCaller and ToolRegistry for the GUI chat path. gui/server.py invokes them from /api/chat when a user sentence matches a bounded capability.
+- A full source scan of theory_x/stage6_fountain/generator.py found no ToolCaller, ToolRegistry, web_fetch, python_exec or beliefs_query references. The Fountain loop does not currently call the Stage-B tool registry.
+- observation_reports/fire_path_tools_SCOPE.md explicitly says it is a read-only scope note, not a pre-registration: nothing is built, nothing is proposed to arm, and the decision must be made before work starts.
+- The scope note's original description of python_exec as subprocess execution is historical and now superseded by PR #369. Its post-merge addendum records the current in-process AST interpreter and preserves the unbuilt status of autonomous fire-path tool use.
+
+### Why this is a separate authority decision
+
+Chat tools run in response to a specific human request. A Fountain caller would create a second, autonomous trigger based on internal state, without a per-call human request. That changes who can initiate a tool call, how often it may run, and whether a person sees the result before it shapes a later thought. The current tool sandbox does not solve trigger correctness, volume, audit visibility or human oversight.
+
+The scope note identifies unresolved design questions: caller/trigger, per-tool arming, hard daily caps, visible call records, pre-build exposure checks and oversight. None has been decided or implemented. Do not infer approval from the existing chat route or from the fact that the tools are already registered at boot.
+
+### Disposition
+
+Autonomous fire-path tool use is NOT WIRED and NOT AUTHORIZED by the inspected evidence. Keep the chat caller and any future autonomous caller separate. Any future proposal must establish a narrow trigger, per-capability authority, rate limits, durable provenance/audit, and a clear human approval policy before implementation. The existing arithmetic AST safety boundary is necessary but not sufficient for autonomous use.
+
+**Evidence classification:** source absence and scope-note status are repository-observed; host runtime invocation and any external caller are UNKNOWN. No defect ID assigned. G-83 remains OPEN.
+
+**Source anchors:** run.py; gui/server.py; theory_x/stage6_fountain/generator.py; theory_x/stage_capability/tool_caller.py; theory_x/stage_capability/tools.py; observation_reports/fire_path_tools_SCOPE.md; research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md; PR #369.
+
+**Authority boundary:** no tool caller, autonomous trigger, flag, capability, approval policy, database, schema, action authority, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §166 — Tool execution can precede and survive the chat gap-refusal path (28 November 2026)
+
+**Source snapshot:** main at 18c8f06171e1de35c3210831a49b63d0e2487af0. **Characterization:** draft PR #459, exact head db4a22d0078844992829613dbb9a4a90eb4a51e9, workflow 46186063413 passed **3,078 passed, 7 skipped, 86 subtests**; disposable sandbox probe and baseline check OK. This is isolated fixture evidence, not a live-host occurrence.
+
+### Source order and observed route consequence
+
+- gui/server.py selects and executes the Stage-B capability around lines 1912–1948. It calls ToolCaller.should_use_tool(prompt), builds kwargs and invokes ToolRegistry.execute().
+- A successful result is formatted by ToolCaller.build_tool_prompt() and appended to local belief_text. Trace event tool_prompt_injected is recorded at that staging point.
+- The later chat grounding gate computes belief_count at line 2048 by counting the literal tier marker "- [Tier". The tool-result block does not carry that marker.
+- For a non-probe, non-social Technical-register request, the route returns CHAT_GAP_REFUSAL when that count is below the configured minimum. This return occurs before chat_prompt_ready and before state.voice.speak(VoiceRequest(...)).
+- The response shape reports tool_used: None on the gap-refusal path. That field therefore does not prove that the earlier capability was not executed.
+
+PR #459 adds a route-level regression characterization using the actual arithmetic ToolCaller and ToolRegistry. It posts calculate 17 * 23 to the Technical register without probe bypass, captures one successful python_exec result (391), and verifies that the route then returns the configured graph-gap refusal without making a voice request. The existing positive tool-wire route test uses is_probe=True, so it did not cover this normal Technical-register path.
+
+### Contract distinction
+
+The gap check is a **response-grounding gate**, not an execution-approval gate. Its refusal can prevent the response from reaching the voice model without reversing an operation that already ran. This is not automatically a defect for the current bounded capability set; the intended relationship between retrieved belief evidence and capability-result evidence remains a design question.
+
+Do not solve this by silently increasing belief_count, treating arbitrary tool text as a belief, or reusing the chat gap gate as an operation permission check. If capability evidence is ever meant to satisfy a grounding requirement, represent it explicitly with source identity, provenance, validation and a defined trust class. Consequential or state-changing operations require a separate typed operation, capability validation, approval authority, execution record and post-execution verification. The three current Stage-B tools are allowlisted HTTP GET, bounded AST arithmetic and read-only belief retrieval; the HTTP GET still performs an external network read.
+
+### Trace-label qualification
+
+tool_prompt_injected currently means the successful result was staged into belief_text. On the gap-refusal path, chat_prompt_ready and the voice call are not reached. The event name should not be interpreted as proof that the voice model received or consumed that text. This is a trace-semantics observation, not a runtime change or separately established defect.
+
+**Disposition:** characterization passed; no defect ID assigned pending a decision on intended semantics. Host frequency, user-visible occurrence and operational impact remain UNKNOWN. No runtime source, capability, feature flag, prompt rule, database, authority or execution policy changed.
+
+**Source anchors:** gui/server.py:1912-1948,2048-2060,2514-2570; theory_x/stage_capability/tool_caller.py:68-113; theory_x/stage_capability/tools.py:61-265; tests/test_gui.py; PR #459; workflow 46186063413.
+
+## §167 — Cognitive interpretation, descriptive mind map and operation selection remain separate wires (28 November 2026)
+
+**Source snapshot:** NEX main at 18c8f06171e1de35c3210831a49b63d0e2487af0; Sentience 5.5 main at 1767acf1fdb321d046261eb3c3059084c85fc0c8. This is a scoped crosswalk of inspected paths, not a claim that every representation in either repository has been found.
+
+### NEX source facts
+
+- The Mind Map declares itself descriptive only: no node may gate, score, block or veto an action.
+- mind_map/mind_map.py::check_descriptive_only() checks that constraint, rejects action-authority fields and scans runtime roots for imports of mind_map or runtime reads of MIND_MAP.yaml. tests/test_mind_map_policy.py covers the descriptive constraint, forbidden authority fields, runtime-import/read rejection and the permitted external RDO read.
+- The chat capability selector is currently called as should_use_tool(prompt). Its input is the raw user sentence; it does not receive a Mind Aspect assessment, a mind-map node or a typed Sentence Code object on this call chain.
+- Existing faculties are separately assembled into response context elsewhere in gui/server.py. That is cognitive interpretation/context composition, not proof that those outputs are consumed by the Stage-B operation selector.
+- ToolCaller recognizes bounded language patterns and returns one of three existing capability names. ToolRegistry returns a ToolResult envelope with tool name, input, output, success and error. This is not yet a general operation IR with explicit semantic intent, preconditions, capability claims, approval state and verification result.
+- The separate RDO objective.v1 / obligation graph is an engineering-planning representation. The inspected GUI chat route does not call that RDO intake, and the Recursive Extrapolator is not the runtime executor for chat tools. Do not equate development work packages with runtime operations.
+
+The above establishes a narrow and functioning sentence-to-capability path, plus separate cognitive context paths. It does **not** establish that the existing Mind Aspects or a general Sentence Code representation are connected to the tool-selection call. Whether the existing Sentence Code representation has another disconnected producer/consumer elsewhere remains UNKNOWN; code-search indexing alone is not sufficient to declare it absent.
+
+### Sentience 5.5 comparison
+
+At the inspected source commit, Voice_Interaction_Node.submit_command() queues a raw string and _generate_response() places it into an LLM prompt. Separately, Action_Execution_Node.execute_action() accepts a pre-structured dictionary, while _perform_action() is explicitly a simulated placeholder returning a random success value. The inspected Integration_Node retains latest values by key and emits snapshot frames; its presence does not establish that voice input is compiled into the action dictionary or that the action path is connected to a verified real executor. These are useful design sketches, not an implementation to transplant.
+
+### Next wire to discover
+
+The next study should locate and trace the **existing** Sentence Code representation rather than inventing a replacement:
+
+1. Identify its actual owner, schema and construction point from source and callers. Preserve UNKNOWN where the code or intended contract cannot be located.
+2. Trace one ordinary human sentence through existing Mind Aspect interpretation and show which typed values, if any, reach Sentence Code.
+3. Trace the same typed representation to the Recursive Extrapolator and identify where it stops: proposal, plan, capability request or executable operation.
+4. Separate interpretation from type/schema validation, capability validation, approval, execution and result verification. Keep each transition independently observable.
+5. Use one read-only or pure operation fixture first. Do not connect a new autonomous caller, grant execution authority, add a parallel operation store or change runtime policy during Phase 0.
+
+**Disposition:** current chat selector does not consume the Mind Map or a demonstrated typed Sentence Code object; full end-to-end connection remains unproven. No defect ID assigned and no runtime change. Mind-map descriptiveness and the interpretive-cognition / operation / capability / approval / execution / verification separation remain intact.
+
+
+## §168 — ThoughtPacket and Coherence Gate are belief-ingestion contracts, not operation IR (28 November 2026)
+
+**Current NEX source snapshot:** main `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+The implemented `ThoughtPacket` in `theory_x/stage_gate/coherence_gate.py` has the fields `content`, `source_node`, `confidence`, optional `branch_id` and `metadata`. Its documented meaning is a thought about to enter the belief substrate. It is not a representation of an imperative user request, a capability invocation, or a machine operation with preconditions and permission.
+
+Source-traced producers/callers include:
+- Fountain crystallizer: source node `fountain`.
+- Stage-2 crystallization: source node `stage2_crystallization`.
+- Synergizer: source node `synergizer`.
+- CounterfactualNode: source `counterfactual.{problem_id}`, with problem/score metadata.
+- ThrowNetEngine: source and origin metadata from the selected candidate.
+- Holding-zone reshape resolver/transformer: reconstitutes and resubmits a thought with reshape lineage.
+
+The Coherence Gate returns ACCEPT, REJECT, HOLD or RESHAPE. ACCEPT can notify the configured HoldingZoneResolver; REJECT may record an eligible ThrowNet trigger; HOLD persists the candidate in the holding zone; RESHAPE enqueues it for transformation/re-submission. These are belief-ingestion and candidate-lifecycle semantics. The gate's module documentation also records a fail-open availability behaviour: evaluation exceptions are converted to ACCEPT with reason `gate_error_fallback`. That is not a machine-operation permission boundary.
+
+The relevant distinction is:
+- `ThoughtPacket`: attributed cognitive content proposed for the belief substrate.
+- `ToolCaller`: heuristic selection from a raw chat sentence to one of the currently registered Stage-B capabilities.
+- `ToolResult`: post-execution envelope (tool name, input, output, success/error), not a pre-execution intent.
+- RDO `objective.v1`: provider-neutral advisory engineering objective; supplied obligations are proposals, and the schema deliberately excludes reconciliation outcomes, evidence claims, approval flags and arbitrary execution instructions.
+
+No inspected source establishes that these objects are interchangeable or that a human sentence passes through them as one continuous typed representation. The general Sentence Code owner/schema and its complete consumers remain UNKNOWN. Do not invent a second packet/operation store or expand the ThoughtPacket contract to machine actions as a Phase 0 shortcut.
+
+**Source anchors:** `theory_x/stage_gate/coherence_gate.py:1-27,130-156,217-260`; `theory_x/stage6_fountain/crystallizer.py:434-455`; `theory_x/stage2_dynamic/crystallization.py:188-205`; `theory_x/stage3_world_model/synergizer.py:90-110`; `theory_x/stage_counterfactual/counterfactual_node.py:163-185`; `theory_x/stage_throw_net/throw_net_engine.py:140-155,215-236`; `rdo/schemas/objective.v1.schema.json`; `rdo_adapters/objective_intake.py:5-12,138-148`.
+
+## §169 — The existing chat faculties form a bounded interpretation network (28 November 2026)
+
+**Faculty-map source snapshot:** `research/NEX_CHAT_FACULTY_WIRE_MAP_2026-11-28.md`, authored against NEX main `3d7205536588e34a887939784d436ec70e8c6777`. The current main `18c8f06171e1de35c3210831a49b63d0e2487af0` descends from that snapshot; relevant chat callsites and faculty modules were rechecked for this continuity pass. Live host environment flags were not read.
+
+The map identifies thirteen ordered chat-context blocks: operator, operator anchor, compassion, compass, equanimity, apramada, virya, sraddha, prasrabdhi, affect carry, conversation memory, spectrum and tag. They are composed by `_assemble_chat_blocks()` into the voice prompt. Important source-level cross-faculty influences include:
+- Compassion is one input to Compass's situated moral lean.
+- Equanimity deliberately yields when compassion distress is live.
+- Compassion contributes to affect-carry across turns.
+- Vīrya yields to Equanimity under a hot fixation/aversion pull.
+- Vīrya and Praśrabdhi read shared focus signals for different purposes.
+- Apramāda reads held commitments; Śraddhā reads actual belief support metrics.
+
+This is more than thirteen isolated strings: some faculties read other faculty outputs or shared state, and the `NEX5_SELF_PRESENT` path can carry a per-kind salience vector across turns (0.7 prior + 0.3 current when both relevant flags are enabled). Nevertheless, the verified integration mechanism is a bounded call graph plus ordered prompt composition. It does not demonstrate unrestricted recursive propagation through every faculty.
+
+The Chat Workspace is a prompt-space selector, distinct from the Fountain Global Workspace's leading-frame arbiter. It chooses context blocks under a character budget; it is not a tool permission, action approval or execution gate. The map reports most named faculty flags as default OFF. Since the live host environment was not inspected, actual activation and behavioural effect remain UNKNOWN.
+
+The Tibetan Mind Map and the Chat Faculty Wire Map must not be conflated. The former is a descriptive diagram/ledger of aspects and roles; CI guards against action-authority fields and runtime consumption. The latter is a source-level map of actual runtime reads and prompt contributions. Neither grants faculties action authority. Their value is cognitive interpretation and context composition, not machine-operation veto power.
+
+**Source anchors:** `research/NEX_CHAT_FACULTY_WIRE_MAP_2026-11-28.md`; `gui/server.py:204-235,2348-2405`; `theory_x/stage_tom/global_workspace.py`; `theory_x/stage_tom/self_present.py`; `tests/test_mind_map_policy.py`.
+
+## §170 — One belief can be retrieved twice across OUTSIDE chat RAG and beliefs_query (28 November 2026)
+
+**Characterization PR:** #460, draft, branch `tests/chat-belief-query-overlap-2026-11-28`, latest fixture head `6b016802831350ff1cf1cf1c19c99fb49e3964b2`. Exact-head workflow `46187314674` completed successfully on `6b016802831350ff1cf1cf1c19c99fb49e3964b2`: **3,079 passed, 7 skipped, 86 subtests** in 254.60 seconds. The disposable sandbox probe passed (unprivileged, no capabilities/credentials, read-only source, disposable data/tmpfs, no default route and no outbound network); baseline check OK; Mind Map checker completed.
+
+### Source path
+
+- For an OUTSIDE query, the normal membrane `QueryRouter` calls `BeliefRetriever.retrieve(..., limit=8)` without an `INSIDE` side filter and formats returned beliefs as tier-labelled lines.
+- The Stage-B `beliefs_query` tool independently calls the same `BeliefRetriever` with `limit=5`, also without a side filter, then formats a second tier-labelled block.
+- The route appends the tool block to the already assembled `belief_text` before the Technical gap gate.
+- The gap gate counts occurrences of `- [Tier` rather than distinct belief IDs. Its configured minimum for Technical turns is two.
+
+PR #460 first adds a component-level fixture proving that the same seeded database ID can be returned from both paths and that combined formatted tier markers can outnumber the unique IDs. It then adds a full `/api/chat` fixture that clears only its disposable test database, inserts one matching belief, sends a query that is OUTSIDE to the membrane but recognized by `ToolCaller` as `beliefs_query`, and asserts that the same content appears twice and the route reaches a mocked voice request.
+
+The full-route fixture passed: one distinct belief contributed two tier-labelled entries and cleared the two-entry response-grounding threshold, reaching the mocked voice request. This establishes a reproducible fixture-level source interaction. It does not establish a live-host occurrence, frequency, a user-visible false grounding event, or production impact. The intended evidence-count semantics require a separate decision; no automatic deduplication or runtime change is made here.
+
+**Disposition:** component and route characterization passed. No defect ID assigned pending review of the intended meaning of the two-entry threshold and whether distinct evidence identity is required. Host occurrence remains UNKNOWN. No runtime retrieval, prompt, threshold, selector, schema or authority changed.
+
+**Source anchors:** `theory_x/stage4_membrane/router.py:23-78`; `theory_x/stage3_world_model/retrieval.py`; `theory_x/stage_capability/tools.py` (`_beliefs_query`); `gui/server.py` (normal retrieval, Stage-B call and gap gate); `tests/test_membrane.py`; PR #460; workflow `46187314674`.

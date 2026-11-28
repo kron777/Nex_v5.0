@@ -4,7 +4,7 @@
 **Repository:** `kron777/Nex_v5.0`  
 **Method:** source trace plus isolated tests; no live service or database access.
 
-**Implementation status at main snapshot `5ba30077`:** the bounded correction described below is a candidate in PR #369, not yet merged. Current main still contains the legacy query-to-code fallback, regex import blacklist and subprocess execution. The pre-rebase PR head `786c5743` passed full-suite run `46118580628` on the earlier base `bbce6317`; the candidate must be rebased onto this main snapshot and revalidated before it can be called implemented.
+**Historical implementation status at main snapshot `5ba30077` (before PR #369 merge):** the bounded correction below was still a candidate at that snapshot; the legacy query-to-code fallback, regex import blacklist and subprocess execution were then present. This paragraph is historical, not the current-main status. PR #369 subsequently merged on 28 November 2026; see §9 for exact post-merge evidence.
 
 ## 0. Governing objective and architectural boundary
 
@@ -20,7 +20,7 @@ The inspected path in `gui/server.py` is:
 
 ```text
 /api/chat human sentence
-  -> AppState.tool_caller.should_use_tool(prompt, [])
+  -> AppState.tool_caller.should_use_tool(prompt)
   -> ToolCaller.build_tool_kwargs(prompt, tool_name)
   -> AppState.tool_registry.execute(tool_name, **kwargs)
   -> ToolResult
@@ -31,7 +31,7 @@ The inspected path in `gui/server.py` is:
 
 This is an actual language-triggered capability route. It is not a general sentence compiler and does not synthesize arbitrary machine instructions. The current ToolCaller uses keyword patterns to select among web fetch, arithmetic and belief retrieval.
 
-A second connection detail remains open: the inspected chat call invokes \`should_use_tool(prompt, [])\` with an empty belief list, even after the membrane route has assembled \`belief_text\`. Therefore the ToolCaller cannot distinguish a query already supported by retrieved beliefs from one with no belief support; its no-beliefs factual fallback is effectively given an empty list on this path. This is recorded as a separate context-propagation edge, not changed in this increment.
+The original note's empty-belief-list concern is withdrawn: current main's ToolCaller.should_use_tool() accepts only the raw query, and gui/server.py calls it with one argument. The ToolCaller selects from the user's sentence; retrieved belief_text is assembled separately and later injected into the response context. No belief-list parameter or no-beliefs fallback exists in the current API. Whether tool selection should use retrieved context is a design question, not an established defect.
 
 ## 2. Defect found at the execution boundary
 
@@ -44,9 +44,9 @@ Before this increment:
 
 The sentence was therefore being treated as source code rather than being translated into a bounded operation.
 
-## 3. Bounded correction candidate — PR #369 (not yet on main)
+## 3. Bounded correction implemented by PR #369 (merged 28 November 2026)
 
-The PR #369 candidate changes the arithmetic route to:
+PR #369 implemented the following bounded correction:
 
 1. Selects the tool only when a recognised sentence prefix contains a numeric expression.
 2. Extracts the expression using a strict character allowlist and syntax parse.
@@ -59,7 +59,7 @@ The PR #369 candidate changes the arithmetic route to:
 
 The output still follows the existing ToolResult → response-context path. No new node or execution authority was introduced.
 
-## 4. Tests in PR #369 candidate branch
+## 4. Tests added and merged in PR #369
 
 - Safe arithmetic returns the expected numeric result.
 - `math.pi` and bounded `math.sqrt` work.
@@ -69,7 +69,7 @@ The output still follows the existing ToolResult → response-context path. No n
 - A sentence containing a dynamic-import payload is not selected as a calculation operation.
 - Oversized expressions are rejected before AST parsing, parser recursion failures become non-selection, and the sentence-level AST node budget is enforced.
 
-The previous PR head passed full-suite CI run `46118580628`; that run predates the rebase and the added parser-boundary tests. Exact-head CI must be rerun.
+Exact-head workflow `46119302748` passed on `f9bd490eebab6c82f1a3704f7527291ff5489869`: 2,930 passed, 7 skipped, 62 subtests; baseline and disposable sandbox checks passed; mind-map check reported 30 nodes, 0 unverified, 14 dark and 2 blocked. Main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0` subsequently passed workflow `46153028417` (`pytest`) at 14:13 UTC.
 
 ## 5. Adjacent RDO path — related, but not yet connected
 
@@ -104,3 +104,66 @@ These are valuable architectural sketches of voice intake, structured action env
 ## 8. Governance
 
 No cognitive node, prompt policy, salience threshold, database schema, feature flag, frozen S-01–S-25 register, M1.8 content, or M0/M1 gate order was changed. The change narrows the existing arithmetic tool boundary and adds isolated tests only.
+
+
+## 9. Post-merge status and correction — 28 November 2026
+
+PR #369 merged at 07:21:56 UTC (merge commit 194c75c313e695b60f61d1f02b16f99434e2847d). Its exact head passed workflow 46119302748 before merge: 2,930 passed, 7 skipped, 62 subtests; baseline and disposable sandbox checks passed. The later main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0 passed pytest workflow 46153028417 at 14:13 UTC.
+
+Current main now contains the bounded in-process arithmetic AST interpreter described in §3. The legacy query-to-code fallback, regex import blacklist and subprocess execution described in §2 are historical pre-merge behavior, not current behavior.
+
+Correction to §1: the current ToolCaller API takes one query argument; the GUI calls should_use_tool(prompt), not should_use_tool(prompt, []). The previous empty-belief-list/no-beliefs-fallback claim was inaccurate for current main and is withdrawn. Tool selection is based on the raw user sentence; belief context is assembled separately for response composition.
+
+The autonomous Fountain/fire-path tool caller remains unbuilt. Current theory_x/stage6_fountain/generator.py contains no ToolCaller, ToolRegistry, python_exec, web_fetch or beliefs_query references. The separate observation_reports/fire_path_tools_SCOPE.md remains a read-only scope note; it is not approval to arm tools from autonomous fires.
+
+
+## 10. Post-characterization: successful capability result followed by chat gap refusal (28 November 2026)
+
+NEX main source snapshot: 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+The GUI route executes the ToolCaller/ToolRegistry selection at gui/server.py:1912-1948, then appends a successful ToolResult prompt block into belief_text. Later, the normal chat grounding gate counts only tier-labelled entries using belief_text.count("- [Tier") at line 2048. The tool block itself is not tier-labelled. A non-probe, non-social Technical turn with insufficient tier entries returns the graph-gap refusal before voice prompt assembly at line 2514 and voice invocation around line 2567.
+
+Draft PR #459 adds the missing non-probe Technical-register characterization. On exact head db4a22d0078844992829613dbb9a4a90eb4a51e9, workflow 46186063413 passed **3,078 passed, 7 skipped, 86 subtests**. The disposable test sandbox probe passed and the baseline script reported OK. The test observes one successful arithmetic execution (17 × 23 = 391), followed by the configured gap refusal, tool_used: null, and no voice request.
+
+This is a response-grounding / execution-order distinction, not proof of an unsafe state-changing action. The present arithmetic operation is pure. The other Stage-B capability, allowlisted HTTP GET, does make an external network read. The gate is not an execution approval boundary. The source's tool_prompt_injected trace event is emitted when the result is staged in local belief_text, not when the model has consumed it; the early refusal bypasses chat_prompt_ready and the voice call.
+
+No fix is proposed. Whether a valid ToolResult should count as grounding evidence remains undecided. Do not increment the belief count with tool text or treat arbitrary tool output as a belief. A future approved design should encode capability evidence explicitly with provenance and a trust class, separate from beliefs. No defect ID is assigned without a decision on intended behavior. Host occurrence remains UNKNOWN.
+
+## 11. Cognitive interpretation versus the executable-capability selector (28 November 2026)
+
+On current NEX main, the inspected chat capability call is ToolCaller.should_use_tool(prompt). The selector receives the raw human sentence, uses bounded language patterns and returns a capability name. It does not receive a typed Sentence Code object or a Mind Aspect result on this call chain. Existing faculty outputs are independently assembled into Chat's response context; the inspected source does not show them feeding the capability selector.
+
+The mind map is intentionally non-runtime. mind_map/MIND_MAP.yaml declares descriptive-only status, and mind_map/mind_map.py::check_descriptive_only() rejects runtime imports/reads and action-authority fields. tests/test_mind_map_policy.py locks these boundaries. The development DAG and RDO tooling are external engineering instruments, not NEX cognitive action authorities.
+
+The inspected NEX call chain therefore establishes three distinct surfaces:
+- faculty interpretation/context, assembled for natural-language composition;
+- a narrow heuristic sentence-to-capability selector for three existing Stage-B tools;
+- a ToolResult response-context block.
+
+The trace does not establish an end-to-end typed Sentence Code → Recursive Extrapolator → validated capability → approved execution → verified outcome path. The existing Sentence Code representation may have a disconnected producer or consumer elsewhere; this focused trace has not located that connection, so global absence remains UNKNOWN.
+
+A comparison with Sentience 5.5 at 1767acf1fdb321d046261eb3c3059084c85fc0c8 shows raw-string voice intake in Voice_Interaction_Node.py:152-162, a separate dictionary-based Action_Execution_Node.execute_action() at line 113, and placeholder simulated execution in _perform_action() at line 157. The inspected Integration_Node is a latest-value aggregator and does not itself connect those paths into a verified sentence-to-action pipeline. These are sketches, not a validated substitute.
+
+Next research target: locate the existing Sentence Code owner/schema and trace one ordinary sentence through its existing Mind Aspect interpretation, typed representation, Recursive Extrapolator and the first real capability boundary. Preserve separate validation, approval, execution and verification transitions. Start with a read-only or pure fixture; no new autonomous caller, operation store or authority change is warranted in Phase 0.
+
+
+## 12. Typed thought packets versus machine-operation representations (28 November 2026)
+
+On current main, `ThoughtPacket` is the input contract for belief-substrate ingestion. It carries content, source node, confidence, optional branch and metadata. Fountain, Stage 2, Synergizer, CounterfactualNode, ThrowNet and the reshape resolver construct/re-submit these packets. `CoherenceGate` checks candidate thought content and routes it through ACCEPT / REJECT / HOLD / RESHAPE handling. Its documented exception fallback is ACCEPT, so it must not be described as an execution-approval boundary.
+
+This is distinct from Stage-B:
+- ToolCaller selects a bounded existing capability from the raw chat sentence.
+- ToolRegistry runs that selected capability.
+- ToolResult describes output after execution.
+
+It is also distinct from RDO: `objective.v1` is an advisory engineering objective. The schema description explicitly says input obligations are proposals; the intake validator rejects payload fields for reconciliation outcomes, evidence claims, approval flags and arbitrary execution instructions. The Recursive Extrapolator expands these engineering obligations, not the user's NEX runtime sentence into a machine action.
+
+No general typed Sentence Code object, owner/schema or complete producer-consumer path was established by this selected-path trace. Global absence remains UNKNOWN.
+
+## 13. Existing chat faculty network and duplicate evidence-count experiment (28 November 2026)
+
+The current-day `NEX_CHAT_FACULTY_WIRE_MAP_2026-11-28.md` records thirteen ordered faculty/context blocks and source-level cross-faculty interactions. The relevant source was rechecked against the current main descendant. These are real bounded reads, dependencies, prompt-context contributions and optional salience carry. They are not an unrestricted recursive network and do not possess machine-action authority. Default-off flags are not proof of current host activation; that remains UNKNOWN.
+
+PR #460 studies another reader-to-reader interaction. The membrane's normal OUTSIDE RAG and Stage-B `beliefs_query` use the same retriever with no side filter. Their independent reads can select the same belief ID, then both format it as a `- [Tier` line. The route gap gate counts tier lines, not distinct IDs. The component-level fixture demonstrates shared IDs and duplicate formatting. A full route fixture is intended to show the potential effect against the Technical minimum of two, using one unique seed in an isolated substrate. Exact-head workflow 46187314674 completed successfully on 6b016802831350ff1cf1cf1c19c99fb49e3964b2: 3,079 passed, 7 skipped, 86 subtests; disposable sandbox probe and baseline check OK. The full-route fixture confirms a single unique belief can be represented twice, produce two tier markers and reach the mocked voice request. This is fixture-level evidence only; live host occurrence and impact remain UNKNOWN. No runtime change or defect declaration.
+
+The next evidence step is the exact-head result. If it passes, document the narrow fixture behaviour, then decide whether this is an intended evidence-count contract, a test-only artefact, or a candidate defect requiring source-specific provenance and distinct-evidence counting. Do not silently alter counts or combine arbitrary tool output with belief evidence.

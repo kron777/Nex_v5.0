@@ -289,3 +289,347 @@ Every `warrant_validate` verdict from before PR #271 was computed on history-fre
 - PR #348 merged as `321a156e162a6554e27ae329522f253e8f6fe676`; exact-head CI run `46091039346`: 2,838 passed, 7 skipped, 45 subtests; baseline OK, no STALE warnings. AppState now quiesces dynamic loops before Writer close. G-84 remains open for the remaining producers and global shutdown deadline.
 - The 112-site census is pre-merge evidence at `a6d08405`; rerun it on current main before using the count as current.
 - Founder decisions G-80, G-78, G-76 and the non-substrate scope question under G-61 remain pending. Gate 0 remains pending; Phase 1 remains unauthorized.
+
+
+## 28 November 2026 — G-83 Row 9 source-to-effect refinement
+
+The current source trace refines existing G-83; no duplicate finding ID is created. Main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`. Manual §114 records the complete distinction.
+
+- Metacognition counts all derived `groove` event rows globally over 30 minutes; it does not count distinct alert IDs/episodes or group by topic. The 600-second source query returns at most three rows per tick.
+- The Row 9 `conversations.db` `stillness_log` has no topic/source field. The crystallizer blocks all belief crystallization while any row is active; it does not apply same-topic matching.
+- Fountain generation and dynamic fire recording occur before crystallization. Generator still returns/logs the thought after the crystallizer returns `None`; belief/link creation and the normal speech-queue enqueue path are skipped.
+- A second `dynamic.db` `stillness_log` is an unrelated duplicate-retrieval instrumentation table. Do not conflate it with Row 9.
+- `theory_x/SYNTHESIS_PLAN_V2.md` §3 describes same-topic triggering/suppression. This is historical design provenance, not authority to revise frozen S-01–S-25/M1.8 or Founder Sign-Off. The controlling Row 9 approval remains UNKNOWN unless located.
+
+The existing test suite's source assertions cover the mocked threshold and crystallizer hold, not distinct-source/topic identity or the full Generator-to-speech consequence. No tests were run; no live host/database/process/service was accessed; no runtime code, schema, flag, or behavior was changed. Gate 0 remains pending founder review; Phase 1 remains unauthorized.
+
+
+### 28 November 2026 — G-83 implementation-history refinement
+
+The initial Row 9 history is now checked against both design and implementation commits. `SYNTHESIS_PLAN_V2.md` §3 was added at `36e7ed40661db58d83214b40aebde7a33fdb2519` (11:29:57 UTC, 11 May 2026) and describes a same-topic threshold/suppression. The Row 9 implementation landed at `c4b005f32e931047711ef6cdbe03e84a00183885` (13:21:14 UTC) with a global count of derived groove events and global crystallizer hold; its tests mock aggregate counts and do not carry topic/source identity. The current `DOCTRINE.md` summary is more general. No rationale for the difference was located in the inspected commit message or patch. This confirms a historical design-artifact divergence, not its authority or founder approval. G-83 stays OPEN; do not restore same-topic behaviour without locating controlling sign-off. See INDEX §§114–115. Gate 0 remains pending; Phase 1 remains unauthorized.
+
+ 
+### 28 November 2026 — G-83 caller/cadence refinement
+
+The 60-second DiversityLoop invokes GrooveSpotter, DormancyScanner and ClockRunner, not Metacognition. Production Metacognition is constructed in run.py and ticked by the chat handler in gui/server.py; the SentienceNode protocol describes tick as once per chat turn, while its registry only registers/lists nodes and does not dispatch periodic ticks. Thus alerts can accumulate between chat turns; the next tick selects at most three newest eligible rows. This is source/caller evidence, not evidence of actual chat cadence. See INDEX §116. No code/tests/runtime changes; Gate 0 pending and Phase 1 unauthorized.
+
+
+### 28 November 2026 — G-83 renewal and starvation implications
+
+The source ordering permits a further conditional failure mode: same eligible alert rows can be re-read on later chat turns, and new derived groove events are written before the active-stillness check. Once a 60-second stillness row expires, a tick can count those refreshed derived events (within the 1,800-second count window) and renew the global hold without a new detector episode. With four or more eligible unacknowledged rows, ORDER BY detected_at DESC LIMIT 3 can keep returning the same newest three and allow older rows to age out. These are source-derived possibilities, not live observations. Add controlled-clock tests before considering any fix. See INDEX §117; G-83 remains OPEN.
+
+
+### 28 November 2026 — G-83 prior-art comparison
+
+The Sentience 5.5 Stillness_Node.py cited as Row 9 prior art is now inspected. It has a single global non-reentrant stillness state and a trigger/time/duration log, with no topic or alert identity. NEX SYNTHESIS_PLAN_V2 §3 then described a topic-specific NEX extension; the NEX implementation uses a global count/global crystallizer hold. The implementation resembles prior art in scope, but the reason the plan's topic-specific delta was not carried is undocumented in the inspected commit. Authority remains UNKNOWN. See INDEX §118; G-83 stays OPEN.
+
+
+### 28 November 2026 — G-83 speech-consumer boundary
+
+Row 9 prevents the current fire from reaching the crystallizer's later speech enqueue, but SpeechQueueConsumer is a separate beliefs.db-only daemon and does not read conversations.stillness_log. Already-pending speech entries can continue to drain while Row 9 is active, subject to the consumer's independent pause and quiet-hours controls. tests/test_speech.py has no pending-entry-during-Row-9 case. This is evidence that Row 9 is not a speech-consumer pause. See INDEX §119; G-83 remains OPEN.
+
+
+### 28 November 2026 — G-83 reader census and influence classification
+
+The tracked-source reader map is extended in INDEX §120. Two additional live influence routes were found: CompetingDrives reads 24-hour max groove severity into its coherence drive (0.30 factor), and Fountain's recent-STRIKING prompt block uses the most recent qualifying alert pattern to filter candidate context. The former can influence a changed drive-tension prompt; the latter can alter prompt material when NEX5_GENIUS_PROMPT_OFF is not 1. The documented keepalive profile explicitly sets NEX5_RECONCILE=1, disabling substrate-voice's own groove-triggered path. Stakes readiness and topic shadow are separately gated. SubstrateHarmonic, snapshot, GUI and probe routes are observational/request-triggered, not acknowledgement writers. No direct tracked-code write to acknowledged_at was found; external/untracked/dynamic SQL and live host state remain UNKNOWN. G-83 remains OPEN. No code/tests/runtime changes; Gate 0 pending; Phase 1 unauthorized.
+
+
+### 28 November 2026 — G-83 detector identity and restart boundary
+
+GrooveSpotter has four per-instance fingerprints (exact content, top trigram, template belief-ID set, centroid current-window ID tuple). They suppress unchanged scans while the same instance lives, clear when the detector condition falls away, and reset on process restart. A restart can therefore emit another alert row for an unchanged condition. Persisted sample_belief_ids do not preserve every detector fingerprint; scripts/trajectory.py's (alert_type, sample_belief_ids) episode grouping is a separate analytical equivalence relation. tests/test_diversity.py does not characterize repeated detect_all(), reset/recur or restart replay for the four detectors. See INDEX §121; G-83 remains OPEN.
+
+
+### 28 November 2026 — G-83 test characterization candidate
+
+Draft PR #448 adds one test file only for the four GrooveSpotter process-local fingerprints: same-instance unchanged suppression, clear/recur, and new-instance replay. Exact head f4447ad5b243b97c91c28fc00abbef88fe7c51f9, base main 18c8f06171e1de35c3210831a49b63d0e2487af0. Full CI run 46173749707 was queued; commit status pending at handoff. No local tests were run and no test pass is claimed. Keep draft until exact-head CI and review. No runtime source/behaviour change. See INDEX §122; G-83 stays OPEN.
+
+
+### 28 November 2026 — G-83 historical runtime evidence anchor
+
+The 14 November investigation journal records 1,198 groove_alerts rows (then 1,199 ~20 minutes later) and 0/1,198 acknowledged at that historical time. 94.8% were template_repetition; 5.2% ngram_repetition. Its 30-minute gap-clustering grouped 1,199 rows into 55 groups (median 14 rows, p90 54, max 102; median span ~106.7m, max ~837.3m). Nov 10 alert IDs 751/752 were severity-1 template alerts; the journal records a real cooldown write and later crystallization rejection. This is historical database evidence only, not current runtime observation. The 30-minute gap clusters are not the current producer fingerprints or Row 9 derived-event identity. See INDEX §123; G-83 remains OPEN.
+
+
+### 28 November 2026 — G-83 producer/consumer test candidates
+
+Two separate draft test-only PRs now characterize the two replay boundaries:
+- #448 producer fingerprints, exact head f4447ad5b243b97c91c28fc00abbef88fe7c51f9, full suite run 46173749707 IN_PROGRESS.
+- #449 consumer replay/Row 9 renewal with one source alert and five controlled chat ticks, exact head 50c2e083de1dab3e40301b37dc14b614a0d08f23, full suite run 46174148899 IN_PROGRESS.
+
+Neither workflow has a result yet. No local tests were run. Both remain drafts; no runtime behaviour or specification is changed. See INDEX §124; G-83 remains OPEN.
+
+
+### 28 November 2026 — G-83 producer tests exact-head validation
+
+PR #448 producer fingerprint characterization passed exact-head GitHub Actions run 46173749707: 3,081 passed, 7 skipped, 86 subtests, 0 deselections; baseline OK. Mind-map check: 30 nodes, 0 unverified, 12 dark, 2 blocked; existing doctrine-reference and overdue P13 warnings remain. This verifies only the current per-instance fingerprint behavior in tests, not production restart cadence or semantic episode identity. PR #448 remains draft pending review. PR #449 consumer replay/Row 9 renewal run 46174148899 remains in progress. See INDEX §125; G-83 remains OPEN.
+
+### 28 November 2026 — G-83 consumer characterization result and chat-prompt boundary
+
+Draft PR #449 exact head `8132db2a338727e580e3269ad148277db727b0d4` passed full-suite workflow `46174972385`: 3,079 passed, 7 skipped, 86 subtests; baseline OK; disposable sandbox probe OK. Its controlled-clock tests verify five derived groove events and two Row 9 stillness activations from one unchanged unacknowledged source alert, plus separate generic Metacognition and topic-filtered Stage-SelfNarrative formatting. This is test-only evidence, not live runtime observation or approval to change behaviour.
+
+The source-to-sink follow-up confirms that run.py passes Stage-SelfNarrative into Metacognition; gui/server.py ticks Metacognition on the chat path and appends its generic groove self-observation line; the same tick writes pattern-specific narrative_log rows, which the later Stage-SelfNarrative prompt formatter only returns when the user's prompt prefix matches the narrative content by substring. The combined formatter/caller exposure remains a test candidate. G-83 remains OPEN: no acknowledgement/episode semantics, topic scope, Row 9 threshold/duration, or output policy is changed. See INDEX §126 and verified defect backlog G-83. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+### 28 November 2026 — G-83 prompt assembly / thin-belief gate boundary
+
+Static source trace of `gui/server.py` shows Metacognition and topic-filtered Stage-SelfNarrative output appended to `belief_text` before the chat thin-belief gate. That gate counts only `- [Tier` markers, so reflective text does not increase `belief_count`. For ordinary non-probe/non-social requests outside `_ALLOW_THIN_REGISTERS`, an insufficient count persists a gap refusal and returns before voice prompt assembly or `state.voice.speak()`. Surviving paths later embed `belief_text` under “Your interior right now” in `voice_prompt` and pass it to the voice layer. Prompt formatting alone therefore does not prove LLM exposure. See INDEX §127. Route-level fixture test remains a candidate; no gate/prompt policy change, live runtime observation, or Phase 1 authorization.
+Voice transport refinement: `voice/llm.py` builds a two-message payload and passes `VoiceRequest.prompt` unchanged as the user-message content to `_request_fn`. This closes the static source path only; provider acceptance and semantic use remain unobserved. See INDEX §127.
+
+### 28 November 2026 — G-83 route-to-transport test candidate
+
+Draft PR #450 (`b33022cfaf47cc34dc8eec316cd583c15e6d880e`) adds a GUI route fixture using real Metacognition and Stage-SelfNarrative objects with mocked voice transport. It asserts Technical's insufficient-belief return occurs before transport and Philosophical carries both reflective strings into the transport user message. Workflow `46175227754` passed 3,078 tests, 7 skipped, 86 subtests; baseline and sandbox checks passed. Test-only; no live model/provider or cognitive behaviour change. See INDEX §127.
+
+### 28 November 2026 — G-83 upstream producer provenance
+
+GrooveSpotter's source query reads the latest `fountain_insight` and `synergized` beliefs, not chat messages. DiversityLoop invokes it every 60 seconds. Unchanged n-gram patterns are suppressed by an in-memory fingerprint (restart resets it). N-gram alerts at severity >=0.5 write a two-hour pattern-specific `signal_cooldown`, which FountainCrystallizer checks against future thought content. This targeted cooldown is distinct from Metacognition's consumer replay and Row 9 global hold. See INDEX §128. No behaviour changed.
+Exact-repeat producer audit note: `EXACT_REPEAT_MIN=2` is the implemented threshold, but `_detect_exact_repetition()`'s docstring says at least three. PR #448's fingerprint fixture uses three repeats and does not distinguish the thresholds; `tests/test_diversity.py` has no explicit threshold assertion. Intended threshold remains UNKNOWN; no code/test policy change and no new defect ID pending history/authority review. See INDEX §128.
+Cadence refinement: Fountain's own worker waits for the active mode interval before each readiness check/generation (default 120s, chat mode 300s, silent disables Fountain); DiversityLoop scans every 60s; Metacognition is chat-turn-triggered. Active host mode is UNKNOWN. See INDEX §128.
+
+### 28 November 2026 — G-83 source-identity preservation boundary
+
+Metacognition temporarily carries `groove_id`, but `_write_event()` persists no source-row/episode ID in `meta_cognition_events`. The parallel narrative branch does persist it as `narrative_log.source_id`. Row 9 counts every groove event row without grouping by identity. PR #449's controlled fixture verifies five same-source rows can count separately. This confirms the identity gap, not the intended semantic unit; no schema change is authorised. See INDEX §129.
+
+### 28 November 2026 — G-83 optional second-order readers
+
+Stage-9's built-in event digest is dark behind `NEX5_METACOG_DIGEST=1`; if armed, three groove rows can trigger a digest regardless of whether they came from distinct source alerts. It excludes its own digest rows and has a one-hour per-type cooldown. The separate `tools/metacog_digest.py` is manually invoked only, requires `NEX5_METACOG_REFLECT=1` and `--live`, and reads all meta events without source deduplication before making a reflection call. Static checks found no import/invocation from the live GUI, `run.py` or keepalive. Runtime flag states remain UNKNOWN. See INDEX §129.
+
+### 28 November 2026 — Metacognition decay dispatch audit
+
+`Metacognition.decay(now)` implements 14-day resolution and is directly unit-tested, but no production caller was located in the inspected `run.py`, `gui/server.py` or SentienceNode registry. The registry only registers/lists nodes; it does not dispatch lifecycle methods. Automatic stale-event resolution remains unverified pending a repository-wide call-site census. No scheduler or retention behaviour changed. See INDEX §130.
+Targeted call-site sweep checked 24 Theory X life-loop, scheduler, world/signal/diversity-loop, registry/protocol and monitor files. No Metacognition decay caller, generic decay dispatcher, all_nodes dispatcher or other meta_cognition_events resolved_at writer was found in those paths. Not a whole-repository proof. See INDEX §130.
+
+### 28 November 2026 — G-83 optional Fountain prompt rail
+
+The same Metacognition object is passed to both AppState and FountainGenerator. The generator appends its cached `format_for_prompt()` line to `focus_block` and `_wide_fac` only when `NEX5_METACOG_VOICE=1`; it does not tick Metacognition itself. Source says default-off; runtime flag state UNKNOWN. No dedicated Fountain flag-boundary test was located. See INDEX §131.
+
+### 28 November 2026 — G-83 acknowledgement ownership
+
+`groove_alerts.acknowledged_at` exists in schema but GrooveSpotter leaves it NULL; Metacognition reads unacknowledged rows within 600 seconds and does not acknowledge them. No writer was found in the inspected active paths. The 10-minute query window is the only observed expiry mechanism. Intended acknowledgement owner/semantics and repository-wide absence of writers remain UNKNOWN. See INDEX §132.
+**Schema-history note:** `groove_alerts.acknowledged_at` was present when the table first appeared in commit `a396dda08e8861e22029ceef813c69211671a37e` (26 Apr 2026). The commit describes diversity/rut detection but does not document acknowledgement ownership or semantics. See INDEX §132.
+Producer/consumer distinction: commit `543e4ce957f2e3ad8e3ebf9fb25cd1bf977fed1a` fixed repeated GrooveSpotter alert INSERTs via per-detector fingerprints; it did not add an acknowledgement writer. The current G-83 replay is a separate consumer re-read of one existing row during the 600-second Metacognition window. See INDEX §132.
+
+### 28 November 2026 — Metacognition cache age on Fountain rail
+
+`format_for_prompt()` reads `_cached_recent` only; it does not check cache age or refresh. Fountain's optional reader does not call `tick()`, so with `NEX5_METACOG_VOICE=1` it may reuse the last chat-refreshed observation across fires until another chat tick or explicit invalidation. The 14-day decay caller is not located in production. This is a source-level stale-context possibility, not a live occurrence. See INDEX §131.
+Session-scope refinement: `meta_cognition_events` schema has nullable `session_id`, but `Metacognition.tick(context)` ignores context and `_write_event()` does not populate the field; GUI calls `tick()` without context and Row 9 has no session predicate. Current source is database-global, not session-scoped. Intended scope UNKNOWN. See INDEX §129.
+Authority classification: the optional Fountain Metacognition line is textual prompt context only; it is not a typed operation, capability grant, approval signal, execution command or verification result. It does not make the Tibetan mind map or any Mind Aspect an action gate/veto. See INDEX §131.
+Cache timing: `_CACHE_TTL=60s`; every chat tick can write events/narratives and count Row 9, but refreshes `_cached_recent` only when empty or older than 60s. `format_for_prompt()` reads the cached snapshot; Fountain reads the same snapshot without refreshing. Actual chat cadence UNKNOWN. See INDEX §131.
+
+### 28 November 2026 — G-83 Fountain rail exact-head CI
+
+Draft PR #451 exact head `91739d131f21f3dd2c55d35ef2b23a07aa73c424`, workflow `46176528182`, passed 3,078 tests, 7 skipped, 86 subtests; baseline and sandbox checks passed. The fixture verifies the optional flag and that Fountain reads the cache without ticking Metacognition. Stale-cache age and host flag state remain UNKNOWN. See INDEX §131.
+
+### 28 November 2026 — G-83 consolidated causal model
+
+INDEX §133 now provides the consolidated Fountain → belief → GrooveSpotter → Metacognition → Row 9 → chat/Fountain prompt feedback map, separating confirmed source/test evidence from host flag, runtime and semantic unknowns. Next bounded work: stale-cache characterization, acknowledgement/resolved_at writer census, decay caller verification, then sample-belief/retrieval-manifest lineage. No behaviour changed; Gate 0 pending and Phase 1 unauthorized.
+
+### 28 November 2026 — G-83 prompt and retrieval lineage boundary
+
+Fountain's optional Metacognition rail injects only the generic cached formatter line, not the GUI Stage-SelfNarrative pattern-specific `narrative_log` text. `groove_alerts.sample_belief_ids` is not selected by Metacognition; the disabled/de-wired GrooveBreaker selects but does not use it; Fountain context retrieval does not query the alert table. No direct alert-to-source-belief retrieval priority path was found. See INDEX §§131, 133.
+
+### 28 November 2026 — G-83 generation versus persistence controls
+
+The Fountain model call returns a thought before the crystallizer checks Row 9 stillness and `signal_cooldown`. Those controls reject belief persistence after generation; the generator still logs/returns the thought. They are not generation brakes. The optional `NEX5_METACOG_VOICE` text rail is the only direct Metacognition-to-Fountain prompt influence found, default-off by source. See INDEX §134.
+Sample-ID provenance: exact repetition stores exact matching rows; template repetition stores templated IDs; n-gram and centroid store only the first five rows of their active window. Those latter IDs are samples, not exact causal parents. No active downstream consumer uses them for retrieval priority. See INDEX §133.
+Internal Fountain feedback is generic only; it does not receive GrooveSpotter pattern text, alert/source IDs, sample IDs or GUI Stage-SelfNarrative content. The pattern-specific path is GUI topic-filtered narrative; Fountain's pattern-specific effect is only post-generation cooldown. See INDEX §133.
+
+### 28 November 2026 — live Metacognition tick versus decay
+
+Correction of scope: Metacognition is connected to the live GUI chat path. `run.py` constructs/registers the shared object; `gui/server.py` calls `tick()` and `format_for_prompt()` during chat. The unlocated production path is specifically `decay(now)` for 14-day stale-event resolution. A targeted 24-file lifecycle sweep found no dispatcher but is not a whole-repository proof. See INDEX §135.
+Persistence-loop effect: GrooveSpotter reads only stored Fountain/Synergized beliefs, so crystallization rejection prevents the generated thought from becoming future detector input. Row 9/cooldown regulate durable memory accumulation, not current LLM generation. See INDEX §134.
+
+### 28 November 2026 — lifecycle ownership split
+
+Theory X `register()/all_nodes()` is not a lifecycle dispatcher. `AppState._quiesce_producers()` is a separate bounded shutdown list for named worker services; `AppState.close()` shuts down the scheduler, quiesces workers and drains Writers, but does not iterate cognitive nodes or call `decay(now)`. Metacognition remains chat-tick-driven and has no autonomous worker in the inspected path. See INDEX §136.
+
+### 28 November 2026 — registered-node decay inventory
+
+Four persistent cleanup methods are present: Metacognition 14d, GoalManager 60d, ProblemMemory 30d and NovelAssociation 14d. Unit tests directly call each method; no production dispatcher/call was located in inspected boot/chat/background paths. Their consequences differ: Metacognition old unresolved rows remain eligible for the newest-three prompt slots; old open ProblemMemory rows remain eligible for chat matching; old GoalManager rows remain open; NovelAssociation's independent 2-hour prompt cutoff already hides old entries, so its 14-day decay is housekeeping. ProblemMemory is instantiated by main `run.py` but not registered there; only the optional test `create_app(with_tools=True)` path registers it. Do not infer one uniform defect or add a generic scheduler. See INDEX §137.
+
+### 28 November 2026 — Metacognition external retention backstop
+
+`nex_db_reaper.py` includes `conversations.db:meta_cognition_events:created_at` under a 30-day default retention and physically deletes old rows in batches. A versioned user-systemd timer schedules it nightly around 04:00, but the README says repository unit files are reference copies; active units live in `~/.config/systemd/user/`. Installation is documented; actual timer/service activation and last-run state remain UNKNOWN. This deletion is not the 14-day `decay()` resolution transition and the reaper does not target `goals`, `open_problems` or `novel_association_log`. See INDEX §138.
+
+### 28 November 2026 — external cleanup census
+
+The DB reaper covers `meta_cognition_events` only, not `goals`, `open_problems` or `novel_association_log`. `scripts/problem_persistence.py` is read-only; Stage Gate retention covers only `gate_decisions` and empty `throw_net_sessions`; signal reaper covers only `signals`. No other cleanup timer was found among inspected versioned units. This is a bounded repository census, not proof about arbitrary host cron or user units. See INDEX §139.
+
+### 28 November 2026 — protocol versus lifecycle orchestration
+
+Doctrine §4 defines `tick()` and `decay(now)` but does not specify a universal decay dispatcher, cadence or owner. Node tests prove local method effects, not runtime invocation. Keep four evidence claims separate: protocol implementation, unit-tested effect, production caller/trigger, active-host observation. The current source trace has evidence for the first two and selected tick/worker paths, but no located owner for the four persistent decay methods (with Metacognition's separate 30-day DB reaper backstop). Do not add a scheduler without policy ownership. See INDEX §140.
+
+### 28 November 2026 — registered-node lifecycle census
+
+The normal `run.py` boot registers nine Theory X nodes. Optional `gui/server.py::build_state(with_tools=True)` separately registers ProblemMemory, GoalManager and Metacognition. The registry stores/lists nodes but does not dispatch tick/decay. GoalManager and Metacognition have substantive unowned decay methods; NovelAssociation's 14-day log annotation is uncalled housekeeping but its prompt reader only looks back two hours. ProblemMemory's 30-day decay is covered by G-60; it is constructed but not registered in normal `run.py` (it can be registered in optional GUI build_state). See INDEX §137 and corrected G-60 backlog wording.
+
+### 28 November 2026 — DB-reaper test coverage boundary
+
+`tests/test_retention_reaper.py` proves the generic `reap_table()` batch-delete helper, but its target-list assertion checks only `drive_emergence_log` and `substrate_coherence`. It does not assert the `meta_cognition_events` target or exercise `reap()` against that table. The 30-day target is source-observed; systemd scheduling is configuration-observed; active timer/host execution remains UNKNOWN. See INDEX §142.
+
+### 28 November 2026 — DB-reaper host deployment history
+
+Historical 25 Nov host diagnostics first found `nex5-db-reaper.service` failing `203/EXEC` against the old `/home/rr/Desktop/Desktop/nex5` path. A later check verified the loaded unit was corrected to `/mnt/games/storage/Desktop/Desktop/nex5` and `nex_db_reaper.py` existed there. No service was deliberately started/restarted and no successful run or nightly retention pass was observed. The versioned repository service file still contains the old path, so reinstalling that reference copy could regress the correction. Current timer activation, service health and last successful run remain UNKNOWN. See INDEX §145.
+
+### 28 November 2026 — G-83 narrative retention boundary
+
+Pattern-specific `narrative_log` entries are inserted on every source-alert re-read and can duplicate the same `source_id`. PR #449's exact-head fixture verifies five same-source rows and that all five occupy the topic-matched formatter output; an unrelated topic returns empty. The GUI formatter has no age cutoff or source deduplication; it selects only `content`/`created_at`, not stored `trigger`/`source_id`, and the GUI supplies `prompt[:100]` as the topic. `tests/test_self_narrative.py` verifies the five-row cap and no-op `decay()`, not an expiry policy. The 30-day DB reaper targets `meta_cognition_events` but not `narrative_log` or `groove_alerts`. Other known narrative writers include ProblemMemory, GoalManager, NovelAssociation and CoherenceGate. **Design qualification:** `SELF_NARRATIVE_SPEC.md` explicitly makes v1 unbounded; a 90-day/size cap was only a possible Phase 26b follow-on after observing production write frequency. Runtime contains later trigger paths, but the spec was not updated; whether Phase 26b observation/approval occurred elsewhere remains UNKNOWN. See INDEX §§144–147.
+
+### 28 November 2026 — shared narrative writer/provenance boundary
+
+`narrative_log` has multiple writers: Metacognition, ProblemMemory, GoalManager, NovelAssociation and CoherenceGate. Its prompt formatter selects only `content` and `created_at`, omitting `trigger` and `source_id`; the model receives the narrative text and age label without typed source provenance. This is broader than the GrooveSpotter replay path. See INDEX §144.
+
+### 28 November 2026 — chat-gap side-effect boundary
+
+The real GUI route calls Metacognition.tick()/formatters before the thin-belief early return. A Technical request can be refused before VoiceClient transport while still re-consuming the alert and writing event/narrative state. Repeated blocked requests may contribute to Row 9 without any model call. PR #450 verifies route ordering/transport, not the three-event threshold from blocked requests. See INDEX §127.
+
+
+### 28 November 2026 — SelfNarrative rut-mirror tick ownership
+
+The `SelfNarrative.tick()` method contains a conditional rut-notice writer, but its normal-path dispatch is not established. `run.py` constructs/registers the node without a dedicated loop; the Theory X registry stores/returns nodes but does not dispatch; the inspected GUI chat path calls only `format_for_prompt()`; Metacognition writes groove narratives directly without calling `SelfNarrative.tick()`. The existing empty-fixture tick test does not exercise the rut threshold or prove a caller. Live flag/cadence/execution remain UNKNOWN. No scheduler or runtime change is authorised. See INDEX §148.
+
+
+### 28 November 2026 — Rut-mirror prompt retrieval boundary
+
+The fixed rut notice is not injected as a generic reflective cue by the inspected GUI path. The GUI passes `prompt[:100]` as `current_topic`; SelfNarrative uses the entire string in a case-insensitive SQL substring match against narrative content. An unrelated prompt prefix returns no rut notice even if the row exists. Draft PR #452 adds isolated exact-versus-unrelated topic tests; exact-head CI remains pending. No prompt/retrieval policy change. See INDEX §149.
+
+GeniusTagger is separately wired to its own 60-second loop and writes the `genius_tags` input table; that does not own or dispatch `SelfNarrative.tick()`. Host worker execution and live tag freshness remain UNKNOWN. See INDEX §148.
+
+
+### 28 November 2026 — Corrected rut lifecycle and dual-path finding
+
+Correction: SelfNarrative.tick() itself has no demonstrated dispatcher, but Metacognition.tick() directly calls the injected SelfNarrative._maybe_notice_rut() helper on the GUI chat path. This bypasses the NEX5_RUT_MIRROR_OFF check located only in SelfNarrative.tick(). Separately, FountainGenerator writes the same rut text into beliefs under its NEX5_GOVERNOR_OFF-gated governor path, with an instance-local two-hour throttle; the narrative path uses persisted narrative_log history. The two writers, stores and throttles are source-observed; deployed flags, live execution, co-occurrence and intended flag scope remain UNKNOWN. Draft PR #452 adds a test-only characterization of the direct-caller bypass; exact-head CI pending. See INDEX §§148–150.
+
+
+### 28 November 2026 — Fountain rut belief consumption boundary
+
+The Fountain governor writes `source='self_rut_notice'` only after the current `_retrieve_context_beliefs()` call has fetched own/seed candidate rows. Its explicit own/seed allowlists and dedicated `hot_observer` slot omit this source, so same-fire Fountain retrieval is impossible and the next explicit Fountain source query does not select it. The generic GUI BeliefRetriever loads eligible tier<=6/confidence>=0.15 beliefs, making the row a query-dependent candidate there; actual delivery remains UNKNOWN. See INDEX §151.
+
+
+### 28 November 2026 — GeniusTagger rut-window timestamp semantics
+
+GeniusTagger backfill can process 14-day-old Fountain events but writes tagged_at=ts_now; the rut observers filter on tagged_at within 90 minutes, so historical fires can appear recent during backfill. The schema allows multiple rows per (fountain_event_id, weights_version) and rut queries do not deduplicate IDs or filter versions. Draft PR #453 adds test-only characterization; exact-head CI pending. Actual host history and impact remain UNKNOWN. See INDEX §152.
+
+
+PR #452 exact-head workflow 46181820624 passed at e3e1e037f0769e66e62b84fe982abf37f49e1485. The isolated test confirms the direct Metacognition caller bypasses the wrapper OFF check; live host state remains UNKNOWN.
+
+
+### 28 November 2026 — Rut decision provenance
+
+Both rut observers query only genius_tags.class and do not carry contributing event IDs or weights_version into the output. The narrative row uses source_id=None; the belief row carries only the self_rut_notice source label and ordinary belief fields. Source rows remain independently queryable, but neither output has a frozen input manifest. This compounds §152's time/version ambiguity. See INDEX §153.
+
+
+### 28 November 2026 — Rut sample readiness
+
+GeniusTagger is started asynchronously; _own_and_start() does not wait for its first backfill to finish. Neither Metacognition nor the Fountain governor checks _backfill_done before reading genius_tags. A partial historical backfill can therefore be sampled while still being written; combined with §152 timestamp semantics, this may produce a premature decision. Host overlap remains UNKNOWN. See INDEX §154.
+
+
+### 28 November 2026 — Rut belief membrane classification
+
+self_rut_notice is not in MembraneClassifier._INSIDE_SOURCES, so the generic BeliefRetriever classifies it OUTSIDE. QueryRouter's INSIDE self-inquiry path filters it out; OUTSIDE retrieval remains query-dependent. Draft PR #454 adds test-only characterization; exact-head CI pending. Whether the source was intended to be INSIDE is UNKNOWN. See INDEX §155.
+
+
+PR #453 exact-head workflow 46182191953 passed at 2d15c4d4c87881138c937c5600f1a281677d8391. Fixture tests validate the backfill timestamp and same-fire multi-version row behaviours; host occurrence and detector impact remain UNKNOWN.
+
+
+### 28 November 2026 — GeniusTagger consumer inventory
+
+The tagger producer is write-only, but its integrated signal is consumed by ReadinessEvaluator (up to .15 readiness penalty), recent-STRIKING Fountain prompt injection, the governor (reanimation cadence 20->5 plus self_rut_notice), Metacognition rut narrative, and optional NEX5_CONTINUITY_N prompt context. GENIUS_SCORE_v2.md §7's statement that consumers do not yet exist is stale against the inspected source. Actual host flags/activity remain UNKNOWN. PR #455 covers readiness/prompt consumers; #454 governor; #452 Metacognition. See INDEX §156.
+
+
+TRACK_THEORY.md's 2026-05-27 afterword anticipates the retrieval, prompt and readiness consumers; GENIUS_SCORE_v2.md §7's final paragraph was not reconciled. Treat the mismatch as stale documentation, not proof of unauthorized runtime behaviour.
+
+
+### 28 November 2026 — GeniusTagger fan-out contract
+
+The GeniusTagger signal fans out to independent consumers with different windows, thresholds and flags: readiness 1h/5 rows/40%; prompt block 24h; governor 90m/4 rows/5%; Metacognition rut 90m/4 rows/5%; optional continuity all-time top scores. There is no common sample manifest or shared decision contract. Do not harmonize these during Phase 0. PRs #452/#453 passed; #454/#455 pending. See INDEX §157.
+
+
+### 28 November 2026 — Genius reporting denominator
+
+Genius HUD/panel stats and provenance reports aggregate tag rows across weights versions, not unique Fountain events/current version. The HUD's current_version is from the latest row while its rate is all-row aggregate. /api/fountain/recent instead keeps the latest row per event. Actual host duplicates and live metric impact remain UNKNOWN. See INDEX §158.
+
+
+PR #454 exact-head workflow 46182737858 passed at 7b9ae6c3f0debbc87882b8d8e8c8932f79cb5c5e. Isolated tests verify the Fountain governor write, retrieval boundary, and membrane side classification; live host behaviour remains UNKNOWN.
+
+
+### 28 November 2026 — Dual SelfNarrative class identity
+
+There are two different SelfNarrative classes: the persistent StageSelfNarrative in run.py used by CoherenceGate/Metacognition/GUI chat, and a Stage-TOM SelfNarrative constructed separately by FountainGenerator under NEX5_SELF_NARRATIVE=1 for Fountain prompt composition. The Stage-TOM write_narrative method appends to a private log that get_narrative does not read; the inspected gate receives the other class. Host flag and any external callers remain UNKNOWN. See INDEX §159.
+
+
+PR #455 exact-head workflow 46182908854 passed at b74798e87174cfa1f74c740066bcd9c0904a4341. Tests characterize readiness modulation/OFF and recent-striking prompt block behavior; host flags and live delivery remain UNKNOWN.
+
+
+### 28 November 2026 — Stage-TOM SelfNarrative prompt boundary
+
+The Stage-TOM composer can include a tier-6 self_rut_notice belief through its generic recent-T6 query, provided the belief survives the bounded candidate/text filters and at least one substantive recent Fountain fire exists. FountainGenerator constructs and reads this composer only when NEX5_SELF_NARRATIVE=1; its output is appended as prompt context before spectrum standing-points. The Stage-TOM private write log is not read by its own composer. Targeted normal-path callers write through the separate persistent StageSelfNarrative object from run.py. PR #456 tests composition; PR #457 tests the prompt gate. Exact-head CI pending. Host flag/activity and semantic model effect remain UNKNOWN. No behaviour, flag or authority changed. See INDEX §160.
+
+
+### 28 November 2026 — Stage-TOM paused-belief reader boundary
+
+The beliefs schema has a paused column, but Stage-TOM _recent_t6() does not filter it. Harmonizer sets paused=1 during resolve(), then unpauses held tensions or retires/unpauses the normal pair. A concurrent Fountain narrative read could select a temporarily paused tier-6 row; live overlap is UNKNOWN. PR #458 uses a stable paused fixture to characterize the reader predicate; exact-head CI is in progress. Whether this should be excluded from reflective context remains a policy question, not inferred from SQL alone. No runtime change or defect classification. See INDEX §161.
+
+
+### 28 November 2026 — Phase 26 SelfNarrative design provenance
+
+The 10 May Phase 26 draft spec describes persistent narrative_log accumulation and read-only prompt formatting. A separate Stage-TOM living narrative composer was introduced on 28 June and assembles current Fountain context from recent fires, T6 beliefs and other readers. The tracked nex_keepalive.sh still sets NEX5_SELF_NARRATIVE=1, but host launcher selection and effective environment are UNKNOWN. The spec and Doctrine remain drafts, not Frozen V2.1 or Founder Sign-Off. Keep both implementations distinct; do not infer replacement or unify them without authority. No runtime change. See INDEX §162.
+
+
+PR #457 exact-head workflow 46183886214 passed: 3,079 passed, 7 skipped, 86 subtests; baseline and sandbox checks OK. PR #456 first failed on an assertion expecting full T6 text; the source truncates to 80 characters, so the test now checks the emitted prefix and awaits re-run. See INDEX §160.
+
+
+The tracked launch command sets NEX5_SELF_NARRATIVE=1 and NEX5_GOVERNOR_OFF=1 together: it enables the Stage-TOM reader while disabling the Fountain governor's self_rut_notice writer. Old stored rows remain eligible; host launcher/service selection and actual rows are UNKNOWN. See INDEX §160/§162.
+
+
+### 28 November 2026 — Fountain prompt-to-event feedback
+
+On the normal path, Fountain composes Stage-TOM narrative context, calls the voice model, then persists the returned thought in sense_events and fountain_events. A later Stage-TOM read can reuse that thought in a subsequent prompt. This is a conditional text/database feedback loop, not sentence parsing into executable code or a typed operation. Quiescent and eligible RECONCILE routes bypass the normal prompt path; tracked launcher sets NEX5_RECONCILE=1. Host execution and semantic influence remain UNKNOWN. No runtime change. See INDEX §163.
+
+
+PR #456 corrected exact-head workflow 46184315945 passed: 3,078 passed, 7 skipped, 86 subtests; baseline/sandbox OK. The first failure was a test assertion expecting full text despite the 80-character source truncation; the test now matches the source contract. PR #457 initial head passed; constructor-gate follow-up awaits CI. See INDEX §160.
+
+
+### 28 November 2026 — Existing sentence-to-capability bridge
+
+The current GUI path parses a human sentence into one of three bounded capabilities: allowlisted HTTP GET, AST-interpreted arithmetic or read-only belief retrieval. It executes the selected capability and injects the result into the voice prompt. Arithmetic does not execute arbitrary Python. There is no approval/operation record in this path, but the current tools are read-only/pure; this must not be generalized to state-changing or embodied actions. Tests cover the boundary. No runtime change. See INDEX §164.
+
+
+PR #457 expanded exact-head workflow 46184425657 passed: 3,080 passed, 7 skipped, 86 subtests; constructor gate and prompt insertion tests passed. PR #458 exact-head workflow 46184447225 passed: 3,078 passed, 7 skipped, 86 subtests; the paused tier-six fixture was included in the narrative. Both baseline and sandbox checks were OK; no runtime changes. See INDEX §§160–161.
+
+
+StrikeProtocol is a separate manually triggered observation harness (POST /api/strikes/fire), not an action executor: it sends probe text to the voice model, captures context and stores a separate StrikeRecord. See INDEX §164.
+
+
+### 28 November 2026 — Autonomous fire-path tool boundary
+
+The Stage-B tools are called from GUI chat only; the Fountain generator has no ToolCaller/ToolRegistry references. The fire-path scope note remains an investigation, not authorization. Autonomous triggering requires a separate decision on triggers, per-tool arming, volume caps, audit and human oversight. No autonomous caller or code change. See INDEX §165.
+
+
+## Continuity checkpoint — 28 November 2026
+
+Current source baseline: NEX main 18c8f06171e1de35c3210831a49b63d0e2487af0. Documentation candidate branch: docs/nex-manual-443-snapshot-study-2026-11-28 (PR #447; draft). Sentence/tool characterization: PR #459 (draft), head db4a22d0078844992829613dbb9a4a90eb4a51e9; exact-head workflow 46186063413 passed **3,078 passed, 7 skipped, 86 subtests**; sandbox probe and baseline check OK.
+
+### New evidence
+
+- A successful Stage-B arithmetic capability can run before the normal Technical-register chat gap gate. With no tier-labelled beliefs, the route can then return the configured graph-gap refusal before prompt assembly/voice invocation. PR #459 locks this source ordering in an isolated fixture. This is a response-grounding gate, not operation approval. Do not silently count arbitrary tool output as a belief.
+- The tool_prompt_injected trace event marks staging into local response context; it is not proof that the voice model received the block on the early-refusal path.
+- The Mind Map remains descriptive-only and is kept out of runtime decision imports/reads by its checker and tests. The live ToolCaller selection path receives the raw sentence, not a Mind Aspect output or demonstrated typed Sentence Code object.
+- Sentience 5.5 raw-string voice intake and dictionary-based action placeholder are separate paths; the inspected action method simulates success and is not a real integrated executor.
+- Full Sentence Code → Recursive Extrapolator → capability → approval → execution → verification wiring remains unproven. The existing Sentence Code representation may have disconnected callers elsewhere; do not declare global absence from this selected-path trace.
+
+### Next bounded investigation
+
+Locate the existing Sentence Code owner/schema and trace one sentence through its actual Mind Aspect interpretation, typed representation and Recursive Extrapolator consumers. Identify the first validated capability boundary and distinguish proposal, permission, execution and verified outcome. Begin with a pure/read-only fixture. No new runtime framework, autonomous trigger, tool arming, feature flag, database, frozen specification or Gate 0/Phase 1 status change.
+
+### Files updated in the documentation candidate
+
+INDEX.md §§166–167; research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md §§10–11; PHASE0_HANDOFF.md continuity checkpoint. The plain-text Claude mirror is synchronized byte-for-byte with the complete updated INDEX.md (no independent preamble/content divergence).
+
+
+## Continuity checkpoint — expanded wire study (28 November 2026)
+
+Additional source study recorded in INDEX §§168–170 and the sentence/tool research note §§12–13.
+
+- `ThoughtPacket` + CoherenceGate are the cognitive thought/belief-ingestion contract (content/source/confidence/branch/metadata; ACCEPT/REJECT/HOLD/RESHAPE), not a typed machine-operation request or action permission system. The documented gate error fallback is ACCEPT.
+- The current-day Chat Faculty Wire Map records thirteen existing context blocks and multiple real cross-faculty dependencies. The integration is bounded call-graph/prompt composition with optional salience carry; live flag activation remains UNKNOWN. The Tibetan Mind Map remains descriptive only and cannot gate or veto actions.
+- RDO `objective.v1` is advisory engineering intake; supplied obligations are proposals. The Recursive Extrapolator expands those development obligations, not runtime user sentences into operations.
+- PR #460 component fixture demonstrates same belief ID from normal OUTSIDE retrieval and auxiliary `beliefs_query`. Its full route fixture tests whether one distinct belief can contribute two tier markers and clear the Technical response-grounding threshold. Exact-head workflow 46187314674 passed (3,079 passed, 7 skipped, 86 subtests; sandbox probe and baseline OK). The fixture demonstrates one unique belief duplicated into two tier-marked prompt entries and reaching a mocked voice call. Live-host occurrence remains UNKNOWN; no defect classification or runtime change.
+- Next: await/inspect exact-head CI for #460; if green, record the proven fixture only; then decide with source evidence whether evidence identity should be distinct from repeated prompt representation. Continue locating existing Sentence Code owner/schema without inventing a replacement.
