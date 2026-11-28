@@ -30,6 +30,38 @@ class ApprovedRuleCatalogue:
     rules: Dict[str, List[Tuple[str, str, str, Optional[str]]]]
     provenance: Dict[str, dict]
 
+    def validate(self) -> None:
+        if (isinstance(self.version, bool) or not isinstance(self.version, int)
+                or self.version < 1 or not isinstance(self.sha256, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", self.sha256)):
+            raise ValueError("approved rule catalogue has invalid version or digest")
+        if not isinstance(self.rules, dict) or not self.rules:
+            raise ValueError("approved rule catalogue must contain rules")
+        if not isinstance(self.provenance, dict) or set(self.provenance) != set(self.rules):
+            raise ValueError("approved rule catalogue provenance does not match its rules")
+        for kind, steps in self.rules.items():
+            if not isinstance(kind, str) or not _TOKEN.fullmatch(kind):
+                raise ValueError("approved rule catalogue contains an invalid kind")
+            if not isinstance(steps, list) or not steps:
+                raise ValueError(f"approved rule for {kind!r} must contain steps")
+            seen = set()
+            for step in steps:
+                if (not isinstance(step, tuple) or len(step) != 4
+                        or not isinstance(step[0], str) or not _TOKEN.fullmatch(step[0])
+                        or step[0] in seen or step[1] not in CLASSIFICATIONS
+                        or not isinstance(step[2], str) or not step[2].strip()
+                        or (step[3] is not None and not isinstance(step[3], str))):
+                    raise ValueError(f"approved rule for {kind!r} has an invalid step")
+                seen.add(step[0])
+        snapshot = {
+            "version": self.version,
+            "rules": {key: [list(item) for item in value]
+                      for key, value in sorted(self.rules.items())},
+            "provenance": self.provenance,
+        }
+        if hashlib.sha256(_canonical(snapshot)).hexdigest() != self.sha256:
+            raise ValueError("approved rule catalogue digest mismatch")
+
     def to_dict(self) -> dict:
         return {
             "version": self.version,
