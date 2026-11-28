@@ -13,6 +13,7 @@ The previous fixed 1.5-second in-flight-fire delay was only a timing guess. It d
 - Once shutdown begins, reject every new request with HTTP 503; already-admitted requests are allowed to finish.
 - Preserve a per-request label, worker-thread name and elapsed duration so a deadline failure identifies which requests remained active.
 - The SIGTERM and SIGINT paths close request admission and wait for active requests using the same 12-second deadline already shared with producer and Writer shutdown.
+- Guard the signal handler against duplicate/re-entrant SIGTERM or SIGINT delivery so AppState close and marker persistence cannot be entered twice.
 - Only after the request drain succeeds does run.py stop the decoder and call `AppState.close(deadline=...)`. The clean marker remains last.
 - If the request drain times out or errors, log the active count, skip AppState/marker success claims and exit non-zero.
 
