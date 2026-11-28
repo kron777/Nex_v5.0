@@ -403,3 +403,4 @@ The same Metacognition object is passed to both AppState and FountainGenerator. 
 ### 28 November 2026 — G-83 acknowledgement ownership
 
 `groove_alerts.acknowledged_at` exists in schema but GrooveSpotter leaves it NULL; Metacognition reads unacknowledged rows within 600 seconds and does not acknowledge them. No writer was found in the inspected active paths. The 10-minute query window is the only observed expiry mechanism. Intended acknowledgement owner/semantics and repository-wide absence of writers remain UNKNOWN. See INDEX §132.
+**Schema-history note:** `groove_alerts.acknowledged_at` was present when the table first appeared in commit `a396dda08e8861e22029ceef813c69211671a37e` (26 Apr 2026). The commit describes diversity/rut detection but does not document acknowledgement ownership or semantics. See INDEX §132.
