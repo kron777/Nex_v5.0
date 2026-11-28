@@ -332,7 +332,7 @@ class RuleProposalStore:
             finally:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
-    def approved_catalogue(self) -> Optional[ApprovedRuleCatalogue]:
+    def approved_catalogue(self, kinds: Optional[List[str]] = None) -> Optional[ApprovedRuleCatalogue]:
         events = self.events()
         proposals = {
             e["data"]["proposal_id"]: e["data"]["proposal"]
@@ -377,6 +377,16 @@ class RuleProposalStore:
                 "provenance": proposal["provenance"],
             }
             version = max(version, review["catalogue_version"])
+        if kinds is not None:
+            if (not isinstance(kinds, list) or not kinds
+                    or any(not isinstance(kind, str) or not kind.strip() for kind in kinds)
+                    or len(kinds) != len(set(kinds))):
+                raise ValueError("explicit rule selection must be a non-empty list of unique kinds")
+            unknown = sorted(set(kinds) - set(rules))
+            if unknown:
+                raise ValueError(f"requested kinds are not approved in this catalogue: {unknown}")
+            rules = {kind: rules[kind] for kind in kinds}
+            provenance = {kind: provenance[kind] for kind in kinds}
         if not rules:
             return None
         snapshot = {
