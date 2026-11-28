@@ -1,15 +1,19 @@
 """Reviewed seed selection prepares objective.v1 without persistence or execution."""
 import hashlib
 import json
+import subprocess
+from pathlib import Path
 
 import pytest
 
-from rdo_adapters.objective_intake import ObjectiveInputStore
+from rdo_adapters.objective_intake import ObjectiveInputStore, resume_objective
 from rdo_adapters.reviewed_seed_bridge import (
     ReviewedSeedBridgeError,
     prepare_reviewed_selection,
+    submit_reviewed_selection,
 )
 from rdo_adapters.seed_proposals import SeedProposalError, SeedProposalStore
+from rdo_adapters.handoff import create_handoff
 
 
 def _digest(value):
@@ -303,3 +307,54 @@ def test_existing_intake_chain_rejects_changed_immutable_intent(tmp_path):
     )
     with pytest.raises(ReviewedSeedBridgeError, match="original_text/intent"):
         prepare_reviewed_selection(changed_store, proposal_id_changed, intake)
+
+
+
+def _clean_repo(path: Path) -> Path:
+    path.mkdir()
+    (path / "README.md").write_text("# Reviewed seed lineage fixture\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    subprocess.run(["git", "-C", str(path), "config", "user.name", "RDO lineage test"], check=True)
+    subprocess.run(["git", "-C", str(path), "config", "user.email", "rdo-lineage@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(path), "add", "README.md"], check=True)
+    subprocess.run(["git", "-C", str(path), "commit", "-q", "-m", "fixture snapshot"], check=True)
+    return path
+
+
+def test_approved_seed_lineage_survives_objective_cycle_resume_and_stage7(tmp_path, monkeypatch):
+    store, proposal_id = _approved_store(tmp_path)
+    repo = _clean_repo(tmp_path / "repo")
+    workdir = str(tmp_path / "cycles")
+    objective_store = ObjectiveInputStore(str(tmp_path / "cycles" / "objectives"))
+
+    import rdo.orchestrator as orchestrator
+    monkeypatch.setattr(orchestrator, "_active_experiments", lambda _repo: [])
+
+    result = submit_reviewed_selection(
+        store, proposal_id, objective_store, repo_dir=str(repo), workdir=workdir
+    )
+    intake = result["intake"]
+    cycle = intake["cycle"]
+    lineage = result["lineage"]
+
+    assert result["status"] == "created"
+    assert cycle["objective_lineage"] == lineage
+    history = objective_store.history("bridge-objective")
+    assert len(history) == 1
+    assert history[0]["lineage"] == lineage
+    resumed = resume_objective(workdir, "bridge-objective", 1)
+    assert resumed["proposal_lineage"] == lineage
+    assert resumed["cycles"][0]["objective_lineage"] == lineage
+
+    replay = submit_reviewed_selection(
+        store, proposal_id, objective_store, repo_dir=str(repo), workdir=workdir
+    )
+    assert replay["status"] == "reused_existing_cycle"
+    assert len(objective_store.history("bridge-objective")) == 1
+
+    package = cycle["work_packages"][0]
+    handoff = create_handoff(
+        workdir, str(repo), "bridge-objective", 1, cycle["id"], package["key"]
+    )
+    assert handoff["proposal_lineage"] == lineage
+    assert handoff["manifest_sha256"]
