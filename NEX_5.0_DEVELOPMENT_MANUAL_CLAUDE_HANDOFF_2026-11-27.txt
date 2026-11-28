@@ -1,13 +1,13 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with boot-time ownership candidate PR #420.
-Evidence snapshot: main at dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f; latest candidate exact-head CI pending.
+Mirror synchronized with documentation candidate PR #447.
+Evidence snapshot: main at 18c8f06171e1de35c3210831a49b63d0e2487af0; PR #447 is documentation-only and remains open.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f` plus boot-ownership candidate branch (exact-head CI pending)
+**Last verified against:** `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0` (28 November 2026); exact-head CI status for this latest commit was not surfaced by the combined-status check
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -2113,6 +2113,104 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 **Regression coverage:** `rdo/tests/test_seed_proposal_cli.py` covers duplicate top-level and nested properties and asserts the store is never accessed. Existing rule-proposal duplicate-key coverage remains in place. **Merged:** PR #442, merge commit `4ede2994e5177ad6b56211ddc0f91c274222caaa`. Exact-head workflow run `46151854310` passed **3,075 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed.
 
 **Boundaries:** no seed schema, proposal/review semantics, provenance, approval, intake, planning, Stage-7, execution authority or runtime behavior changed.
+
+---
+
+## 70. Single-snapshot seed and rule proposal history — merged mainline commit `18c8f06171e1de35c3210831a49b63d0e2487af0` (PR #443; 28 November 2026)
+
+**Finding addressed:** the `rule-history` and `seed-history` command paths previously assembled proposal state and event history through separate ledger reads. A review append between those reads could make the two parts of one response represent different ledger revisions.
+
+**Implementation now present on main:** `RuleProposalStore.history()` and `SeedProposalStore.history()` each call the ledger reader once, derive the proposal snapshot from that returned event sequence, and select the matching event rows from the same sequence. Both history CLI handlers delegate to this store-level operation. This narrows the consistency boundary to one ledger snapshot; it does not claim a transaction across separate stores or a global snapshot of NEX.
+
+**Evidence:** commit `18c8f06171e1de35c3210831a49b63d0e2487af0` is the latest commit returned by the repository-scoped commit search. The diff includes store-level history methods, CLI delegation and tests asserting one ledger read and agreement between the resulting review status and event sequence. The combined-status lookup returned no status rows for this commit; therefore this manual makes **no exact-head CI-pass claim** for #443. Earlier implementation/test-head workflow results recorded under §68 are not substitutes for the rebased/integrated #443 head.
+
+**Study interpretation:** this is a useful example of a general NEX integrity rule: when a response combines a derived state view with its event history, derive both from the same immutable-in-memory read snapshot. The lock/read mechanism remains the store's responsibility; this change does not establish cross-process behaviour beyond what the underlying reader and its tests demonstrate.
+
+**Next research seam — concurrency falsification:** add or inspect a deterministic interleaving test in which a review append is attempted while `history()` is reading. Establish whether the lock provides the intended consistent read on the actual supported filesystem/process model, and whether the reader returns either the pre-append or post-append state without mixing them. Prefer a barrier-controlled test over timing sleeps. Include a second-process test only if the store's supported deployment model requires cross-process access. Do not call this a discovered defect until the test or source establishes one.
+
+**Unchanged boundaries:** no proposal schema, approval meaning, catalogue activation, generated-code execution, runtime action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority or cognitive/action authority separation is changed. Proposal approval remains inert and does not activate a rule.
+
+---
+
+## 71. Stage-2 attention propagation and downstream selection — source/test seam study (28 November 2026)
+
+**Question studied:** does an external perception merely update a local attention value, or can that value reach the later Fountain branch choice and Global Workspace framing? The negative control is equally important: internal telemetry is recognized for self-monitoring but must not monopolise cognitive attention.
+
+### Source-traced chain
+
+1. `theory_x/stage2_dynamic/attention.py` maps streams to branches and computes magnitude. The source explicitly returns zero for every `internal.*` stream, preserving the separation between internal self-monitoring and attention steering.
+2. `theory_x/stage2_dynamic/pipeline.py` runs A–F: unpack event, match branches, calculate magnitude, apply membrane aperture, assign valence, then call `BonsaiTree.attend()` and log an F event when magnitude is at least 0.001.
+3. `theory_x/stage2_dynamic/bonsai.py` updates branch focus and texture from the admitted magnitude. This is the stateful attention representation.
+4. Fountain's production caller sorts the status branch vector by focus and passes the hottest branch through `_weighted_branch_pick()`. With `NEX5_BRANCH_TEMP` unset/zero, the hottest branch is preserved; with a positive temperature, a softmax roulette can select a lower-focus branch.
+5. Global Workspace's production `arbitrate()` obtains a Bonsai candidate through `_bonsai_candidate(status)` and competes it against other candidates. The candidate is omitted when the hottest branch has focus at or below 0.1. The separate `arbitrate_candidates()` helper selects the highest-salience frame.
+
+### Existing characterization and what it proves
+
+The current `tests/test_dynamic.py` contains three useful tests:
+
+- An `internal.proprioception` event is matched to `systems` but has zero magnitude, produces no Stage-2 F hit, leaves focus/texture unchanged and yields no Bonsai workspace candidate.
+- An external `ai_research.arxiv` event increases the `ai_research` branch's focus and texture through the real A–F pipeline.
+- Forty external events produce an `ai_research` focus above 0.1; the test checks the hottest branch, the zero-temperature Fountain helper, the positive-temperature roulette's forced final bucket, and the Bonsai candidate/frame helpers.
+
+This is materially stronger than checking module existence: it exercises the real Stage-2 pipeline and several downstream selection functions with isolated objects. It is still **layered characterization**, not a complete live-path demonstration. The Fountain assertion calls `_weighted_branch_pick()` directly rather than executing the full Fountain fire orchestration. The workspace assertion manually builds a status dictionary and calls `_bonsai_candidate()` plus `arbitrate_candidates()`; it does not call production `arbitrate()` with its database-backed surprise/momentum candidates. No production flag, live database or host process was changed or exercised.
+
+### Research conclusion
+
+The source supports a real functional path from external sense input to branch attention, and shows two downstream consumers of that representation. The test evidence establishes selected edges and helper semantics, not that a live NEX process is running these paths, that every relevant flag is enabled, or that the resulting cognition is beneficial. Internal telemetry's exclusion is a deliberate anti-starvation boundary; reconnecting it indiscriminately would risk the historical systems-branch pinning failure documented in the source.
+
+### Next falsification study
+
+Build a deterministic, isolated integration test that crosses the remaining seams without touching live runtime state:
+
+- Use a temporary substrate/database and controlled branch status to invoke the production Global Workspace `arbitrate()` path. Provide competing momentum/surprise candidates and assert both the Bonsai-win and non-Bonsai-win cases; record the exact salience margin and tie behaviour.
+- Exercise the actual Fountain caller around branch sorting and `_weighted_branch_pick()`, or extract a narrow pure selection function only if that reduces test coupling without changing semantics. Compare temperature zero with a controlled positive-temperature draw.
+- Add a paired negative-control case for `internal.*` and a positive external event case. Keep event count, initial focus, decay and aperture fixed; avoid relying on unbounded sleeps or stochastic sampling.
+- Separate causal claims: pipeline-to-focus, focus-to-Fountain pick, and focus-to-workspace frame are three independently falsifiable edges. A pass at one edge must not be reported as proof of the others.
+
+Do not change `NEX5_BRANCH_TEMP`, workspace flags, attention magnitude policy or runtime wiring as part of this study. First establish what the existing tests and production call sites actually guarantee.
+
+**Source anchors inspected:** `tests/test_dynamic.py` blob `7e7493a5d79dda73f0ff374728a3da9eb34a558c`; `theory_x/stage2_dynamic/pipeline.py` blob `fbac28e96ffc34dbf59c60242d3ac635835e6e06`; `theory_x/stage2_dynamic/attention.py` blob `d2765c7618e8421bb3e60c8898f749f2370f0344`; `theory_x/stage2_dynamic/bonsai.py` blob `d0389d6036deecf27dcf636771ef817c685b1e7c`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/global_workspace.py` blob `39d833d4a88ed3ad371daf7b62e7295d0dda6637`.
+
+**Unchanged boundaries:** no runtime code, live flag, attention policy, schema, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, descriptive Mind Aspect policy or cognitive/action authority separation is changed.
+
+---
+
+## 72. Theory X registry lifecycle and AppState ownership — continuation study (28 November 2026)
+
+**Question studied:** does the process-level SentienceNode registry actually have process-lifetime ownership, or does it also retain objects whose database handles and workers belong to an individual AppState?
+
+### Registry contract found in source
+
+At current main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0, theory_x/__init__.py defines a module-global _registered_nodes list. register(node) checks isinstance(node, SentienceNode) using a runtime_checkable Protocol, then appends the object. all_nodes() returns a new list containing the same object references.
+
+The implementation has no visible duplicate-name/identity check, removal/unregister operation, registry lock, or owner token. The runtime-checkable Protocol check establishes attribute presence, not method signatures or semantic lifecycle correctness. These are source observations, not proof that a current production consumer is malfunctioning.
+
+### Registration paths traced
+
+- **Module import (gui/server.py):** constructs and registers one process-level FocalSet and one ExecutiveControl. These are module globals and are naturally aligned with process scope.
+- **GUI build_state() path:** when with_tools is enabled and the relevant handles exist, constructs ProblemMemory, GoalManager and Metacognition using that build's Readers/Writers, then registers those objects. The function also constructs Writers and starts/builds several services before returning its AppState; it is not a pure data-only factory.
+- **GUI create_app(state) path:** registers the supplied membrane's self_model and behavioural nodes when the Flask app is created. Repeated app construction can therefore repeat registration for the same or a different state.
+- **Unified run.py boot path:** constructs its own AppState rather than calling build_state(). It registers SelfNarrative, the HoldingZoneResolver, GoalManager, Metacognition, NovelAssociation, SubstrateHarmonic, GeniusTagger, DriveEmergence and AffectState at their respective construction sites. create_app(state) subsequently registers the membrane-owned nodes. Several registration calls are wrapped in broad exception handling or silently ignored, so a construction log is not itself a registry-membership proof.
+
+### Consumer inventory and lifecycle risk
+
+The inspected run.py and gui/server.py contain registration calls but no call to all_nodes(). The registry's own docstring describes process-level monitoring and future cross-node orchestration. A complete repository-wide consumer inventory remains **incomplete**; do not claim that the registry is unused everywhere.
+
+A concrete ownership mismatch is possible on repeated GUI factory/app construction: build_state() creates faculties bound to that invocation's Readers/Writers, while the module-global registry retains those object references beyond the lifetime of the returned state. AppState.close() quiesces its owned producers and closes its Writers, but no registry removal is visible in the reviewed lifecycle. Repeated build_state() or create_app() calls can therefore accumulate duplicate/stale entries. This is a **lifecycle risk derived from source**, not yet a demonstrated production failure; its impact depends on whether any consumer iterates the registry and invokes those objects after their owning state closes.
+
+The normal run.py path constructs one AppState and one Flask app, so the repeated-factory scenario must not be presented as evidence of a current live failure. The process registry also contains objects that are not necessarily owned by AppState in the same way (for example, module-level FocalSet and ExecutiveControl). The ownership contract needs to distinguish these cases rather than simply clearing the registry on every close.
+
+### Required next study — do not patch yet
+
+1. Complete the repository-wide registration and consumption inventory: every register() call, every all_nodes() read, any alias/import of either, and all tests that depend on registry state.
+2. Trace the full lifecycle of both construction routes: run.py → AppState → create_app and gui/server.py main → build_state → create_app. Include test fixtures and repeated app creation.
+3. In isolated tests with separate temporary databases, build two states sequentially, register their nodes, close the first, and determine whether registry entries from the first remain reachable and whether any consumer calls them. Check identity, names, Reader/Writer ownership and worker shutdown; do not access live databases.
+4. Decide the ownership model only after the inventory: process-singleton registry for true process-lifetime nodes; an AppState-scoped registry for state-bound nodes; or an explicit owner-aware registration/removal contract. Any future design must define duplicate handling, thread safety, close ordering and behavior when registration fails.
+5. Add a deterministic regression test for the selected contract before changing implementation. Preserve the frozen doctrine/specification and do not create a cross-node orchestrator merely because the registry's docstring mentions one.
+
+**Source anchors inspected:** theory_x/__init__.py blob 661dc737f54c88f763588606867ae1b9cd7e6654; gui/server.py blob ecaa6982544e883a50dbf85c5de1e10f74180c67; run.py blob 8ebe33c251e874b16107428eb4e92cf6301a4621. All are source snapshots at main commit 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Unchanged boundaries:** no registry code, protocol, AppState lifecycle, runtime configuration, database, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority or cognitive/action authority separation is changed.
 
 ---
 
