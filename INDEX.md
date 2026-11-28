@@ -5041,3 +5041,35 @@ These are optional, distinct second-order consumers, not evidence that reflectiv
 ### §130 call-site sweep refinement
 
 A targeted 24-file sweep across Theory X life loops, scheduler, world/signal/diversity loops, registry/protocol and monitor modules found no `Metacognition.decay()`, generic `.decay()` dispatch, `all_nodes()` dispatch, or `UPDATE meta_cognition_events` writer outside the already-inspected Metacognition implementation. This is not a whole-repository proof; the exact unresolved scope is any remaining caller/writer outside those paths. The current boot/chat/registry evidence still contains no lifecycle dispatcher.
+
+
+## §131 — G-83 second prompt rail: optional Metacognition → Fountain feedback (28 November 2026)
+
+**Question studied:** does the Metacognition observation only reach the GUI chat route, or is the same cached observation also wired into the next internal Fountain generation?
+
+### Shared-object wiring
+
+- `run.py` constructs one `Metacognition` instance with the shared conversations Writer/Reader, beliefs Reader and Stage-SelfNarrative instance.
+- That same object is assigned to `state.metacognition` for the GUI route and passed to `build_fountain(..., metacognition=metacognition)`.
+- `build_fountain()` passes it into `FountainGenerator`, which retains it as `self._metacognition`.
+- In the Fountain prompt builder, when `NEX5_METACOG_VOICE == "1"` and the object exists, the generator calls `format_for_prompt()`; a non-empty line is appended to `focus_block` and `_wide_fac`. The code comment explicitly says this gate is OFF by default.
+- This Fountain call site does **not** call `Metacognition.tick()`. It reads the existing cached observation; the inspected production tick remains the GUI chat handler.
+
+### Two prompt surfaces, one shared observation object
+
+The same Metacognition formatter therefore has two distinct prompt consumers:
+
+1. **GUI chat:** chat handler calls `tick()`, then `format_for_prompt()`; injection is subject to the thin-belief early-return boundary in §127.
+2. **Internal Fountain:** generator reads `format_for_prompt()` and appends the cached line only when `NEX5_METACOG_VOICE=1`; it does not itself refresh Metacognition's event cache.
+
+This creates a possible recurrent path when the Fountain flag is enabled: a prior Fountain thought is crystallized, GrooveSpotter detects a pattern, a later chat tick converts the alert into a Metacognition observation, and a subsequent Fountain fire can receive that cached observation as prompt context. The Fountain fire may then produce another crystallized belief that re-enters the GrooveSpotter source window. This is a source-level feedback route, not proof that the host flag is enabled or that the model's output changes in the intended direction.
+
+### Evidence boundary and next test
+
+The inspected `tests/test_metacognition.py` verifies formatter output, but `tests/test_fountain.py` contains no explicit `NEX5_METACOG_VOICE` assertion. No dedicated test was located for the shared-object, flag-off/flag-on Fountain prompt boundary.
+
+Next bounded characterization: seed a controlled Metacognition cache, inject the same object into FountainGenerator, assert the line is absent with the flag unset and present with the flag set, and assert the prompt read does not call `tick()` or write additional events. Use a fake VoiceClient/request function and isolated databases. Do not enable the flag on the host or change prompt policy.
+
+**Disposition:** source-observed second prompt rail; default-off by source; runtime flag state UNKNOWN; dedicated Fountain injection test not located. No feature flag, runtime code, schema, frozen S-01–S-25/M1.8, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+**Source anchors:** `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `theory_x/stage6_fountain/__init__.py` blob `64405fab88dd831f735705b388cf85c0bfd1cdee`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; Metacognition formatter/tick in §126–§127.
