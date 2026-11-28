@@ -1775,7 +1775,9 @@ class FountainGenerator:
             if _stopping():
                 return None
             try:
-                self._last_activation_id = self._competing_drives.compute_now()
+                self._last_activation_id = self._competing_drives.compute_now(
+                    stop_event=stop_event,
+                )
             except Exception:
                 pass
             if _stopping():
