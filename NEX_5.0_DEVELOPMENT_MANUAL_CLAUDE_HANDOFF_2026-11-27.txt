@@ -6017,12 +6017,13 @@ The source path is now traced through belief retrieval, narrative composition an
 
 - substrate/schema/beliefs.sql defines beliefs.paused as an explicit INTEGER column with NOT NULL DEFAULT 0.
 - theory_x/stage_tom/self_narrative.py::_recent_t6() filters tier=6 and content NOT LIKE '[%', then orders by created_at and limits the candidate set. It does not include paused=0 or otherwise inspect the paused column.
-- Therefore, a paused tier-6 belief whose content survives the prefix/text filters is eligible for this narrative context. build_narrative() still requires at least one substantive Fountain fire and the belief must survive the bounded candidate set.
-- This is a read-path fact, not yet a policy violation. Paused-belief semantics must be checked against the governing specification and the intended role of autobiographical/reflective context; do not infer that every paused row must be absent from every descriptive or reflective view.
+- The Harmonizer source sets paused=1 during resolve() while contradictory beliefs are being resolved. Its normal conflict scan excludes paused rows; the resolve path then either unpauses them for a held tension or retires/unpauses them on the normal path. The paused interval is therefore source-transient in the inspected implementation, not evidence of a stable paused population.
+- A Fountain narrative read concurrent with that resolve interval could still select the paused tier-6 row and present it under 'What has consolidated deeply', because the Stage-TOM query does not check paused. This is a concurrency possibility; live overlap and actual prompt delivery are UNKNOWN.
+- This is a read-path fact, not yet a policy violation. SPECIFICATION.md describes Pause as suspending confident assertion during conflict resolution, but that April document is not the recovered Frozen V2.1 authority. The intended treatment of a temporarily paused belief in reflective prompt context remains unresolved; do not infer that every paused row must be absent from every descriptive or reflective view.
 
 ### Characterization
 
-- **PR #458** adds a test-only fixture with one substantive Fountain fire and one tier-6 self_rut_notice belief inserted with paused=1. It asserts whether the current Stage-TOM narrative includes that row. Exact-head CI was in progress at this snapshot.
+- **PR #458** adds a test-only fixture with one substantive Fountain fire and one tier-6 self_rut_notice belief inserted with paused=1. It asserts whether the current Stage-TOM narrative includes that row; the assertion respects the 80-character T6 rendering limit. The fixture models the paused interval as a stable row for predicate characterization, not as evidence of normal steady-state persistence or live Fountain/Harmonizer overlap. Exact-head CI was in progress at this snapshot.
 - The test does not change pause state, retrieval, prompt policy or runtime behavior and does not establish host incidence.
 
 ### Disposition and next step
