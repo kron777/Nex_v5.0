@@ -1143,6 +1143,8 @@ Exact-head full-suite workflow run 2339 completed successfully: **2,971 passed, 
 
 **Boundary:** the gate covers requests entering through this Flask application. Detached work spawned by a route must still be registered with AppState. Alternate WSGI servers, reverse-proxy workers, direct non-HTTP callers and host/service-manager behaviour remain outside the demonstrated boundary. A timeout reports active request labels, thread names and elapsed durations; it does not close Writers under active requests, does not write a clean marker and exits non-zero.
 
+A source scan of the current 4,763-line `gui/server.py` found no direct `threading.Thread` construction, thread `.start()` call, executor submission, `create_task()` or subprocess spawn in the route module. The matches were thread lifecycle inspection/ownership code. This narrows the direct route-spawn concern but does not rule out detached work inside services called by routes, tasks created elsewhere, or alternate WSGI/server entry points. The gate is installed before the authentication and route-specific request hooks.
+
 The request gate is now current-main code. Do not overstate it as proof of complete process/thread quiescence or verified host shutdown behaviour.
 
 ### 16.3 Cognitive integration characterization — merged PR #381
