@@ -339,10 +339,29 @@ class TestGeneratorRetrievalLogGate(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
-class TestRecorderShutdown(TestRecorder):
+class TestRecorderShutdown(unittest.TestCase):
     def setUp(self):
-        super().setUp()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.bdb = str(Path(self.tmp.name) / "beliefs.db")
+        self.ddb = str(Path(self.tmp.name) / "dynamic.db")
+        _beliefs(self.bdb)
+        _dynamic(self.ddb)
+        self.r = rec.WarrantRecorder(_W(self.bdb), Reader(self.bdb), Reader(self.ddb))
+        self._per_band = rec._PER_BAND
+        self._use_batch = rec._USE_BATCH
         self.r._ensure()
+
+    def tearDown(self):
+        rec._PER_BAND = self._per_band
+        rec._USE_BATCH = self._use_batch
+        self.tmp.cleanup()
+
+    def _q(self, sql):
+        conn = sqlite3.connect(self.bdb)
+        try:
+            return conn.execute(sql).fetchall()
+        finally:
+            conn.close()
 
     def test_use_cycle_stops_after_blocked_first_source_read(self):
         entered = threading.Event()
