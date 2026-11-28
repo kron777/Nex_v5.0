@@ -622,3 +622,14 @@ Locate the existing Sentence Code owner/schema and trace one sentence through it
 ### Files updated in the documentation candidate
 
 INDEX.md §§166–167; research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md §§10–11; PHASE0_HANDOFF.md continuity checkpoint. The plain-text Claude mirror is synchronized byte-for-byte with the complete updated INDEX.md (no independent preamble/content divergence).
+
+
+## Continuity checkpoint — expanded wire study (28 November 2026)
+
+Additional source study recorded in INDEX §§168–170 and the sentence/tool research note §§12–13.
+
+- `ThoughtPacket` + CoherenceGate are the cognitive thought/belief-ingestion contract (content/source/confidence/branch/metadata; ACCEPT/REJECT/HOLD/RESHAPE), not a typed machine-operation request or action permission system. The documented gate error fallback is ACCEPT.
+- The current-day Chat Faculty Wire Map records thirteen existing context blocks and multiple real cross-faculty dependencies. The integration is bounded call-graph/prompt composition with optional salience carry; live flag activation remains UNKNOWN. The Tibetan Mind Map remains descriptive only and cannot gate or veto actions.
+- RDO `objective.v1` is advisory engineering intake; supplied obligations are proposals. The Recursive Extrapolator expands those development obligations, not runtime user sentences into operations.
+- PR #460 component fixture demonstrates same belief ID from normal OUTSIDE retrieval and auxiliary `beliefs_query`. Its full route fixture tests whether one distinct belief can contribute two tier markers and clear the Technical response-grounding threshold. Exact-head CI is pending; no defect classification or runtime change.
+- Next: await/inspect exact-head CI for #460; if green, record the proven fixture only; then decide with source evidence whether evidence identity should be distinct from repeated prompt representation. Continue locating existing Sentence Code owner/schema without inventing a replacement.
