@@ -177,6 +177,8 @@ def main() -> None:
 
     signal.signal(signal.SIGTERM, _boot_shutdown)
     signal.signal(signal.SIGINT, _boot_shutdown)
+    if _partial_shutdown_requested.is_set():
+        state._boot_shutdown_requested.set()
     _abort_if_boot_shutdown_requested(state)
 
     # 3. Self-location commitment
