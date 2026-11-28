@@ -1036,3 +1036,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 §155 membrane-side qualification: self_rut_notice is absent from MembraneClassifier._INSIDE_SOURCES, so classify_belief() returns OUTSIDE. QueryRouter's INSIDE path uses side_filter='INSIDE' and excludes it; OUTSIDE retrieval can still score it. Draft PR #454 adds isolated classification/retrieval characterization; exact-head CI pending. Intended side remains UNKNOWN. See INDEX §155.
+
+
+**PR #453 validation update:** exact-head workflow 46182191953 passed at 2d15c4d4c87881138c937c5600f1a281677d8391. The two isolated tests verify that backfill timestamps a ten-day-old fire with processing time and that a recent fire can have two recent rows across weights versions. This is fixture evidence, not host occurrence.
