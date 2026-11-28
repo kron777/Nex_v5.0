@@ -276,7 +276,7 @@ See `rdo/RDO_V1_4_IMPLEMENTATION_GAP_AUDIT_2026-11-27.md` for the current source
 
 ## 28 November 2026 — one-pen census and open persistence PRs
 
-At main `a6d084051e1d523812ef51c2d93784cba226499d`, the new read-only census tool (`tools/one_pen_census.py`) finds a single boot-reachable direct writer to the substrate databases: SignalToProblem (G-85). PR #347 proposes that fix, and PR #348 proposes G-84 step 1 (`AppState.close()` quiesces the dynamic loops before the Writers close). Both have green exact-head CI on current main; see INDEX §44 for run IDs.
+At pre-merge main `a6d084051e1d523812ef51c2d93784cba226499d`, the read-only census tool (`tools/one_pen_census.py`) found 112 write-capable call sites and one boot-reachable direct writer to the substrate databases: SignalToProblem (G-85). PR #347 has since merged as `8d6bc95d387687ed470713467d8779d09479e11d`, correcting that primary path. PR #348 merged as `321a156e162a6554e27ae329522f253e8f6fe676`, adding G-84 shutdown step 1. These are merged changes, not open proposals. The 112-site census remains a pre-merge snapshot and must be rerun on current main before treating its count or classifications as current; see INDEX §44 for the exact-head CI run IDs.
 
 The census also records `strikes/catalogue.py` as a documented direct-write exception for its own separate database.
 
