@@ -2168,3 +2168,42 @@ Do not change `NEX5_BRANCH_TEMP`, workspace flags, attention magnitude policy or
 
 ---
 
+## 72. Theory X registry lifecycle and AppState ownership — continuation study (28 November 2026)
+
+**Question studied:** does the process-level SentienceNode registry actually have process-lifetime ownership, or does it also retain objects whose database handles and workers belong to an individual AppState?
+
+### Registry contract found in source
+
+At current main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0, theory_x/__init__.py defines a module-global _registered_nodes list. register(node) checks isinstance(node, SentienceNode) using a runtime_checkable Protocol, then appends the object. all_nodes() returns a new list containing the same object references.
+
+The implementation has no visible duplicate-name/identity check, removal/unregister operation, registry lock, or owner token. The runtime-checkable Protocol check establishes attribute presence, not method signatures or semantic lifecycle correctness. These are source observations, not proof that a current production consumer is malfunctioning.
+
+### Registration paths traced
+
+- **Module import (gui/server.py):** constructs and registers one process-level FocalSet and one ExecutiveControl. These are module globals and are naturally aligned with process scope.
+- **GUI build_state() path:** when with_tools is enabled and the relevant handles exist, constructs ProblemMemory, GoalManager and Metacognition using that build's Readers/Writers, then registers those objects. The function also constructs Writers and starts/builds several services before returning its AppState; it is not a pure data-only factory.
+- **GUI create_app(state) path:** registers the supplied membrane's self_model and behavioural nodes when the Flask app is created. Repeated app construction can therefore repeat registration for the same or a different state.
+- **Unified run.py boot path:** constructs its own AppState rather than calling build_state(). It registers SelfNarrative, the HoldingZoneResolver, GoalManager, Metacognition, NovelAssociation, SubstrateHarmonic, GeniusTagger, DriveEmergence and AffectState at their respective construction sites. create_app(state) subsequently registers the membrane-owned nodes. Several registration calls are wrapped in broad exception handling or silently ignored, so a construction log is not itself a registry-membership proof.
+
+### Consumer inventory and lifecycle risk
+
+The inspected run.py and gui/server.py contain registration calls but no call to all_nodes(). The registry's own docstring describes process-level monitoring and future cross-node orchestration. A complete repository-wide consumer inventory remains **incomplete**; do not claim that the registry is unused everywhere.
+
+A concrete ownership mismatch is possible on repeated GUI factory/app construction: build_state() creates faculties bound to that invocation's Readers/Writers, while the module-global registry retains those object references beyond the lifetime of the returned state. AppState.close() quiesces its owned producers and closes its Writers, but no registry removal is visible in the reviewed lifecycle. Repeated build_state() or create_app() calls can therefore accumulate duplicate/stale entries. This is a **lifecycle risk derived from source**, not yet a demonstrated production failure; its impact depends on whether any consumer iterates the registry and invokes those objects after their owning state closes.
+
+The normal run.py path constructs one AppState and one Flask app, so the repeated-factory scenario must not be presented as evidence of a current live failure. The process registry also contains objects that are not necessarily owned by AppState in the same way (for example, module-level FocalSet and ExecutiveControl). The ownership contract needs to distinguish these cases rather than simply clearing the registry on every close.
+
+### Required next study — do not patch yet
+
+1. Complete the repository-wide registration and consumption inventory: every register() call, every all_nodes() read, any alias/import of either, and all tests that depend on registry state.
+2. Trace the full lifecycle of both construction routes: run.py → AppState → create_app and gui/server.py main → build_state → create_app. Include test fixtures and repeated app creation.
+3. In isolated tests with separate temporary databases, build two states sequentially, register their nodes, close the first, and determine whether registry entries from the first remain reachable and whether any consumer calls them. Check identity, names, Reader/Writer ownership and worker shutdown; do not access live databases.
+4. Decide the ownership model only after the inventory: process-singleton registry for true process-lifetime nodes; an AppState-scoped registry for state-bound nodes; or an explicit owner-aware registration/removal contract. Any future design must define duplicate handling, thread safety, close ordering and behavior when registration fails.
+5. Add a deterministic regression test for the selected contract before changing implementation. Preserve the frozen doctrine/specification and do not create a cross-node orchestrator merely because the registry's docstring mentions one.
+
+**Source anchors inspected:** theory_x/__init__.py blob 661dc737f54c88f763588606867ae1b9cd7e6654; gui/server.py blob ecaa6982544e883a50dbf85c5de1e10f74180c67; run.py blob 8ebe33c251e874b16107428eb4e92cf6301a4621. All are source snapshots at main commit 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+**Unchanged boundaries:** no registry code, protocol, AppState lifecycle, runtime configuration, database, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority or cognitive/action authority separation is changed.
+
+---
+
