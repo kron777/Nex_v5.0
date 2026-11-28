@@ -5137,3 +5137,8 @@ The Metacognition string is appended to Fountain's textual prompt context after 
 ### §131 chat-refresh cadence refinement
 
 The cache TTL is `_CACHE_TTL = 60.0` seconds. Every GUI chat request calls `Metacognition.tick()`, so detectors, source re-reads, event writes, narrative writes and Row 9 counting can run on every chat turn. But the recent-event cache is refreshed only when empty or older than 60 seconds. `format_for_prompt()` then reads the last cached snapshot. Thus database/Row 9 consequences can advance on a chat turn while the prompt line still reflects the previous cached top event until the 60-second refresh boundary. Fountain's optional consumer reads that same cache without triggering a refresh. This is a source-observed timing split; actual request cadence remains UNKNOWN.
+
+
+### §131 Fountain rail test result
+
+Draft PR #451 exact head `91739d131f21f3dd2c55d35ef2b23a07aa73c424` passed workflow `46176528182`: 3,078 passed, 7 skipped, 86 subtests (246.12s); baseline gate and disposable sandbox probe passed. The test verifies the `NEX5_METACOG_VOICE` off/on prompt-builder boundary and confirms Fountain reads the cached formatter without calling `Metacognition.tick()`. It does not test stale-cache age or host flag state. PR #451 remains test-only and draft pending review.
