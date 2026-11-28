@@ -5043,3 +5043,8 @@ These are optional, distinct second-order consumers, not evidence that reflectiv
 **Authority boundary:** no code, schedule, decay horizon, event resolution policy, schema, flags, frozen specification, Master Roadmap, Gate 0 or Phase 1 authority changed. This is a source-path gap, not yet a new verified defect ID.
 
 **Source anchors:** `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/__init__.py` blob `661dc737f54c88f763588606867ae1b9cd7e6654`; `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; tests `tests/test_metacognition.py`.
+
+
+### §130 call-site sweep refinement
+
+A targeted 24-file sweep across Theory X life loops, scheduler, world/signal/diversity loops, registry/protocol and monitor modules found no `Metacognition.decay()`, generic `.decay()` dispatch, `all_nodes()` dispatch, or `UPDATE meta_cognition_events` writer outside the already-inspected Metacognition implementation. This is not a whole-repository proof; the exact unresolved scope is any remaining caller/writer outside those paths. The current boot/chat/registry evidence still contains no lifecycle dispatcher.
