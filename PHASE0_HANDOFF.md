@@ -463,3 +463,7 @@ The normal `run.py` boot registers nine Theory X nodes. Optional `gui/server.py:
 ### 28 November 2026 — DB-reaper test coverage boundary
 
 `tests/test_retention_reaper.py` proves the generic `reap_table()` batch-delete helper, but its target-list assertion checks only `drive_emergence_log` and `substrate_coherence`. It does not assert the `meta_cognition_events` target or exercise `reap()` against that table. The 30-day target is source-observed; systemd scheduling is configuration-observed; active timer/host execution remains UNKNOWN. See INDEX §142.
+
+### 28 November 2026 — DB-reaper host deployment history
+
+Historical 25 Nov host diagnostics first found `nex5-db-reaper.service` failing `203/EXEC` against the old `/home/rr/Desktop/Desktop/nex5` path. A later check verified the loaded unit was corrected to `/mnt/games/storage/Desktop/Desktop/nex5` and `nex_db_reaper.py` existed there. No service was deliberately started/restarted and no successful run or nightly retention pass was observed. The versioned repository service file still contains the old path, so reinstalling that reference copy could regress the correction. Current timer activation, service health and last successful run remain UNKNOWN. See INDEX §143.
