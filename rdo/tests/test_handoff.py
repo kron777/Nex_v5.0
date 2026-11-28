@@ -695,3 +695,53 @@ def test_acceptance_verification_rejects_unknown_event_and_pending_completion_me
             verification_method="manual review",
             confidence="reviewed",
         )
+
+
+def test_completed_acceptance_criterion_passes_independent_watcher_verification(tmp_path, monkeypatch):
+    """A completed criterion event is validated by the separate Watcher process.
+
+    Passing a criterion is not human delivery acceptance, test execution, or
+    host/runtime evidence; those dimensions must remain separate.
+    """
+    from rdo_adapters.handoff import record_context_mapping, record_acceptance_verification
+
+    repo = _clean_repo(tmp_path / "repo")
+    (repo / ".gitignore").write_text("rdo/.cycles/\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "ignore RDO cycle store"], check=True)
+    workdir = str(repo / "rdo" / ".cycles")
+
+    import rdo.orchestrator as orchestrator
+    monkeypatch.setattr(orchestrator, "_active_experiments", lambda _repo: [])
+    result = submit_objective(_objective(), repo_dir=str(repo), workdir=workdir)
+    package = result["cycle"]["work_packages"][0]
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    record_scope_review(
+        workdir, manifest["handoff_id"], "approved", "reviewer",
+        "review:scope", ["prepare_scoped_patch", "edit_documentation_within_scope"],
+    )
+    criterion = manifest["objective_context_assessment"]["acceptance_verification"][0]
+    mapped_key = manifest["obligations"][0]["key"]
+    record_context_mapping(
+        workdir, manifest["handoff_id"], criterion["criterion_id"],
+        [mapped_key], ["review:criterion-map"], "reviewer", "review:context-map",
+    )
+    record_acceptance_verification(
+        workdir, manifest["handoff_id"], criterion["criterion_id"], "passed",
+        "reviewer", "review:criterion-verification",
+        mapped_obligation_keys=[mapped_key],
+        verification_method="inspect the delivered documentation against the criterion",
+        evidence_references=["review:evidence:criterion-1"],
+        confidence="reviewed",
+        verified_at="2026-11-28T04:30:00+02:00",
+    )
+
+    report = verify_with_watcher(workdir, str(repo), manifest["handoff_id"])
+    assert report["exit_status"] == "scope_compliant"
+    assert report["verification_process"] == "independent_watcher_cli_process"
+    assert report["evidence_dimensions"]["test_verified"] == "not_authorized"
+    assert report["evidence_dimensions"]["runtime_observed"] == "unknown_host_only"
+    # A criterion-level passed review is not the separate human acceptance event.
+    assert report["human_acceptance"]["status"] == "not_recorded"
