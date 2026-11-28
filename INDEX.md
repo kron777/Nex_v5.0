@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `0d83b36776b0e51b87c3b152d23f4dd74915da35`  
+**Last verified against:** `main` at `a6d084051e1d523812ef51c2d93784cba226499d`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -881,7 +881,7 @@ Exact-head full-suite CI passed for the two larger new slices:
 - **PR #339:** 2,819 passed, 7 skipped, 45 subtests passed. The mind-map verification completed with 30 nodes and 0 unverified nodes.
 - **PR #343:** 2,812 passed, 7 skipped, 45 subtests passed. The mind-map verification completed with 30 nodes and 0 unverified nodes.
 
-The mind-map check still reports existing warnings for missing doctrine source files `VIRTUE_SLATE.md` and `mental_factors_inventory_alobha_spec.txt`, plus the overdue P13 finitude unblock. These warnings were not introduced by these PRs and were not treated as successful completion of those doctrine tasks. Post-merge mainline CI for the combined tree is tracked separately.
+The mind-map check still reports existing warnings for missing doctrine source files `VIRTUE_SLATE.md` and `mental_factors_inventory_alobha_spec.txt`, plus the overdue P13 finitude unblock. These warnings were not introduced by these PRs and were not treated as successful completion of those doctrine tasks. Post-merge mainline CI passed after #343 (#2100: 2,830 passed) and after #345 (#2111: 2,834 passed); the post-#346 mainline run (#2115) was pending at this documentation snapshot.
 
 ### Integrity and authority boundaries
 
@@ -903,18 +903,47 @@ This is isolated repository/test-store verification, not a live belief-database 
 
 **G-91 — objective-context evidence resolution (partially closed).** Typed context requirements existed in #340. PR #343 adds a structured, caller-attributed mapping and criterion-review workflow, and the independent Watcher now validates it. Remaining gaps: mappings are still human-supplied; evidence references are not dereferenced or independently authenticated; mappings do not automatically generate new obligations or feed a subsequent planning cycle; and no execution authority is implied.
 
-**G-92 — first-level decomposition and novel-kind rule development (open).** The repository's objective intake requires externally supplied seed obligations, and `run_cycle` begins from those seeds. The Extrapolator uses a finite static rule catalogue; a novel obligation kind is surfaced at the frontier when no rule exists. PatternMemory records applicable lessons and disconfirmations, but it does not create or promote executable expansion rules. Consequently, the repository provides recursive expansion of a supplied seed graph, not a self-contained raw-idea-to-complete-build decomposer. The external LLM/human seed-proposal boundary is explicit and can be used by ChatGPT, but it is not an integrated provider.
+**G-92 — first-level decomposition and novel-kind rule lifecycle (partially advanced; still open).** Objective intake still requires externally supplied seed obligations, and `run_cycle` begins from those seeds. PR #346 now turns an unknown-kind frontier stop into a versioned (`schema_version: 1`) `rule_proposal_request` containing the source obligation, known rule kinds, terminal kinds and review dimensions. The obligation remains unexpanded; the request is an inert, provider-neutral handoff to a human or external LLM. It does not generate, approve or activate a rule. PatternMemory remains descriptive and does not promote patterns into executable rules.
 
-The next safe capability is a provider-neutral candidate-seed and candidate-rule proposal lifecycle: preserve alternative interpretations, assumptions, evidence needs, applicability, exceptions, disconfirmations, provenance and tests; require review/approval before a candidate rule enters the active versioned catalogue; never promote a rule solely because a pattern appeared repeatedly.
+Remaining work: define and persist candidate RuleProposal records, preserve alternative interpretations and disconfirmations, validate applicability/exceptions/evidence/tests, and record explicit review/approval before an approved rule can enter a versioned active catalogue. Raw-idea-to-seed generation remains an external LLM/human boundary; no provider is integrated. Frequency alone must never promote a rule.
 
-**G-93 — feedback-loop measurement/review update path (open).** `assess_system` already creates a `FeedbackLoopAssessment` for each detected influence cycle, serializes it into `TensionAssessment.dimensions.feedback_loop_assessments`, and persists it within `CycleRecord.tension`. Topology and UNKNOWN-first stability placeholders are therefore already preserved. Missing: a traceable way to append measured dimensions and independently reviewed stability evidence to that existing record; no CLI/API path currently accepts those updates. It does not calculate stability, gain, damping or thresholds. Next: add an evidence-bound update path that preserves original topology, validates measurement evidence/provenance, and leaves stability UNKNOWN unless a separately reviewed assessment is supported. Do not invent thresholds or stability verdicts.
+**G-93 — feedback-loop measurement/review update path (open).** `assess_system` already creates a `FeedbackLoopAssessment` for each detected influence cycle, serializes it into `TensionAssessment.dimensions.feedback_loop_assessments`, and persists it within `CycleRecord.tension`. Topology and UNKNOWN-first stability placeholders are already preserved. Missing: a traceable way to append measured dimensions and independently reviewed stability evidence; no CLI/API path accepts those updates. No stability, gain, damping or threshold calculations exist. Add an evidence-bound update path that preserves topology and leaves stability UNKNOWN unless separately reviewed.
 
 ### Next bounded development sequence
 
-1. Confirm the post-merge mainline CI run for the combined #339/#343 tree.
+1. **Completed:** combined mainline CI passed after #343 (#2100: 2,830 passed) and after #345 (#2111: 2,834 passed); the post-#346 mainline run (#2115) was pending at this documentation snapshot.
 2. Build a traceable end-to-end single-objective case: original idea and externally supplied seed proposal → objective intake → recursive expansion → context mapping → criterion verification → Stage-7 handoff → independent Watcher verification. Keep planning review distinct from execution and acceptance.
-3. Design the candidate expansion-rule proposal/approval lifecycle for novel kinds, preserving disconfirming evidence and preventing automatic promotion.
-4. Integrate FeedbackLoopAssessment into CycleRecord with legacy-load compatibility, UNKNOWN-first defaults and measured-evidence validation; do not calculate ungrounded stability scores.
-5. Preserve the already implemented Stage-2 belief-development and fresh-process CycleStore-resume tests as regression baseline; focus next on novel-kind rule proposals and the raw-idea-to-handoff boundary rather than rebuilding Stage 2.
+3. Build the candidate RuleProposal record and review-event lifecycle on top of PR #346's structured frontier request; keep candidates inert until explicit approval and prevent automatic promotion.
+4. Add an evidence-bound measured/reviewed update path for existing feedback-loop entries in `CycleRecord.tension`; preserve topology, UNKNOWN-first defaults and legacy loading, without calculating ungrounded stability scores.
+5. Preserve the already implemented Stage-2 belief-development and fresh-process CycleStore-resume tests as a completed regression baseline; do not rebuild Stage 2.
 
 This update records implementation evidence and remaining capability boundaries; it does not amend the frozen specification/register.
+
+
+## 44. RDO persistence and novel-kind frontier update — 28 November 2026
+
+### Merged implementation
+
+- **PR #345 — persistence failure safety:** CycleStore now serializes to a same-directory temporary file, flushes/fsyncs it, atomically replaces the prior cycle file and fsyncs the directory. PatternMemory prepares candidate snapshots and appends/fsyncs them before publishing in-memory changes. Failure-injection tests verify that a failed append does not advance memory and a failed replacement preserves the prior cycle.
+- **PR #346 — structured novel-kind request:** an unknown obligation kind now carries a versioned `rule_proposal_request` in the frontier. It includes the original obligation, known rule kinds, terminal kinds, proposal requirements and an explicit candidate-only-until-review policy. The unknown obligation remains deferred and is not expanded.
+
+### Verification
+
+- **PR #345 exact-head and post-merge mainline:** 2,834 passed, 7 skipped, 45 subtests passed.
+- **PR #346 exact-head:** 2,835 passed, 7 skipped, 45 subtests passed.
+- Mind-map verification remains 30 nodes, 0 unverified. Existing warnings remain for missing `VIRTUE_SLATE.md`, missing `mental_factors_inventory_alobha_spec.txt`, and overdue P13 finitude unblock.
+
+### Remaining boundaries
+
+- PatternMemory persistence is failure-safe for a single writer; concurrent multi-process PatternMemory transactions are not serialized.
+- CycleStore atomic replacement prevents partial cycle files, but does not serialize concurrent read-modify-write transactions. Use one writer per cycle ID; the last successful replacement wins.
+- PR #346 exposes a request, not a candidate rule. Candidate generation, validation, review/approval and controlled activation remain open.
+- No NEX runtime authority or execution path is granted by either PR.
+
+### Next development
+
+1. Build the candidate RuleProposal record and review-event lifecycle on top of the structured frontier request.
+2. Extend the seeded-objective end-to-end test to cover a completed criterion outcome through the independent Watcher, preserving pending-state tests.
+3. Add an evidence-bound measured/reviewed update path for existing feedback-loop assessments.
+4. Preserve Stage-2 fresh-process persistence/resume as a completed regression baseline.
+
