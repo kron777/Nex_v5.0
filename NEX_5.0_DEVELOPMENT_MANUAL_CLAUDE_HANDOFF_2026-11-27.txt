@@ -1085,6 +1085,8 @@ This is a persistence-ownership correction that preserves the existing cognitive
 
 This closes the source-to-sink path: beliefs/tags → snapshot → attention history → drift detector → metacognitive event ledger → prompt context.
 
+Runtime confirmation: `run.py` injects the real SelfMindView into Metacognition, and `gui/server.py` calls `state.metacognition.tick()` on the chat path before `format_for_prompt()` and prompt injection. This is an active per-chat-turn wire, not a dormant detector.
+
 Semantic boundary: this SelfMindView attention aspect is theme-recurrence derived from belief tags, not the Stage-2 Bonsai branch-focus vector. The Metacognition detector is therefore a thematic repetition detector. The Stage-2 → Bonsai → Fountain/Global Workspace path remains a separate attention representation; this PR does not conflate or merge them.
 
 ### Scope
