@@ -217,7 +217,7 @@ deployed-host behaviour. Later CI runs are not substituted for this exact histor
 `rdo selfcheck` now distinguishes the core reasoning package from its external
 input boundary. The last recorded self-assessment baseline contained **14 modules / 3,775
 non-comment LOC**; the provider-neutral objective-intake and Stage-7 handoff
-adapters were separately reported at **2 modules / 1,098 non-comment LOC** under
+adapters are separately reported at **3 modules / 1,538 non-comment LOC** under
 `rdo_adapters/`. The typed objective-context and acceptance-verification increment
 adds code to existing core modules rather than creating another reasoning module.
 The self-assessment must be rerun against the current head before publishing a
@@ -418,3 +418,12 @@ This is a provider-neutral handoff to a human or external LLM, not an automatica
 generated or activated rule. Candidate rules remain inert until an explicit review
 and approval lifecycle is implemented. Repeated pattern frequency alone does not
 activate a rule.
+
+
+## Novel expansion-rule proposals
+
+A novel obligation kind remains a visible frontier item; it is never silently expanded. Its provider-neutral request carries the source obligation, review requirements, and a digest of the exact expansion-rule/terminal-kind catalogue snapshot. Requests from an older schema or changed catalogue are rejected as stale.
+
+`rdo_adapters.rule_proposals.RuleProposalStore` records candidate proposals and explicit caller-attributed review decisions in an append-only, hash-chained JSONL ledger. Candidates must retain applicability, preconditions, constraints, exceptions, anti-requirements, assumptions, alternative interpretations, evidence references, disconfirming cases, and positive/negative test plans. The store does not execute proposal content or import generated code.
+
+Even `approved_for_catalogue` means only that a candidate is eligible for a separate code/catalogue change review. There is deliberately no activation API: `EXPANSION_RULES` remains the only active catalogue and changes only through an ordinary reviewed source change with tests and CI. Proposer/reviewer labels are caller-attributed, not identity-authenticated.

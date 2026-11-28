@@ -20,6 +20,8 @@ frontier stays visible.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, HYPOTHESIS, NECESSARY,
@@ -168,6 +170,23 @@ def rule_catalogue() -> dict:
     }
 
 
+def expansion_catalogue_digest() -> str:
+    """Stable fingerprint of rule content and terminal kinds for stale-request detection."""
+    payload = {
+        "schema_version": 1,
+        "rules": {
+            kind: [list(rule) for rule in rules]
+            for kind, rules in sorted(EXPANSION_RULES.items())
+        },
+        "terminal_kinds": sorted(TERMINAL_KINDS),
+    }
+    canonical = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True,
+        separators=(",", ":"), allow_nan=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def expand(seeds: List[Obligation],
            reconcile_fn: Optional[Callable[[Obligation], str]] = None,
            max_depth: int = 4) -> Tuple[Dict[str, Obligation], List[Relationship], List[dict]]:
@@ -266,7 +285,7 @@ def expand(seeds: List[Obligation],
                 "reason": f"no expansion rule for kind '{ob.kind}'",
                 "frontier_type": "novel_kind_requires_rule_proposal",
                 "rule_proposal_request": {
-                    "schema_version": 1,
+                    "schema_version": 2,
                     "target_kind": ob.kind,
                     "source_obligation": ob.to_dict(),
                     "known_rule_kinds": sorted(EXPANSION_RULES),
@@ -281,6 +300,7 @@ def expand(seeds: List[Obligation],
                         "positive_and_negative_tests",
                     ],
                     "activation_policy": "candidate_only_until_explicit_review",
+                    "catalogue_digest": expansion_catalogue_digest(),
                 },
             })
             continue
