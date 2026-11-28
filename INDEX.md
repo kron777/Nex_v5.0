@@ -4884,7 +4884,7 @@ The next safe characterization is a separate fixture-level test of the complete 
 
 **Question studied:** after Metacognition and Stage-SelfNarrative format a repeated groove observation, does that text necessarily reach the language model, or can the chat route return before prompt assembly?
 
-**Evidence snapshot:** source files on main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`; test candidate PR #449 head `8132db2a338727e580e3269ad148277db727b0d4`. Static caller/branch trace. PR #449 exact-head workflow `46174972385` passed the combined formatter fixture (3,079 passed, 7 skipped, 86 subtests). Route-level test PR #450 exact head `b33022cfaf47cc34dc8eec316cd583c15e6d880e`, workflow `46175227754`, remains in progress.
+**Evidence snapshot:** source files on main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`; test candidate PR #449 head `8132db2a338727e580e3269ad148277db727b0d4`. Static caller/branch trace. PR #449 exact-head workflow `46174972385` passed the combined formatter fixture (3,079 passed, 7 skipped, 86 subtests). Route-level test PR #450 exact head `b33022cfaf47cc34dc8eec316cd583c15e6d880e`, workflow `46175227754`, passed (3,078 passed, 7 skipped, 86 subtests).
 
 ### The actual prompt route
 
@@ -4905,9 +4905,9 @@ The gate is a chat-reply availability rule, not a cognitive authority or action 
 
 ### Next bounded question
 
-The route-level distinction is now under test in draft PR #450: under Technical with a deterministically insufficient-belief threshold, the route should return before voice transport; under Philosophical, the test checks both reflective strings in the exact transport user-message content. Exact-head CI is pending. Use the result to establish fixture-level route delivery only; do not infer provider acceptance or semantic model use.
+The route-level distinction is now exact-head test-verified in draft PR #450: under Technical with a deterministically insufficient-belief threshold, the route returns before voice transport; under Philosophical, both reflective strings appear in the exact transport user-message content. Workflow `46175227754` passed 3,078 tests, 7 skipped, 86 subtests. This establishes fixture-level route delivery only; it does not establish provider acceptance or semantic model use.
 
-**Disposition:** source-observed prompt assembly and early-return boundary; combined Metacognition/SelfNarrative formatter fixture is exact-head test-verified in PR #449; route-to-transport fixture is pending exact-head CI in PR #450. Production prompt-log observation remains UNKNOWN. G-83 remains OPEN; no source-alert acknowledgement, episode identity, Row 9 threshold/duration, prompt policy, flags, runtime code, schema, frozen S-01–S-25/M1.8, Master Roadmap, Gate 0 or action authority changed.
+**Disposition:** source-observed prompt assembly and early-return boundary; combined Metacognition/SelfNarrative formatter fixture is exact-head test-verified in PR #449; route-to-transport fixture is exact-head test-verified in PR #450. Both PRs remain draft pending review. Production prompt-log observation remains UNKNOWN. Production prompt-log observation remains UNKNOWN. G-83 remains OPEN; no source-alert acknowledgement, episode identity, Row 9 threshold/duration, prompt policy, flags, runtime code, schema, frozen S-01–S-25/M1.8, Master Roadmap, Gate 0 or action authority changed.
 
 **Source anchors:** `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; PR #449 candidate head `8132db2a338727e580e3269ad148277db727b0d4`; workflow `46174972385`.
 
@@ -4923,7 +4923,7 @@ This closes the static source chain from `belief_text` → `voice_prompt` → `V
 
 ### Route-level G-83 characterization candidate
 
-A separate draft test PR #450 now exercises the real `/api/chat` route with isolated SQLite and a mocked VoiceClient transport. It seeds one groove alert and installs the real Metacognition and Stage-SelfNarrative instances. The test uses Technical with a deterministically raised threshold to assert the gap-refusal early return occurs before voice transport, then Philosophical to assert both the generic self-observation and topic-matched pattern narrative appear in the exact transport user-message content. Exact head: `b33022cfaf47cc34dc8eec316cd583c15e6d880e`; workflow `46175227754` is pending/in progress. This would test route-to-transport string delivery, not real model-provider acceptance or semantic use. PR #450 is test-only and remains draft; no runtime or policy change.
+A separate draft test PR #450 exercises the real `/api/chat` route with isolated SQLite and a mocked VoiceClient transport. It seeds one groove alert and installs the real Metacognition and Stage-SelfNarrative instances. Technical with a deterministically raised threshold returns before voice transport; Philosophical carries both the generic self-observation and topic-matched pattern narrative into the exact transport user-message content. Exact head `b33022cfaf47cc34dc8eec316cd583c15e6d880e`; workflow `46175227754` passed 3,078 passed, 7 skipped, 86 subtests. This establishes route-to-transport string delivery in a fixture, not provider acceptance or semantic use. PR #450 is test-only and remains draft; no runtime or policy change.
 
 
 ## §128 — G-83 upstream provenance: Fountain output → GrooveSpotter → two distinct feedback controls (28 November 2026)
