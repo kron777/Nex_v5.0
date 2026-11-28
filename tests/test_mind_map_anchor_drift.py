@@ -201,7 +201,7 @@ def test_quoted_code_pointers_in_notes_are_not_treated_as_source_anchors(repo):
     assert 'This prose mentions "pkg/mod.py:3-4"' in content
 
 
-def test_findings_ids_are_not_mistaken_for_nodes(repo):def test_findings_ids_are_not_mistaken_for_nodes(repo):
+def test_findings_ids_are_not_mistaken_for_nodes(repo):
     (repo / "MAP.yaml").write_text(_map_verified("pkg/mod.py:3-4", "2026-11-27"))
     _git(repo, "commit", "-qam", "dated")
     (repo / "pkg" / "mod.py").write_text("x\n" + _SRC)
