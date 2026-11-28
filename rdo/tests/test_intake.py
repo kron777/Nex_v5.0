@@ -688,7 +688,7 @@ def test_intake_rejects_unapproved_or_unknown_rule_selection_before_cycle_creati
         "anti_requirements": ["Do not start the worker autonomously."],
         "evidence_needs": ["A lifecycle contract."],
         "disconfirming_cases": ["An objective that only documents an existing worker."],
-        "provenance": ["frontier:unapproved:worker"],
+        "provenance": ["frontier:unapproved-source-cycle:worker"],
         "positive_tests": ["tests/test_worker_rule.py::test_lifecycle"],
         "negative_tests": ["tests/test_worker_rule.py::test_documentation_only"],
     }
