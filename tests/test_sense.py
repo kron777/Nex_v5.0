@@ -144,6 +144,7 @@ class TestScheduler(unittest.TestCase):
     def tearDown(self):
         if hasattr(self, "scheduler"):
             self.scheduler.shutdown()
+            self.scheduler.join(timeout=1.0)
         _cleanup(self.writers, self.tmp)
 
     def _build(self, adapters):
@@ -205,6 +206,57 @@ class TestScheduler(unittest.TestCase):
         with self.assertRaises(ValueError):
             sched.disable("temporal")
 
+    def test_shutdown_join_terminates_idle_adapter_threads(self):
+        class IdleAdapter:
+            id = "idle_join"
+            stream = "test.idle"
+            poll_interval_seconds = 9999
+            provenance = "mock://idle"
+            is_internal = False
+            enabled = False
+
+            def poll(self):
+                return []
+
+            def submit(self, events):
+                return 0
+
+        sched = self._build([IdleAdapter()])
+        sched.shutdown()
+        self.assertEqual(sched.join(timeout=1.0), [])
+        worker = sched._threads["idle_join"]
+        self.assertFalse(worker._thread.is_alive())
+
+    def test_join_reports_blocked_adapter_and_uses_bounded_timeout(self):
+        entered = threading.Event()
+        release = threading.Event()
+
+        class BlockingAdapter:
+            id = "blocked_join"
+            stream = "test.blocked"
+            poll_interval_seconds = 9999
+            provenance = "mock://blocked"
+            is_internal = False
+            enabled = False
+
+            def poll(self):
+                entered.set()
+                release.wait(2.0)
+                return []
+
+            def submit(self, events):
+                return 0
+
+        sched = self._build([BlockingAdapter()])
+        self.assertTrue(entered.wait(1.0))
+        sched.shutdown()
+        started = time.monotonic()
+        alive = sched.join(timeout=0.05)
+        self.assertIn("sense.blocked_join", alive)
+        self.assertLess(time.monotonic() - started, 0.3)
+        release.set()
+        self.assertEqual(sched.join(timeout=1.0), [])
+
     def test_mock_poll_events_land_in_sense_db(self):
         from theory_x.stage1_sense.base import SenseEvent
 
@@ -259,6 +311,7 @@ class TestScheduler(unittest.TestCase):
         self.assertGreater(n, 0, "no events landed in sense.db")
 
         t.stop()
+        self.assertTrue(t.join(timeout=1.0))
 
 
 # ---- GUI sense endpoints ---------------------------------------------------
