@@ -185,11 +185,7 @@ def expand(seeds: List[Obligation],
     if approved_catalogue is not None:
         if not isinstance(approved_catalogue, ApprovedRuleCatalogue):
             raise ValueError("approved_catalogue must come from RuleProposalStore.approved_catalogue()")
-        if (isinstance(approved_catalogue.version, bool)
-                or not isinstance(approved_catalogue.version, int)
-                or approved_catalogue.version < 1
-                or not re.fullmatch(r"[0-9a-f]{64}", approved_catalogue.sha256)):
-            raise ValueError("approved rule catalogue has invalid version or digest")
+        approved_catalogue.validate()
         for kind, rule_steps in approved_catalogue.rules.items():
             if kind in rules_by_kind or kind in TERMINAL_KINDS:
                 raise ValueError(f"approved rule kind {kind!r} conflicts with a built-in rule")
