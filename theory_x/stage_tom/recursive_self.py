@@ -151,10 +151,14 @@ def perturbation(dynamic_writer=None) -> dict:
             "emotion": emotion, "attending": attending}
 
 
-def format_for_prompt() -> str:
+def format_for_prompt(dynamic_writer=None) -> str:
     """The perturbing self-reading line NEX takes in. Empty when no perturbation
-    is warranted (free + productive — let it flow)."""
-    p = perturbation()
+    is warranted (free + productive — let it flow).
+
+    Runtime callers pass the AppState dynamic Writer through the full binding
+    path; standalone use retains the optional self-owned Writer fallback.
+    """
+    p = perturbation(dynamic_writer=dynamic_writer)
     if not p.get("perturb"):
         return ""
 
