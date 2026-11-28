@@ -448,13 +448,14 @@ class TestStageTomSelfNarrativeRutBeliefReader(unittest.TestCase):
 
         narrative = build_narrative(paths["dynamic"], paths["beliefs"])
         self.assertIsNotNone(narrative)
-        self.assertIn(note, narrative)
+        # _recent_t6() deliberately truncates each rendered belief to 80 chars.
+        self.assertIn(note[:80], narrative)
 
         # The Stage-TOM write_narrative interface appends to a private list;
         # get_narrative() composes from DB state and does not read that list.
         composer = SelfNarrative(paths["dynamic"], paths["beliefs"])
         composer.write_narrative("PRIVATE_STAGE_TOM_LOG_SENTINEL", "gate", 42)
         rendered = composer.get_narrative()
-        self.assertIn(note, rendered)
+        self.assertIn(note[:80], rendered)
         self.assertNotIn("PRIVATE_STAGE_TOM_LOG_SENTINEL", rendered)
 
