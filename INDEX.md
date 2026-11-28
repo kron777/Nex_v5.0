@@ -1241,3 +1241,112 @@ The broader boot sequence has the same class of risk: if boot raises after one o
 This finding does not justify changing graceful-shutdown timeouts, forcibly cancelling threads, altering scheduler feed policy, changing frozen specifications, or asserting a host leak. The next implementation should begin with the narrow SenseScheduler constructor invariant; the cross-boot rollback design is a separate increment because it spans many subsystems and must preserve their ownership contracts.
 
 **Evidence boundary:** source ordering and normal-path tests inspected; no live host boot fault was injected. Partial-construction failure, duplicate-ID orphaning and boot-time leaked threads remain unobserved hypotheses requiring deterministic tests. No runtime code, feature flags, databases, frozen S-01–S-25/M1.8 content, Master Roadmap, mind-map authority, Gate 0 or Phase 1 status changed in this study.
+
+
+
+## 51. Development approach upgrade — lifecycle contracts, adversarial probes and evidence debt (28 November 2026)
+
+**Research snapshot:** `main` at `169217c2b9e9641abe98551c89a6cf0570d4fc4c`. This entry upgrades the working method in §49 using the boot-ownership investigation in §50 and the current SenseScheduler implementation branch. It is an engineering-process refinement, not a change to NEX's governing specifications, roadmap or runtime authority.
+
+### 1. Model ownership as a lifecycle contract, not a shutdown callback
+
+For every background service, explicitly map the lifecycle:
+
+`unconstructed → constructed → prepared → started → active/paused → stop-requested → quiescent → joined → resources-released`
+
+Not every service needs every state, but transitions and owners must be explicit. Distinguish:
+- object construction from worker creation;
+- thread creation from successful thread start;
+- successful start from permission to perform work;
+- stop request from actual quiescence;
+- join completion from resource release;
+- normal shutdown from rollback after failed construction.
+
+A returned object is not automatically an owner of workers started before it was returned. A builder with side effects must either return a complete owner or roll back every side effect before propagating failure. At a higher level, boot must have an owner before the first service starts, or defer starts until that owner exists. Reuse the existing stop/join contracts; do not create a competing registry without evidence that the current owner cannot express the lifecycle.
+
+### 2. Use a fault-injection matrix, not one happy-path test
+
+For each owner/builder boundary, consider deterministic failure points:
+- before any worker is prepared;
+- after one or more workers are prepared but none started;
+- after the first successful start;
+- after a later start fails;
+- immediately before the activation/release gate opens;
+- during the first work unit;
+- while work is blocked in I/O;
+- while stop races with submit/write;
+- during join timeout;
+- during resource close after workers stop.
+
+For each case assert the invariant, not just an expected log: no unowned live worker, no work before activation commits, no post-stop submission where prohibited, no false clean-shutdown marker, bounded waiting, and preservation of the original exception. Use events/barriers and injected failures rather than sleeps wherever possible. A test that only asserts `is_alive() == False` should also establish that the worker actually entered the intended path or never passed its activation gate.
+
+### 3. Separate the three concurrency questions
+
+Do not collapse these into a generic “thread-safe” claim:
+1. **Ownership:** who retains the reference and is responsible for stop/join?
+2. **Admission:** what prevents new work from beginning while shutdown/rollback proceeds?
+3. **Completion:** what proves in-flight work has stopped before shared resources close?
+
+For each shared resource, identify its canonical owner and the exact admission/close ordering. Check the time-of-check/time-of-use gap between a producer's stop check and a Writer submission; a cooperative stop flag alone cannot close that gap. Conversely, do not introduce locks or cancellation where the existing queue/close contract already guarantees the required ordering.
+
+### 4. Expand the evidence record into an explicit claim ledger
+
+Every material finding should have a compact record:
+- claim and scope;
+- source revision plus path/symbol;
+- evidence class (source, test, CI, authorised host observation);
+- exact test/workflow/job and revision;
+- observed result;
+- counter-evidence and falsifier;
+- unresolved assumptions;
+- next probe and stop condition.
+
+Use precise status language: **observed**, **reproduced**, **source-derived**, **test-covered**, **CI-validated at exact head**, **host-observed**, or **unknown**. Do not promote one status into another. Preserve stale CI and base divergence as evidence debt, not as footnotes.
+
+### 5. Add a deliberate adversarial review before widening scope
+
+For every proposed fix, ask:
+- What if the exception happens one instruction earlier or later?
+- What if the callback runs twice or concurrently?
+- What if the worker starts but the caller sees an exception?
+- What if a resource is already closing?
+- What if the process restarts between persistence steps?
+- What if an alternate consumer bypasses the intended guard?
+- What prior OFF-state or exclusion might this change accidentally undo?
+- What evidence would show the fix is unnecessary or harmful?
+
+Prefer the smallest causal change that closes the invariant. Then inspect adjacent owners and alternate paths for the same defect class; do not mass-refactor them from pattern resemblance alone. A repeated pattern creates a research obligation, not automatic permission to copy a fix.
+
+### 6. Prioritise by risk, information gain and reversibility
+
+A practical order is:
+1. irreversible or externally consequential authority/side-effect boundary;
+2. data integrity, persistence ownership and false-clean-shutdown risks;
+3. orphaned workers, races, unbounded waits and recovery gaps;
+4. silent loss, starvation, stale state and misleading observability;
+5. semantic/interpretive quality and measured downstream effect;
+6. usability and efficiency.
+
+Within a tier, prefer a probe that distinguishes competing explanations and reduces uncertainty. Record expected information gain before expensive or broad work. If the evidence cannot distinguish hypotheses, keep the result unknown and move to a better probe rather than increasing code volume.
+
+### 7. Research–develop–observe now includes a lifecycle and counterfactual pass
+
+`Orient → classify the gap → map ownership and influence → state competing causal hypotheses → identify falsifiers → check existing contracts and authority → design fault/counterfactual probes → implement one bounded invariant → validate exact revision and scope → adversarially inspect adjacent paths → record evidence debt and consequences → reassess priority.`
+
+Continue research and implementation concurrently when a bounded, reversible increment is justified. Do not let CI waiting become idle time: inspect adjacent contracts, test blind spots, source ownership and alternative explanations. Equally, do not infer a pass while CI is pending. Every new implementation should trigger a rescan of the changed code, its callers, its consumers and the owner that closes its resources.
+
+### Current application: SenseScheduler startup transaction
+
+PR #414 (`fix/sense-scheduler-transactional-startup-2026-11-28`, head `ab8a1908be1ee17026a80ab934c6318b87847a9e`) implements the first bounded application:
+- validate adapter IDs before constructing workers;
+- prepare all workers before starting any;
+- hold workers behind a shared start gate until every thread has started;
+- on partial start failure, stop and join all prepared workers before re-raising;
+- treat never-started threads as already quiescent;
+- add deterministic duplicate-ID and injected second-start-failure regressions.
+
+The exact-head CI run 2526 was still running its full baseline suite when this entry was prepared; no pass is claimed here. The current regression proves the injected partial-start rollback and no-poll-before-commit case, but does not yet inject a worker blocked in its first operation during rollback. That is a specific remaining test question, not evidence of a leak.
+
+The same internal-start pattern appears in Dynamic, World Model, Membrane and Fountain builders. This is a cross-subsystem research queue only. Inspect each builder's own cleanup contract, constructor dependencies and tests before changing it. The boot-level owner-before-first-start boundary remains separate from builder-level rollback.
+
+**Unchanged boundaries:** no frozen S-01–S-25/M1.8 content, Master Roadmap, Gate 0/Phase 1 authority, Tibetan mind-map role, cognitive interpretation/action-authority separation, NEX runtime flags, databases or live host state changed by this method entry.
