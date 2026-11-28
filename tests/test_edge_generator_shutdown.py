@@ -46,7 +46,7 @@ def test_edge_proposals_stop_during_candidate_scoring():
     assert reader.read.call_count == 3
 
 
-def test_persist_edges_finishes_opposition_audit_pair_then_stops():
+def test_persist_edges_finishes_bounded_source_batch_once_started():
     stop = threading.Event()
     writer = MagicMock()
     generator = EdgeGenerator(writer, MagicMock())
@@ -63,8 +63,8 @@ def test_persist_edges_finishes_opposition_audit_pair_then_stops():
             stop_event=stop,
         )
 
-    assert count == 1
-    writer.write.assert_called_once()
+    assert count == 2
+    assert writer.write.call_count == 2
     log_undo.assert_called_once()
 
 
