@@ -991,6 +991,7 @@ def main() -> None:
     # fully constructed. Earlier signals remain boot-abort requests.
     signal.signal(signal.SIGTERM, _graceful_standby)
     signal.signal(signal.SIGINT, _graceful_standby)
+    _abort_if_boot_shutdown_requested(state)
 
     host = os.environ.get("NEX5_HOST", "127.0.0.1")
     port = int(os.environ.get("NEX5_PORT", "8765"))
