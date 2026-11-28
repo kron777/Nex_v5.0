@@ -950,8 +950,8 @@ nodes:
     blocked: false
     falsifier: "Should fail loudly if two writers claim the same subject."
     falsifier_status: fail
-    source: { kind: composite, refs: ["nex_keepalive.sh:20-45", "substrate/writer.py:1-16", "substrate/writer.py:57-188", "substrate/writer.py:203-291", "substrate/db.py:135-196"] }
-    last_verified: 2026-11-27
+    source: { kind: composite, refs: ["nex_keepalive.sh:20-45", "substrate/writer.py:1-16", "substrate/writer.py:57-247", "substrate/writer.py:262-350", "substrate/db.py:135-196"] }
+    last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: 'anchor not pinned' was wrong -- NEX5_CONTINUITY_N is a real,
       registered config var; the original check's un-excluded .venv noise drowned the real hit.
@@ -1004,6 +1004,15 @@ nodes:
       lifecycle locking inside it -- submissions after close fail synchronously and close() drains,
       then raises TimeoutError. No same-subject or dual-writer detector was added; the falsifier
       remains FAIL.
+
+      2026-11-28 re-verification after #424 (b604ddfe, Writer startup rollback): every cited ref
+      re-read. writer.py:1-16, db.py:135-196 and nex_keepalive.sh:20-45 are unchanged. #424 added
+      partial-startup rollback inside the first Writer block, which now spans writer.py:57-247 (same
+      first and last statements); the later block moved from :203-291 to :262-350, byte-identical. The
+      rollback is preventive -- a Writer whose bounded rollback timed out keeps its worker reference
+      so a retry cannot start a second worker on the same connection, and logs an error -- not a
+      same-subject or dual-writer detector, so the falsifier remains FAIL and the
+      preventive-vs-detective finding stands.
 
   - id: p2_train
     label: "2 · Train of thought across restart"
