@@ -2842,3 +2842,77 @@ Stage-7 provides strong manifest binding, bounded non-executing scope review, ap
 **Source anchors inspected at main 18c8f06171e1de35c3210831a49b63d0e2487af0:** rdo_adapters/handoff.py blob c0fe2afc90d3e5fe948c7555bde1cf1675d7c0be; rdo/tests/test_handoff.py blob [test file inspected]; rdo/execution.py blob c4c3bb9b8c0dab5c16091c0ca3146921cf569c15; rdo/tests/test_stage7_execution_watcher.py blob 832b6290a45c793274e0890037618a7fb5eeea36; rdo/STAGE7_HANDOFF.md and rdo/STAGE7_EXECUTION_WATCHER.md.
 
 **Unchanged boundaries:** no identity provider, signing key, authentication mechanism, approval rule, event schema, execution capability, Watcher behavior, database, flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or runtime authority is changed. This is a source-and-test study only; no tests were executed in this turn.
+
+## 85. Cognitive feedback loops: attention, quality attribution and stale reinforcement signals (28 November 2026)
+
+**Question studied:** which NEX cognitive pathways feed their own future prominence, and what prevents a useful adaptive loop from becoming a self-reinforcing attention bias?
+
+### 1. The demonstrated Bonsai feedback path
+
+The external-event A–F pipeline matches events to branches, calculates magnitude, applies the membrane aperture, derives valence and calls BonsaiTree.attend(). Bonsai focus is then consumed independently by:
+- Fountain hot-branch selection, normally the highest-focus branch; optional positive-temperature selection can choose a lower-focus branch.
+- Global Workspace framing, where the hottest branch becomes a candidate when focus exceeds 0.1 and receives salience focus × 0.50.
+- Other downstream attention/carry attribution paths described in the existing Bonsai/Fountain trace.
+
+This is a real shared-state coupling, not evidence of an uncontrolled infinite loop. Bonsai focus is bounded to [0,1], receives weighted increments, and has decay, recency penalties, cadence-aware decay and a starvation bonus. The current test characterization proves the shared state reaches both Fountain branch selection and Workspace framing, but it does not prove better reasoning or output quality.
+
+### 2. Quality Synthesis creates a second-order reinforcement loop
+
+When NEX5_QUALITY_SYNTH=1, Fountain startup launches Quality Synthesis. Every 30 minutes, it:
+1. Reads recent genius_tags from the previous three hours.
+2. Joins each tagged fire to fountain_events.hot_branch.
+3. Computes per-branch score fractions.
+4. Classifies branches as high, low or neutral.
+5. Writes data/quality_signal.json.
+
+Attention reloads that file every five minutes. A high branch receives a 1.20 multiplier on external-event magnitude; a low branch receives 0.82. That changes future Bonsai focus increments, which influence later branch selection and framing, which changes which branch receives the next fire's genius attribution.
+
+The loop is therefore endogenous in part: branch prominence influences which outputs are attributed to the branch, and those attributed scores can then influence future branch prominence. This does not invalidate the signal, but it means the score is not a fully independent measure of branch quality. Exposure, selection and evaluator judgement are coupled.
+
+### 3. Existing safeguards are meaningful but incomplete
+
+The implementation already includes several protections:
+- Minimum sample size is eight tagged fires per branch.
+- Quality window is three hours.
+- High requires at least 45% of scores >= 0.55; low requires at least 55% <= 0.25.
+- No more than two low branches are dampened in one pass.
+- Multipliers are bounded and modest (1.20 and 0.82).
+- Internal telemetry streams are explicitly prevented from steering Bonsai attention, avoiding the previously observed systems-focus saturation.
+- Bonsai focus is capped and decays; recent hot branches receive extra decay and starved branches receive a limited bonus.
+
+These reduce runaway behavior and starvation. They do not remove the attribution feedback or establish that the score signal is calibrated, independent or causally beneficial.
+
+### 4. A concrete lifecycle edge: the consumer is not gated by the producer flag
+
+The producer loop is started only when NEX5_QUALITY_SYNTH=1. However, attention._quality_multiplier() reads quality_signal.json without checking that flag. The JSON file lives in the data directory and is not cleared by the inspected startup path. Thus, if a prior run wrote a signal and a later run disables the producer, the consumer can still apply the previously written high/low verdicts.
+
+There is a related cache behavior: when file loading fails, the exception is swallowed and the old in-memory cache is retained. The cache reload timestamp is not advanced on failure, so the consumer retries on subsequent calls, but the last successfully loaded verdicts can continue to apply until a successful read replaces them. A deleted or malformed file therefore does not immediately mean neutral influence.
+
+This is a source-level lifecycle finding, not proof that a particular host currently has a stale file or that the feature flag is enabled. Host/runtime state remains UNKNOWN.
+
+### 5. SelfNarrative is another feedback path, but not the same kind
+
+The current SelfNarrative implementation writes event-triggered entries and reads up to five recent entries into prompt context. Its rut mirror reads genius-tag striking-rate and, when a sustained trough is observed, writes a first-person observation at most once every two hours. That note is a prompt-visible reflection, not a command or a direct attention multiplier.
+
+The distinction matters: SelfNarrative can influence future interpretation through language context, while Quality Synthesis directly changes a numeric attention multiplier. Both can create feedback, but they require different measurements and safeguards. The separate stage_self_narrative implementation and its older draft specification must not be conflated with the Stage-TOM implementation instantiated by Fountain.
+
+### 6. Recommended study and design direction — no runtime change yet
+
+Before changing weights, measure the loop as a causal system:
+1. Record per-fire branch candidates, selected branch, score provenance, sample age/count and effective quality multiplier.
+2. Compare branch quality under matched exposure, not only raw score averages. At minimum report fires per branch, score distribution, evaluator version and time window.
+3. Run offline counterfactual replay with quality multiplier neutralized, then with current multipliers, keeping input events and evaluator tags fixed.
+4. Measure winner-kind share, branch entropy/Gini, cold-branch exposure, repeated-branch streaks and output-quality outcomes separately.
+5. Test the stale-signal lifecycle: producer flag off with an old file, file deleted, malformed JSON, old timestamp, partial write and a fresh valid file.
+
+A conservative future consumer contract would require an explicit enable condition, a versioned signal schema, a bounded max-age check and neutral behavior for missing/invalid/stale signals. On load failure, stale cached values should not silently remain active beyond their declared validity. Any such change needs focused tests and exact-head CI before implementation is treated as complete.
+
+Do not simply remove feedback. Adaptive cognition needs feedback. The objective is to make the feedback observable, bounded, freshness-aware and resistant to exposure bias—so useful signals can shape attention without becoming self-validating.
+
+### Research conclusion
+
+NEX already contains bounded attention dynamics and a real quality-to-attention feedback loop. Its safeguards limit magnitude and protect some diversity, but branch attribution makes the quality signal partly endogenous. The most actionable source-level issue is that the quality-signal producer is feature-flagged while its consumer is not, and the consumer retains its last cache after read failure. The next responsible step is characterization and measurement, not speculative weight tuning. No runtime code, feature flag, database, schema, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority was changed. No tests were run in this study.
+
+**Source anchors inspected at main:** `theory_x/stage2_dynamic/pipeline.py` blob `fbac28e96ffc34dbf59c60242d3ac635835e6e06`; `theory_x/stage2_dynamic/attention.py` blob `d2765c7618e8421bb3e60c8898f749f2370f0344`; `theory_x/stage2_dynamic/bonsai.py` blob `d0389d6036deecf27dcf636771ef817c685b1e7c`; `theory_x/stage_tom/quality_synthesis.py` blob `284d37ef654eb2e43783e3cb6200e3f995229d75`; `theory_x/stage_tom/global_workspace.py` blob `39d833d4a88ed3ad371daf7b62e7295d0dda6637`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `research/NEX_BONSAI_FOUNTAIN_WORKSPACE_TRACE_2026-11-28.md` blob `2e0b856b3cadd1c2c3e2152a5be865492f9447cb`.
+
+**Host/runtime unknowns:** actual NEX5_QUALITY_SYNTH, NEX5_SELF_NARRATIVE and NEX5_BRANCH_TEMP settings; whether data/quality_signal.json exists on any deployment; current contents/timestamp; live per-branch sample distributions and actual runtime outcomes.
