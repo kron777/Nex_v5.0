@@ -38,6 +38,22 @@ class FountainState:
     _dynamic_state: Optional[object] = field(default=None)
     _beliefs_reader: Optional[Reader] = field(default=None)
     _loop_running: bool = field(default=False)
+    _stop: threading.Event = field(default_factory=threading.Event, repr=False)
+    _thread: Optional[threading.Thread] = field(default=None, repr=False)
+
+    def stop(self) -> None:
+        """Request loop termination; safe to call more than once."""
+        self._stop.set()
+
+    def join(self, timeout: Optional[float] = None) -> bool:
+        """Wait at most timeout seconds; return whether the worker has exited."""
+        thread = self._thread
+        if thread is None:
+            return True
+        if thread is threading.current_thread():
+            return False
+        thread.join(timeout=max(0.0, timeout) if timeout is not None else None)
+        return not thread.is_alive()
 
     def status(self) -> dict:
         evaluator = self._evaluator or self.generator._evaluator
@@ -138,65 +154,73 @@ def build_fountain(
 
     def fountain_loop() -> None:
         state._loop_running = True
-        while True:
-            interval = FOUNTAIN_CHECK_INTERVAL_SECONDS
-            if mode_state is not None:
-                try:
-                    interval = mode_state.current().fountain_interval_seconds
-                except Exception:
-                    pass
-            time.sleep(interval)
-            try:
-                if dynamic_state is None:
-                    continue
+        try:
+            while not state._stop.is_set():
+                interval = FOUNTAIN_CHECK_INTERVAL_SECONDS
                 if mode_state is not None:
                     try:
-                        if not mode_state.current().fountain_enabled:
-                            logger.debug("Fountain suppressed by mode=%s", mode_state.current_name())
-                            continue
+                        interval = mode_state.current().fountain_interval_seconds
+                    except Exception:
+                        pass
+                # Event.wait makes shutdown interrupt the idle interval immediately.
+                if state._stop.wait(max(0.01, float(interval))):
+                    break
+                if state._stop.is_set():
+                    break
+                try:
+                    if dynamic_state is None:
+                        continue
+                    if mode_state is not None:
+                        try:
+                            if not mode_state.current().fountain_enabled:
+                                logger.debug("Fountain suppressed by mode=%s", mode_state.current_name())
+                                continue
+                        except Exception:
+                            pass
+
+                    # Diagnostic: log what the loop is deciding this tick
+                    try:
+                        _readiness = generator._evaluator.score(
+                            dynamic_state, readers["beliefs"],
+                            last_fire_ts=generator.last_fire_ts(),
+                        )
+                        _elapsed = time.time() - generator.last_fire_ts()
+                        _will_fire = generator._evaluator.is_ready(_readiness)
+                        _mode_name = mode_state.current_name() if mode_state else "default"
+                        logger.info(
+                            "Fountain tick: readiness=%.2f interval=%ds elapsed=%.1fs "
+                            "will_fire=%s mode=%s",
+                            _readiness, interval, _elapsed, _will_fire, _mode_name,
+                        )
                     except Exception:
                         pass
 
-                # Diagnostic: log what the loop is deciding this tick
-                try:
-                    _readiness = generator._evaluator.score(
-                        dynamic_state, readers["beliefs"],
-                        last_fire_ts=generator.last_fire_ts(),
-                    )
-                    _elapsed = time.time() - generator.last_fire_ts()
-                    _will_fire = generator._evaluator.is_ready(_readiness)
-                    _mode_name = mode_state.current_name() if mode_state else "default"
-                    logger.info(
-                        "Fountain tick: readiness=%.2f interval=%ds elapsed=%.1fs "
-                        "will_fire=%s mode=%s",
-                        _readiness, interval, _elapsed, _will_fire, _mode_name,
-                    )
-                except Exception:
-                    pass
-
-                thought = generator.generate(dynamic_state, readers["beliefs"])
-                if thought:
-                    logger.info("Fountain fired: %s", thought[:100])
-                # Phase 29: drive probe opportunity each fountain tick
-                try:
-                    generator._maybe_spawn_drive_probe()
-                except Exception as _dpe:
-                    logger.debug("Drive probe error (non-fatal): %s", _dpe)
-                # 2026-07-26: GrooveBreaker.check_and_maybe_log() call removed
-                # (session 49 continued) -- ENABLED=False since 2026-05-02
-                # made this a permanent no-op. Recoverable at commit edbddff.
-                # Phase A: state snapshot (Memory Layers)
-                if snapshot_writer is not None:
+                    thought = generator.generate(dynamic_state, readers["beliefs"])
+                    if thought:
+                        logger.info("Fountain fired: %s", thought[:100])
+                    # Phase 29: drive probe opportunity each fountain tick
                     try:
-                        snapshot_writer.write_snapshot()
-                    except Exception as _swe:
-                        logger.warning("SnapshotWriter error: %s", _swe)
-            except Exception as e:
-                error_channel.record(
-                    f"Fountain loop error: {e}", source="stage6_fountain", exc=e
-                )
+                        generator._maybe_spawn_drive_probe()
+                    except Exception as _dpe:
+                        logger.debug("Drive probe error (non-fatal): %s", _dpe)
+                    # 2026-07-26: GrooveBreaker.check_and_maybe_log() call removed
+                    # (session 49 continued) -- ENABLED=False since 2026-05-02
+                    # made this a permanent no-op. Recoverable at commit edbddff.
+                    # Phase A: state snapshot (Memory Layers)
+                    if snapshot_writer is not None:
+                        try:
+                            snapshot_writer.write_snapshot()
+                        except Exception as _swe:
+                            logger.warning("SnapshotWriter error: %s", _swe)
+                except Exception as e:
+                    error_channel.record(
+                        f"Fountain loop error: {e}", source="stage6_fountain", exc=e
+                    )
+        finally:
+            state._loop_running = False
 
     t = threading.Thread(target=fountain_loop, daemon=True, name="fountain_loop")
+    state._thread = t
     t.start()
 
     return state
