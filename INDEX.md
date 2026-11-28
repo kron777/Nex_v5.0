@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f` plus boot-ownership candidate branch (exact-head CI pending)
+**Last verified against:** `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0` (28 November 2026); exact-head CI status for this latest commit was not surfaced by the combined-status check
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -2106,6 +2106,22 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 **Regression coverage:** `rdo/tests/test_seed_proposal_cli.py` covers duplicate top-level and nested properties and asserts the store is never accessed. Existing rule-proposal duplicate-key coverage remains in place. **Merged:** PR #442, merge commit `4ede2994e5177ad6b56211ddc0f91c274222caaa`. Exact-head workflow run `46151854310` passed **3,075 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed.
 
 **Boundaries:** no seed schema, proposal/review semantics, provenance, approval, intake, planning, Stage-7, execution authority or runtime behavior changed.
+
+---
+
+## 70. Single-snapshot seed and rule proposal history — merged mainline commit `18c8f06171e1de35c3210831a49b63d0e2487af0` (PR #443; 28 November 2026)
+
+**Finding addressed:** the `rule-history` and `seed-history` command paths previously assembled proposal state and event history through separate ledger reads. A review append between those reads could make the two parts of one response represent different ledger revisions.
+
+**Implementation now present on main:** `RuleProposalStore.history()` and `SeedProposalStore.history()` each call the ledger reader once, derive the proposal snapshot from that returned event sequence, and select the matching event rows from the same sequence. Both history CLI handlers delegate to this store-level operation. This narrows the consistency boundary to one ledger snapshot; it does not claim a transaction across separate stores or a global snapshot of NEX.
+
+**Evidence:** commit `18c8f06171e1de35c3210831a49b63d0e2487af0` is the latest commit returned by the repository-scoped commit search. The diff includes store-level history methods, CLI delegation and tests asserting one ledger read and agreement between the resulting review status and event sequence. The combined-status lookup returned no status rows for this commit; therefore this manual makes **no exact-head CI-pass claim** for #443. Earlier implementation/test-head workflow results recorded under §68 are not substitutes for the rebased/integrated #443 head.
+
+**Study interpretation:** this is a useful example of a general NEX integrity rule: when a response combines a derived state view with its event history, derive both from the same immutable-in-memory read snapshot. The lock/read mechanism remains the store's responsibility; this change does not establish cross-process behaviour beyond what the underlying reader and its tests demonstrate.
+
+**Next research seam — concurrency falsification:** add or inspect a deterministic interleaving test in which a review append is attempted while `history()` is reading. Establish whether the lock provides the intended consistent read on the actual supported filesystem/process model, and whether the reader returns either the pre-append or post-append state without mixing them. Prefer a barrier-controlled test over timing sleeps. Include a second-process test only if the store's supported deployment model requires cross-process access. Do not call this a discovered defect until the test or source establishes one.
+
+**Unchanged boundaries:** no proposal schema, approval meaning, catalogue activation, generated-code execution, runtime action authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority or cognitive/action authority separation is changed. Proposal approval remains inert and does not activate a rule.
 
 ---
 
