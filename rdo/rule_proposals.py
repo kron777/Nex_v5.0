@@ -27,6 +27,8 @@ EVENT_SCHEMA_VERSION = 1
 ACTIVATION_POLICY = "candidate_only_until_explicit_review"
 REVIEW_DECISIONS = ("changes_requested", "approved_for_catalogue", "rejected")
 _PROPOSAL_ID = re.compile(r"ruleprop_[0-9a-f]{24}\Z")
+MAX_LEDGER_BYTES = 32 * 1024 * 1024
+MAX_LEDGER_EVENTS = 10000
 
 _CANDIDATE_FIELDS = {
     "proposal_rationale",
@@ -127,7 +129,7 @@ def validate_rule_proposal_request(request: Any) -> dict:
     return json.loads(_canonical(request))
 
 
-def _validate_steps(value: Any) -> List[dict]:
+def _validate_steps(value: Any, target_kind: str) -> List[dict]:
     if not isinstance(value, list) or not value or len(value) > 100:
         raise RuleProposalError("decomposition_steps must be a non-empty list of at most 100 steps")
     out = []
@@ -145,6 +147,8 @@ def _validate_steps(value: Any) -> List[dict]:
         shared = step.get("shared_target")
         if shared is not None:
             shared = _text(shared, f"decomposition_steps[{index}].shared_target", 256)
+        if child_kind == target_kind:
+            raise RuleProposalError("decomposition step cannot directly recurse into its own target kind")
         identity = (child_kind, shared)
         if identity in identities:
             raise RuleProposalError("decomposition_steps contains duplicate child identities")
@@ -169,7 +173,7 @@ def _validate_candidate(request: dict, candidate: Any, proposer_kind: str,
     source_reference = _text(source_reference, "source_reference", 1000)
     rationale = _text(candidate["proposal_rationale"], "proposal_rationale")
     applicability = _text(candidate["applicability"], "applicability")
-    steps = _validate_steps(candidate["decomposition_steps"])
+    steps = _validate_steps(candidate["decomposition_steps"], request["target_kind"])
     alternatives = _text_list(
         candidate["alternative_interpretations"], "alternative_interpretations", required=True
     )
@@ -238,6 +242,8 @@ class RuleProposalStore:
 
     @staticmethod
     def _parse_events(lines: List[str]) -> List[dict]:
+        if len(lines) > MAX_LEDGER_EVENTS:
+            raise RuleProposalError("rule-proposal ledger exceeds event limit")
         events = []
         previous = None
         for number, line in enumerate(lines, 1):
@@ -277,10 +283,17 @@ class RuleProposalStore:
     def _read_events(self) -> List[dict]:
         if not os.path.exists(self.path):
             return []
+        if os.path.islink(self.path):
+            raise RuleProposalError("rule-proposal ledger path must not be a symlink")
+        if os.path.getsize(self.path) > MAX_LEDGER_BYTES:
+            raise RuleProposalError("rule-proposal ledger exceeds byte limit")
         with open(self.path, "r", encoding="utf-8") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_SH)
             try:
-                return self._parse_events(fh.readlines())
+                lines = fh.readlines()
+                if lines and not lines[-1].endswith("\n"):
+                    raise RuleProposalError("rule-proposal ledger final event is not newline terminated")
+                return self._parse_events(lines)
             finally:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
@@ -291,8 +304,29 @@ class RuleProposalStore:
             pid = event["proposal_id"]
             if event["event_kind"] == "proposal_submitted":
                 record = event["record"]
-                if record.get("proposal_id") != pid or pid in proposals:
+                required_fields = {
+                    "schema_version", "target_kind", "source_obligation", "source_request",
+                    "source_request_sha256", "catalogue_digest", *_CANDIDATE_FIELDS,
+                    "proposer_kind", "proposer_reference", "source_reference",
+                    "supersedes_proposal_id", "proposal_id", "created_at",
+                }
+                if set(record) != required_fields or record.get("schema_version") != 1:
+                    raise RuleProposalError("persisted proposal record has missing or unsupported fields")
+                source_request = record.get("source_request")
+                if (not isinstance(source_request, dict)
+                        or _digest(source_request) != record.get("source_request_sha256")
+                        or source_request.get("catalogue_digest") != record.get("catalogue_digest")
+                        or source_request.get("target_kind") != record.get("target_kind")
+                        or not isinstance(record.get("source_obligation"), dict)
+                        or record["source_obligation"].get("kind") != record.get("target_kind")):
+                    raise RuleProposalError("persisted proposal source/request binding is invalid")
+                identity = dict(record)
+                identity.pop("proposal_id", None)
+                identity.pop("created_at", None)
+                expected_id = "ruleprop_" + _digest(identity)[:24]
+                if record.get("proposal_id") != pid or pid != expected_id or pid in proposals:
                     raise RuleProposalError("duplicate or mismatched proposal submission")
+                _text(record.get("created_at"), "created_at", 128)
                 proposals[pid] = {
                     "proposal": record,
                     "status": "candidate",
@@ -327,8 +361,16 @@ class RuleProposalStore:
         with open(self.path, "a+", encoding="utf-8") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
             try:
+                fh.seek(0, os.SEEK_END)
+                if fh.tell() > MAX_LEDGER_BYTES:
+                    raise RuleProposalError("rule-proposal ledger exceeds byte limit")
                 fh.seek(0)
-                events = self._parse_events(fh.readlines())
+                lines = fh.readlines()
+                if lines and not lines[-1].endswith("\n"):
+                    raise RuleProposalError("rule-proposal ledger final event is not newline terminated")
+                events = self._parse_events(lines)
+                if len(events) >= MAX_LEDGER_EVENTS:
+                    raise RuleProposalError("rule-proposal ledger exceeds event limit")
                 snapshot = self._snapshot(events)
                 if event_kind == "proposal_submitted" and proposal_id in snapshot:
                     raise RuleProposalError("proposal was submitted concurrently; reload before retrying")
