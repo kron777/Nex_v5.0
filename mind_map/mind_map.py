@@ -225,7 +225,9 @@ def _source_ref_lines(lines: list[str]) -> set[int]:
             continue
         if source_indent is None:
             continue
-        if stripped and indent <= source_indent and re.match(r"^[A-Za-z_][\w-]*\s*:", stripped):
+        if stripped and indent <= source_indent and (
+            _NODE_ID_RE.match(line) or re.match(r"^[A-Za-z_][\w-]*\s*:", stripped)
+        ):
             source_indent = None
             continue
         selected.add(lineno)
