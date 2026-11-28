@@ -5679,7 +5679,7 @@ This is a signal-definition issue, not proof that the score model is wrong. If t
 
 - Backfill horizon, _write_tag(..., ts_now), continuous-window timestamp and weights-version uniqueness: source-observed.
 - Rut readers' tagged_at query without version or event-ID deduplication: source-observed.
-- A historical event entering the 90-minute window after backfill and one event appearing twice across versions: deterministic fixture characterization added in draft PR #453; exact-head CI pending.
+- A historical event entering the 90-minute window after backfill and one event appearing twice across versions: deterministic fixture characterization in draft PR #453; exact-head workflow 46182191953 passed at 2d15c4d4c87881138c937c5600f1a281677d8391.
 - Actual host backfill history, current weights version, duplicate rate, class disagreement and resulting rut decisions: UNKNOWN.
 
 **Next bounded investigation:** validate PR #453 exact-head CI; inspect historical weights-version and tag timestamp distributions through an approved read-only host snapshot if available; compare tagged_at against joined fountain_events.ts and count distinct event IDs per rut window. Do not change timestamp semantics, deduplication, detector threshold or weights policy until the intended signal contract is established.
