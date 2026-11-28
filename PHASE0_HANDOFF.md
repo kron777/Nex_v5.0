@@ -420,3 +420,7 @@ Draft PR #451 exact head `91739d131f21f3dd2c55d35ef2b23a07aa73c424`, workflow `4
 ### 28 November 2026 — G-83 consolidated causal model
 
 INDEX §133 now provides the consolidated Fountain → belief → GrooveSpotter → Metacognition → Row 9 → chat/Fountain prompt feedback map, separating confirmed source/test evidence from host flag, runtime and semantic unknowns. Next bounded work: stale-cache characterization, acknowledgement/resolved_at writer census, decay caller verification, then sample-belief/retrieval-manifest lineage. No behaviour changed; Gate 0 pending and Phase 1 unauthorized.
+
+### 28 November 2026 — G-83 prompt and retrieval lineage boundary
+
+Fountain's optional Metacognition rail injects only the generic cached formatter line, not the GUI Stage-SelfNarrative pattern-specific `narrative_log` text. `groove_alerts.sample_belief_ids` is not selected by Metacognition; the disabled/de-wired GrooveBreaker selects but does not use it; Fountain context retrieval does not query the alert table. No direct alert-to-source-belief retrieval priority path was found. See INDEX §§131, 133.
