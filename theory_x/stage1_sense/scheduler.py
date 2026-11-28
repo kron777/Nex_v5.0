@@ -39,9 +39,18 @@ logger = logging.getLogger("stage1_sense.scheduler")
 class _AdapterThread:
     """Manages one adapter: one background thread, status tracking."""
 
-    def __init__(self, adapter: Adapter, global_run: threading.Event, mode_state=None) -> None:
+    def __init__(
+        self,
+        adapter: Adapter,
+        global_run: threading.Event,
+        mode_state=None,
+        start_gate: threading.Event | None = None,
+    ) -> None:
         self.adapter = adapter
         self._global_run = global_run
+        self._start_gate = start_gate or threading.Event()
+        if start_gate is None:
+            self._start_gate.set()
         self._local_run = threading.Event()
         self._stop = threading.Event()
         self._mode_state = mode_state
@@ -56,13 +65,15 @@ class _AdapterThread:
             self._local_run.set()
             adapter.enabled = True
 
-        t = threading.Thread(
+        self._thread = threading.Thread(
             target=self._run,
             name=f"sense.{adapter.id}",
             daemon=True,
         )
-        self._thread = t
-        t.start()
+
+    def start(self) -> None:
+        """Start the prepared worker; scheduler owns the startup transaction."""
+        self._thread.start()
 
     def _should_run(self) -> bool:
         if self.adapter.is_internal:
@@ -79,6 +90,10 @@ class _AdapterThread:
             return 1.0
 
     def _run(self) -> None:
+        # Scheduler workers are released together only after every thread has
+        # started successfully. A partial startup therefore cannot poll or
+        # submit before rollback has a chance to stop the prepared workers.
+        self._start_gate.wait()
         while not self._stop.is_set():
             if not self._should_run():
                 # Sleep in 1s slices so stop() and enable() wake us quickly.
@@ -129,6 +144,10 @@ class _AdapterThread:
             return True
         if thread is threading.current_thread():
             return False
+        # Thread.join() raises RuntimeError for a prepared but never-started
+        # worker. Such a worker is already quiescent.
+        if thread.ident is None and not thread.is_alive():
+            return True
         thread.join(timeout=max(0.0, timeout) if timeout is not None else None)
         return not thread.is_alive()
 
@@ -150,10 +169,44 @@ class SenseScheduler:
     """Owns all adapter threads; exposes control and status surface."""
 
     def __init__(self, adapters: list[Adapter], mode_state=None) -> None:
+        # Validate identity before creating any workers. A duplicate key must
+        # never overwrite an already-started thread in the ownership map.
+        adapter_ids = [adapter.id for adapter in adapters]
+        if any(not isinstance(adapter_id, str) or not adapter_id for adapter_id in adapter_ids):
+            raise ValueError("every sense adapter must have a non-empty string id")
+        if len(set(adapter_ids)) != len(adapter_ids):
+            duplicates = sorted({adapter_id for adapter_id in adapter_ids if adapter_ids.count(adapter_id) > 1})
+            raise ValueError(f"duplicate sense adapter id(s): {', '.join(duplicates)}")
+
         self._global_run = threading.Event()
-        self._threads: dict[str, _AdapterThread] = {}
-        for adapter in adapters:
-            self._threads[adapter.id] = _AdapterThread(adapter, self._global_run, mode_state=mode_state)
+        self._start_gate = threading.Event()
+        self._threads: dict[str, _AdapterThread] = {
+            adapter.id: _AdapterThread(
+                adapter, self._global_run, mode_state=mode_state, start_gate=self._start_gate
+            )
+            for adapter in adapters
+        }
+
+        # Start all prepared workers while the gate is closed. No adapter can
+        # poll until every Thread.start() has succeeded.
+        try:
+            for worker in self._threads.values():
+                worker.start()
+        except BaseException:
+            for worker in self._threads.values():
+                worker.stop()
+            self._start_gate.set()
+            deadline = time.monotonic() + 1.0
+            alive = []
+            for adapter_id, worker in self._threads.items():
+                remaining = max(0.0, deadline - time.monotonic())
+                if not worker.join(remaining):
+                    alive.append(f"sense.{adapter_id}")
+            if alive:
+                logger.error("SenseScheduler startup rollback left workers alive: %s", alive)
+            raise
+        self._start_gate.set()
+
         logger.info(
             "SenseScheduler started with %d adapters (%d internal, %d external)",
             len(adapters),
