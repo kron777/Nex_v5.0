@@ -36,6 +36,48 @@ No claim of subjective experience is made by the presence of a self-model or sel
 
 **Key research caution:** the code establishes separate telemetry, confidence/dissonance monitoring, frame aggregation and action-routing functions. It does not establish that those functions are fully orchestrated into one closed cognitive feedback cycle in the current repository.
 
+## 2.2 Sentience 5.5: central coordination patterns are not one unified network
+
+A broader tree inspection found several distinct coordination patterns in Sentience 5.5. They should not be treated as one proven end-to-end architecture:
+
+### A. `The_Central_Column.py` — relevance-selected global workspace prototype
+
+The file is stored as a Jupyter notebook serialized under a `.py` filename (the fetched file content is notebook JSON). Its `CentralColumn`:
+
+- registers arbitrary node instances by name;
+- stores the latest ten Signals in short-term memory;
+- asks each registered node for `assess_relevance(signal, memory)`;
+- selects nodes scoring at least 0.4;
+- calls `process()` on selected nodes in descending relevance order;
+- chooses the first node's content as primary output and merges all active nodes' context dictionaries.
+
+Important observed properties and risks:
+
+1. Despite a comment saying relevance polling is parallel, the implementation awaits each node sequentially.
+2. Node process calls are also sequential, so later nodes see the shared short-term memory after the original stimulus and before the final synthesized signal is appended; they do not receive the previous node's response as their stimulus.
+3. Context is merged with ordinary `dict.update()`; when two nodes emit the same key, the later node silently overwrites the earlier value.
+4. The highest-relevance node controls primary content; there is no explicit conflict-resolution or evidence reconciliation step.
+5. Per-node exceptions are logged and converted to zero relevance / skipped processing, allowing the cycle to continue without a structured partial-failure record.
+6. The code shown contains no explicit recursion, propagation-depth bound, cycle detection, or causal trace identifier.
+
+These are source observations, not a judgement that the prototype is useless. It is valuable evidence of the intended “aspects of mind” model: nodes assess relevance, contribute different effects, and synthesize into one signal. But it is not equivalent to a validated, dynamically propagating neural network.
+
+### B. `Cognitive_Event_Bus.py` — synchronous event fan-out
+
+The event bus records events in a bounded history (default 500), copies the current subscriber list under a lock, then invokes callbacks synchronously in the publishing thread. Callback exceptions are logged and swallowed. This makes the event path inspectable and simple, but one slow callback delays the publisher and all later callbacks. The bus itself does not interpret, prioritize, retry, or persist events.
+
+### C. `Feedback_Loop_Node.py` — polling over latest-value slots
+
+This node receives separate latest-value snapshots for actuator, emotion, motivation, value drift and world inputs. Its 500 ms loop derives at most one feedback record from those snapshots and persists it. The current `_generate_feedback()` uses sequential independent `if` statements for positive emotion, distress, and value drift; if multiple conditions are true, the last matching condition overwrites the earlier feedback type/target/payload. The ingested motivation and world values are read into local variables but are not used in the shown feedback decision logic. The node emits feedback records/directives; the file's own comments say it has no decision authority.
+
+### D. `Orchestrator.py` — separate conversational stack
+
+The command-line Orchestrator explicitly constructs Memory, Nonsense, Knowledge, Crawler, Evolver, Reasoning, LLM and Conversational Intelligence objects and passes dependencies into the chat object. This is a different coordination path from `The_Central_Column.py` and from the event bus. The repository therefore contains multiple architectural strands/prototypes, not one automatically unified central nervous system.
+
+### E. Integration conclusion
+
+Sentience 5.5 is valuable as a catalogue of cognitive functions and alternative connection patterns, but names and conceptual intent are not evidence that every node is wired into the same runtime. The next research pass must build a node-to-node edge inventory from actual constructors, callback registrations, method calls and event subscriptions. The NEX comparison must map functions and causal effects, not transplant Sentience's coordination model wholesale.
+
 ## 3. NEX: selected self-model and inside-membrane pathway
 
 ### 3.1 Forward path
