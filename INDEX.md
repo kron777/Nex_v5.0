@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `a3fd532e12cbc84fa9505819ce475eef6101a06c`  
+**Last verified against:** `main` at `93f39f8eb12a24ce703e6cc76c4e4c1d4be71872`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -1125,7 +1125,7 @@ No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 
 
 ## 16. Current-main reconciliation — lifecycle hardening and cognitive wire characterization (28 November 2026)
 
-**Verified base:** `main` at `a3fd532e12cbc84fa9505819ce475eef6101a06c`. This section supersedes the 27 November mainline/PR inventory in §11 for changes merged after that snapshot. It does not retroactively refresh older evidence artefacts or convert PR-only work into mainline capability.
+**Verified base:** `main` at `93f39f8eb12a24ce703e6cc76c4e4c1d4be71872`. This section supersedes the 27 November mainline/PR inventory in §11 for changes merged after that snapshot. It does not retroactively refresh older evidence artefacts or convert PR-only work into mainline capability.
 
 ### 16.1 Graceful shutdown: merged lifecycle increments
 
@@ -1169,7 +1169,7 @@ PR #381 exact-head full-suite workflow run 2350 passed: **2,979 passed, 7 skippe
 
 ### 16.5 Remaining research and development work
 
-1. Recheck #391 and #392 exact head SHAs, all required CI jobs, baseline verification and merge state before updating this section again.
+1. Recheck #392's exact head SHA, all required CI jobs, baseline verification and merge state before updating this section again.
 2. Rescan the complete shutdown path now that #378 is merged: signal receipt, request admission, detached route work, registered producers, direct database writers, Writers, clean-marker persistence, process exit and keepalive restart. Add regressions only for demonstrated gaps.
 3. Continue the host/server evidence work: inspect the actual deployment contract and determine whether the Flask threaded server is the only entry point. Do not infer host behaviour from repository tests.
 4. Continue the faculty producer→consumer audit from #381, distinguishing construction, boot wiring, flag enablement, consumption and measured behavioural effect.
@@ -1254,15 +1254,17 @@ Exact-head full-suite workflow run 2404 passed: **2,987 passed, 7 skipped, 86 su
 **Boundary:** this does not interrupt an in-flight poll, change adapter timeouts/cadence, or cancel a submission that already started before stop. It narrows the late-submit window but does not establish complete producer or host-level shutdown safety; slow polls can still cause a non-clean exit.
 
 
-### 16.11 Active prediction loops versus producer-stop budget — open PR #391
+### 16.11 Active prediction loops versus producer-stop budget — merged PR #391
 
 The tracked launcher explicitly enables `NEX5_WORLD_PRED=1` and `NEX5_SELF_PRED=1`. `run.py` constructs both loops and passes them into AppState for stop/join during shutdown. Their producer join allowance is at most five seconds. The SelfPredictionLoop performs its first tick immediately on startup before waiting; the WorldPredictionLoop waits its interval before its first tick.
 
 The WorldPredictionLoop can perform a 10-second price fetch, a 10-second recent-context fetch and a 30-second local voice request before writing paired predictions and a trust stamp. The SelfPredictionLoop can block up to ten seconds reading the fountain status endpoint, then write prediction rows and continue through additional Writer-backed stages. Before PR #391, stop events were not passed into the active ticks/functions, so those paths could continue into later writes after shutdown had been requested.
 
-PR #391 proposes passing stop events into both ticks and adding checkpoints after blocking network calls and between sequential write stages, with deterministic blocked-call tests.
+PR #391 merged as `93f39f8eb12a24ce703e6cc76c4e4c1d4be71872`. Both loops now receive cooperative stop checkpoints; the world prediction path checks after blocking network calls before beginning prediction writes, and the self-prediction path checks after the status fetch and between sequential write stages. The direct `tick()` and standalone function interfaces remain usable. Detailed source evidence is in `research/PREDICTION_LOOP_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
 
-**Boundary:** #391 is open and exact-head CI is pending; its correction is not current-main behaviour yet. It does not cancel in-flight HTTP calls or change their 10/30-second timeouts, so either loop can still outlive the five-second join and cause the existing non-clean shutdown path. This is not an atomic stop/write handshake and does not prove every producer has been audited.
+Exact-head full-suite workflow run 2437 passed: **2,991 passed, 7 skipped, 86 subtests**; baseline verification reported **OK**. The mind-map verifier reported **30 nodes, 0 unverified, 12 dark, 2 blocked**.
+
+**Boundary:** this does not cancel in-flight HTTP calls or change their 10/30-second timeouts, so either loop can still outlive the five-second join and cause the existing non-clean shutdown path. The checks are not an atomic stop/write handshake and do not prove every producer has been audited.
 
 
 ### 16.12 PersonaResponderLoop stop-during-model-call path — open PR #392
