@@ -120,7 +120,7 @@ def test_proposal_preserves_alternatives_and_does_not_activate_by_repetition(tmp
 
     assert created["event_kind"] == "proposal_created"
     assert len(created["data"]["proposal"]["source_frontier_sha256"]) == 64
-    assert created["data"]["proposal"]["alternatives"]
+    assert len(created["data"]["proposal"]["alternatives"]) == 2
     assert created["data"]["proposal"]["disconfirming_cases"]
     assert store.approved_catalogue() is None
     assert len(store.events()) == 1
