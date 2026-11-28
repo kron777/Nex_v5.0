@@ -118,7 +118,8 @@ class TestPipeline(unittest.TestCase):
     def _make_row(self, stream, payload, provenance="test://mock"):
         return {"id": 1, "stream": stream, "payload": payload, "provenance": provenance}
 
-    def test_internal_event_matches_systems_branch(self):
+    def test_internal_event_is_matched_but_does_not_steer_bonsai_attention(self):
+        from theory_x.stage2_dynamic.attention import _match_branches, _magnitude_for
         from theory_x.stage2_dynamic.bonsai import BonsaiTree
         from theory_x.stage2_dynamic.membrane import Membrane
         from theory_x.stage2_dynamic.pipeline import run_pipeline
@@ -126,12 +127,47 @@ class TestPipeline(unittest.TestCase):
         tree = BonsaiTree()
         tree.init_tree()
         membrane = Membrane()
-        row = self._make_row(
-            "internal.proprioception",
-            json.dumps({"cpu_percent": 10.5, "memory_percent": 45.0}),
-        )
+        payload = json.dumps({"cpu_percent": 10.5, "memory_percent": 45.0})
+        row = self._make_row("internal.proprioception", payload)
+
+        # The stream is recognized as internal/system telemetry, but its
+        # magnitude is intentionally zero so it cannot pin the systems branch.
+        self.assertIn(("systems", 1.0), _match_branches(row["stream"], payload))
+        self.assertEqual(_magnitude_for(row["stream"], payload, "systems"), 0.0)
+        systems = tree.get("systems")
+        before = (systems.focus_num, systems.texture_num)
+
         hits = run_pipeline(row, tree, membrane, self.writers["dynamic"])
-        self.assertGreaterEqual(hits, 0)
+
+        self.assertEqual(hits, 0)
+        self.assertEqual((systems.focus_num, systems.texture_num), before)
+        time.sleep(0.1)
+        f_events = self.readers["dynamic"].read(
+            "SELECT id FROM pipeline_events WHERE step = 'F'"
+        )
+        self.assertEqual(f_events, [])
+
+    def test_external_sense_event_propagates_into_bonsai_focus_and_texture(self):
+        from theory_x.stage2_dynamic.bonsai import BonsaiTree
+        from theory_x.stage2_dynamic.membrane import Membrane
+        from theory_x.stage2_dynamic.pipeline import run_pipeline
+
+        tree = BonsaiTree()
+        tree.init_tree()
+        membrane = Membrane()
+        node = tree.get("ai_research")
+        before = (node.focus_num, node.texture_num)
+        payload = json.dumps({
+            "title": "Neural network architecture advances in transformer models",
+            "link": "https://arxiv.org/abs/1234",
+        })
+        row = self._make_row("ai_research.arxiv", payload)
+
+        hits = run_pipeline(row, tree, membrane, self.writers["dynamic"])
+
+        self.assertGreater(hits, 0)
+        self.assertGreater(node.focus_num, before[0])
+        self.assertGreater(node.texture_num, before[1])
 
     def test_pipeline_logs_to_dynamic_db(self):
         from theory_x.stage2_dynamic.bonsai import BonsaiTree

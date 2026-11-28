@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `60cc178ba1f3c895651c86ad95345c98fd5a2198`  
+**Last verified against:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — records merged DAG integrity and policy-scan fixes, #223–#226 bounded one-pen migrations, #236/#238 SelfPredictionLoop handle integration, #253 Warrant cursor closure, and current G-69/G-70/G-73–G-75 status; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — records current RDO/Watcher progress, G-91–G-93, G-61/G-84/G-85 persistence and lifecycle evidence, plus the Sentience 5.5/NEX cognitive wire trace in §46; Gate 0 boundaries remain.*
 
 
 
@@ -992,3 +992,54 @@ Gate 0 remains pending and Phase 1 is not authorised. G-69/#259 stays on HOLD. G
 Design the raw-idea → candidate-seed alternatives → explicit human review → objective.v1 intake → recursive expansion → Stage-7 handoff lineage. Bind each candidate to the exact raw objective revision; preserve competing interpretations, assumptions, evidence needs, acceptance-criterion coverage, disconfirming cases and provenance. Do not run planning from an unreviewed external-LLM seed proposal, and do not make the candidate-rule ledger an active rule loader.
 
 No frozen S-01–S-25/M1.8 specification content, NEX runtime, protected experiment, deployment path, Gate 0 or Phase 1 authority was changed.
+
+
+## 46. Cognitive network interaction trace — attention, affect, drives and workspace (28 November 2026)
+
+**Evidence snapshot:** source files on `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. This is a source-level connection trace, not host/runtime telemetry. The exact source-file SHAs and detailed edge register are recorded in `research/SENTIENCE_5_5_COGNITIVE_WIRE_TRACE_2026-11-28.md`.
+
+### The network is already more connected than a list of faculties
+
+The current source contains several distinct interaction paths. They should be understood as a network of bounded influences, not collapsed into a single “mind” score or assumed to share one control loop.
+
+**1. External sensing → attention → branch state → thought selection**
+
+- Stage 2's A–F pipeline receives sense events, matches streams and payloads to cognitive branches, computes magnitude, applies the membrane aperture, derives a valence label, and calls `BonsaiTree.attend()`.
+- Bonsai maintains branch-specific focus and texture. Fountain reads branch focus and uses it in branch selection; it also reads branch focus as one candidate in Global Workspace arbitration.
+- The attention matcher contains direct stream-to-branch mappings and content/keyword matching. The magnitude function explicitly returns zero for `internal.*` telemetry. This is an intentional separation: internal machine telemetry must not pin the `systems` branch and starve other branches. It is not evidence that internal telemetry is unused everywhere; SelfModel still reads selected internal streams for self-representation.
+- This creates a concrete distinction between *self-monitoring* and *attention steering*. A signal may describe the system without being allowed to steer its cognitive focus.
+
+**2. Affect → selection and language (two different consumers)**
+
+- `AffectState` is constructed and its background loop is started from `run.py`. It reads substrate-derived valence/arousal inputs and flagged surprise events, integrates and decays state, then persists the affect row and affect history.
+- Chat has a separate path that appends `AffectState.format_for_prompt()` to assembled belief/context text when the AppState faculty is present.
+- Fountain's `_valence_reach()` reads the persisted valence/arousal pair and can scale the novelty term in item selection. That mechanical influence is gated by `NEX5_VALENCE_DRIVE=1`; the source default is OFF. It is bounded and returns neutral multiplier 1.0 in the strongly negative anti-rut zone.
+- Fountain's explicit compositional-mood language injection is separately gated by `NEX5_MOOD=1`. Therefore affect can have a Chat representation while its Fountain selection influence and Fountain mood narration remain separately controlled. Do not treat these as one wire.
+
+**3. Competing drives → selection pressure, framing inputs and prompt representation**
+
+- `CompetingDrives` is constructed and started from `run.py`; its state is computed from several measured substrate features and persisted.
+- Fountain reads curiosity and exploration weights to scale its candidate scoring, and separately appends the competing-drive tension block when the faculty is available.
+- The Global Workspace's optional drive candidate is supplied from `DriveEmergence.format_for_prompt()`, not from the CompetingDrives object. Those are distinct drive mechanisms and must not be conflated because both contain “drive” in their names.
+- Fountain also records the current CompetingDrives weights into its per-fire snapshot where available and links activation records to resulting fountain events. This provides a traceable relationship, but does not itself prove the drive weights improved selection.
+
+**4. Global Workspace → Fountain framing versus Chat block selection**
+
+- Fountain's `NEX5_GLOBAL_WORKSPACE` path defaults to enabled in source. It compares available surprise, momentum, Bonsai-attention, stakes and DriveEmergence candidates, then prepends the winning frame to the focus block. The other faculty blocks are still appended; this is a leading frame, not exclusive selection of all cognitive content.
+- Chat's `NEX5_CHAT_WORKSPACE` is a different mechanism. When enabled, it performs salience-ranked, character-budget admission of candidate faculty blocks while preserving their original assembly order and exempt blocks. It is not the same winner-takes-frame operation used by Fountain.
+- The two workspaces therefore arbitrate at different levels: one chooses a leading frame for an internally generated thought; the other decides which already-assembled Chat context blocks fit a budget.
+
+### Interaction consequences and open questions
+
+1. **The same upstream signal can have multiple downstream effects.** Surprise can contribute to AffectState arousal and also appear as a Global Workspace candidate. These are parallel consequences with different timing and semantics, not one shared score.
+2. **A faculty can be present and active without its strongest influence being enabled.** AffectState background computation and Chat injection do not imply that Fountain's valence-driven selection or mood narration is enabled.
+3. **A shared name does not establish a shared mechanism.** DriveEmergence, CompetingDrives and the Global Workspace drive candidate are separate components with different data and call paths.
+4. **The network has intentional exclusions.** Internal telemetry is excluded from Bonsai attention after a documented focus-pinning defect. Reconnecting that edge indiscriminately would risk recreating the starvation failure.
+5. **Prompt contribution and behavioural steering are different effects.** A block may be described to the language model without mechanically changing branch selection; a numeric influence may change selection without being narrated. Both require separate measurements.
+6. **The next test should measure a bounded perturbation across layers.** Use isolated fixtures to alter one external sense event, observe A–F magnitude and Bonsai focus, then observe whether Fountain's branch candidate and workspace frame change. Repeat with an `internal.*` event as a negative control. Do not alter live flags or runtime data.
+
+### Current disposition
+
+This trace is source-verified and hypothesis-generating. It identifies several existing connections and important non-connections; it does not yet establish runtime liveness, beneficial cognitive effect, or a unified integrated subject. No new node or runtime wire was added. A test-only characterization has now been added to `tests/test_dynamic.py`: an external `ai_research.arxiv` event must increase that branch's Bonsai focus and texture, while an `internal.proprioception` event is confirmed to match the systems branch but produce zero magnitude, no focus/texture change and no Stage-2 F-step event. This strengthens the previously weak internal-event assertion and adds a positive control. Exact-head CI is pending; no pass is claimed. The test currently establishes the Stage-2 pipeline → Bonsai edge only. Fountain branch selection and workspace framing remain the next separate test seam.
+
+No frozen S-01–S-25/M1.8 specification content, Master Roadmap, M0/M1 gate, mind-map policy, live runtime flag, service or database was changed.
