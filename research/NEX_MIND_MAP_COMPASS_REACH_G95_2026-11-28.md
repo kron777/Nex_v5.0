@@ -101,3 +101,14 @@ The dark count goes from 14 to 12. `MIND_MAP.mmd` is regenerated from the YAML. 
 - **The two copies have drifted apart on main** (pre-existing, not addressed here):
   - INDEX.md lacks the §48 "Critical next-step constraint" paragraph that the mirror has.
   - The mirror lacks §45.
+
+
+## 7. G-96: content-aware anchor drift guard
+
+The day-granular STALE check could miss line movement later on the same day as verification. `mind_map.py --check` now also compares every quoted source range with the content at the later of (a) the commit that last wrote the YAML ref and (b) the commit that last wrote that node's `last_verified` line. Ancestry determines which commit is later; unrelated merged branches fall back to commit time. Pure moves are reported with the new line range; edited/removed content remains a human re-verification task. Prose line pointers in notes are intentionally outside this check.
+
+`--reanchor` rewrites only a uniquely located, byte-identical moved range. A review of the implementation found that choosing the nearest match would be unsafe when identical code fragments occur more than once. The tool now marks multiple destinations as ambiguous and refuses to re-anchor them automatically. `tests/test_mind_map_anchor_drift.py` includes a duplicate-destination regression proving the original ref remains untouched.
+
+The original G-96 branch head `9c4ab90ff7b870971329d2bc401fe66243c9d258` passed exact-head workflow `46152114825`: 3,086 passed, 7 skipped, 86 subtests; baseline check OK; mind-map verification reported 30 nodes, 0 unverified, 12 dark, 2 blocked and zero DRIFT warnings. The two missing doctrine files and overdue `p13_finitude` unblock remain warnings, not silently repaired states. The final integration branch is based on current main and requires its own exact-head CI before merge.
+
+No NEX runtime, live host process, flags, database or service was touched. The mind map remains descriptive and has no action-control authority.
