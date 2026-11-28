@@ -162,7 +162,8 @@ class SelfMaintainShadow:
                     log.warning("SELF-MAINTAIN SHADOW tick failed: %r", e)
                 if self._stop.wait(TICK_S):
                     return
-        threading.Thread(target=_run, name="SelfMaintainShadow", daemon=True).start()
+        self._thread = threading.Thread(target=_run, name="SelfMaintainShadow", daemon=True)
+        self._thread.start()
 
     def stop(self) -> None:
         self._stop.set()
