@@ -79,6 +79,7 @@ class Writer:
         self._lifecycle_lock = threading.Lock()
         self._accepting = True
         self._sentinel_enqueued = False
+        self._startup_rollback_incomplete = False
         self.start()
 
     # --- lifecycle --------------------------------------------------------
@@ -87,6 +88,15 @@ class Writer:
         with self._lifecycle_lock:
             if self._thread is not None and self._thread.is_alive():
                 return
+            if self._startup_rollback_incomplete:
+                # A previous bounded rollback may have returned while the
+                # worker was still alive. Once it has exited, discard its
+                # unconsumed startup sentinel before allowing a fresh worker.
+                self._thread = None
+                self._queue = queue.Queue()
+                self._accepting = True
+                self._sentinel_enqueued = False
+                self._startup_rollback_incomplete = False
             self._started.clear()
             self._open_error = None
             self._accepting = True
@@ -97,7 +107,49 @@ class Writer:
                 daemon=True,
             )
             self._thread = thread
-            thread.start()
+            try:
+                thread.start()
+            except BaseException:
+                # Thread.start() can fail after the OS thread has actually been
+                # created (for example, an injected wrapper can raise after the
+                # real start returns). The constructor then raises without
+                # returning this Writer to its caller, so it must roll back its
+                # own partially-started worker.
+                self._accepting = False
+                if thread.ident is not None or thread.is_alive():
+                    self._queue.put(_SENTINEL)
+                    self._sentinel_enqueued = True
+                    try:
+                        thread.join(timeout=10.0)
+                    except BaseException:
+                        # Cleanup must never replace the original start error.
+                        logger.exception(
+                            "Writer %s startup rollback join failed",
+                            self.name,
+                        )
+                    if thread.is_alive():
+                        # Keep the closed worker reference: a retry must not
+                        # create a second writer while this one may still own
+                        # the database connection. If it later exits, start()
+                        # will discard the unconsumed sentinel before retrying.
+                        self._startup_rollback_incomplete = True
+                        logger.error(
+                            "Writer %s startup rollback timed out; worker remains alive",
+                            self.name,
+                        )
+                    else:
+                        self._thread = None
+                        self._queue = queue.Queue()
+                        self._accepting = True
+                        self._sentinel_enqueued = False
+                        self._startup_rollback_incomplete = False
+                else:
+                    # No worker was created; leave the object restartable.
+                    self._thread = None
+                    self._accepting = True
+                    self._sentinel_enqueued = False
+                    self._startup_rollback_incomplete = False
+                raise
         self._started.wait()
         if self._open_error is not None:
             raise RuntimeError(
@@ -130,6 +182,13 @@ class Writer:
         with self._lifecycle_lock:
             if self._thread is thread:
                 self._thread = None
+                if self._startup_rollback_incomplete or self._open_error is not None:
+                    # A worker that exited before reading the sentinel leaves
+                    # it queued. No submissions were admitted in these failed
+                    # startup states, so discard that stale queue before reuse.
+                    self._queue = queue.Queue()
+                    self._sentinel_enqueued = False
+                    self._startup_rollback_incomplete = False
 
     # --- submission -------------------------------------------------------
 
