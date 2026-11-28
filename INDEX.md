@@ -2986,3 +2986,64 @@ The active Fountain SelfNarrative path is a bounded-by-source, prompt-injected c
 **Source anchors inspected at main:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/self_narrative.py` blob `5fbc617fadc177ade59b45acf118b77c43ef2e84`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `tests/test_self_narrative.py` blob `a293b97d46a7db14fb9302e2c3206b4516eefdb1`.
 
 **Host/runtime unknowns:** actual `NEX5_SELF_NARRATIVE` setting, current Fountain prompt composition, recent-fire distribution, branch exposure skew, actual momentum quality and production effects.
+
+## 87. Momentum lifecycle correctness: resolution belongs to a thread, not to the singleton row (28 November 2026)
+
+**Question studied:** when one carried thought ends and a genuinely new thought begins, does momentum persistence reset all state that belongs to the old thread?
+
+### 1. Confirmed persistence behavior
+
+The momentum table is a singleton row (`id=1`). `capture_momentum()` reads the prior fragment and carry count, uses distinctive-word overlap to decide whether the new thought is the same thread, and sets:
+- same thread: prior carry count + 1;
+- different thread: carry count = 1.
+
+It then upserts updated time, branch, fragment, surprise score/note and carry count. The conflict-update list does **not** include the `resolved` column.
+
+`stamp_resolution()` writes `resolved` on that singleton row. `read_momentum()` reads the value later and, when `NEX5_CARRYOVER=1`, renders a clause saying the prior cycle settled into a belief or stalled.
+
+### 2. Lifecycle defect: new thread inherits old resolution
+
+A concrete sequence follows from the code:
+1. Thread A is captured.
+2. Thread A is stamped `resolved=1` (or `resolved=0`).
+3. A genuinely different Thread B is captured. Its carry count resets to one, but the upsert leaves `resolved` untouched.
+4. A subsequent read of Thread B can report Thread A's resolution outcome.
+
+This is stale provenance: the outcome is stored on the singleton row, but the row's identity has moved to a new fragment. The same applies to a prior unresolved/stalled value. The existing test verifies resolution rendering for one thread and verifies a legacy schema migration initializes the field to NULL; it does not test the transition from a resolved thread to a distinct new thread.
+
+### 3. Rendering inconsistency
+
+The base prompt line always says: `this thread isn't finished.` If `NEX5_CARRYOVER=1` and `resolved` is non-NULL, the renderer appends either `last cycle it settled into a belief` or `last cycle it stalled; nothing settled.`
+
+For a resolved thread, the prompt can therefore say both that it is unfinished and that it settled into a belief. For a stalled thread, "isn't finished" may be semantically compatible, but it still conflates a thread's current state with the generic carry wording. Resolution is currently an optional annotation, not a state transition that changes the base sentence.
+
+### 4. Important nuance: the resolution flag is not used as a read gate
+
+The inspected `read_momentum()` rejects stale rows older than 30 minutes, empty fragments and carry counts above three. It does not suppress a resolved thread. That may be intentional: a resolved topic can remain useful context briefly. Therefore the appropriate correction is not automatically "hide every resolved thread". It is to make the resolution status accurate, thread-bound and coherently phrased.
+
+### 5. Reuse-first correction proposal — not implemented
+
+Keep the singleton storage design unless a broader event-history requirement justifies a schema change. At minimum:
+- When a new thread is detected, explicitly reset `resolved` to NULL in the same upsert that replaces the fragment and resets carry count.
+- Keep same-thread captures' resolution behavior explicit: decide whether a new materially changed continuation clears a previous resolution or whether a resolved thread is considered closed and should not be recaptured. Encode that policy in tests.
+- Render the base line according to resolution: unresolved/unknown, resolved, or stalled; do not state "unfinished" unconditionally.
+- Treat resolution as evidence about the exact fragment/version that was evaluated. If the fragment changes, the old result must not silently follow it.
+- Consider a stable thread fingerprint or monotonically increasing thread generation only if needed for audit/replay; do not introduce schema complexity without evidence.
+
+### 6. Required regression tests
+
+1. Capture A, stamp resolved true, capture dissimilar B; assert B has carry_count 1 and resolved NULL.
+2. Repeat with A stamped false; assert B does not inherit false.
+3. Capture same-thread continuation after resolution and assert the chosen policy explicitly.
+4. With carryover enabled, assert resolved text never also says "this thread isn't finished".
+5. With carryover disabled, verify the legacy prompt contract is intentionally specified.
+6. Verify old/stale rows remain silent after 30 minutes and exhausted rows remain silent after the carry limit.
+7. Verify all state transitions through injected Reader/Writer handles, preserving the one-pen persistence model.
+
+### Research conclusion
+
+The anti-rut design has a good core: similarity-based carry counting, a three-carry limit and a 30-minute expiry directly address a previously observed self-reinforcing loop. But the singleton row combines current-thread content with a resolution field whose value is not reset when the thread changes. This creates a specific stale-outcome inheritance bug and a contradictory prompt clause. Fixing the lifecycle is safer than changing carry thresholds or removing continuity. No runtime code, database schema, feature flag, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. No tests were run in this study.
+
+**Source anchors inspected at main:** `theory_x/stage_tom/momentum.py` blob `45d0249fe445871ebb2bfbcdb2da6e131a229e18`; `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `tests/test_momentum_writer.py` blob `fdbab169457a9ebe8c3c451c69b635e200127bd6`.
+
+**Host/runtime unknowns:** whether `NEX5_CARRYOVER` is enabled on any deployment; actual momentum row contents; frequency of distinct-thread transitions after a resolution stamp; live database state.
