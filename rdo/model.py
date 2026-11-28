@@ -507,6 +507,8 @@ class CycleRecord:
     created_at: str = dataclasses.field(default_factory=utc_now)
     # Exact immutable intake revision reference; empty for legacy/domain-demo cycles.
     objective_input: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    # Exact reviewed proposal/alternative/approval provenance; empty for ordinary intake.
+    objective_lineage: Dict[str, Any] = dataclasses.field(default_factory=dict)
     # Full immutable objective context copied from intake, separate from revision identity.
     objective_context: Dict[str, Any] = dataclasses.field(default_factory=dict)
     # Explicit UNKNOWN-first mapping assessment; never infer satisfaction from planning.
