@@ -459,6 +459,11 @@ a JSON file containing exactly `request`, `candidate`, `proposer_kind`,
 `supersedes_proposal_id` may identify a prior changes-requested/rejected
 proposal.
 
+The `request` is the exact `rule_proposal_request` emitted at an RDO novel-kind
+frontier. The `candidate` remains human- or external-provider-supplied: these
+commands persist and review it but do not invoke a model or implement an
+autonomous raw-idea-to-rule generator.
+
 ```bash
 python -m rdo rule-propose --input rule-proposal.json
 python -m rdo rule-history
