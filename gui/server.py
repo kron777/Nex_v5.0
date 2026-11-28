@@ -716,6 +716,7 @@ class AppState:
     probe_runner: Optional["ProbeRunner"] = None             # type: ignore[type-arg]
     probes_reader: Optional[Reader] = None
     coherence_gate: Optional[object] = None        # Phase 22
+    resolver: Optional[object] = None              # G-84 managed HoldingZoneResolver
     trigger_detector: Optional[object] = None      # Phase 25a TN-1
     throw_net_monitor: Optional[object] = None     # Phase 25a TN-5
     counterfactual_node: Optional[object] = None   # Phase 25b CN
@@ -741,9 +742,9 @@ class AppState:
         # a tick in progress can finish its writes instead of submitting them
         # to a draining or closed Writer (backlog G-84). All are signalled
         # first, then joined against one shared deadline that fits
-        # nex_keepalive.sh's graceful-stop window. Fountain has no stop signal
-        # yet and the producers run.py does not hand to AppState are not
-        # covered.
+        # nex_keepalive.sh's graceful-stop window. Producers not registered
+        # on AppState (including several run.py-only loops and the decoder)
+        # remain outside this bounded increment.
         try:
             alive = self._quiesce_producers(_PRODUCER_STOP_TIMEOUT_S)
             if alive:
@@ -765,15 +766,15 @@ class AppState:
                 )
 
     def _quiesce_producers(self, timeout: float) -> list:
-        """Signal every held producer to stop, then join their threads against
-        one deadline. Returns the names of threads still alive at the deadline.
+        """Signal registered producers, then join them against one deadline.
 
-        Stage 2 dynamic and the World Model expose ``_stop``/``_threads``;
-        SignalLoop, DiversityLoop and ArcLoop expose ``stop()``/``_thread``;
-        SpeechQueueConsumer is itself the thread and exposes ``stop()``."""
+        Returns names of threads still alive at the deadline. This is a bounded
+        registry, not a claim that every run.py-created worker is registered."""
         import threading
 
+        deadline = time.monotonic() + max(0.0, timeout)
         threads = []
+        seen_threads = set()
 
         def _signal(fn, what):
             try:
@@ -781,34 +782,71 @@ class AppState:
             except Exception as e:            # one bad stop() must not skip the rest
                 error_channel.record(f"{what} stop failed: {e}", source="gui.server", exc=e)
 
+        def _add_thread(thread):
+            if isinstance(thread, threading.Thread) and id(thread) not in seen_threads:
+                seen_threads.add(id(thread))
+                threads.append(thread)
+
+        # Stage 2 dynamic and the World Model expose _stop/_threads.
         for label, state in (("dynamic", self.dynamic), ("world_model", self.world_model)):
             if state is None:
                 continue
             stop = getattr(state, "_stop", None)
             if stop is not None:
                 _signal(stop.set, label)
-            threads.extend(getattr(state, "_threads", ()) or ())
-        for label, loop in (("signal_loop", self.signal_loop),
-                            ("diversity_loop", self.diversity_loop),
-                            ("arc_loop", self.arc_loop),
-                            ("speech_consumer", self.speech_consumer)):
-            if loop is None:
+            for thread in getattr(state, "_threads", ()) or ():
+                _add_thread(thread)
+
+        # These workers expose their own stop method and a joinable _thread.
+        # Resolver uses stop_loop(); SpeechQueueConsumer is itself a Thread.
+        managed = (
+            ("fountain", self.fountain, "stop"),
+            ("resolver", self.resolver, "stop_loop"),
+            ("signal_loop", self.signal_loop, "stop"),
+            ("diversity_loop", self.diversity_loop, "stop"),
+            ("arc_loop", self.arc_loop, "stop"),
+            ("speech_consumer", self.speech_consumer, "stop"),
+            ("throw_net_monitor", self.throw_net_monitor, "stop"),
+            ("counterfactual_node", self.counterfactual_node, "stop"),
+            ("predictive_substrate", self.predictive_substrate, "stop"),
+            ("self_mind_view", self.self_mind_view, "stop"),
+        )
+        for label, worker, stop_name in managed:
+            if worker is None:
                 continue
-            stop = getattr(loop, "stop", None)
+            stop = getattr(worker, stop_name, None)
             if callable(stop):
                 _signal(stop, label)
-            t = loop if isinstance(loop, threading.Thread) else getattr(loop, "_thread", None)
-            if t is not None:
-                threads.append(t)
-        deadline = time.monotonic() + timeout
+            thread = worker if isinstance(worker, threading.Thread) else getattr(worker, "_thread", None)
+            _add_thread(thread)
+
         me = threading.current_thread()
         alive = []
-        for t in threads:
-            if t.ident is None or t is me:    # never started / close() from inside it
+        for thread in threads:
+            if thread.ident is None or thread is me:  # never started / close() from inside it
                 continue
-            t.join(max(0.0, deadline - time.monotonic()))
-            if t.is_alive():
-                alive.append(t.name)
+            try:
+                thread.join(max(0.0, deadline - time.monotonic()))
+                if thread.is_alive():
+                    alive.append(thread.name)
+            except Exception as e:
+                error_channel.record(
+                    f"join for {thread.name} failed: {e}", source="gui.server", exc=e
+                )
+                alive.append(thread.name)
+
+        # Scheduler.shutdown() signals every adapter. Its join() uses one
+        # remaining-time budget across all adapter threads.
+        if self.scheduler is not None:
+            join = getattr(self.scheduler, "join", None)
+            if callable(join):
+                try:
+                    remaining = max(0.0, deadline - time.monotonic())
+                    alive.extend(join(timeout=remaining) or [])
+                except Exception as e:
+                    error_channel.record(
+                        f"Scheduler join failed: {e}", source="gui.server", exc=e
+                    )
         return alive
 
 
@@ -1025,6 +1063,7 @@ def build_state(
         tool_registry=tool_registry,
         tool_caller=tool_caller,
         coherence_gate=coherence_gate,
+        resolver=_resolver if "beliefs" in writers and "beliefs" in readers else None,
         trigger_detector=trigger_detector,
         throw_net_monitor=throw_net_monitor,
         counterfactual_node=counterfactual_node,
