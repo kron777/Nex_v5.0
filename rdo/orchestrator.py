@@ -34,13 +34,16 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
               max_depth: int = 4,
               initial_relationships: Optional[List[Relationship]] = None,
               objective_input: Optional[Dict] = None,
-              objective_context: Optional[Dict] = None) -> Tuple[CycleRecord, dict]:
+              objective_context: Optional[Dict] = None,
+              approved_catalogue=None) -> Tuple[CycleRecord, dict]:
     applied = [p.key for p in memory.applicable(objective)] if memory else []
 
     # EXPAND (+ reconcile interleaved) -> DEDUP (done in expand) -> RECONCILE children.
     # max_depth is the expansion budget; items stopped at the budget stay on the frontier.
     reconciler = recon_mod.make_reconciler(repo_dir, signatures)
-    obligations, relationships, frontier = expand(seeds, reconciler, max_depth=max_depth)
+    obligations, relationships, frontier = expand(
+        seeds, reconciler, max_depth=max_depth, approved_catalogue=approved_catalogue
+    )
     # Preserve externally supplied, typed seed relationships alongside rule-derived edges.
     if initial_relationships:
         relationships = list(initial_relationships) + relationships
@@ -247,6 +250,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         objective_input=dict(objective_input or {}),
         objective_context=objective_context,
         context_assessment=context_assessment,
+        rule_catalogue=(approved_catalogue.to_dict() if approved_catalogue else {}),
     )
     summary = {
         "objective": objective,
