@@ -199,6 +199,10 @@ class TestToolCaller(unittest.TestCase):
         tool = self.caller.should_use_tool("what is the current bitcoin price?")
         self.assertEqual(tool, "web_fetch")
 
+    def test_crypto_news_query_does_not_select_price_fetch(self):
+        tool = self.caller.should_use_tool("what is the latest bitcoin news?")
+        self.assertIsNone(tool)
+
     def test_non_actionable_text_returns_none(self):
         tool = self.caller.should_use_tool("tell me something")
         self.assertIsNone(tool)
