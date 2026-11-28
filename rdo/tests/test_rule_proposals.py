@@ -219,6 +219,18 @@ def test_tampered_proposal_ledger_fails_closed(tmp_path):
         store.proposals()
 
 
+def test_dangling_symlink_is_not_treated_as_an_empty_rule_ledger(tmp_path):
+    target = tmp_path / "missing-target.jsonl"
+    ledger = tmp_path / "rule_proposals.jsonl"
+    ledger.symlink_to(target)
+    store = RuleProposalStore(str(ledger))
+
+    with pytest.raises(RuleProposalError, match="must not be a symlink"):
+        store.events()
+    with pytest.raises(RuleProposalError, match="must not be a symlink"):
+        store.proposals()
+
+
 def test_proposal_request_schema_and_catalogue_fingerprint_are_required(tmp_path):
     request = _request()
     request["schema_version"] = 1
