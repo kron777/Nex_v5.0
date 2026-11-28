@@ -124,6 +124,34 @@ class TestGuiEndpoints(unittest.TestCase):
         n = self.readers["conversations"].count("messages")
         self.assertGreaterEqual(n, 4)
 
+
+    def test_chat_calculation_uses_safe_tool_wire(self):
+        from theory_x.stage_capability.tools import ToolRegistry
+        from theory_x.stage_capability.tool_caller import ToolCaller
+
+        registry = ToolRegistry(beliefs_reader=self.readers["beliefs"])
+        self.state.tool_registry = registry
+        self.state.tool_caller = ToolCaller(registry)
+        captured = []
+        original_request = self.state.voice._request_fn
+        self.state.voice._request_fn = (
+            lambda url, payload: (captured.append(payload) or _mock_req(url, payload))
+        )
+        try:
+            response = self.client.post(
+                "/api/chat",
+                json={"prompt": "calculate 15 * 37", "is_probe": True},
+            )
+            self.assertEqual(response.status_code, 200, response.get_json())
+            data = response.get_json()
+            self.assertEqual(data["tool_used"], "python_exec")
+            self.assertTrue(captured)
+            self.assertIn("Result: 555", captured[-1]["messages"][1]["content"])
+        finally:
+            self.state.voice._request_fn = original_request
+            self.state.tool_registry = None
+            self.state.tool_caller = None
+
     def test_unknown_path_returns_json_404(self):
         r = self.client.get("/api/definitely-not-a-route")
         self.assertEqual(r.status_code, 404)
