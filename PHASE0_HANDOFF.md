@@ -399,3 +399,7 @@ Targeted call-site sweep checked 24 Theory X life-loop, scheduler, world/signal/
 ### 28 November 2026 — G-83 optional Fountain prompt rail
 
 The same Metacognition object is passed to both AppState and FountainGenerator. The generator appends its cached `format_for_prompt()` line to `focus_block` and `_wide_fac` only when `NEX5_METACOG_VOICE=1`; it does not tick Metacognition itself. Source says default-off; runtime flag state UNKNOWN. No dedicated Fountain flag-boundary test was located. See INDEX §131.
+
+### 28 November 2026 — G-83 acknowledgement ownership
+
+`groove_alerts.acknowledged_at` exists in schema but GrooveSpotter leaves it NULL; Metacognition reads unacknowledged rows within 600 seconds and does not acknowledge them. No writer was found in the inspected active paths. The 10-minute query window is the only observed expiry mechanism. Intended acknowledgement owner/semantics and repository-wide absence of writers remain UNKNOWN. See INDEX §132.
