@@ -185,3 +185,42 @@ def test_multiple_submitters_racing_close_all_resolve_or_reject(tmp_path):
     assert [row["value"] for row in rows] == [
         f"item-{index}" for index in sorted(accepted)
     ]
+
+def test_writer_constructor_start_failure_after_thread_creation_rolls_back(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "writer-start-failure.db"
+    _database(path)
+
+    instances = []
+    original_init = Writer.__init__
+
+    def capture_init(self, *args, **kwargs):
+        instances.append(self)
+        original_init(self, *args, **kwargs)
+
+    original_start = threading.Thread.start
+    started_threads = []
+
+    def start_then_fail(thread):
+        started_threads.append(thread)
+        original_start(thread)
+        # Let the worker reach its queue wait before injecting the post-create
+        # failure. Writer.start must enqueue its sentinel and join it.
+        thread.join(timeout=0.05)
+        raise RuntimeError("injected Thread.start failure after creation")
+
+    monkeypatch.setattr(Writer, "__init__", capture_init)
+    monkeypatch.setattr(threading.Thread, "start", start_then_fail)
+
+    with pytest.raises(RuntimeError, match="after creation"):
+        Writer(path, name="writer-start-failure")
+
+    writer = instances[0]
+    assert len(started_threads) == 1
+    assert not started_threads[0].is_alive()
+    assert writer._thread is None
+    assert writer._queue.empty()
+    assert writer._accepting is False
+    assert writer._sentinel_enqueued is False
+
