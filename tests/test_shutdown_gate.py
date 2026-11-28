@@ -14,16 +14,15 @@ def test_gate_timeout_reports_active_requests_and_closes_admission():
     token = gate.enter("GET /manual")
     assert token is not None
     report = gate.begin_shutdown(time.monotonic() + 0.01)
-    assert report == {
-        "success": False,
-        "active_requests": 1,
-        "active": [report["active"][0]],
-        "deadline_exceeded": True,
-    }
-    assert gate.is_closing
-    assert gate.active_requests == 1
+    assert report["success"] is False
+    assert report["active_requests"] == 1
+    assert report["deadline_exceeded"] is True
+    assert len(report["active"]) == 1
     assert report["active"][0]["label"] == "GET /manual"
     assert report["active"][0]["thread"] == threading.current_thread().name
+    assert report["active"][0]["elapsed_s"] >= 0
+    assert gate.is_closing
+    assert gate.active_requests == 1
     assert not gate.enter()
 
     gate.leave(token)
