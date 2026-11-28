@@ -49,6 +49,10 @@ The keyset-page erosion pass checks stop before each page, after each page read 
 
 The worker checks before pair selection, before VoiceClient invocation, after the VoiceClient returns, after quality/coherence checks and before belief insertion. VoiceClient requests are synchronous and cannot be cancelled by this Event. If stop arrives during the voice request, its result is discarded after return and no new belief is inserted. Pair selection itself remains a bounded synchronous read/embedding operation and is not forcibly cancelled.
 
+### WorldConsolidator
+
+The tracked launcher explicitly sets `NEX5_WORLD_CONSOLIDATE=1`, so this is an active promotion-capable worker, not merely an optional path. Its T7 window read, world-belief filtering, embedding batches, pairwise clustering, duplicate checks and promotion candidates now observe stop between bounded units. A `promoter.corroborate()` operation already started is allowed to finish. The regression test stops during the first embedding and verifies that no promotion begins.
+
 ## 4. Stage 4 Membrane
 
 BehaviouralSelfModel checks stop after its conversation read, while computing metrics, between seed comparisons, after each dedup read and after coherence checks. The membrane worker passes its Event through and does not start another divergence write after stop. A belief insert already started is allowed to complete.
@@ -67,7 +71,7 @@ Added deterministic tests for:
 
 ## 6. Remaining audit work
 
-This increment does not yet instrument every nested Stage 2 life/add-on loop (witness, pattern, identity, affinity, scorecard, surprise, remember, wonder, fetch, daily-life, focus, signal-to-problem, edge-builder, retention and Moltbook). Those loops are registered under DynamicState, but their in-flight work still needs a source-to-stop boundary audit. WorldConsolidator and any conditionally enabled world-consolidation path also remain separate. Do not infer that these remaining paths are unsafe or safe without checking their exact call sites and effective launch flags.
+This increment does not yet instrument every nested Stage 2 life/add-on loop (witness, pattern, identity, affinity, scorecard, surprise, remember, wonder, fetch, daily-life, focus, signal-to-problem, edge-builder, retention and Moltbook). Those loops are registered under DynamicState, but their in-flight work still needs a source-to-stop boundary audit. Do not infer that these remaining paths are unsafe or safe without checking their exact call sites and effective launch flags.
 
 Synchronous Reader/Writer calls, embedding/model work, VoiceClient calls and already-started logical write pairs are not forcibly cancelled. Host-level process state and actual shutdown timing still require authorized host evidence.
 
