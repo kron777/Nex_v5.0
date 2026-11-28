@@ -69,7 +69,7 @@ class ToolCaller:
     def __init__(self, registry: ToolRegistry) -> None:
         self._registry = registry
 
-    def should_use_tool(self, query: str, beliefs: list) -> Optional[str]:
+    def should_use_tool(self, query: str) -> Optional[str]:
         """Select only capabilities with a concrete, supported input target.
 
         web_fetch is an HTTP fetcher, not a general search provider. Do not
