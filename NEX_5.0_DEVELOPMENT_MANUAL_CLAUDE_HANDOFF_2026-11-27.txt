@@ -4205,3 +4205,62 @@ This is now a reusable scan rule, not just a GrooveBreaker finding. It prevents 
 **Source anchors:** `theory_x/auto_probe/groove_breaker.py`; `run.py`; `theory_x/stage6_fountain/__init__.py`; `theory_x/stage6_fountain/generator.py`; `gui/server.py`; `tests/test_diversity.py`; commit `a396dda08e8861e22029ceef813c69211671a37e` and parent `db41da3faa03ea7cf96c999495190c5d4b463824`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
 
 **Evidence level:** source-observed flag, deleted runtime wiring, and feature-table introduction; targeted unit-test inspection. Repository-wide acknowledgement-writer census and installed runtime chronology remain UNKNOWN.
+
+
+## §112 — Active groove readers and the raw-row / episode distinction (2026-11-28)
+
+### Current reader inventory (main snapshot 18c8f06171e1de35c3210831a49b63d0e2487af0)
+
+The inspected active and dormant paths are now separated:
+
+| Component | Reachability | Query/output | Writes acknowledgement? |
+|---|---|---|---|
+| `Metacognition._detect_groove()` | Active through `run.py` dependency injection and the chat handler's `tick()` call | Up to 3 newest rows in 600 seconds where `acknowledged_at IS NULL` | No writer found in this component |
+| `DiversityLoop` → `ClockRunner._run_medium()` | Active: `run.py` constructs and starts the loop; medium clock runs at 200-fountain-fire intervals | Counts unacknowledged rows detected in the previous 7,200 seconds; stores the number under `consolidations.findings.active_groove_alerts` | No; read plus aggregate observation write only |
+| `GET /api/diversity/overview` → `panel.overview()` | Request-activated endpoint in `gui/server.py` | Returns the latest 5 rows with `acknowledged_at IS NULL` | No; read-only panel data |
+| `GrooveBreaker` | Dormant: disabled and runtime construction/call/injection removed (see §111) | Would select a recent high-severity row if reactivated | No acknowledgement write found; not active |
+| `scripts/trajectory.py` | Standalone offline/read-only analysis | Reads historical rows and collapses consecutive matches into episodes | No; analytical read only |
+
+This targeted inventory found several independent readers of the same alert table. They do not share one consumption cursor. The medium clock and panel count/show raw alert rows; Metacognition derives events and narratives; the trajectory script derives analytical episodes. These are different uses of the same source data, not evidence that one reader owns or consumes the row for all others.
+
+### A current analytical episode definition already exists — but only in an instrument
+
+`scripts/trajectory.py::_groove_episodes()` collapses consecutive rows with the same `(alert_type, sample_belief_ids)` signature into one episode, retaining the first row's timestamp and severity. The script explicitly treats raw rows as re-scans rather than independent events and uses deduplicated episodes for its groove-health calculation.
+
+This gives NEX an existing, source-bounded analytical candidate for an episode signature. It does **not** establish that this signature is the product-level or cognitive semantic identity that Metacognition or Row 9 must use. Its algorithm is read-only, order-dependent, and does not share the in-memory detector fingerprint object. Keep it as an empirical measurement lens until its equivalence to current detector behaviour is validated.
+
+### Why raw counts can diverge across the active system
+
+The same set of source rows can produce at least four different measurements:
+
+1. **Raw alert rows:** number of persisted `groove_alerts` records.
+2. **Recent unacknowledged rows:** clock and panel filters over raw records.
+3. **Metacognitive observations:** number of times an eligible source row is read and written as a derived `groove` event; repeated ticks can create repeat observations.
+4. **Deduplicated episodes:** offline trajectory metric using consecutive `(alert_type, sample_belief_ids)` matches.
+
+Do not compare these counts as though they measure the same thing. In particular, the current Row 9 stillness rule counts derived metacognition events, while the medium clock and panel expose source alert rows, and the offline instrument counts deduplicated episodes.
+
+### Writer census status and search-index limitation
+
+The targeted source inspection of the producer, schema/init path, Metacognition, SelfNarrative, diversity clock, diversity panel, GrooveBreaker, offline trajectory instrument, core substrate files, relevant tests, and maintenance/tool candidates found no active write to `groove_alerts.acknowledged_at`. GrooveSpotter writes new alert rows; the other located paths read them. This is not a repository-wide proof.
+
+The GitHub repository metadata currently reports `is_code_search_indexed=false`. Exact code-search requests returned no matches with `incomplete_results=true`; they cannot establish absence. A direct repository clone could not be completed in the current environment because the host could not resolve `github.com`. Therefore the all-source acknowledgement-writer census remains OPEN. Do not convert the targeted no-match result into “no writer exists.”
+
+### Updated causal map
+
+```text
+beliefs → GrooveSpotter → groove_alerts
+                            ├─ Metacognition chat tick
+                            │    ├─ meta_cognition_events (no groove_id stored)
+                            │    └─ narrative_log (source_id stored; no uniqueness)
+                            ├─ ClockRunner medium observation (raw row count)
+                            ├─ Diversity overview endpoint (latest raw rows)
+                            ├─ GrooveBreaker (dormant; not current runtime)
+                            └─ trajectory.py (offline episode aggregation)
+```
+
+**Disposition:** Phase 0 source-level reader inventory and measurement-semantics refinement; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished.
+
+**Source anchors:** `run.py` (active DiversityLoop startup and Metacognition injection); `theory_x/diversity/loop.py`; `theory_x/diversity/consolidation.py`; `theory_x/diversity/panel.py`; `gui/server.py` (`/api/diversity/overview`); `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/auto_probe/groove_breaker.py`; `scripts/trajectory.py`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
+
+**Evidence level:** source-observed active startup/call paths and read queries; source-observed derived write paths; offline episode heuristic; targeted code-path scan. Repository-wide acknowledgement writer census, production database chronology, and actual event-to-episode cardinality remain UNKNOWN.
