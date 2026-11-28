@@ -1,13 +1,13 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with main after producer-shutdown merge.
-Evidence snapshot: main code merge commit 149c7d1ff7dd8b1c2c7789ed74c0ac64fb39ffe5; PR #416 exact-head workflow 46140753232 passed 3,051 / 7 skipped / 86 subtests.
+Mirror synchronized with boot-time ownership candidate branch.
+Evidence snapshot: main at dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f; candidate branch head 605388f19b1d9975f3d87908ac11ef95a2c2a87c; exact-head CI pending.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `149c7d1ff7dd8b1c2c7789ed74c0ac64fb39ffe5` (PR #416 merged; reconciled exact-head CI passed)
+**Last verified against:** `main` at `dd0f2c32bb5669d85a9b01bdf4cdc5636cc3f96f` plus boot-ownership candidate branch (exact-head CI pending)
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -1917,3 +1917,56 @@ This is adaptive judgement, not autonomous project authority. The founder's gove
 **Unchanged boundaries:** this chapter adds no runtime mechanism, scheduler, score, database, feature flag, cognitive authority or permission. It does not modify frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 or the action-authority separation.
 
 ---
+
+## 60. Boot-Time Ownership — AppState Before Producers (28 November 2026)
+
+### Why the study boundary moved
+
+The recent transactional-startup fixes for the World Model, Membrane and Fountain were separate, justified increments. Their repetition exposed a wider question: even if each builder can roll back its own partial start, who owns workers that have already started when a later boot step fails before the application has constructed its shutdown registry?
+
+This is a deliberate return to study, not scope drift. The evidence changed from several local builder defects to a common boot-orchestration boundary in `run.py`.
+
+### Source observations
+
+- Writers start worker threads during construction, before the original `AppState` was created.
+- The original `AppState`, its `atexit` cleanup registration and the normal graceful signal handler were established late, after multiple producer startup paths.
+- The direct `run.py` starts already corresponded to fields understood by `AppState`. The defect was that ownership was published too late, not that a second process-wide supervisor was missing.
+- Internally-started builders still need their own transactional rollback because the caller cannot publish an object it has not yet received.
+- SignalLoop was the remaining internal-start boundary after the Scheduler, Dynamic, World Model, Membrane and Fountain rollback increments.
+
+### Candidate ownership sequence
+
+1. Construct Writers and Readers, with bounded cleanup for Writers already constructed if setup fails.
+2. Construct `AppState` immediately and register its close callback before starting producers.
+3. Publish each directly-started worker into its AppState field before calling its start method.
+4. On explicit start failure, request stop and perform a bounded join; keep the reference in AppState for final cleanup if the first rollback cannot finish.
+5. For internally-started builders, keep rollback inside the builder. Publish the returned owner immediately, then check for a latched boot-shutdown request.
+6. Preserve one absolute shutdown deadline from the original signal through producer quiescence and Writer draining.
+7. Install normal clean-shutdown semantics only after the application object is constructed. A boot abort deliberately does not write the clean marker.
+
+### Signal handling during boot
+
+A boot-time SIGINT/SIGTERM handler latches a request rather than closing Writers underneath a builder that may still be starting. The current synchronous startup operation is allowed to return; the next safe checkpoint unwinds startup. Builder/helper rollback runs first, then `atexit` invokes the early-registered AppState cleanup. This avoids concurrent cleanup of a builder's partially-started resources.
+
+This means a signal can be delayed until the current builder returns. That trade-off is explicit and remains subject to host timing validation.
+
+### Regression evidence in the candidate
+
+- AST checks require the single AppState construction and `atexit` registration to precede producer startup paths.
+- Failure injection verifies ownership is published before a direct worker start and that a thread which starts before raising is stopped and joined.
+- A boot-shutdown request injected during a start call must unwind through the helper and quiesce the worker.
+- AppState must honor the absolute deadline latched at the boot signal.
+- SignalLoop uses a start gate so a failed `Thread.start()` cannot enter the detector loop body; its regression injects a failure after the OS thread has been created.
+
+### Boundaries and unresolved evidence
+
+- This is repository source/test work, not a live host or robot shutdown rehearsal. Real SIGTERM delivery, service-manager timeouts, SQLite contention and hardware startup timing remain unknown.
+- A synchronous builder can delay the response to a boot-shutdown request until its next checkpoint.
+- Partial Writer cleanup covers constructors that returned and were published in the local registry. A failure inside a Writer constructor after an OS thread exists but before the constructor returns is not yet separately fault-injected.
+- SIGKILL, power loss and process abort cannot be handled by Python cleanup.
+- No process-wide thread census, new runtime flag, database, cognitive mechanism, Mind Aspect action authority or frozen-spec change is introduced.
+
+### Current status
+
+The implementation and regression tests are assembled on `fix/boot-time-appstate-ownership-2026-11-28`. Exact-head CI is pending. Do not treat the candidate as merged or host-validated until those separate evidence gates are met.
+
