@@ -2343,3 +2343,61 @@ The normal supported startup paths are single-AppState/single-app per process. T
 
 ---
 
+## 76. Attention-selected branch attribution and next-fire continuity — causal seam study (28 November 2026)
+
+**Question studied:** after Fountain generates a thought, does the attention-selected branch affect only logging, or does it also enter continuity mechanisms that can influence later turns?
+
+### Production path traced
+
+The Fountain generator obtains the current Stage-2 status before prompt construction. After a thought is generated, it independently sorts the status branch vector by `focus_num` and selects `hot_branch` through `_weighted_branch_pick()`. With `NEX5_BRANCH_TEMP` unset/zero, the hottest branch is retained; a positive temperature enables a focus-weighted roulette selection.
+
+The selected branch is:
+- recorded in `recursion_attrib` and the later `fountain_events` record;
+- used as `_carry_branch`, unless the optional `NEX5_RETRIEVAL_TEETH=1` fixation diversion selects another branch for carry;
+- passed to `capture_momentum()` when `NEX5_MOMENTUM` is unset or `1` (the default), which stores branch plus the generated thought fragment in the single-row `momentum` table;
+- passed to the optional Hot Observer when `NEX5_HOT_OBSERVER=1`.
+
+The attention-selected branch is therefore more than an ephemeral score: it is persisted as attribution and as momentum metadata. However, timing matters: this `hot_branch` selection occurs **after** the thought has been generated. It cannot be claimed as the cause of that same thought's content.
+
+### What can influence the next fire?
+
+Two consumers must be distinguished:
+
+1. **Global Workspace momentum candidate:** `global_workspace._momentum_candidate()` reads the momentum row's timestamp and `thought_fragment` and offers a flat-weight continuation framing candidate. It does not use the stored branch field in the candidate text or salience. Thus the prior thought fragment can influence the next Fountain frame, but the branch label itself is not what makes that candidate win.
+2. **SelfNarrative branch carry:** `stage_tom.self_narrative.build_narrative()` calls `read_momentum()`; that renderer includes the stored branch in a line such as `(I was on <branch>)`. Fountain appends this narrative to a later prompt only when `NEX5_SELF_NARRATIVE=1`. That flag is explicitly checked and its default is off. Therefore branch-labelled carry into the next prompt is conditional, not a default-on claim.
+
+Momentum itself has anti-rut controls: the row goes stale after 30 minutes, and `read_momentum()` goes silent after more than three consecutive similar carries. The similarity check requires at least three shared distinctive words. These controls constrain continuity rather than allowing an indefinitely self-reinforcing loop.
+
+### Existing tests and evidence boundary
+
+- `tests/test_branch_selection.py` covers the focus-weighted selection helper, including default top-pick and temperature behavior.
+- `tests/test_momentum_writer.py` verifies injected Reader/Writer persistence, branch storage, carry count, surprise metadata, resolution and readback on temporary databases.
+- The existing Stage-2 propagation test separately exercises the real A–F pipeline, then calls branch/workspace helpers.
+- The inspected tests do not yet execute one integrated sequence from Stage-2 focus → production Fountain branch selection → `capture_momentum()` → `read_momentum()` → optional SelfNarrative prompt insertion. In particular, no reviewed test verifies the branch label's conditional next-fire prompt effect under `NEX5_SELF_NARRATIVE`.
+
+### Research conclusion
+
+There are two different forms of downstream influence:
+- **Current-fire framing:** Bonsai focus enters Global Workspace before thought generation, but its ability to win is bounded by the salience ladder and runtime configuration (see §74).
+- **Post-fire attribution/continuity:** the focus-ranked branch is selected after generation and stored with the generated thought. Its branch identity reaches the next prompt only through the optional SelfNarrative path; the default Global Workspace momentum candidate uses the thought fragment, not the branch field.
+
+This is a more precise causal model than saying "attention controls the next thought." Attention contributes to framing and branch attribution, while other mechanisms and feature flags determine whether the branch label is carried forward.
+
+### Next falsification test
+
+Build an isolated, deterministic test that:
+1. feeds controlled external events through the real Stage-2 pipeline and obtains `DynamicState.status()`;
+2. invokes the production Fountain branch-selection/carry path with controlled `NEX5_BRANCH_TEMP` and `NEX5_RETRIEVAL_TEETH` settings;
+3. verifies `hot_branch` attribution remains distinct from a diverted `_carry_branch`;
+4. verifies the exact branch and thought fragment written to the temporary momentum row;
+5. verifies `read_momentum()` returns the branch-labelled line, and that SelfNarrative prompt insertion occurs only with `NEX5_SELF_NARRATIVE=1`;
+6. verifies the default Global Workspace momentum candidate depends on the thought fragment and not the branch field.
+
+Use temporary databases and patched flags only inside the test. Do not change any live flag, momentum policy, branch selection or prompt wiring as part of the study.
+
+**Source anchors inspected at main `18c8f06171e1de35c3210831a49b63d0e2487af0`:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51`; `theory_x/stage_tom/momentum.py` blob `45d0249fe445871ebb2bfbcdb2da6e131a229e18`; `theory_x/stage_tom/global_workspace.py` blob `39d833d4a88ed3ad371daf7b62e7295d0dda6637`; `theory_x/stage_tom/self_narrative.py` blob `5fbc617fadc177ade59b45acf118b77c43ef2e84`; `tests/test_branch_selection.py` blob `01b94766a9344b6c3287947a610302345ae1bd97`; `tests/test_momentum_writer.py` blob `fdbab169457a9ebe8c3c451c69b635e200127bd6`; `tests/test_dynamic.py` blob `7e7493a5d79dda73f0ff374728a3da9eb34a558c`.
+
+**Unchanged boundaries:** no branch-selection algorithm, momentum policy, carry limit, self-narrative flag, hot-observer flag, retrieval teeth, Global Workspace salience or prompt behavior is changed. No live database or host process is accessed.
+
+---
+
