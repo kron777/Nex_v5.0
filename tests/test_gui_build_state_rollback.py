@@ -122,6 +122,45 @@ class TestBuildStateRollback(unittest.TestCase):
             [("writer-close", "beliefs")],
         )
 
+
+    def test_writer_construction_failure_closes_prior_writers_and_reraises_original(self):
+        from unittest import mock
+        import gui.server as server
+
+        events = []
+        created = []
+
+        class PartialWriter:
+            def __init__(self, path, name=None):
+                if name == "second":
+                    raise LookupError("injected second-writer failure")
+                self.name = name
+                created.append(self)
+
+            def close(self, timeout=10.0):
+                events.append(("writer-close", self.name))
+
+        with mock.patch.object(server, "db_paths", return_value={
+            "first": "/tmp/first.db",
+            "second": "/tmp/second.db",
+            "third": "/tmp/third.db",
+        }), mock.patch.object(server, "Writer", PartialWriter):
+            with self.assertRaisesRegex(
+                LookupError, "injected second-writer failure"
+            ):
+                server.build_state(
+                    with_scheduler=False,
+                    with_dynamic=False,
+                    with_world_model=False,
+                    with_membrane=False,
+                    with_fountain=False,
+                    with_strikes=False,
+                    with_tools=False,
+                )
+
+        self.assertEqual(len(created), 1)
+        self.assertEqual(events, [("writer-close", "first")])
+
     def test_cleanup_errors_do_not_escape_rollback_helper(self):
         events = []
 
