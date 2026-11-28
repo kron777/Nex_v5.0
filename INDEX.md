@@ -3136,3 +3136,83 @@ The self-model aggregator has a bounded temporal horizon and a bounded textual o
 **Source anchors inspected at main:** `theory_x/stage_tom/self_model_aggregator.py` blob `f05a03e8450c05bc92975bb668feb4baa7220488`; `theory_x/stage_tom/self_narrative.py` blob `5fbc617fadc177ade59b45acf118b77c43ef2e84`; `theory_x/stage_tom/hot_observer.py` blob `67ca7e3662ec15a05072544500761822471d43fb`; `tests/test_behavioural_self_model_propagation.py` blob `991f1766d003d94d21fcc8bdf73214a1e8d2de15`; `tests/test_self_model.py` blob `70817f1ba5aa371ee7f008967b45c16f27d6380d`.
 
 **Host/runtime unknowns:** actual HOT observer write rate, 24-hour row volume, query plan/index use, aggregation latency, and whether multiple processes write HOT observations to the same beliefs database.
+
+
+## 90. Belief formation, promotion, revision and prompt selection: separate the signals (28 November 2026)
+
+**Question studied:** does NEX distinguish a belief's origin, confidence, corroboration, promotion, repeated use, contradiction and prompt exposure—or collapse them into one undifferentiated notion of "knowing"?
+
+### 90.1 The belief record carries several different dimensions
+
+The canonical beliefs schema stores content, tier, confidence, created_at, promotion/demotion timestamps and promotion_log, source, source_stream, source_kind, branch_id, locked, paused, corroboration_count, last_referenced_at, reinforce_count, use_count and erosion_stage. It also defines typed belief_edges: supports, opposes, synthesises, cross_domain and refines.
+
+These fields are not interchangeable:
+- **Origin/provenance** answers who or what produced the row, and what kind of source it came from.
+- **Confidence** is a numeric signal used directly by retrieval.
+- **Tier** is an ordinal lifecycle/strength category used by promotion, decay and retrieval eligibility.
+- **Corroboration count** is a counter used by a tier-promotion rule.
+- **Use/reinforcement** record different kinds of interaction.
+- **Edges** represent typed relationships between belief rows.
+- **Paused/locked** alter eligibility or mutability.
+
+The schema therefore supports a richer lifecycle than a single scalar "belief strength." Any future unification must preserve these distinctions rather than flatten them.
+
+### 90.2 Confidence controls retrieval, while tier promotion follows a different path
+
+BeliefRetriever.retrieve() currently admits rows with tier <= 6, paused = 0, and (locked = 1 OR confidence >= 0.15). Keyword relevance is multiplied by confidence. The isolated Stage-5 pathway audit built a throwaway database from the real schema and exercised the real retriever: an unlocked 0.10-confidence matching belief was excluded, the same belief at 0.50 was admitted, and equally matching 0.90/0.30 beliefs ranked in that order. This is isolated mechanism evidence, not confirmation of the live population or deployment.
+
+BeliefPromoter.corroborate() is a separate mechanism. It increments corroboration_count transactionally and promotes a tier when the configured threshold for that tier is reached. It stamps last_promoted_at and appends an event to promotion_log; the promotion itself does not directly increase confidence. survive_challenge() also has a tier-promotion path, while decisive_contradiction() demotes by two tiers and records the demotion. decay_pass() demotes idle unlocked Tier 5–7 beliefs based on COALESCE(last_referenced_at, created_at) and the configured idle window.
+
+Therefore, **tier promotion is not proof that confidence was independently recalibrated**, and confidence changes are not the same thing as promotion. Keep both event histories explicit.
+
+### 90.3 Repeated reinforcement can change confidence—but through provenance erosion
+
+ProvenanceErosion advances an unprotected, unlocked belief through external → nex_absorbed → nex_integrated → nex_core when its reinforce_count reaches 10, 30 and 80 respectively. Each stage transition resets the reinforcement counter and adds 0.02 to confidence, capped at 1.0. record_use() increments use_count; it does not itself apply the confidence increment. In the inspected corroborate() path, a successful tier promotion calls record_reinforce() after the promotion transaction commits.
+
+This is a meaningful distinction: confidence can rise through an assimilation/reinforcement lifecycle, not only through new external evidence. The code's name "erosion" describes provenance becoming internalised; it must not be interpreted as a truth-verification score. A belief becoming more "NEX-owned" is not, by itself, evidence that its proposition is more accurate.
+
+### 90.4 Contradiction handling is multi-stage, not immediate truth adjudication
+
+The Harmonizer's first paradox pass writes an opposes edge and records a paradox event without immediately pausing or retiring either belief. Escalated resolution after an incubation interval pauses both beliefs, then follows the configured resolution path: held tension when its feature flag is enabled, otherwise synthesis/retirement logic. The promoter's decisive-contradiction path demotes a belief by two tiers; the decay path separately demotes on inactivity.
+
+These mechanisms show that NEX has machinery for preserving conflict and changing belief status. They do not establish that every contradiction is detected, that every opposes edge is semantically correct, or that the system has a universal evidence-adjudication procedure. The live feature flags and actual conflict-resolution outcomes remain host/runtime unknowns.
+
+### 90.5 A prompt-selection label is stronger than the actual query
+
+theory_x/stage_tom/self_narrative.py::_recent_t6() is documented as returning the "most recently promoted T6 deep beliefs." The actual query selects rows where tier=6, orders by created_at DESC, and considers up to n * 4 candidates before returning at most three. It does not order by last_promoted_at or consult promotion_log.
+
+Consequently, the selection is most-recently-created among current Tier-6 candidates, not most-recently-promoted. A belief promoted to Tier 6 long after creation can be missed in favour of a newer-created belief that has been Tier 6 all along. This is a concrete semantic mismatch between the docstring and query. It is not proof that the current prompt is harmful, but it means prompt continuity can be based on the wrong temporal notion.
+
+**Reuse-first correction direction:** decide whether the narrative wants "recently created", "recently promoted", or "recently changed"; then make the query and tests express that exact concept. If promotion recency is intended, order by last_promoted_at with an explicit NULL policy and stable tie-breaker, and test promotion-after-creation, null timestamps, demotion/re-promotion, paused/tombstoned candidates, and the bounded candidate scan. Do not change the query until that semantic choice is explicit.
+
+### 90.6 The missing distinction: evidence quality versus reinforcement history
+
+The inspected schema and pathways provide provenance, typed relations, confidence, tier transitions, reinforcement and contradiction handling. They do not, in the inspected pathway, amount to a single calibrated evidence ledger that records for each proposition:
+- the exact supporting or opposing observations and their source identities;
+- whether sources are independent or merely repeated copies;
+- observation time versus ingestion time;
+- the prediction or condition that would falsify the proposition;
+- how much each observation changed confidence, and why;
+- whether a later observation is genuinely new evidence or merely reuse/retrieval of an existing belief.
+
+The typed edge graph can express supports and opposes, and source-kind stamping can classify origin, but these are not by themselves a proof of independent corroboration or calibrated probability. The Stage-4 audit also records provenance completeness as host-only unknown. Avoid describing NEX as having fully evidence-grounded belief revision until that gap is measured and tested.
+
+### 90.7 Development direction: preserve a traceable belief state machine
+
+Before adding another belief engine or schema:
+1. Map every producer and updater to the existing fields and event log; distinguish creation, source stamping, corroboration, challenge survival, decay, contradiction, pause, synthesis, retirement and provenance erosion.
+2. Define a proposition-level evidence event as a candidate design, not a new authority: stable belief identity, observation identity, source/provenance, support/opposition relation, independence group, event time, ingestion time, and rationale.
+3. Keep confidence calibration separate from tier promotion and provenance assimilation. Any confidence update should state which evidence event caused it and whether the event is independent.
+4. Make prompt selection semantics explicit: created, promoted, revised, referenced, or recently supported are different questions.
+5. Test counter-evidence and revision symmetrically with reinforcement; include repeated identical sources, copied content, delayed observations, conflicting evidence, and replay/idempotency.
+6. Measure actual source-kind completeness and live promotion/revision distributions only through the authorised host-side read-only gate. Do not infer live operation from source presence or isolated fixtures.
+
+### Research conclusion
+
+NEX already has distinct mechanisms for provenance, retrieval confidence, tier promotion/demotion, reinforcement-based assimilation, contradiction edges and prompt-level belief selection. The important design risk is not that these mechanisms are absent; it is that their meanings can be conflated. The clearest source-level mismatch found in this pass is _recent_t6() calling its result "most recently promoted" while ordering by creation time. The deeper architectural opportunity is a traceable, proposition-centred evidence history that separates independent evidence from repeated reinforcement and separates truth confidence from internal ownership.
+
+No runtime code, database schema, indexes, feature flags, tests, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority changed. This was source research and manual documentation only; no tests were run in this study.
+
+**Source anchors inspected at main:** substrate/schema/beliefs.sql blob 44a3f95dbf4c522d84dd030c9c825afffe760b6b; substrate/source_kind.py blob 11b052d529defefecd16caafae5b95a3b251c0f0; theory_x/stage3_world_model/retrieval.py blob aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3; theory_x/stage3_world_model/promotion.py blob 035f89c34d0bd9391bc531107f7689f14a529042; theory_x/stage3_world_model/erosion.py blob 93a80b9105d7510c58f793e40cecbb1364832d5b; theory_x/stage3_world_model/harmonizer.py blob e72008ec21ad91e20cbdcfc73bacf14263e34382; theory_x/stage_tom/self_narrative.py blob 5fbc617fadc177ade59b45acf118b77c43ef2e84; tests/test_belief_confidence_retrieval_pathway.py blob b2505f2494db8fcd2453f7f5ee28184906e83daa; tests/test_promotion_atomicity.py blob 503cfb9f130391245a2b99746080cf3ae3c5cfd7; tests/test_erosion.py blob 530191ab3252a632ec077eaed8988ae5a4819357; tests/test_source_kind.py blob d54ea4cb30b8d8315b1e3f34903f6088198c5374.
+
+**Host/runtime unknowns:** live source-kind completeness; active confidence/tier distributions; which producers and promotion/contradiction loops are firing; feature flags governing semantic retrieval, tier climb, held tension and related pathways; whether the live prompt is using this Stage-TOM narrative; and whether the source-level selection mismatch is currently exercised.
