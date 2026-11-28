@@ -144,21 +144,39 @@ class TestAppStateCloseJoinsProducers(unittest.TestCase):
             t.start()
         events = [threading.Event() for _ in stuck]
         recorded = []
+
+        class StuckScheduler:
+            def __init__(self):
+                self.stopped = False
+                self.join_timeout = None
+
+            def shutdown(self):
+                self.stopped = True
+
+            def join(self, timeout=None):
+                self.join_timeout = timeout
+                return ["sense.stuck_adapter"]
+
+        scheduler = StuckScheduler()
         with mock.patch.object(srv, "_PRODUCER_STOP_TIMEOUT_S", 0.5, create=True), \
              mock.patch.object(srv.error_channel, "record",
                                side_effect=lambda msg, **k: recorded.append(msg)):
             started = time.monotonic()
             _state(self.writers, self.readers,
+                   scheduler=scheduler,
                    dynamic=SimpleNamespace(_stop=events[0], _threads=[stuck[0]]),
                    world_model=SimpleNamespace(_stop=events[1], _threads=[stuck[1]]),
                    signal_loop=SimpleNamespace(stop=events[2].set, _thread=stuck[2])).close()
             elapsed = time.monotonic() - started
 
         self.assertTrue(all(e.is_set() for e in events))
+        self.assertTrue(scheduler.stopped)
+        self.assertEqual(scheduler.join_timeout, 0.0)
         self.assertLess(elapsed, 1.4, "budget was spent per producer, not shared")
         joined = " ".join(recorded)
         for i in range(3):
             self.assertIn(f"stuck_{i}", joined)
+        self.assertIn("sense.stuck_adapter", joined)
 
     def test_a_failing_stop_does_not_skip_the_other_producers(self):
         def boom():
