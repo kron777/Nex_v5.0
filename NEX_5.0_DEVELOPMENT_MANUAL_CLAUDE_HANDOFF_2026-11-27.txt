@@ -5759,3 +5759,37 @@ The nominal sample may be both temporally mis-scoped and incomplete while it is 
 **Source anchors:** run.py; _own_and_start() in run.py; theory_x/genius/tagger.py; theory_x/stage9_metacognition/metacognition.py; theory_x/stage_self_narrative/self_narrative.py; theory_x/stage6_fountain/__init__.py; theory_x/stage6_fountain/generator.py.
 
 **Authority boundary:** no runtime code, worker lifecycle, startup ordering, database schema, feature flag, detector threshold, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §155 — The generic GUI retriever classifies self_rut_notice as OUTSIDE and excludes it from self-inquiry retrieval (28 November 2026)
+
+**Question studied:** does the generic BeliefRetriever make the Fountain rut belief available to the self-inquiry route, given that it is a first-person observation about NEX's own thinking?
+
+### Source trace
+
+- MembraneClassifier.classify_belief() classifies a belief as INSIDE only when its source appears in the explicit _INSIDE_SOURCES set; all other sources are OUTSIDE.
+- The inspected _INSIDE_SOURCES set does not contain self_rut_notice.
+- QueryRouter._inside_route() calls BeliefRetriever.retrieve(..., side_filter="INSIDE"). BeliefRetriever applies CLASSIFIER.classify_belief() to each candidate and removes OUTSIDE rows.
+- QueryRouter._outside_route() calls the same retriever without an INSIDE side filter. Therefore the tier-6/confidence-0.6 self_rut_notice row can remain eligible for outside-query scoring, but is excluded from self-inquiry retrieval by source classification.
+- The narrative_log route remains separate: GUI calls SelfNarrative.format_for_prompt() after membrane routing, but its literal prompt-prefix match is constrained by §149.
+- The Fountain's explicit own/seed/HOT source pools continue to omit self_rut_notice as recorded in §151.
+
+### Consequence
+
+The Fountain rut belief is first-person in content, but the generic membrane retrieval contract classifies it as OUTSIDE because its source label is absent from the INSIDE allowlist. This does not mean the belief is globally unreadable: it can be considered by the OUTSIDE generic retriever if query scoring selects it. It does mean the source-level self-inquiry route does not retrieve it through that path.
+
+The content's first-person wording is not sufficient to establish its retrieval side; the source allowlist is authoritative for this classifier. Whether self_rut_notice was intentionally meant to be OUTSIDE is UNKNOWN.
+
+### Evidence classification
+
+- Source classification rule and _INSIDE_SOURCES contents: source-observed.
+- QueryRouter INSIDE/OUTSIDE side-filter behavior: source-observed.
+- Test-only characterization of OUTSIDE classification and INSIDE exclusion added in draft PR #454; exact-head CI pending.
+- Actual host queries and whether a self_rut_notice row has ever been selected for an OUTSIDE prompt: UNKNOWN.
+
+**Next bounded investigation:** await PR #454 exact-head CI; inspect the original intended classification contract for self_rut_notice and any source-level rationale. Do not add the source to _INSIDE_SOURCES or alter membrane policy without an authoritative decision.
+
+**Disposition:** source-level retrieval-side mismatch recorded; intended side remains unresolved. No defect ID yet. This finding complements §§151–154: the Fountain's own explicit slots omit the row, generic GUI INSIDE retrieval excludes it, and OUTSIDE retrieval remains query-dependent. G-83 remains OPEN.
+
+**Source anchors:** theory_x/stage4_membrane/classifier.py; theory_x/stage4_membrane/router.py; theory_x/stage3_world_model/retrieval.py; gui/server.py; theory_x/stage6_fountain/generator.py; draft PR #454.
+
+**Authority boundary:** no runtime code, classifier allowlist, retrieval policy, schema, feature flag, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
