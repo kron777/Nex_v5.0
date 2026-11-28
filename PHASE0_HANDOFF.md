@@ -455,3 +455,7 @@ The DB reaper covers `meta_cognition_events` only, not `goals`, `open_problems` 
 ### 28 November 2026 — protocol versus lifecycle orchestration
 
 Doctrine §4 defines `tick()` and `decay(now)` but does not specify a universal decay dispatcher, cadence or owner. Node tests prove local method effects, not runtime invocation. Keep four evidence claims separate: protocol implementation, unit-tested effect, production caller/trigger, active-host observation. The current source trace has evidence for the first two and selected tick/worker paths, but no located owner for the four persistent decay methods (with Metacognition's separate 30-day DB reaper backstop). Do not add a scheduler without policy ownership. See INDEX §140.
+
+### 28 November 2026 — registered-node lifecycle census
+
+The normal `run.py` boot registers nine Theory X nodes. Optional `gui/server.py::build_state(with_tools=True)` separately registers ProblemMemory, GoalManager and Metacognition. The registry stores/lists nodes but does not dispatch tick/decay. GoalManager and Metacognition have substantive unowned decay methods; NovelAssociation's 14-day log annotation is uncalled housekeeping but its prompt reader only looks back two hours. ProblemMemory's 30-day decay is covered by G-60; it is constructed but not registered in normal `run.py` (it can be registered in optional GUI build_state). See INDEX §137 and corrected G-60 backlog wording.
