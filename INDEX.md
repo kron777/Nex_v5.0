@@ -1192,3 +1192,17 @@ The current-main `nex_keepalive.sh` source provides a concrete application/super
 **Not verified:** the installed user/system systemd unit contents, effective unit environment, service manager timeout/kill settings, actual running PID/command line, live environment, active WSGI entry point, reverse-proxy topology, host thread inventory, and whether the currently running process uses this exact checkout. Those require authorized host evidence; repository source alone cannot establish them.
 
 This narrows the host-evidence task: compare the installed unit and effective process state with this tracked supervisor contract. Do not state that the 12-second/15-second relationship is operationally proven until that comparison and a controlled host shutdown observation exist.
+
+
+### 16.7 Faculty integration: tracked launch flags versus source gates
+
+A source-to-launch comparison of current-main `gui/server.py`, the `theory_x/stage_affect/` modules and `nex_keepalive.sh` narrows the runtime-integration claim:
+
+- The chat route calls the faculty stance functions only when both the corresponding environment flag equals `1` and the session is admin-scoped. These stance strings are prompt contributions; this path does not grant an authority to execute actions.
+- The tracked launcher explicitly sets `NEX5_COMPASS`, `NEX5_EQUANIMITY`, `NEX5_APRAMADA` and `NEX5_AFFECT_CARRY`.
+- The tracked launch line does **not** explicitly set `NEX5_COMPASSION`, `NEX5_VIRYA`, `NEX5_SRADDHA` or `NEX5_PRASRABDHI`. In particular, `NEX5_COMPASS` and `NEX5_COMPASSION` are distinct flags; do not conflate them.
+- Compass itself reads the situated compassion signal directly when it weighs care, clarity and affliction dimensions. Equanimity also reads the compassion distress signal to avoid flattening a warranted compassionate response. Therefore, the absence of the standalone compassion prompt flag does not imply that compassion data is absent from those faculty calculations.
+- The vīrya and praśrabdhi stance functions each have their own explicit OFF-by-default flag. Their pairwise tests in #379 characterize the functions and their dependencies under controlled inputs; those tests do not establish that the tracked launcher enables either prompt contribution.
+- The launcher may inherit additional environment from its parent service manager. Since the installed unit and effective process environment have not been inspected, the tracked launch line is not proof that these flags are OFF on the live host.
+
+This is an important distinction between a tested source dependency, a call site, a tracked launch setting and effective runtime enablement. Keep the #379 tests classified as deterministic source/function characterization until the exact deployment environment is observed. Do not change launch flags as part of this audit.
