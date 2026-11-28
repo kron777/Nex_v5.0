@@ -7,6 +7,7 @@ fresh, and experiment eligibility is still read from the Watcher registry.
 """
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -381,7 +382,7 @@ class ObjectiveInputStore:
             raise ObjectiveInputError("invalid objective_id for revision storage")
         return os.path.join(self.directory, f"{objective_id}.jsonl")
 
-    def history(self, objective_id: str) -> List[dict]:
+    def _history_unlocked(self, objective_id: str) -> List[dict]:
         path = self._path(objective_id)
         if not os.path.exists(path):
             return []
@@ -427,50 +428,68 @@ class ObjectiveInputStore:
                 records.append(item)
         return records
 
+    def history(self, objective_id: str) -> List[dict]:
+        path = self._path(objective_id)
+        if not os.path.exists(path):
+            return []
+        lock_path = path + ".lock"
+        with open(lock_path, "a", encoding="utf-8") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_SH)
+            try:
+                return self._history_unlocked(objective_id)
+            finally:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
     def append(self, payload: Any, lineage: Any = None) -> dict:
         record = validate_objective(payload)
         checked_lineage = _validate_objective_lineage(record, lineage)
-        history = self.history(record["objective_id"])
-        digest = _digest(record)
-        revision = record["revision"]
-        if revision <= len(history):
-            existing = history[revision - 1]
-            if existing["sha256"] == digest:
-                if existing.get("lineage") != checked_lineage:
-                    raise ObjectiveInputError(
-                        "objective revision already exists with different proposal lineage"
-                    )
-                return {**existing, "replayed": True}
-            raise ObjectiveInputError(
-                f"revision {revision} already exists with different content; revisions are immutable"
-            )
-        if revision != len(history) + 1:
-            raise ObjectiveInputError(
-                f"expected revision {len(history) + 1}, received revision {revision}"
-            )
-        if not history:
-            if record["supersedes_sha256"] is not None:
-                raise ObjectiveInputError("first revision must use supersedes_sha256=null")
-        else:
-            previous = history[-1]
-            if record["supersedes_sha256"] != previous["sha256"]:
-                raise ObjectiveInputError("supersedes_sha256 must match the immediately previous revision")
-            first = history[0]["record"]
-            if (record["original_text"] != first["original_text"]
-                    or record["intent"] != first["intent"]):
-                raise ObjectiveInputError(
-                    "original_text and intent are immutable; create a new objective_id for a new objective"
-                )
-        wrapper = {"record": record, "sha256": digest}
-        if checked_lineage is not None:
-            wrapper["lineage"] = checked_lineage
         path = self._path(record["objective_id"])
-        # One append-only record per revision. Never rewrite an earlier revision.
-        with open(path, "a", encoding="utf-8") as fh:
-            fh.write(_canonical_json(wrapper) + "\n")
-            fh.flush()
-            os.fsync(fh.fileno())
-        return {**wrapper, "replayed": False}
+        lock_path = path + ".lock"
+        with open(lock_path, "a", encoding="utf-8") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            try:
+                history = self._history_unlocked(record["objective_id"])
+                digest = _digest(record)
+                revision = record["revision"]
+                if revision <= len(history):
+                    existing = history[revision - 1]
+                    if existing["sha256"] == digest:
+                        if existing.get("lineage") != checked_lineage:
+                            raise ObjectiveInputError(
+                                "objective revision already exists with different proposal lineage"
+                            )
+                        return {**existing, "replayed": True}
+                    raise ObjectiveInputError(
+                        f"revision {revision} already exists with different content; revisions are immutable"
+                    )
+                if revision != len(history) + 1:
+                    raise ObjectiveInputError(
+                        f"expected revision {len(history) + 1}, received revision {revision}"
+                    )
+                if not history:
+                    if record["supersedes_sha256"] is not None:
+                        raise ObjectiveInputError("first revision must use supersedes_sha256=null")
+                else:
+                    previous = history[-1]
+                    if record["supersedes_sha256"] != previous["sha256"]:
+                        raise ObjectiveInputError("supersedes_sha256 must match the immediately previous revision")
+                    first = history[0]["record"]
+                    if (record["original_text"] != first["original_text"]
+                            or record["intent"] != first["intent"]):
+                        raise ObjectiveInputError(
+                            "original_text and intent are immutable; create a new objective_id for a new objective"
+                        )
+                wrapper = {"record": record, "sha256": digest}
+                if checked_lineage is not None:
+                    wrapper["lineage"] = checked_lineage
+                # One append-only record per revision. Never rewrite an earlier revision.
+                with open(path, "a", encoding="utf-8") as fh:
+                    fh.write(_canonical_json(wrapper) + "\\n")
+                    fh.flush()
+                    os.fsync(fh.fileno())
+                return {**wrapper, "replayed": False}
+            finally:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
 def compare_revisions(previous: dict, current: dict) -> dict:
