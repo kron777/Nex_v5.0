@@ -2869,6 +2869,12 @@ class FountainGenerator:
             )
             trace.remember("fountain_event_delta", _fountain_event_trace_id)
         self._link_activation_to_event()
+        # The core event pair is persisted; advance the in-memory fire counters
+        # before optional attachments so a stop during the pair cannot leave the
+        # process-local counters behind the durable event rows.
+        self._last_fountain_output = _strip_metadata(thought)
+        self._last_fire_ts = ts_now
+        self._total_fires += 1
 
         # The core sense/fountain event pair is complete. Optional attachments
         # and crystallization are not started after shutdown is observed.
@@ -2908,9 +2914,6 @@ class FountainGenerator:
         except Exception:
             pass
 
-        self._last_fountain_output = _strip_metadata(thought)
-        self._last_fire_ts = ts_now
-        self._total_fires += 1
         try:
             from theory_x.diversity.loop import notify_fire
             notify_fire()
