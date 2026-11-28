@@ -161,6 +161,7 @@ class TestAppStateCloseQuiescesDynamic(unittest.TestCase):
         closer.start()
         time.sleep(0.05)
         self.assertTrue(closer.is_alive(), "close did not wait for the in-flight Fountain tick")
+        self.assertTrue(fountain._stop.is_set(), "close did not request Fountain stop")
         release.set()
         closer.join(timeout=1.0)
 
