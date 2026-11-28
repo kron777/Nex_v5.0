@@ -1140,6 +1140,6 @@ Semantic boundary: this SelfMindView attention aspect is theme-recurrence derive
 
 ### Scope
 
-No schema, theme calculation, detector threshold, feature flag or prompt wording changed. The previously disconnected existing detector may now emit an `attention_groove` event when the evidence warrants it. The integration test uses isolated temporary databases. Exact-head CI is pending; no pass count is claimed.
+No schema, theme calculation, detector threshold, feature flag or prompt wording changed. The previously disconnected existing detector may now emit an `attention_groove` event when the evidence warrants it. The integration test uses isolated temporary databases. The expanded characterization seeds an older distinct observation, then confirms three qualifying attention ticks occupy all three most-recent unresolved event slots. Exact-head full-suite CI is pending; no pass count is claimed.
 
 **Open amplification risk:** the attention-groove detector currently writes an event on every qualifying Metacognition tick; the inspected path has no cooldown or episode deduplication. The real integration test now confirms that two consecutive qualifying ticks write two identical event rows. Repeated identical events may dominate the recent prompt context while the same theme pattern persists. This PR does not change that policy; measure the frequency and prompt exposure before deciding on throttling or episode resolution.

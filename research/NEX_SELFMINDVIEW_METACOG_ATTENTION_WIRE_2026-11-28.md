@@ -1,7 +1,7 @@
 # NEX SelfMindView → Metacognition attention wire correction
 
 **Date:** 28 November 2026  
-**Base:** `kron777/Nex_v5.0` main at `b5e78842f43ac93c2624697f686da0b600306177`  
+**Evidence base:** `kron777/Nex_v5.0` main at `f5cf19c32b0151043ca90b139b25c24e01e384fb`  
 **Branch:** `fix/selfmindview-metacog-attention-wire-2026-11-28`  
 **Status:** one-column read-path correction and real integration test added; exact-head CI pending.
 
@@ -56,9 +56,9 @@ The Phase-40 `attention_groove` finding is emitted on every `Metacognition.tick(
 
 Because `gui/server.py` calls `tick()` on each chat turn, sustained identical themes may create another `attention_groove` row on each qualifying turn and repeatedly occupy the recent-event prompt context. Once this previously disconnected wire is active, that could become a self-reinforcing prompt loop: recurring themes trigger an observation, the observation is injected, and subsequent responses may continue the same theme. This is a hypothesis about a possible amplification effect, not a demonstrated harmful outcome.
 
-The integration test now calls two consecutive qualifying chat-turn ticks and asserts that two `attention_groove` rows are written. This confirms the repeated-event behaviour in an isolated fixture, rather than relying only on source inspection. The test labels it as characterization, not a desired permanent event-count contract. This PR deliberately does not add a cooldown or episode-deduplication policy. The next observation should measure event frequency and repeated prompt exposure under controlled, sustained themes before choosing whether to add an episode identity, cooldown, resolution condition or decay rule.
+The integration test now calls three consecutive qualifying chat-turn ticks and asserts that three `attention_groove` rows are written. It seeds an older distinct unresolved `value_drift_distance` observation first, then verifies that the three attention rows displace it from `get_recent(limit=3)`. This confirms both repeated-event behaviour and recency-pool starvation in an isolated fixture, rather than relying only on source inspection. The test labels it as characterization, not a desired permanent event-count contract. This PR deliberately does not add a cooldown or episode-deduplication policy. The next observation should measure event frequency and repeated prompt exposure under controlled, sustained themes before choosing whether to add an episode identity, cooldown, resolution condition or decay rule.
 ## 7. Scope and validation
 
 This is a one-column read projection plus an isolated integration test. No database schema, prompt text, detector threshold, feature flag, cognitive policy or governance register changed. The runtime may now emit an existing `attention_groove` observation when repeated themes genuinely appear across snapshots; that is the intended previously disconnected detector behavior.
 
-Exact-head full-suite CI is pending. No pass count is claimed until it completes.
+Exact-head full-suite CI is pending for the expanded three-tick/recency-pool characterization. No pass count is claimed until it completes.

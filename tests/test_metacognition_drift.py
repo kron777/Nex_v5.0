@@ -663,20 +663,35 @@ class TestSelfMindViewAttentionWire(unittest.TestCase):
 
         # Exercise the actual persistence/cache/prompt path, not just the
         # detector's return value.
+        # Seed an older, distinct unresolved observation. Three qualifying
+        # attention ticks should be able to displace it from the current
+        # three-row recency pool; this measures exposure, not desired policy.
+        mc._write_event({
+            "event_type": "value_drift_distance",
+            "description": "older distinct observation",
+            "severity": 0.9,
+            "source": "wire-test",
+        }, time.time() - 60)
+
         with patch.dict(os.environ, {
             "NEX5_METACOG_DIGEST": "0",
             "NEX5_METACOG_PATTERN": "0",
         }):
-            mc.tick()
-            mc.tick()
+            for _ in range(3):
+                mc.tick()
         persisted = self.readers["conversations"].read(
             "SELECT event_type FROM meta_cognition_events "
             "WHERE event_type = 'attention_groove'"
         )
-        # Characterize current behaviour: the detector writes again on the
-        # next qualifying tick; this is an observed open cooldown/dedup gap,
-        # not a desired permanent event-count contract.
-        self.assertEqual(len(persisted), 2)
+        # Characterize the actual per-tick write and 3-row recency window.
+        # This is an observed open cooldown/dedup gap, not a desired
+        # permanent event-count contract.
+        self.assertEqual(len(persisted), 3)
+        recent = mc.get_recent(limit=3)
+        self.assertEqual([row["event_type"] for row in recent],
+                         ["attention_groove"] * 3)
+        self.assertNotIn("value_drift_distance",
+                         [row["event_type"] for row in recent])
         self.assertIn(
             "same themes have been recurring",
             mc.format_for_prompt(),
