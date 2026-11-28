@@ -155,11 +155,15 @@ def _rule_propose(args) -> int:
 
 def _rule_review(args) -> int:
     try:
-        event = RuleProposalStore(os.path.join(args.dir, "rule_proposals.jsonl")).review(
+        store = RuleProposalStore(os.path.join(args.dir, "rule_proposals.jsonl"))
+        proposal = store.get_proposal(args.proposal_id)
+        source_cycle = CycleStore(args.dir).load(proposal["source_cycle_id"])
+        event = store.review(
             args.proposal_id, args.decision, args.reviewer, args.source_reference,
             args.evidence_reference, selected_alternative=args.selected_alternative,
             positive_test_evidence=args.positive_test_evidence,
             negative_test_evidence=args.negative_test_evidence, note=args.note,
+            source_cycle=source_cycle,
         )
     except (OSError, ValueError) as exc:
         print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
