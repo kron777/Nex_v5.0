@@ -51,6 +51,14 @@ class SpeechQueueConsumer(threading.Thread):
 
     def stop(self) -> None:
         self._stop.set()
+        # Stop an active sounddevice stream immediately. Synthesis itself is
+        # synchronous and cannot be cancelled by this worker.
+        try:
+            stop_playback = getattr(self.player, "stop", None)
+            if callable(stop_playback):
+                stop_playback()
+        except Exception as exc:
+            log.debug("speech playback stop request failed: %s", exc)
 
     def pause(self) -> None:
         self._paused = True
@@ -87,6 +95,8 @@ class SpeechQueueConsumer(threading.Thread):
         else:
             log.info("SpeechQueueConsumer thread starting, loading Kokoro (voice=%s)...",
                      self.config.voice)
+        if self._stop.is_set():
+            return
         try:
             self.backend.load()  # no-op if already pre-loaded on main thread
             log.info("SpeechQueueConsumer: Kokoro ready, entering poll loop")
@@ -94,30 +104,43 @@ class SpeechQueueConsumer(threading.Thread):
             log.error("SpeechQueueConsumer: Kokoro load failed, speech disabled: %s", e)
             return
 
+        if self._stop.is_set():
+            return
         while not self._stop.is_set():
             try:
                 if self._paused:
-                    time.sleep(self.config.poll_interval_sec)
+                    self._stop.wait(self.config.poll_interval_sec)
                     continue
 
                 from nex_config import local_now
                 now_hour = local_now().hour
                 if self.config.in_quiet_hours(now_hour):
-                    time.sleep(self.config.poll_interval_sec * 5)
+                    self._stop.wait(self.config.poll_interval_sec * 5)
                     continue
 
                 rows = self._pending()
                 if not rows:
-                    time.sleep(self.config.poll_interval_sec)
+                    self._stop.wait(self.config.poll_interval_sec)
                     continue
 
                 self._speak_one(rows[0])
 
             except Exception as e:
                 log.error("consumer loop error: %s", e)
-                time.sleep(self.config.poll_interval_sec)
+                self._stop.wait(self.config.poll_interval_sec)
+
+    def _mark_skipped(self, qid: int, reason: str) -> None:
+        try:
+            self.writer.write(
+                "UPDATE speech_queue SET status='skipped', error=? WHERE id=?",
+                (reason, qid),
+            )
+        except Exception as exc:
+            log.error("could not mark speech queue item %s skipped: %s", qid, exc)
 
     def _speak_one(self, row) -> None:
+        if self._stop.is_set():
+            return
         qid = row["id"]
         content = row["content"]
         trace = None
@@ -155,6 +178,8 @@ class SpeechQueueConsumer(threading.Thread):
         if not voice:
             voice = row.get("voice") or self.config.voice
         if not _is_speakable(content):
+            if self._stop.is_set():
+                return
             try:
                 self.writer.write(
                     "UPDATE speech_queue SET status='suppressed' WHERE id=?", (qid,)
@@ -170,6 +195,8 @@ class SpeechQueueConsumer(threading.Thread):
                      qid, len(content))
             return
 
+        if self._stop.is_set():
+            return
         try:
             self.writer.write(
                 "UPDATE speech_queue SET status='speaking' WHERE id=?", (qid,)
@@ -182,7 +209,15 @@ class SpeechQueueConsumer(threading.Thread):
         failure_parent = trace_parent
         try:
             try:
+                if self._stop.is_set():
+                    self._mark_skipped(qid, "shutdown before synthesis")
+                    trace_event("skipped_shutdown", parent=dequeue_event)
+                    return
                 audio, sr = self.backend.synth(content, voice=voice)
+                if self._stop.is_set():
+                    self._mark_skipped(qid, "shutdown during synthesis")
+                    trace_event("skipped_shutdown", parent=synthesis_started)
+                    return
                 synthesis_completed = trace_event(
                     "synthesis_completed", parent=synthesis_started
                 )
@@ -197,6 +232,10 @@ class SpeechQueueConsumer(threading.Thread):
             )
             try:
                 self.player.play(audio, sr)
+                if self._stop.is_set():
+                    self._mark_skipped(qid, "shutdown during playback")
+                    trace_event("skipped_shutdown", parent=playback_started)
+                    return
                 playback_completed = trace_event(
                     "playback_completed", parent=playback_started or synthesis_completed
                 )
@@ -225,6 +264,13 @@ class SpeechQueueConsumer(threading.Thread):
                         parent=playback_completed or playback_started)
             log.info("spoke belief_id=%s (%d chars)", row["belief_id"], len(content))
         except Exception as e:
+            if self._stop.is_set():
+                self._mark_skipped(qid, "shutdown interrupted speech")
+                trace_event(
+                    "skipped_shutdown", parent=failure_parent,
+                    metadata={"error_type": type(e).__name__},
+                )
+                return
             log.error("synth/play failed on id=%s: %s", qid, e)
             try:
                 self.writer.write(
