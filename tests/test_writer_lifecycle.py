@@ -95,9 +95,10 @@ def test_submit_close_race_never_strands_an_accepted_request(tmp_path):
             future = writer.submit(WriteRequest(
                 sql="INSERT INTO items(value) VALUES ('raced')"
             ))
-            outcome["accepted_result"] = future.result(timeout=3)
         except RuntimeError as exc:
             outcome["rejected"] = str(exc)
+            return
+        outcome["accepted_result"] = future.result(timeout=3)
 
     def close():
         barrier.wait()
@@ -147,10 +148,11 @@ def test_multiple_submitters_racing_close_all_resolve_or_reject(tmp_path):
                 sql="INSERT INTO items(value) VALUES (?)",
                 params=(f"item-{index}",),
             ))
-            future.result(timeout=5)
-            accepted.append(index)
         except RuntimeError:
             rejected.append(index)
+            return
+        future.result(timeout=5)
+        accepted.append(index)
 
     def close():
         barrier.wait()
