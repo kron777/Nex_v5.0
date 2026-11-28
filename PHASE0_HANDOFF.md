@@ -471,3 +471,7 @@ Historical 25 Nov host diagnostics first found `nex5-db-reaper.service` failing 
 ### 28 November 2026 — G-83 narrative retention boundary
 
 Pattern-specific `narrative_log` entries are inserted on every source-alert re-read and can duplicate the same `source_id`. The GUI formatter returns up to five topic-matching rows without an age cutoff or source deduplication; it selects only `content`/`created_at`, not stored `trigger`/`source_id`, and the GUI supplies `prompt[:100]` as the topic. `SelfNarrative.decay()` is a no-op; the 30-day DB reaper targets `meta_cognition_events` but not `narrative_log` or `groove_alerts`. Other known narrative writers include ProblemMemory, GoalManager, NovelAssociation and CoherenceGate. Pattern-specific narrative text can outlive the alert's 600-second eligibility and the meta-event retention window. Host timer state and intended narrative retention remain UNKNOWN. See INDEX §§144–145.
+
+### 28 November 2026 — shared narrative writer/provenance boundary
+
+`narrative_log` has multiple writers: Metacognition, ProblemMemory, GoalManager, NovelAssociation and CoherenceGate. Its prompt formatter selects only `content` and `created_at`, omitting `trigger` and `source_id`; the model receives the narrative text and age label without typed source provenance. This is broader than the GrooveSpotter replay path. See INDEX §144.
