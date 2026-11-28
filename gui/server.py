@@ -787,22 +787,36 @@ class AppState:
 
         writer_errors = []
         writer_threads_alive = []
-        for name, writer in self.writers.items():
-            remaining = max(0.0, deadline - time.monotonic())
-            try:
-                writer.close(timeout=remaining)
-            except Exception as e:
-                writer_errors.append(f"{name}: {e}")
-                error_channel.record(
-                    f"Writer {name} close failed: {e}",
-                    source="gui.server",
-                    exc=e,
-                )
-            finally:
+        writer_close_skipped = []
+        if producer_alive or producer_errors:
+            # A Writer must never be closed underneath a producer that failed
+            # to quiesce. A late submit after close can block on a dead Writer
+            # queue or race a partially drained database. Preserve the Writers,
+            # report an unclean shutdown, and let the process supervisor enforce
+            # the final hard deadline.
+            writer_close_skipped = list(self.writers.keys())
+            for name, writer in self.writers.items():
                 inner = getattr(writer, "_inner", writer)
                 thread = getattr(inner, "_thread", None)
                 if isinstance(thread, threading.Thread) and thread.is_alive():
                     writer_threads_alive.append(name)
+        else:
+            for name, writer in self.writers.items():
+                remaining = max(0.0, deadline - time.monotonic())
+                try:
+                    writer.close(timeout=remaining)
+                except Exception as e:
+                    writer_errors.append(f"{name}: {e}")
+                    error_channel.record(
+                        f"Writer {name} close failed: {e}",
+                        source="gui.server",
+                        exc=e,
+                    )
+                finally:
+                    inner = getattr(writer, "_inner", writer)
+                    thread = getattr(inner, "_thread", None)
+                    if isinstance(thread, threading.Thread) and thread.is_alive():
+                        writer_threads_alive.append(name)
 
         finished = time.monotonic()
         deadline_exceeded = finished > deadline
@@ -811,6 +825,7 @@ class AppState:
             or producer_alive
             or producer_errors
             or writer_errors
+            or writer_close_skipped
             or writer_threads_alive
             or deadline_exceeded
         )
@@ -825,6 +840,7 @@ class AppState:
             "producer_errors": producer_errors,
             "scheduler_errors": scheduler_errors,
             "writer_errors": writer_errors,
+            "writer_close_skipped": writer_close_skipped,
             "writer_threads_alive": writer_threads_alive,
         }
 
