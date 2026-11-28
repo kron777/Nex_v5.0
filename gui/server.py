@@ -747,6 +747,16 @@ class AppState:
                     f"Fountain stop failed: {e}", source="gui.server", exc=e
                 )
 
+        if self.resolver is not None:
+            try:
+                stop_loop = getattr(self.resolver, "stop_loop", None)
+                if callable(stop_loop):
+                    stop_loop()
+            except Exception as e:
+                error_channel.record(
+                    f"Resolver stop failed: {e}", source="gui.server", exc=e
+                )
+
         if self.scheduler is not None:
             try:
                 # This requests adapter shutdown; scheduler-thread joins remain
@@ -775,19 +785,21 @@ class AppState:
                     f"Dynamic stop failed: {e}", source="gui.server", exc=e
                 )
 
-        if self.fountain is not None:
+        for worker_name, worker in (("Fountain", self.fountain), ("resolver", self.resolver)):
+            if worker is None:
+                continue
             try:
-                join = getattr(self.fountain, "join", None)
+                join = getattr(worker, "join", None)
                 if callable(join):
                     remaining = max(0.0, deadline - time.monotonic())
                     if not join(timeout=remaining):
                         error_channel.record(
-                            "Fountain loop still running at close deadline",
+                            f"{worker_name} worker still running at close deadline",
                             source="gui.server",
                         )
             except Exception as e:
                 error_channel.record(
-                    f"Fountain join failed: {e}", source="gui.server", exc=e
+                    f"{worker_name} join failed: {e}", source="gui.server", exc=e
                 )
 
         for w in self.writers.values():
@@ -830,6 +842,7 @@ def build_state(
 
     # Phase 22 + 23 + 24 + 25a — Coherence Gate + Holding Zone + Reshape Path + TriggerDetector
     coherence_gate = None
+    resolver = None
     trigger_detector = None
     if "beliefs" in writers and "beliefs" in readers:
         from theory_x.stage_gate.coherence_gate import CoherenceGate
@@ -838,20 +851,20 @@ def build_state(
         from theory_x.stage_gate.transformer import ReshapeTransformer
         from theory_x.stage_throw_net.trigger_detector import TriggerDetector
         _holding_zone = HoldingZone(writers["beliefs"], readers["beliefs"])
-        _resolver = HoldingZoneResolver(_holding_zone, beliefs_writer=writers["beliefs"])
+        resolver = HoldingZoneResolver(_holding_zone, beliefs_writer=writers["beliefs"])
         trigger_detector = TriggerDetector(writers["beliefs"], readers["beliefs"])
         coherence_gate = CoherenceGate(
             beliefs_reader=readers["beliefs"],
             beliefs_writer=writers["beliefs"],
             conversations_reader=readers.get("conversations"),
             holding_zone=_holding_zone,
-            resolver=_resolver,
+            resolver=resolver,
             trigger_detector=trigger_detector,
         )
-        _resolver.set_gate(coherence_gate)
+        resolver.set_gate(coherence_gate)
         _transformer = ReshapeTransformer(voice)
-        _resolver.set_transformer(_transformer)
-        _resolver.start_loop()
+        resolver.set_transformer(_transformer)
+        resolver.start_loop()
 
     dynamic = None
     if with_dynamic:
@@ -1012,6 +1025,7 @@ def build_state(
         tool_registry=tool_registry,
         tool_caller=tool_caller,
         coherence_gate=coherence_gate,
+        resolver=resolver,
         trigger_detector=trigger_detector,
         throw_net_monitor=throw_net_monitor,
         counterfactual_node=counterfactual_node,
