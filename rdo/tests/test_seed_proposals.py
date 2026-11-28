@@ -341,3 +341,35 @@ def test_raw_objective_original_text_and_intent_cannot_be_rewritten(tmp_path):
             source_reference="source:changed-raw-objective",
         )
     assert len(store.events()) == 1
+
+
+def test_history_derives_seed_proposals_and_events_from_one_ledger_snapshot(tmp_path, monkeypatch):
+    store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
+    submitted = _submit(store)
+    proposal_id = submitted["proposal"]["proposal_id"]
+    store.review(
+        proposal_id,
+        "changes_requested",
+        reviewer="reviewer",
+        source_reference="review:history-snapshot",
+        rationale="Clarify one evidence gap before approval.",
+        evidence_references=["review:evidence-gap"],
+    )
+
+    original_read = store._read_events
+    read_count = 0
+
+    def counted_read():
+        nonlocal read_count
+        read_count += 1
+        return original_read()
+
+    monkeypatch.setattr(store, "_read_events", counted_read)
+    history = store.history(proposal_id)
+
+    assert read_count == 1
+    assert history["proposal_count"] == 1
+    assert history["proposals"][0]["status"] == "changes_requested"
+    assert [event["event_kind"] for event in history["events"]] == [
+        "proposal_submitted", "review_decision"
+    ]
