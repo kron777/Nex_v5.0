@@ -215,6 +215,39 @@ class TestFountainGenerator(unittest.TestCase):
         self.assertIn("Beliefs held: 5", prompt)
 
 
+    def test_metacognition_prompt_block_is_off_by_default_and_opt_in(self):
+        """The optional Fountain rail reads the cache; it must not tick it."""
+        line = "Self-observation: I notice repeated patterns in my recent thinking."
+
+        class FakeMetacognition:
+            def __init__(self):
+                self.format_calls = 0
+                self.tick_calls = 0
+
+            def format_for_prompt(self):
+                self.format_calls += 1
+                return line
+
+            def tick(self, context=None):
+                self.tick_calls += 1
+
+        gen = self._make_generator()
+        fake = FakeMetacognition()
+        gen._metacognition = fake
+        ds = _mock_dynamic_state(hot_branch="curiosity")
+        status = ds.status()
+
+        with mock.patch.dict(os.environ, {"NEX5_METACOG_VOICE": "0"}):
+            prompt_off, _ = gen._build_prompt(status, 5, {"5": 5})
+        self.assertNotIn(line, prompt_off)
+        self.assertEqual(fake.format_calls, 0, "flag OFF must not read the formatter")
+
+        with mock.patch.dict(os.environ, {"NEX5_METACOG_VOICE": "1"}):
+            prompt_on, _ = gen._build_prompt(status, 5, {"5": 5})
+        self.assertIn(line, prompt_on)
+        self.assertEqual(fake.format_calls, 1)
+        self.assertEqual(fake.tick_calls, 0, "Fountain reads the cache; it does not tick Metacognition")
+
 # ---- FountainState ------------------------------------------------------------
 
 class TestFountainState(unittest.TestCase):
