@@ -49,6 +49,7 @@ def _cleanup(writers, tmp):
 
 class _StubBackend:
     synth_calls = 0
+    is_loaded = True
 
     def load(self):
         pass
@@ -60,9 +61,13 @@ class _StubBackend:
 
 class _StubPlayer:
     play_calls = 0
+    stop_calls = 0
 
     def play(self, audio, sample_rate):
         _StubPlayer.play_calls += 1
+
+    def stop(self):
+        _StubPlayer.stop_calls += 1
 
 
 class TestSpeechConfig(unittest.TestCase):
@@ -254,6 +259,108 @@ class TestSpeechConsumer(unittest.TestCase):
             "SELECT status FROM speech_queue WHERE status='pending'"
         )
         self.assertEqual(len(rows), 1)
+
+    def _pending_row(self, belief_id):
+        rows = self.readers["beliefs"].read(
+            "SELECT id, belief_id, content, voice FROM speech_queue WHERE belief_id=?",
+            (belief_id,),
+        )
+        self.assertEqual(len(rows), 1)
+        return rows[0]
+
+    def _queue_status(self, queue_id):
+        rows = self.readers["beliefs"].read(
+            "SELECT status, error FROM speech_queue WHERE id=?", (queue_id,)
+        )
+        return rows[0]
+
+    def test_shutdown_during_synthesis_skips_item_without_playback(self):
+        from speech.queue_consumer import SpeechQueueConsumer
+
+        belief_id = self._seed_pending()
+        row = self._pending_row(belief_id)
+        consumer = self._make_consumer()
+        started = threading.Event()
+        release = threading.Event()
+
+        class BlockingBackend:
+            is_loaded = True
+            def load(self):
+                pass
+            def synth(self, _content, voice=None):
+                started.set()
+                release.wait(timeout=3.0)
+                return np.zeros(100, dtype=np.float32), 24000
+
+        class CountingPlayer:
+            def __init__(self):
+                self.play_calls = 0
+                self.stop_calls = 0
+            def play(self, _audio, _sample_rate):
+                self.play_calls += 1
+            def stop(self):
+                self.stop_calls += 1
+
+        player = CountingPlayer()
+        consumer.backend = BlockingBackend()
+        consumer.player = player
+        thread = threading.Thread(target=consumer._speak_one, args=(row,))
+        thread.start()
+        self.assertTrue(started.wait(timeout=2.0))
+        consumer.stop()
+        release.set()
+        thread.join(timeout=2.0)
+
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(player.play_calls, 0)
+        self.assertEqual(player.stop_calls, 1)
+        status = self._queue_status(row["id"])
+        self.assertEqual(status["status"], "skipped")
+        self.assertIn("shutdown", status["error"])
+
+    def test_shutdown_during_playback_stops_player_and_skips_item(self):
+        belief_id = self._seed_pending()
+        row = self._pending_row(belief_id)
+        consumer = self._make_consumer()
+        started = threading.Event()
+        release = threading.Event()
+
+        class ReadyBackend:
+            is_loaded = True
+            def load(self):
+                pass
+            def synth(self, _content, voice=None):
+                return np.zeros(100, dtype=np.float32), 24000
+
+        class BlockingPlayer:
+            def play(self, _audio, _sample_rate):
+                started.set()
+                release.wait(timeout=3.0)
+            def stop(self):
+                release.set()
+
+        consumer.backend = ReadyBackend()
+        consumer.player = BlockingPlayer()
+        thread = threading.Thread(target=consumer._speak_one, args=(row,))
+        thread.start()
+        self.assertTrue(started.wait(timeout=2.0))
+        consumer.stop()
+        thread.join(timeout=2.0)
+
+        self.assertFalse(thread.is_alive())
+        status = self._queue_status(row["id"])
+        self.assertEqual(status["status"], "skipped")
+        self.assertIn("shutdown", status["error"])
+
+    def test_stop_wakes_paused_poll_loop(self):
+        consumer = self._make_consumer(paused=True)
+        thread = threading.Thread(target=consumer.run)
+        thread.start()
+        time.sleep(0.05)
+        consumer.stop()
+        thread.join(timeout=1.0)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(_StubPlayer.stop_calls, 1)
 
 
 if __name__ == "__main__":
