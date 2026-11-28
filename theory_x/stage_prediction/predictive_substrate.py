@@ -259,11 +259,11 @@ class PredictiveSubstrate:
         from theory_x.stage_world.frozen_at_made import basis_entry
         basis = [basis_entry(b["id"], b["source_kind"], b["confidence"]) for b in beliefs]
         # Its basis beliefs get revised when it misses -> band 1.
-        self._write_prediction(
+        written = self._write_prediction(
             "internal_belief", centroid, rep, basis=basis, cost_band=1,
             stop_event=stop_event,
         )
-        return 0 if stop_event is not None and stop_event.is_set() else 1
+        return 1 if written else 0
 
     def _predict_external(
         self, *, stop_event: Optional[threading.Event] = None
@@ -320,11 +320,11 @@ class PredictiveSubstrate:
         if stop_event is not None and stop_event.is_set():
             return 0
         # Sense events and chat, not beliefs: no belief basis, nothing revised -> band 0.
-        self._write_prediction(
+        written = self._write_prediction(
             "external_input", centroid, rep, basis=[], cost_band=0,
             stop_event=stop_event,
         )
-        return 0 if stop_event is not None and stop_event.is_set() else 1
+        return 1 if written else 0
 
     def _nearest_content(
         self,
@@ -426,10 +426,11 @@ class PredictiveSubstrate:
             if stop_event is not None and stop_event.is_set():
                 return count
             try:
-                self._verify_one(pred, now, stop_event=stop_event)
+                completed = self._verify_one(pred, now, stop_event=stop_event)
+                if completed:
+                    count += 1
                 if stop_event is not None and stop_event.is_set():
                     return count
-                count += 1
             except Exception as exc:
                 errors.record(
                     f"predictive_substrate verify_one id={pred['id']} error: {exc}",
@@ -443,9 +444,9 @@ class PredictiveSubstrate:
         now: float,
         *,
         stop_event: Optional[threading.Event] = None,
-    ) -> None:
+    ) -> bool:
         if stop_event is not None and stop_event.is_set():
-            return
+            return False
         centroid = np.frombuffer(bytes(pred["centroid_embedding"]), dtype=np.float32)
         window_start = float(pred["made_at"])
         window_end = float(pred["target_window_end"])
@@ -463,7 +464,7 @@ class PredictiveSubstrate:
                 (window_start, window_end),
             )
             if stop_event is not None and stop_event.is_set():
-                return
+                return False
             msg_items = self._cr.read(
                 "SELECT content FROM messages "
                 "WHERE timestamp >= ? AND timestamp <= ? AND role = 'user'",
@@ -471,7 +472,7 @@ class PredictiveSubstrate:
             )
             items = list(sense_items) + list(msg_items)
         if stop_event is not None and stop_event.is_set():
-            return
+            return False
 
         surprise_score: float
         actual_content: Optional[str]
@@ -484,7 +485,7 @@ class PredictiveSubstrate:
             nearest: Optional[str] = None
             for item in items:
                 if stop_event is not None and stop_event.is_set():
-                    return
+                    return False
                 try:
                     content = item["content"] or ""
                 except (KeyError, TypeError):
@@ -502,7 +503,7 @@ class PredictiveSubstrate:
                         else self._embed(content[:500])
                     )
                     if stop_event is not None and stop_event.is_set():
-                        return
+                        return False
                     d = self._dist(centroid, emb)
                     if d < min_dist:
                         min_dist = d
@@ -516,12 +517,12 @@ class PredictiveSubstrate:
         big_surprise = 1 if surprise_score > self._BIG_SURPRISE_THRESHOLD else 0
 
         if stop_event is not None and stop_event.is_set():
-            return
+            return False
         tags = json.dumps(_generate_tags(
             (pred["representative_content"] or "") + " " + (actual_content or "")
         ))
         if stop_event is not None and stop_event.is_set():
-            return
+            return False
         triggered_at = now
         # The surprise event and prediction update form one already-started
         # verification commit unit; finish both once the first Writer call starts.
@@ -539,6 +540,7 @@ class PredictiveSubstrate:
             "WHERE id=?",
             (triggered_at, surprise_score, surprise_flag, pred["id"]),
         )
+        return True
 
     # ── Public read API ───────────────────────────────────────────────────────
 
