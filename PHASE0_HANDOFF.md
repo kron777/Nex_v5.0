@@ -561,3 +561,8 @@ PR #455 exact-head workflow 46182908854 passed at b74798e87174cfa1f74c740066bcd9
 ### 28 November 2026 — Stage-TOM SelfNarrative prompt boundary
 
 The Stage-TOM composer can include a tier-6 self_rut_notice belief through its generic recent-T6 query, provided the belief survives the bounded candidate/text filters and at least one substantive recent Fountain fire exists. FountainGenerator constructs and reads this composer only when NEX5_SELF_NARRATIVE=1; its output is appended as prompt context before spectrum standing-points. The Stage-TOM private write log is not read by its own composer. Targeted normal-path callers write through the separate persistent StageSelfNarrative object from run.py. PR #456 tests composition; PR #457 tests the prompt gate. Exact-head CI pending. Host flag/activity and semantic model effect remain UNKNOWN. No behaviour, flag or authority changed. See INDEX §160.
+
+
+### 28 November 2026 — Stage-TOM paused-belief reader boundary
+
+The beliefs schema has a paused column, but Stage-TOM _recent_t6() does not filter it. A paused tier-6 row can be eligible for the optional Fountain narrative if it survives the bounded candidate/text filters and a substantive Fountain fire exists. PR #458 adds a test-only characterization; exact-head CI is in progress. Whether paused beliefs should be excluded from this reflective context is a policy question, not inferred from the SQL alone. No runtime change or defect classification. See INDEX §161.
