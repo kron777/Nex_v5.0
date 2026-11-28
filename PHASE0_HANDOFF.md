@@ -394,3 +394,4 @@ Stage-9's built-in event digest is dark behind `NEX5_METACOG_DIGEST=1`; if armed
 ### 28 November 2026 — Metacognition decay dispatch audit
 
 `Metacognition.decay(now)` implements 14-day resolution and is directly unit-tested, but no production caller was located in the inspected `run.py`, `gui/server.py` or SentienceNode registry. The registry only registers/lists nodes; it does not dispatch lifecycle methods. Automatic stale-event resolution remains unverified pending a repository-wide call-site census. No scheduler or retention behaviour changed. See INDEX §130.
+Targeted call-site sweep checked 24 Theory X life-loop, scheduler, world/signal/diversity-loop, registry/protocol and monitor files. No Metacognition decay caller, generic decay dispatcher, all_nodes dispatcher or other meta_cognition_events resolved_at writer was found in those paths. Not a whole-repository proof. See INDEX §130.
