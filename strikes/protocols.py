@@ -81,9 +81,18 @@ class StrikeProtocol:
             return f"[ERROR: {e}]"
 
     def fire(self, strike_type: StrikeType, custom_input: str = "") -> StrikeRecord:
+        current = threading.current_thread()
         with self._thread_lock:
             if self._stop_event.is_set():
                 raise RuntimeError("StrikeProtocol is stopping")
+            self._threads.append(current)
+        try:
+            return self._fire_impl(strike_type, custom_input)
+        finally:
+            with self._thread_lock:
+                self._threads = [thread for thread in self._threads if thread is not current]
+
+    def _fire_impl(self, strike_type: StrikeType, custom_input: str = "") -> StrikeRecord:
         fired_at = time.time()
         type_str = strike_type.value
 
