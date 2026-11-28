@@ -3685,3 +3685,51 @@ If confirmed, the smallest likely correction is to align the consumer with the p
 **Host/runtime unknowns:** actual readiness distribution; whether the stillness branch is reached in deployment; actual repeated-retrieval Jaccard values; whether any external wrapper transforms manifest slots (none was found in the inspected call path); and behavioural impact of a corrected slot classifier. No tests were run in this documentation pass.
 
 No runtime code, tests, schema, indexes, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
+
+
+## 100. Fountain retrieval slot contract disables both stillness and historical duplicate comparison (28 November 2026)
+
+**Question studied:** does the §99 producer/consumer mismatch stop at the in-memory stillness guard, or does the persisted retrieval-log comparison share the same incompatible slot assumption?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and test-file inspection only. This strengthens §99 from a single-consumer mismatch to a shared slot-contract defect candidate; no runtime exercise or tests were run.
+
+### Second consumer: persisted previous-fire comparison
+
+`FountainGenerator._check_retrieval_duplicate(current_ids)` selects the last three real fires from `fountain_retrieval_log`, then reads each fire's belief IDs using the literal SQL predicate `slot = 'own'`. It calculates Jaccard against the current ID set only when a prior set is non-empty.
+
+The caller in `FountainGenerator._generate()` constructs that current set from the returned `retrieval_manifest` using the same literal `slot == "own"` predicate. Therefore the current and historical sides share the same expected label. The manifest writer later persists each tuple's slot verbatim to `fountain_retrieval_log`; it does not normalize or translate slot names. A manifest containing only the inspected producer labels cannot populate either side of this comparison.
+
+This is more consequential than a skipped in-memory guard alone: even if a caller supplied a non-empty current ID set by some other means, the persisted comparison would still find no prior IDs for fires whose logged slots are `own_sense`, `own_render`, or another label.
+
+### Complete producer/reader vocabulary found in the inspected path
+
+The scan includes the helper passed the manifest, not only direct `retrieval_manifest.append()` calls in `generator.py`:
+
+- `own_sense`: prompt-rendered sense-derived beliefs.
+- `own_render`: optional distilled own-content lines, emitted only when `NEX5_OWN_CONTENT_RENDER=1`.
+- `identity_block`: authored/self-location identity rows appended by `theory_x/stage6_fountain/identity_block.py` when `NEX5_IDENTITY_BLOCK=1`.
+- `seed`, `spectrum`, `disturbance_a`, `disturbance_b`: other explicit context classes.
+
+No inspected producer emits the literal `own` label. The separate `identity_block.append()` helper confirms that the manifest has another own-related class which §99's direct-generator scan did not enumerate. That does not mean identity rows should automatically count as retrieval continuity: their semantics differ from retrieved own-content candidates and the intended comparison population must be decided explicitly.
+
+The other inspected readers are deliberately more specific: crystallization retains the top-ranked `own_sense` entry; trace metadata records the slot vocabulary; the retrieval-log writer stores the raw slot; and the stillness/current-ID and historical-ID comparison both require `own`. These readers should not be collapsed into one vague “own” category without deciding what each mechanism is measuring.
+
+### Tests and confidence
+
+The inspected `tests/test_fountain.py`, `tests/test_fountain_arc_awareness.py`, `tests/test_fountain_shutdown.py`, and `tests/test_retrieval_teeth.py` contain no stillness or retrieval-duplicate contract tests. `tests/test_retrieval.py` covers ordinary own-content retrieval and the default-off/opt-in distilled rendering path, but does not exercise the stillness caller, the persisted log slot query, or a manifest-to-log-to-next-fire comparison. The crystallizer's near-duplicate tests are a separate output-content mechanism.
+
+**Confidence:** high that the inspected current producer labels and both literal-`own` consumers are incompatible; high that the writer persists labels without normalization; behavioural impact remains source-inferred because no tests or live database were run. Existing persisted rows from older implementations, if any, do not establish current-path correctness. Runtime startup/migration behaviour and effective host flags were not inspected in this pass.
+
+### Safe next step: specify the measurement population before repairing the contract
+
+Add a focused integration test around the actual producer → manifest → persisted log → next-fire reader path. It should prove both current and previous ID sets are populated for the intended class, and prove seed/spectrum/disturbance are excluded. Exercise `own_sense`, optional `own_render`, and optional `identity_block` separately so the policy is explicit rather than accidentally inherited from a broad label.
+
+Then centralize slot classification or give each consumer a purpose-specific set. A single shared helper is appropriate only if the stillness detector and historical comparison are meant to compare the same population. Keep the crystallizer's `own_sense` selection and trace/provenance slot labels stable unless their separate contracts are deliberately reviewed. Add boundary tests for below-cap readiness, high readiness, Jaccard below/at threshold, empty previous history, and the three-consecutive-stillness force-fire escape.
+
+This remains a Phase 0 defect candidate. No production slot renaming, behavioural fix, schema change, flag change, or test change is made in this documentation study.
+
+**Source anchors inspected:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51` (stillness caller, literal-`own` historical reader, raw manifest persistence, crystallizer's separate `own_sense` reader, and all direct manifest producers); `theory_x/stage6_fountain/identity_block.py` blob `d1f710d26f8eeb451ba71ce3b0a5a2dc683697f5` (additional `identity_block` producer); `tests/test_fountain.py` blob `4ea682443e4997e7cbbf02f795df8d2c43605299`; `tests/test_fountain_arc_awareness.py` blob `fc52380998f707a5f8cf61a544c3cc100725ef78`; `tests/test_fountain_shutdown.py` blob `83b9323802678db3f2fc219366dca4fc1a57b48f`; `tests/test_retrieval.py` blob `efd27b50c3cdc5ef64769fefcbb5529cc44ea90e`; `tests/test_retrieval_teeth.py` blob `b917244ef6f467ab2b4a7085977c1c2209b02cd0`; `tests/test_fountain_crystallizer.py` blob `aa8b666f4bfe1afa0338a6993b14cf8d2d4a4d50`.
+
+**Host/runtime unknowns:** effective `NEX5_OWN_CONTENT_RENDER` and `NEX5_IDENTITY_BLOCK`; actual slot distribution in live manifests/log rows; whether old persisted rows contain legacy `own` labels; actual Jaccard distributions; readiness distribution; and whether the two guards would change firing behaviour if correctly wired. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, indexes, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
