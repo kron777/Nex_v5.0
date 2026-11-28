@@ -63,7 +63,18 @@ But the inspected source shows them as separate mechanisms. Their common presenc
 
 For comparison, NEX has explicit source-visible paths from Stage-2 A–F attention through Bonsai focus into Fountain branch selection and Global Workspace framing. NEX's own connections still need controlled effect measurements, but their source-to-sink edges are more explicit in the inspected code.
 
-## 6. Design lessons for NEX
+## 6. Top-level orchestration and system-integration cross-check
+
+The initial four-file comparison was extended to the actual top-level and similarly named integration/control files at the same source commit.
+
+- Orchestrator.py (blob 3f80aceda2880575ebc3172c6c3841b902cceef6) instantiates MemoryNode, NonsenseNode, KnowledgeNode, WebCrawlerNode, EvolverNode, ReasoningNode, LLMNode and ConversationalIntelligenceNode. It does not import or instantiate IntegrationNode, SelfModelNode, MetaAwarenessNode, CognitiveControlNode, SystemIntegrationNode or ControlNode.
+- System_Integration_Node.py (blob 3d99a89c48321efc78bc9ec586d34d01c03f5e44) maintains its own node-status dictionary, manually seeds three statuses in its CLI entry point, computes a health ratio and writes a static directive to its own SQLite log. It does not dispatch that directive to the named target node. It creates an aiohttp ClientSession but the inspected file contains no outbound request using it.
+- Control_Node.py (blob 6025db148d40899190341ffd7de941c227012022) has a separate update_from_source() entry point and consumes source="integration" if a caller supplies it. No call from the inspected Orchestrator.py or System_Integration_Node.py was found. It is not the same class as Cognitive_Control_Node.
+- Cognitive_Control_Node.evaluate() is a deterministic directive gate, but the inspected Integration_Node and top-level Orchestrator do not call it.
+
+This strengthens the conclusion that the similarly named integration, self-model, meta-awareness and control components are not shown as one connected top-level runtime in the inspected source. It does not prove that no external process or unindexed module calls their APIs. GitHub code search returned incomplete results, so the claim remains deliberately scoped to the inspected files and source commit.
+
+## 7. Design lessons for NEX
 
 1. Distinguish latest-value snapshots from event history. A frame that combines old and new values needs per-component freshness and provenance if it is to support causal interpretation.
 2. Make schema normalization real, not just a class-level claim; validate payload types before using `.get()`.

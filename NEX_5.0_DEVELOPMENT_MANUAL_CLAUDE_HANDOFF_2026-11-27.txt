@@ -295,7 +295,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 28 November 2026 — current-main snapshot refreshed after G-92 and G-94 merges; §§47–48 record merged corrections, §49 records the Bonsai → Fountain/Global Workspace characterization; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — G-92/G-94 merged evidence, Bonsai → Fountain/Global Workspace trace, Sentience top-level wiring cross-check and PR #365 read-only bridge candidate recorded; Gate 0 boundaries remain.*
 
 
 
@@ -1120,9 +1120,11 @@ External-LLM-derived seed confidence must remain explicitly `inferred`; human-au
 
 ### Validation and next work
 
-The first exact-head CI exposed one stale self-assessment expectation: RDO correctly discovers a fourth boundary adapter after `seed_proposals.py` was added, while the existing test still expected three. The branch now updates that assertion and explicitly checks for `seed_proposals.py`. A second review found that a coverage record could name zero obligations; the validator now rejects empty obligation lists and a regression test covers it. The new exact-head full-suite CI is pending; no pass count is claimed.
+The stale self-assessment expectation was corrected in merged PR #360, and zero-obligation acceptance-criterion coverage is now rejected with regression coverage. Exact-head CI run 46115093455 passed 2,913 tests, 7 skipped and 54 subtests; baseline OK. The validator still does not automatically generate new executable expansion rules or promote candidate rules.
 
-The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.tension._find_cycles`, `_classify_cycle`, `assess_system` and `rdo.graph` SCC machinery to distinguish prerequisite cycles, influence feedback loops and unknown cases. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
+A first read-only reviewed-selection bridge is now proposed in PR #365 (branch feat/rdo-reviewed-seed-intake-bridge-2026-11-28; exact-head full-suite CI run 46116751231 passed; pending merge). It requires explicit approval, prepares a validated objective.v1 payload, returns separate raw-objective and intake revision/digest lineage, retains approval-event and acceptance-coverage provenance, and reuses existing SCC/cycle classification with a conservative enumeration bound. It does not append either ledger, run recursive expansion or create a Stage-7 handoff.
+
+The next bounded increment is a durable cross-ledger provenance and append/recovery protocol. Two append-only ledgers cannot be assumed to update atomically; any future append must handle prepare/commit/recovery explicitly and must not silently run planning or execution. No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0 or Phase 1 authority is changed.
 
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
 
@@ -1154,6 +1156,6 @@ This establishes a source-level, fixture-tested path from external perception th
 
 The next research step is to measure interaction effects under controlled perturbations: vary one branch's focus, one workspace candidate and one competing drive separately; record winner-kind shifts and downstream output changes. Keep the default-off branch temperature and all other production settings unchanged.
 
-A parallel Sentience 5.5 source audit is recorded in `research/SENTIENCE_5_5_INTEGRATION_AND_SELF_MODEL_TRACE_2026-11-28.md`. It finds that Sentience's Integration_Node is currently a latest-value aggregator (later inputs overwrite prior values; frames can mix fresh and stale components), while Self_Model_Node, Meta_Awareness_Node and Cognitive_Control_Node are distinct mechanisms whose cross-wiring is not demonstrated in the inspected files. The audit also found a conditional deadlock in `Self_Model_Node.heartbeat()` when it tries to register an unknown node while holding the same non-reentrant lock. This reinforces the need to trace actual producer/consumer edges rather than infer integration from node names or shared repository membership.
+A parallel Sentience 5.5 source audit is recorded in research/SENTIENCE_5_5_INTEGRATION_AND_SELF_MODEL_TRACE_2026-11-28.md. It finds that Integration_Node is a latest-value aggregator (later inputs overwrite prior values; frames can mix fresh and stale components), while Self_Model_Node, Meta_Awareness_Node and Cognitive_Control_Node are distinct mechanisms whose cross-wiring is not demonstrated in the inspected files. A further top-level check found that Orchestrator.py instantiates a different node set and does not import these four modules; System_Integration_Node.py records node health and writes proposed directives but does not dispatch them; Control_Node.py can accept an "integration" update through update_from_source(), but the inspected top-level orchestrator and system-integration node do not call it. The conditional Self_Model_Node.heartbeat() deadlock remains. This is source-level evidence only; repository-wide search indexing was incomplete, so no claim is made that no other caller exists.
 
 No runtime behavior, prompt policy, salience weight, feature flag, database schema, frozen specification or gate authority was changed.
