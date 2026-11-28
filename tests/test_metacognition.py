@@ -457,3 +457,90 @@ class TestGrooveReplayCharacterization(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── G-83 prompt-boundary characterization ────────────────────────────────────
+
+class TestGroovePromptBoundaryCharacterization(unittest.TestCase):
+    def test_repeated_alert_reaches_generic_prompt_and_topic_filtered_narrative(self):
+        """Trace one source alert through both real reflective prompt formatters.
+
+        The source is re-read on five controlled Metacognition ticks. The test
+        separately asserts the generic self-observation and the pattern-specific
+        narrative's topic filter. It does not claim the language model acts on
+        either string or that production request cadence matches this fixture.
+        """
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from theory_x.stage9_metacognition.metacognition import Metacognition
+        from theory_x.stage_self_narrative.self_narrative import SelfNarrative
+
+        writers, readers, tmp = _make_env()
+        try:
+            source_id = writers["beliefs"].write(
+                "INSERT INTO groove_alerts "
+                "(detected_at, alert_type, severity, pattern, window_size) "
+                "VALUES (?, 'ngram_repetition', 0.7, 'same source pattern', 5)",
+                (999.0,),
+            )
+            writers["conversations"].write(
+                "INSERT INTO meta_cognition_events "
+                "(event_type, description, severity, source, created_at) "
+                "VALUES ('goal_drift', 'older independent event', 0.8, 'test', 990.0)"
+            )
+            narrative = SelfNarrative(
+                writers["conversations"], readers["conversations"]
+            )
+            mc = Metacognition(
+                writers["conversations"],
+                readers["conversations"],
+                readers["beliefs"],
+                narrative=narrative,
+            )
+            mc._detect_goal_drift = lambda now: None
+            mc._detect_drift = lambda: []
+            mc._detect_digest = lambda now: []
+            mc._detect_self_pattern = lambda now: []
+
+            controlled_times = iter((1000.0, 1010.0, 1020.0, 1030.0, 1081.0))
+            controlled_clock = SimpleNamespace(time=lambda: next(controlled_times))
+            with patch(
+                "theory_x.stage9_metacognition.metacognition.time",
+                controlled_clock,
+            ):
+                for _ in range(5):
+                    mc.tick()
+
+            recent = readers["conversations"].read(
+                "SELECT event_type, description, source FROM meta_cognition_events "
+                "WHERE resolved_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 3"
+            )
+            self.assertEqual(len(recent), 3)
+            self.assertTrue(all(row["event_type"] == "groove" for row in recent))
+            self.assertTrue(all(
+                row["description"] == recent[0]["description"] for row in recent
+            ))
+            self.assertEqual(
+                mc.format_for_prompt(),
+                "Self-observation: I notice repeated patterns in my recent thinking.",
+            )
+
+            narrative_rows = readers["conversations"].read(
+                "SELECT content, trigger, source_id FROM narrative_log "
+                "WHERE trigger = 'groove' ORDER BY created_at, rowid"
+            )
+            self.assertEqual(len(narrative_rows), 5)
+            self.assertTrue(all(row["source_id"] == source_id for row in narrative_rows))
+            expected = "I noticed I am repeatedly returning to same source pattern"
+            self.assertTrue(all(row["content"] == expected for row in narrative_rows))
+
+            matching = narrative.format_for_prompt(
+                SimpleNamespace(current_topic="same source pattern")
+            )
+            nonmatching = narrative.format_for_prompt(
+                SimpleNamespace(current_topic="unrelated user topic")
+            )
+            self.assertEqual(matching.count(expected), 5)
+            self.assertEqual(nonmatching, "")
+        finally:
+            _cleanup(writers, tmp)
