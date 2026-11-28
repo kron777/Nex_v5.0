@@ -85,9 +85,9 @@ def _source_cycle(proposal):
     )
 
 
-def _propose(store, proposal=None, cycle=None):
+def _propose(store, proposal=None, source_cycle=None):
     proposal = proposal or _proposal()
-    return store.propose(proposal, source_cycle=cycle or _source_cycle(proposal))
+    return store.propose(proposal, source_cycle=source_cycle or _source_cycle(proposal))
 
 
 def _approve(store, proposal_id, decision="approved", alternative="environment_first"):
