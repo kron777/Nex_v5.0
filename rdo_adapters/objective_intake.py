@@ -534,11 +534,13 @@ def _cycle_summary(cycle, summary: Optional[dict] = None) -> dict:
     }
 
 
-def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
+def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cycles",
+                     objective_lineage: Optional[Dict] = None) -> dict:
     """Persist one immutable objective revision and run the existing RDO pipeline."""
     record = validate_objective(payload)
     input_store = ObjectiveInputStore(os.path.join(workdir, "objectives"))
-    stored = input_store.append(record)
+    stored = input_store.append(record, lineage=objective_lineage)
+    stored_lineage = dict(stored.get("lineage") or {})
     repository_revision = _repository_revision(repo_dir)
     cycle_id = _cycle_id(record["objective_id"], record["revision"], repository_revision)
     cycle_store = CycleStore(workdir)
@@ -552,8 +554,9 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
 
     if cycle_id in cycle_store.list_ids():
         existing = cycle_store.load(cycle_id)
-        if existing.objective_input != metadata:
-            raise ObjectiveInputError("cycle ID collision: stored input/snapshot metadata differs")
+        if (existing.objective_input != metadata
+                or existing.objective_lineage != stored_lineage):
+            raise ObjectiveInputError("cycle ID collision: stored input/snapshot/proposal lineage differs")
         return {
             "status": "reused_existing_cycle",
             "objective_id": record["objective_id"],
@@ -590,6 +593,7 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
         active_experiments=_active_experiments(repo_dir),
         authorised_gates=set(), memory=memory, max_depth=record["max_depth"],
         initial_relationships=relationships, objective_input=metadata,
+        objective_lineage=stored_lineage,
         objective_context={
             "intent": record["intent"],
             "owner": record["owner"],
@@ -625,6 +629,7 @@ def objective_history(workdir: str, objective_id: str) -> dict:
             "revision": record["revision"], "sha256": item["sha256"],
             "supersedes_sha256": record["supersedes_sha256"],
             "changed_fields": sorted((diff or {}).get("changed_fields", {}).keys()),
+            "proposal_lineage": item.get("lineage"),
         })
     return {"objective_id": objective_id, "revisions": revisions}
 
@@ -649,6 +654,7 @@ def resume_objective(workdir: str, objective_id: str, revision: int) -> dict:
     return {
         "objective": stored["record"],
         "input_sha256": stored["sha256"],
+        "proposal_lineage": stored.get("lineage"),
         "cycles": cycles,
     }
 
