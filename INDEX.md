@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `d7d204c24807eb3e46c37d70f2c1dcaae63830dc`  
+**Last verified against:** `main` at `a3fd532e12cbc84fa9505819ce475eef6101a06c`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
