@@ -5,7 +5,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from theory_x.stage2_dynamic import _sense_distillation_loop, _sense_poll_loop
-from theory_x.stage2_dynamic.crystallization import Crystallizer, HIGH_FOCUS_LEVELS
+from theory_x.stage2_dynamic.crystallization import Crystallizer
+from theory_x.stage2_dynamic.emergent_drives import EmergentDriveDetector
 
 
 def test_sense_poll_finishes_current_pipeline_row_then_stops():
@@ -99,3 +100,21 @@ def test_crystallizer_stops_before_starting_next_branch():
 
     assert result == ["one"]
     write.assert_called_once()
+
+
+def test_emergent_drive_scan_stops_after_blocked_belief_read():
+    stop = threading.Event()
+    reader = MagicMock()
+
+    def read_and_stop(*_args, **_kwargs):
+        stop.set()
+        return [{"id": 1, "content": "a belief", "branch_id": "new", "confidence": 0.9}]
+
+    reader.read.side_effect = read_and_stop
+    state = MagicMock()
+    detector = EmergentDriveDetector(MagicMock())
+
+    proposals = detector.scan_for_pressure(reader, state, stop_event=stop)
+
+    assert proposals == []
+    state.status.assert_not_called()
