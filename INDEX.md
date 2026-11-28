@@ -4878,3 +4878,37 @@ The next safe characterization is a separate fixture-level test of the complete 
 **Source anchors:** `run.py` blob `8ebe33c251e874b16107428eb4e92cf6301a4621`; `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; `theory_x/stage6_fountain/crystallizer.py` blob `c0a5cf1388825e7fc9438cf1188aedd8e2ed8959`; PR #449 exact head `50c2e083de1dab3e40301b37dc14b614a0d08f23`; workflow 46174148899, job 141068939254.
 
 **Evidence level:** source-observed caller/reader/writer/prompt paths; exact-head full-suite CI test-verified for repeated source-row re-consumption and Row 9 renewal; combined narrative/prompt exposure remains untested; production runtime observation remains absent.
+
+
+## §127 — G-83 prompt assembly and LLM-entry boundary (28 November 2026)
+
+**Question studied:** after Metacognition and Stage-SelfNarrative format a repeated groove observation, does that text necessarily reach the language model, or can the chat route return before prompt assembly?
+
+**Evidence snapshot:** source files on main snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`; test candidate PR #449 head `8132db2a338727e580e3269ad148277db727b0d4`. Static caller/branch trace. Exact-head CI for the new combined fixture is in progress at workflow `46174972385`; do not claim a test result until the run completes.
+
+### The actual prompt route
+
+The inspected `gui/server.py` chat handler establishes this order:
+
+1. Metacognition is ticked. Its generic `format_for_prompt()` text, when non-empty, is appended to `belief_text`.
+2. Stage-SelfNarrative receives `SimpleNamespace(current_topic=prompt[:100])`. Its topic-filtered result, when non-empty, is also appended to `belief_text`.
+3. Other faculty, tool, workspace and context blocks are assembled later.
+4. The route computes `belief_count = belief_text.count("- [Tier")`. This counts tier-tagged belief lines, not arbitrary reflective text.
+5. Unless the request is a probe, social query, or uses a register in `_ALLOW_THIN_REGISTERS`, a count below `CHAT_GAP_MIN_BELIEFS` causes a persisted gap-refusal response and an immediate return. No voice prompt is assembled and `state.voice.speak()` is not called on that path.
+6. On the surviving path, the reflective text remains part of `belief_text`; the route later embeds the complete belief text under `Your interior right now:` in `voice_prompt`, records a `chat_prompt_ready` trace when tracing is enabled, then calls `state.voice.speak(VoiceRequest(prompt=voice_prompt, register=register), ...)`.
+
+### Consequence
+
+A reflective observation being appended to `belief_text` is **not sufficient evidence that the LLM receives it**. It is eligible for prompt inclusion only on requests that pass the separate thin-belief gap gate. Since the Metacognition and narrative strings do not themselves contain the `- [Tier` marker, they do not increase the measured `belief_count`. They cannot, by themselves, rescue a request that otherwise falls below the gate.
+
+The gate is a chat-reply availability rule, not a cognitive authority or action veto. Do not conflate it with the Tibetan mind map or Mind Aspects; this trace concerns only the existing chat route's thin-belief response branch. No proposal is made to bypass, weaken or modify the gate.
+
+### Next bounded question
+
+The next test should characterize the route-level distinction without changing policy: under a fixture with insufficient tiered beliefs, prove the generic/narrative strings can be computed but the route returns the gap response before voice invocation; under a permitted thin-belief case (e.g. a register explicitly in `_ALLOW_THIN_REGISTERS`), prove the same strings appear in the exact `VoiceRequest.prompt`. Use mocks and isolated databases; no live host, model, flag or service. This is a candidate for a dedicated GUI route test, not a reason to widen the existing Metacognition unit test.
+
+**Disposition:** source-observed prompt assembly and early-return boundary. The combined formatter fixture is awaiting exact-head CI. Route-level inclusion/exclusion remains untested. Production prompt-log observation remains UNKNOWN. G-83 remains OPEN; no source-alert acknowledgement, episode identity, Row 9 threshold/duration, prompt policy, flags, runtime code, schema, frozen S-01–S-25/M1.8, Master Roadmap, Gate 0 or action authority changed.
+
+**Source anchors:** `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67`; `theory_x/stage9_metacognition/metacognition.py` blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`; `theory_x/stage_self_narrative/self_narrative.py` blob `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`; PR #449 candidate head `8132db2a338727e580e3269ad148277db727b0d4`; workflow `46174972385`.
+
+**Evidence level:** source-observed branch/caller/prompt composition; combined unit-level formatter test pending CI; GUI route behaviour statically traced but not route-test-verified; no runtime observation.
