@@ -3357,7 +3357,7 @@ This is a source-level eligibility bypass, not evidence that a particular inacti
 
 - `tests/test_belief_confidence_retrieval_pathway.py` builds an isolated database from the real schema and tests the ordinary retriever's confidence floor, locked exception, paused exclusion and tier ceiling. It does not exercise `side_filter="INSIDE"` or the reification override.
 - The mainline `tests/test_retrieval.py` exercises FountainGenerator's own-content/seed context path; it does not currently contain the reification-override regression tests.
-- PR **#117 — Apply eligibility to reification retrieval override** contains the targeted tests and a proposed source correction. Its head `1dd1985f797bb218dd2aa10d077c092589ac6e63` passed workflow `45803079139` (1,611 passed, 5 skipped, 30 subtests), but the PR remains **open and draft**, based on the older `claude/nex-continuity-wire` commit `de93134f34adac07a3a41c2a05b33720510a2bfc`, not current main `18c8f06171e1de35c3210831a49b63d0e2487af0`. Its green run is not current-main validation and its changes are not present on current main.
+- PR **#117 — Apply eligibility to reification retrieval override** contains the targeted tests and a proposed source correction. Its head `1dd1985f797bb218dd2aa10d077c092589ac6e63` passed workflow `45803079139` (1,611 passed, 5 skipped, 30 subtests), but the PR remains **open and draft**, based on the older `claude/nex-continuity-wire` commit `de93134f34adac07a3a41c2a05b33720510a2bfc`, not current main `18c8f06171e1de35c3210831a49b63d0e2487af0`. The commit graph is diverged: the #117 branch is 7 commits ahead and 1,016 behind current main, with merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. Its green run is not current-main validation and its changes are not present on current main.
 
 PR #117 proposes to add `tier < 8`, `paused = 0` and `erosion_stage != 'retired'` to the special lookup, and to exclude retired-marker rows from the ordinary pool. It does not add the ordinary confidence-floor condition to the special lookup. That remaining difference must be an explicit policy decision: should reification recognition be a deliberate confidence-floor exception, or should the same eligibility contract apply? Do not silently assume either.
 
@@ -3375,3 +3375,42 @@ The safest next step is a current-main replay of #117's targeted tests and narro
 **Source anchors inspected:** `theory_x/stage3_world_model/retrieval.py` blob `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3`; `tests/test_belief_confidence_retrieval_pathway.py` blob `b2505f2494db8fcd2453f7f5ee28184906e83daa`; current-main `tests/test_retrieval.py` blob `efd27b50c3cdc5ef64769fefcbb5529cc44ea90e`; PR #117 diff and metadata; exact-head workflow `45803079139`.
 
 **Host/runtime unknowns:** effective `NEX5_SELF_NARRATIVE` and retrieval flags; whether INSIDE self-inquiry calls occur in the deployed process; live reification row tier/pause/confidence/retirement state; actual membrane classification of that row; whether it has been selected into any prompt; and whether the draft #117 fix is intentionally superseded or simply awaiting a current-main replay.
+
+
+## 94. Held-tension prompt injection depends on a separate paradox counter (28 November 2026)
+
+**Question studied:** when the optional held-tension path preserves contradictory beliefs, does the INSIDE chat route reliably surface the explicit tension description, independently of the historical paradox counter?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and fixture-test review only; no host/runtime flags or live databases were inspected.
+
+### Lifecycle observed in source
+
+- `mark_paradox()` writes an `opposes` edge and a `harmonizer_events` row with resolution `paradox`. It explicitly does not pause or retire either belief.
+- After the incubation interval, `resolve()` transiently sets both beliefs to `paused=1`.
+- With `NEX5_HELD_TENSION` unset (the source default), the ordinary resolution path either synthesizes or retires both originals. The retirement updates set `tier=8` and `paused=0`.
+- With `NEX5_HELD_TENSION=1`, `_hold_as_tension()` instead unpauses both beliefs, preserves their original content and tier, and writes an unresolved `held_tensions` row. Thus both can again qualify for ordinary retrieval if their tier/confidence otherwise qualifies. The separate `Harmonizer.format_for_prompt()` can render a content-specific “I notice I hold both…” line.
+
+### Caller-level reachability mismatch
+
+The GUI's INSIDE route in `gui/server.py` calls `harmonizer.tick()`, reads `active_paradox`, and only calls `format_for_prompt()` when `active_paradox > 0`.
+
+But `format_for_prompt()` itself checks the open held-tension row first, before consulting the cached paradox count. Its content-specific line therefore does not intrinsically require an active paradox pair; the GUI caller imposes that extra precondition.
+
+The count's meaning depends on `NEX5_HARMONIZER_TENSION_COUNT_FIX`:
+
+- **Flag OFF (source default):** `tick()` counts all historical `resolution='paradox'` events. This can leave `active_paradox > 0` after a pair has been resolved as a held tension, allowing the GUI to reach the content-specific line for the wrong reason. The counter is historical, not a count of currently open paradox pairs.
+- **Flag ON:** `tick()` uses the latest event per pair. Once the latest event is `held_tension`, that pair is no longer an open paradox pair. If no other open paradox pair exists, `active_paradox == 0` and the GUI skips `format_for_prompt()` entirely—even though an unresolved held-tension row exists and the formatter would have returned its content-specific line.
+
+This is a caller/formatter contract mismatch. It means the explicit held-tension narration is not independently reachable from the GUI based on the existence of an open held tension; it is accidentally coupled to a separate paradox-count value.
+
+### Test coverage and disposition
+
+`tests/test_held_tension.py` verifies that the two beliefs survive unpaused, the held-tension row is written, and a direct call to `format_for_prompt()` returns the content-specific line. It does not exercise the GUI caller's `active_paradox > 0` guard. The source-level gap is therefore at the integration boundary, not in the formatter's isolated test.
+
+**Disposition:** verified conditional integration gap; no runtime correction made. A bounded follow-up should add a GUI-level or extracted caller-contract test with (a) an open held tension and zero open paradox pairs, and (b) an open held tension plus unrelated historical paradox events. The eventual caller should gate tension formatting on the existence of a relevant tension signal, not on an unrelated count, while preserving the separate generic paradox summary semantics. Do not alter flag defaults or resolution policy as part of that test.
+
+**Source anchors inspected:** `theory_x/stage3_world_model/harmonizer.py` blob `e72008ec21ad91e20cbdcfc73bacf14263e34382` (mark/resolve/hold, counter and formatter); `gui/server.py` blob `ecaa6982544e883a50dbf85c5de1e10f74180c67` (INSIDE caller guard); `tests/test_held_tension.py` blob `7acc6e6d0d98c2f8c252dd74d0a9eda42ec5179a` (direct formatter tests).
+
+**Host/runtime unknowns:** effective `NEX5_HELD_TENSION` and `NEX5_HARMONIZER_TENSION_COUNT_FIX`; whether any unresolved held tensions exist in the deployed database; whether any INSIDE route has attempted to surface them; and the actual prompt-injection frequency. No tests were run in this documentation pass.
+
+No runtime code, test, schema, flag, mind-map authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority was changed.
