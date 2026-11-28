@@ -133,7 +133,10 @@ class SelfMaintainShadow:
         if stop_event is not None and stop_event.is_set():
             return None
         active = active_row["n"]
-        setpoint, source = self._setpoint(now, stop_event=stop_event)
+        if stop_event is None:
+            setpoint, source = self._setpoint(now)
+        else:
+            setpoint, source = self._setpoint(now, stop_event=stop_event)
         if stop_event is not None and stop_event.is_set():
             return None
         n_pause = would_pause_count(active, setpoint)
