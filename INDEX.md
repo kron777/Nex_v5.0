@@ -1109,6 +1109,8 @@ This is a persistence-ownership correction that preserves the existing cognitive
 
 This closes the source-to-sink path: beliefs/tags → snapshot → attention history → drift detector → metacognitive event ledger → prompt context.
 
+Semantic boundary: this SelfMindView attention aspect is theme-recurrence derived from belief tags, not the Stage-2 Bonsai branch-focus vector. The Metacognition detector is therefore a thematic repetition detector. The Stage-2 → Bonsai → Fountain/Global Workspace path remains a separate attention representation; this PR does not conflate or merge them.
+
 ### Scope
 
 No schema, theme calculation, detector threshold, feature flag or prompt wording changed. The previously disconnected existing detector may now emit an `attention_groove` event when the evidence warrants it. The integration test uses isolated temporary databases. Exact-head CI is pending; no pass count is claimed.
