@@ -565,7 +565,7 @@ The Stage-TOM composer can include a tier-6 self_rut_notice belief through its g
 
 ### 28 November 2026 — Stage-TOM paused-belief reader boundary
 
-The beliefs schema has a paused column, but Stage-TOM _recent_t6() does not filter it. A paused tier-6 row can be eligible for the optional Fountain narrative if it survives the bounded candidate/text filters and a substantive Fountain fire exists. PR #458 adds a test-only characterization; exact-head CI is in progress. Whether paused beliefs should be excluded from this reflective context is a policy question, not inferred from the SQL alone. No runtime change or defect classification. See INDEX §161.
+The beliefs schema has a paused column, but Stage-TOM _recent_t6() does not filter it. Harmonizer sets paused=1 during resolve(), then unpauses held tensions or retires/unpauses the normal pair. A concurrent Fountain narrative read could select a temporarily paused tier-6 row; live overlap is UNKNOWN. PR #458 uses a stable paused fixture to characterize the reader predicate; exact-head CI is in progress. Whether this should be excluded from reflective context remains a policy question, not inferred from SQL alone. No runtime change or defect classification. See INDEX §161.
 
 
 ### 28 November 2026 — Phase 26 SelfNarrative design provenance
