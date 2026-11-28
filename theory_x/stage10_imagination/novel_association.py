@@ -70,15 +70,25 @@ class NovelAssociation:
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
-    def tick(self, context: Optional[dict] = None) -> dict:
+    def tick(
+        self,
+        context: Optional[dict] = None,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> dict:
         """Run one scan cycle if interval has elapsed. Returns state."""
+        if stop_event is None:
+            stop_event = self._stop_event
+        if stop_event is not None and stop_event.is_set():
+            return self.state()
+
         now = time.time()
         if now - self._last_scan_at < _LOOP_INTERVAL_S:
             return self.state(now=now)
 
         with self._lock:
             self._last_scan_at = now
-        written = self._scan(now)
+        written = self._scan(now, stop_event=stop_event)
         with self._lock:
             self._edges_written_total += written
         return self.state(now=now)
@@ -167,13 +177,22 @@ class NovelAssociation:
                 # Force scan regardless of interval (loop already sleeps the interval)
                 with self._lock:
                     self._last_scan_at = 0.0
-                self.tick()
+                self.tick(stop_event=stop_event)
             except Exception as exc:
                 errors.record(f"loop error: {exc}", source=_LOG_SOURCE, exc=exc)
 
-    def _scan(self, now: float) -> int:
+    def _scan(
+        self,
+        now: float,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> int:
         """Pull candidates, find cross-branch pairs, write edges + log. Returns edge count."""
+        if stop_event is not None and stop_event.is_set():
+            return 0
         candidates = self._pull_candidates()
+        if stop_event is not None and stop_event.is_set():
+            return 0
         if len(candidates) < 2:
             return 0
 
@@ -187,22 +206,34 @@ class NovelAssociation:
 
         written = 0
         for a, b in combinations(candidates, 2):
+            if stop_event is not None and stop_event.is_set():
+                return written
             if a["branch_id"] == b["branch_id"]:
                 continue
             try:
                 emb_a = embed_belief(a["id"], a["content"])
+                if stop_event is not None and stop_event.is_set():
+                    return written
                 emb_b = embed_belief(b["id"], b["content"])
+                if stop_event is not None and stop_event.is_set():
+                    return written
                 sim = cosine(emb_a, emb_b)
             except Exception as exc:
                 errors.record(f"embedding failed: {exc}", source=_LOG_SOURCE, exc=exc)
                 continue
 
+            if stop_event is not None and stop_event.is_set():
+                return written
             if sim < _SIMILARITY_THRESHOLD:
                 continue
 
+            # Treat the paired edge+log submissions as one already-started
+            # logical write unit; do not begin another pair after stop.
             self._write_association(a, b, sim, now)
             written += 1
 
+            if stop_event is not None and stop_event.is_set():
+                return written
             if self._self_narrative is not None and sim >= _NARRATIVE_THRESHOLD:
                 try:
                     self._self_narrative.write_narrative(
