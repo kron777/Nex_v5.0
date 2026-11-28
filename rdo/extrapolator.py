@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Tuple
 
+from .rule_proposals import ApprovedRuleCatalogue
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, HYPOTHESIS, NECESSARY,
                     OPTIONAL, UNKNOWN, Obligation, RECON_UNKNOWN, REUSE_EXISTING,
                     SIGNATURE_MATCHED, Relationship, has_valid_reuse_review)
@@ -170,7 +171,8 @@ def rule_catalogue() -> dict:
 
 def expand(seeds: List[Obligation],
            reconcile_fn: Optional[Callable[[Obligation], str]] = None,
-           max_depth: int = 4) -> Tuple[Dict[str, Obligation], List[Relationship], List[dict]]:
+           max_depth: int = 4,
+           approved_catalogue: Optional[ApprovedRuleCatalogue] = None) -> Tuple[Dict[str, Obligation], List[Relationship], List[dict]]:
     """Breadth-first controlled expansion.
 
     `reconcile_fn(obligation) -> recon_status` is consulted before expanding: a
@@ -178,6 +180,26 @@ def expand(seeds: List[Obligation],
     (obligations_by_key, relationships, frontier). `frontier` lists every point
     where expansion stopped, with the reason.
     """
+    rules_by_kind = dict(EXPANSION_RULES)
+    if approved_catalogue is not None:
+        if not isinstance(approved_catalogue, ApprovedRuleCatalogue):
+            raise ValueError("approved_catalogue must come from RuleProposalStore.approved_catalogue()")
+        if (isinstance(approved_catalogue.version, bool)
+                or not isinstance(approved_catalogue.version, int)
+                or approved_catalogue.version < 1
+                or not re.fullmatch(r"[0-9a-f]{64}", approved_catalogue.sha256)):
+            raise ValueError("approved rule catalogue has invalid version or digest")
+        for kind, rule_steps in approved_catalogue.rules.items():
+            if kind in rules_by_kind or kind in TERMINAL_KINDS:
+                raise ValueError(f"approved rule kind {kind!r} conflicts with a built-in rule")
+            if not isinstance(kind, str) or not isinstance(rule_steps, list) or not rule_steps:
+                raise ValueError("approved rule catalogue contains an invalid rule")
+            for step in rule_steps:
+                if (not isinstance(step, tuple) or len(step) != 4
+                        or not isinstance(step[0], str) or not isinstance(step[1], str)
+                        or not isinstance(step[2], str)):
+                    raise ValueError(f"approved rule for {kind!r} has an invalid step")
+            rules_by_kind[kind] = rule_steps
     reconcile_fn = reconcile_fn or (lambda _o: RECON_UNKNOWN)
     obligations: Dict[str, Obligation] = {}
     relationships: List[Relationship] = []
@@ -259,7 +281,7 @@ def expand(seeds: List[Obligation],
             frontier.append({"key": ob.key,
                              "reason": "source signature matched; semantic satisfaction unreviewed; "
                                        "expanded conservatively"})
-        rules = EXPANSION_RULES.get(ob.kind)
+        rules = rules_by_kind.get(ob.kind)
         if not rules:
             frontier.append({
                 "key": ob.key,
