@@ -281,10 +281,12 @@ class RuleProposalStore:
         return events
 
     def _read_events(self) -> List[dict]:
-        if not os.path.exists(self.path):
-            return []
+        # Check symlink identity before exists(): exists() is false for a
+        # dangling symlink, which must not be mistaken for an absent ledger.
         if os.path.islink(self.path):
             raise RuleProposalError("rule-proposal ledger path must not be a symlink")
+        if not os.path.exists(self.path):
+            return []
         if os.path.getsize(self.path) > MAX_LEDGER_BYTES:
             raise RuleProposalError("rule-proposal ledger exceeds byte limit")
         with open(self.path, "r", encoding="utf-8") as fh:
