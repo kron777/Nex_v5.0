@@ -3850,3 +3850,45 @@ Next bounded work is to inspect the exact _build_prompt() producer and both stil
 **Source anchors:** tests/test_retrieval.py blob efd27b50c3cdc5ef64769fefcbb5529cc44ea90e (three opt-in/default-off prompt-render tests); theory_x/stage6_fountain/generator.py blob 26061914b1dd80858c3568217cd1ef0c49ce2c51 (own_render manifest producer, own-only current-set filter, and own-only historical SQL reader).
 
 **Evidence level:** source-observed test coverage and source-observed producer/consumer mismatch; test execution not performed in this pass; persisted live slot distribution and intended stillness policy UNKNOWN.
+
+## 104. Stillness detector — historical operation versus current source reachability (28 November 2026)
+
+**Question studied:** was the stillness/Jaccard mechanism merely abandoned code, or is there evidence that it operated before the own-slot producer was disabled?
+
+**Evidence:** historical commit messages for ac6e4032e2b115f34ca86fbff8778a5cc51d14ca, 251cd797579aa08b8b848a5e95cd58c4c3e22b72, and f18e859f11820326cb7698fa30003410d728835f; current main source snapshot already documented in §§101–103. Historical measurements are reported by the repository's own commit records, not independently recomputed here.
+
+### Evidence that the detector once operated
+
+- The original stillness implementation (ac6e4032) created the duplicate-retrieval skip path, with a retrieval-manifest Jaccard comparison against the last three real fires, readiness below 0.85, and a force-fire escape after three consecutive stillness events.
+- The first all-slot comparison did not trigger reliably: commit 251cd797 records observed Jaccard around 0.2 because random spectrum and seed draws diluted repeated own content. The implementation was then deliberately narrowed to the own slot on both current and historical sides, and thresholded at 0.7.
+- A later self-prediction audit (f18e859) reports 4,965 duplicate_retrieval cycles in the persistent fountain event history. It explicitly distinguishes these empty-thought stillness cycles from real speech, and reports that all 1,526 force_fires were included in the readiness analysis. This is strong historical evidence that duplicate-retrieval stillness was not merely a never-used stub during that measured period.
+- This does not establish the date on which the detector stopped operating, nor the exact live distribution of manifest slots today. It does establish that the mechanism had meaningful historical operational use before the later source state now inspected.
+
+### Current source reachability
+
+At the inspected current source snapshot, the stillness caller's current set includes only manifest entries whose slot equals own. The historical reader likewise selects only rows with slot = 'own'. The complete manifest-producer census recorded in §§99–103 found no active producer emitting own: own_sense is sense-feed material; own_render is the optional bounded distilled-content render; identity_block, seed, spectrum and disturbance slots are separate classes.
+
+Therefore, on the inspected source:
+- with NEX5_OWN_CONTENT_RENDER unset (the default), the bounded own-content render is absent and no active producer supplies own; the stillness current set is empty and its Jaccard check is skipped;
+- with NEX5_OWN_CONTENT_RENDER=1, the producer emits own_render, but the stillness caller still filters for own; the current set remains empty;
+- even if historical rows contain own, the guard is not reached unless the current set is non-empty.
+
+This is a source-level reachability conclusion, not a live runtime observation. It is stronger than saying the two readers are mismatched: the current producer inventory plus exact filters imply the detector's duplicate-retrieval branch cannot be entered through the inspected manifest path. The original force-fire escape does not change that because it is nested inside the duplicate-detection branch.
+
+### Revised classification
+
+Record this as a **high-confidence source-level dormant path / historical operational regression candidate**, not yet a confirmed behavioural defect. The historical evidence argues against assuming the detector was always intentionally retired. The May echo-loop intervention disabled the original own-content producer for a clear safety reason; October restored a different, bounded own-content population behind a default-OFF flag. No evidence located so far states that the stillness detector itself was deliberately retired, or authorises reconnecting it to own_render.
+
+### Next evidence needed before any repair
+
+1. Establish the chronology between the last measured duplicate_retrieval activity and the May producer disable; identify whether the historical 4,965 count predates or postdates that change using source/commit chronology and retained logs if available.
+2. Inspect any explicit decision record for retiring or retaining the stillness mechanism. Absence of a note is not proof of intent.
+3. If a controlled runtime dataset is available, count retrieval_manifest slot values and stillness_reason values over the same bounded period; distinguish no producer, no duplicate candidates, and guard-not-reached.
+4. Only then decide whether stillness remains retired, is reactivated against own_render when that flag is on, or receives a separate opt-in measurement-only path. Preserve the historical own rows and compare current/prior populations symmetrically.
+5. If a future contract includes own_render, test the full paired-fire lifecycle, including rendered-only membership, historical compatibility, threshold boundaries, readiness cap, empty history, and force-fire escape. A detector measurement must not be conflated with prompt selection or a new cognitive authority.
+
+**Disposition:** no code/test/schema/flag changes. Phase 0 evidence work only. No Gate 0 claim.
+
+**Source anchors:** ac6e4032e2b115f34ca86fbff8778a5cc51d14ca (initial stillness path); 251cd797579aa08b8b848a5e95cd58c4c3e22b72 (own-only Jaccard narrowing because all-slot overlap was too low); f18e859f11820326cb7698fa30003410d728835f (historical 4,965 duplicate_retrieval cycles and 1,526 force_fires); theory_x/stage6_fountain/generator.py blob 26061914b1dd80858c3568217cd1ef0c49ce2c51 (current source filters); tests/test_retrieval.py blob efd27b50c3cdc5ef64769fefcbb5529cc44ea90e (prompt-render-only coverage).
+
+**Evidence level:** historical operational counts as reported in repository commit evidence; current source-level reachability; no current live database/runtime verification and no tests run in this pass. Intended retirement policy UNKNOWN.
