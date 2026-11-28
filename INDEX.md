@@ -1371,3 +1371,12 @@ GeniusTagger is always started by `run.py`, and its first tick runs immediately.
 PR #405 passes the Event into initial and periodic ticks, checks between the event/existing-tag/T6 reads, scoring and per-fire writes, and makes `_backfill()` report whether it completed. The `_backfill_done` flag is set only after full completion, so an interrupted backfill remains resumable. Existing weights-version uniqueness and `INSERT OR IGNORE` allow already-tagged fires to be skipped on retry. Deterministic tests cover stop during scoring, between fires, before tick start and during continuous tagging.
 
 **Boundary:** #405 is open and exact-head CI is pending; no pass count is claimed. Reader operations and scoring are not cancelled. A single tag write already started may finish, but later fires do not start. The 14-day horizon and scoring policy are unchanged. See `research/GENIUS_TAGGER_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
+
+
+### 16.25 DriveEmergence first-run clustering and persistence — open PR #406
+
+DriveEmergence starts immediately from `run.py` and registers with AppState. Its first background tick reads the existing drive, pulls up to 200 beliefs, optionally computes own-voice document frequency over up to 2,000 documents, embeds candidates, clusters and scores them, writes an observability row and may replace/reinforce the drive state. Its stop Event previously interrupted only the 600-second interval wait.
+
+PR #406 passes the Event into the immediate/periodic background tick and optional own-voice DF calculation. It checks between reads, documents, embeddings, clustering/scoring and persistence stages. If stop arrives during embedding, the partial pass is discarded. If stop arrives after the observability row begins/completes, the subsequent drive-state write is skipped. Decay persistence is also guarded. Deterministic tests cover stop during embedding, optional DF, after observability persistence and already-stopped entry.
+
+**Boundary:** #406 is open and exact-head CI is pending; no pass count is claimed. Reader, embedding and clustering calls are synchronous and not cancelled. An already-started Writer operation may complete. Observability and drive-state rows remain separate writes. See `research/DRIVE_EMERGENCE_STOP_AWARE_SHUTDOWN_2026-11-28.md`.
