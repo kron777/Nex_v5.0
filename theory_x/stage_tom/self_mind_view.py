@@ -359,7 +359,7 @@ class SelfMindView:
         _bound_self = ""
         try:
             from theory_x.stage_tom import self_binding as _sb  # type: ignore
-            _bound_self = _sb.bind().get("synthesis", "") or ""
+            _bound_self = _sb.bind(dynamic_writer=self._dw).get("synthesis", "") or ""
         except Exception:
             _bound_self = ""
         b = state["beliefs"]

@@ -1,6 +1,6 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with branch INDEX.md; evidence snapshot: main at 60cc178ba1f3c895651c86ad95345c98fd5a2198.
+Mirror synchronized with branch INDEX.md; evidence snapshot: main at b5e78842f43ac93c2624697f686da0b600306177.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
@@ -963,3 +963,136 @@ A read-only host re-run needs founder authorisation.
 4. **G-61:** does the one-pen rule extend to non-substrate databases such as `strikes_catalogue.db`?
 
 Gate 0 remains pending and Phase 1 is not authorised. G-69/#259 stays on HOLD. G-58 is unchanged.
+
+
+
+
+46. Cognitive network interaction trace — attention, affect, drives and workspace (28 November 2026)
+
+**Evidence snapshot:** source files on `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. This is a source-level connection trace, not host/runtime telemetry. The exact source-file SHAs and detailed edge register are recorded in `research/SENTIENCE_5_5_COGNITIVE_WIRE_TRACE_2026-11-28.md`.
+
+### The network is already more connected than a list of faculties
+
+The current source contains several distinct interaction paths. They should be understood as a network of bounded influences, not collapsed into a single “mind” score or assumed to share one control loop.
+
+**1. External sensing → attention → branch state → thought selection**
+
+- Stage 2's A–F pipeline receives sense events, matches streams and payloads to cognitive branches, computes magnitude, applies the membrane aperture, derives a valence label, and calls `BonsaiTree.attend()`.
+- Bonsai maintains branch-specific focus and texture. Fountain reads branch focus and uses it in branch selection; it also reads branch focus as one candidate in Global Workspace arbitration.
+- The attention matcher contains direct stream-to-branch mappings and content/keyword matching. The magnitude function explicitly returns zero for `internal.*` telemetry. This is an intentional separation: internal machine telemetry must not pin the `systems` branch and starve other branches. It is not evidence that internal telemetry is unused everywhere; SelfModel still reads selected internal streams for self-representation.
+- This creates a concrete distinction between *self-monitoring* and *attention steering*. A signal may describe the system without being allowed to steer its cognitive focus.
+
+**2. Affect → selection and language (two different consumers)**
+
+- `AffectState` is constructed and its background loop is started from `run.py`. It reads substrate-derived valence/arousal inputs and flagged surprise events, integrates and decays state, then persists the affect row and affect history.
+- Chat has a separate path that appends `AffectState.format_for_prompt()` to assembled belief/context text when the AppState faculty is present.
+- Fountain's `_valence_reach()` reads the persisted valence/arousal pair and can scale the novelty term in item selection. That mechanical influence is gated by `NEX5_VALENCE_DRIVE=1`; the source default is OFF. It is bounded and returns neutral multiplier 1.0 in the strongly negative anti-rut zone.
+- Fountain's explicit compositional-mood language injection is separately gated by `NEX5_MOOD=1`. Therefore affect can have a Chat representation while its Fountain selection influence and Fountain mood narration remain separately controlled. Do not treat these as one wire.
+
+**3. Competing drives → selection pressure, framing inputs and prompt representation**
+
+- `CompetingDrives` is constructed and started from `run.py`; its state is computed from several measured substrate features and persisted.
+- Fountain reads curiosity and exploration weights to scale its candidate scoring, and separately appends the competing-drive tension block when the faculty is available.
+- The Global Workspace's optional drive candidate is supplied from `DriveEmergence.format_for_prompt()`, not from the CompetingDrives object. Those are distinct drive mechanisms and must not be conflated because both contain “drive” in their names.
+- Fountain also records the current CompetingDrives weights into its per-fire snapshot where available and links activation records to resulting fountain events. This provides a traceable relationship, but does not itself prove the drive weights improved selection.
+
+**4. Global Workspace → Fountain framing versus Chat block selection**
+
+- Fountain's `NEX5_GLOBAL_WORKSPACE` path defaults to enabled in source. It compares available surprise, momentum, Bonsai-attention, stakes and DriveEmergence candidates, then prepends the winning frame to the focus block. The other faculty blocks are still appended; this is a leading frame, not exclusive selection of all cognitive content.
+- Chat's `NEX5_CHAT_WORKSPACE` is a different mechanism. When enabled, it performs salience-ranked, character-budget admission of candidate faculty blocks while preserving their original assembly order and exempt blocks. It is not the same winner-takes-frame operation used by Fountain.
+- The two workspaces therefore arbitrate at different levels: one chooses a leading frame for an internally generated thought; the other decides which already-assembled Chat context blocks fit a budget.
+
+### Interaction consequences and open questions
+
+1. **The same upstream signal can have multiple downstream effects.** Surprise can contribute to AffectState arousal and also appear as a Global Workspace candidate. These are parallel consequences with different timing and semantics, not one shared score.
+2. **A faculty can be present and active without its strongest influence being enabled.** AffectState background computation and Chat injection do not imply that Fountain's valence-driven selection or mood narration is enabled.
+3. **A shared name does not establish a shared mechanism.** DriveEmergence, CompetingDrives and the Global Workspace drive candidate are separate components with different data and call paths.
+4. **The network has intentional exclusions.** Internal telemetry is excluded from Bonsai attention after a documented focus-pinning defect. Reconnecting that edge indiscriminately would risk recreating the starvation failure.
+5. **Prompt contribution and behavioural steering are different effects.** A block may be described to the language model without mechanically changing branch selection; a numeric influence may change selection without being narrated. Both require separate measurements.
+6. **The next test should measure a bounded perturbation across layers.** Use isolated fixtures to alter one external sense event, observe A–F magnitude and Bonsai focus, then observe whether Fountain's branch candidate and workspace frame change. Repeat with an `internal.*` event as a negative control. Do not alter live flags or runtime data.
+
+### Current disposition
+
+This trace is source-verified and hypothesis-generating. It identifies several existing connections and important non-connections; it does not yet establish runtime liveness, beneficial cognitive effect, or a unified integrated subject. No new node or runtime wire was added. A test-only characterization has now been added to `tests/test_dynamic.py`: an external `ai_research.arxiv` event must increase that branch's Bonsai focus and texture, while an `internal.proprioception` event is confirmed to match the systems branch but produce zero magnitude, no focus/texture change and no Stage-2 F-step event. This strengthens the previously weak internal-event assertion and adds a positive control. Exact-head CI is pending; no pass is claimed. The test currently establishes the Stage-2 pipeline → Bonsai edge only. Fountain branch selection and workspace framing remain the next separate test seam.
+
+No frozen S-01–S-25/M1.8 specification content, Master Roadmap, M0/M1 gate, mind-map policy, live runtime flag, service or database was changed.
+
+
+47. Self-binding shared-Writer correction — G-94 (28 November 2026)
+
+**Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is proposed on draft PR #362; exact-head CI is pending.
+
+### Source-traced defect
+
+The recursive self-reading and periodic self-view snapshot both had access to the canonical AppState `dynamic` Writer, but omitted it when invoking self-binding:
+
+- Fountain called `recursive_self.format_for_prompt()` without a Writer. That function called `perturbation()`, which called `_bound_state()`; the helper already supported `dynamic_writer`, but the live call chain did not pass it.
+- SelfMindView's `_snapshot()` called `self_binding.bind()` without passing its existing `self._dw`.
+- With no injected Writer, `self_binding.bind()` and its schema helper open their own `Writer` for `dynamic.db`.
+
+This contradicted the one-canonical-Writer-per-database invariant in §4. It was not a database-schema defect or evidence of corruption; it was a source-level ownership violation on two runtime call paths.
+
+### Bounded correction on PR #362
+
+- Fountain now passes `self._dynamic_writer` through `recursive_self.format_for_prompt(dynamic_writer=...)` → `perturbation(dynamic_writer=...)` → `_bound_state(dynamic_writer=...)` → `self_binding.bind(dynamic_writer=...)`.
+- SelfMindView now passes its existing `self._dw` into `self_binding.bind()`.
+- The optional self-owned Writer fallback remains available for standalone/CLI use; runtime call sites use the shared Writer.
+- Regression coverage now asserts that the recursive prompt path carries the injected Writer, and that SelfMindView snapshotting succeeds while opening a second `self_binding.Writer` is forced to fail.
+- The existing direct injected-Writer test in `tests/test_self_state_history.py` remains in place.
+
+### Wider self-integration trace and unresolved edges
+
+The Writer correction preserves an existing multi-faculty path:
+
+`compositional emotion + rāga + competing-drive state + latest Fountain thought/readiness + open problem + proprioceptive substrate` → `self_binding.bind()` → `self_state` and append-only `self_state_history`.
+
+Two consumers then use related but distinct aspects of this state:
+
+- Fountain's recursive-self path rebinds on the thought-generation path, reads the resulting components and turns selected emotion/rāga patterns into a first-person prompt nudge. It does not directly write Bonsai focus or mechanically select a new branch; the intended behavioural influence is through the prompt.
+- SelfMindView's 300-second snapshot captures the bound synthesis in `self_mind_snapshots.bound_self_synthesis`. Its separate `current_summary()` recomputes beliefs, intentions, knowledge, uncertainty and attention for Chat. `run.py` also injects SelfMindView into Metacognition; Metacognition reads its attention and uncertainty histories to detect recurring attention themes and unresolved-problem stagnation, records those as metacognitive events, and can surface the recent event as prompt text.
+
+This is a genuine chain of connected representations and consumers, but the prompt-mediated feedback should not be mistaken for a measured change in selection or attention.
+
+**Unresolved semantic edges (not changed in this PR):**
+
+1. `self_binding.bind()` currently assigns `drift = "clean"` as a placeholder. At the base snapshot, the nearby comment claimed the binder read the last logged verdict, but the inspected function contained no such read. This PR corrects that misleading comment; the persisted value remains `clean` for compatibility and is still not a measured value-drift result. The field is not included in the returned `components` or synthesis.
+2. The binder's attention input is the latest Fountain thought/readiness plus the newest open problem. It does not read the live Bonsai focus vector or identify the current hottest branch. That may be a deliberate narrow definition, but it is not a complete representation of Stage-2 attention.
+3. The recursive perturbation currently consumes rāga and emotion (plus the named attending text); drive, readiness and substrate tone are bound but do not directly participate in its nudge rules. Their presence in the unified record does not prove they influence the recursive loop.
+4. SelfMindView's Chat summary is recomputed from its five live aspects and is not the same object as the last persisted `bound_self_synthesis`. The snapshot and conversational summary are parallel views, not one shared narrative.
+
+These are candidates for further source tracing and controlled experiments. No extra faculty or behavioural wire should be added until the intended semantics, consumers and effects are clear.
+
+### Validation and boundary
+
+**G-94 is corrected in the PR branch, pending exact-head full-suite CI and review.** No pass count is claimed until that run completes. The changes do not alter self-binding content, faculty semantics, prompt text, selection weights, feature flags, database schema or history shape. No live service or database was accessed.
+
+This is a persistence-ownership correction that preserves the existing cognitive connections. It does not add a new faculty or claim that the recursive self-reading nudge produces a beneficial attention change. Gate 0 and Phase 1 authority remain unchanged.
+
+
+48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
+
+**Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is on draft-review candidate PR #360; exact-head CI is being rerun after correcting the self-assessment count for the new adapter.
+
+### What this increment adds
+
+The new provider-neutral `rdo_adapters.seed_proposals` boundary preserves the user's raw objective revision and allows multiple competing seed-graph interpretations to be submitted as candidates. Each proposal binds the exact canonical raw-objective snapshot and SHA-256 digest, and carries seed obligations, typed relationships, acceptance-criterion coverage (each criterion must map to at least one declared seed obligation), assumptions, constraints, exclusions, open questions, disconfirming cases and evidence needs.
+
+External-LLM-derived seed confidence must remain explicitly `inferred`; human-authored seed confidence may be `stated`. Approval requires an explicit review decision selecting exactly one existing alternative. A candidate is not an approved objective, and approval does not itself execute anything.
+
+### Integrity and authority boundaries
+
+- Proposal/review events are stored in an append-only, sequence-numbered, SHA-256-linked JSONL ledger with duplicate-key rejection, event/byte bounds, file locking, fsync, and symlink rejection for the ledger path.
+- Raw-objective revisions are linked to the exact previous digest; original wording and intent remain immutable across revisions.
+- Review decisions cannot be overwritten; a revised candidate must explicitly supersede a changes-requested or rejected proposal.
+- The only approval retrieval is an explicit `approved_selection()` call. It returns the selected existing alternative and exact raw-objective lineage.
+- This increment does **not** submit to `objective.v1`, run recursive expansion, create a Stage-7 handoff, execute generated code, load rules, activate policy, or change NEX runtime state.
+
+### Validation and next work
+
+The first exact-head CI exposed one stale self-assessment expectation: RDO correctly discovers a fourth boundary adapter after `seed_proposals.py` was added, while the existing test still expected three. The branch now updates that assertion and explicitly checks for `seed_proposals.py`. A second review found that a coverage record could name zero obligations; the validator now rejects empty obligation lists and a regression test covers it. The new exact-head full-suite CI is pending; no pass count is claimed.
+
+The Python API and lifecycle are documented in `rdo/SEED_PROPOSAL_LIFECYCLE.md` and `rdo/README.md`; there is no CLI or GUI in this increment. The validator does not yet classify graph cycles or derive build order. The next bounded increment is a reviewed-selection-to-objective-intake bridge that preserves the raw-objective hash and selected proposal/alternative identity, and adapts validated proposal edges into the existing `Relationship` model and reuses `rdo.tension._find_cycles`, `_classify_cycle`, `assess_system` and `rdo.graph` SCC machinery to distinguish prerequisite cycles, influence feedback loops and unknown cases. It must not run planning or Stage-7 handoff until the separate authority and evidence conditions are satisfied.
+
+**Critical next-step constraint:** the proposal and objective-intake ledgers compute different hashes. `raw_objective_sha256` hashes only the immutable raw request; `ObjectiveInputStore` hashes the full `objective.v1` record including selected seeds. Their `supersedes_sha256` fields therefore belong to two distinct revision chains. The current `objective.v1` schema also rejects additional fields and has no structured proposal ID/alternative/proposer provenance. A raw idea may be human-sourced while the selected seed graph is LLM-proposed; keep that distinction and the inferred confidence. The bridge must define a versioned or stable cross-reference carrying proposal ID, selected alternative, raw digest and review event before it maps the selected graph into intake. Never substitute the two digests or silently upgrade inferred confidence.
+
+No frozen S-01–S-25/M1.8 specification content, Master Roadmap, Gate 0, Phase 1 authority, live NEX runtime, database or feature flag was changed.
