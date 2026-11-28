@@ -496,3 +496,8 @@ GeniusTagger is separately wired to its own 60-second loop and writes the `geniu
 ### 28 November 2026 — Corrected rut lifecycle and dual-path finding
 
 Correction: SelfNarrative.tick() itself has no demonstrated dispatcher, but Metacognition.tick() directly calls the injected SelfNarrative._maybe_notice_rut() helper on the GUI chat path. This bypasses the NEX5_RUT_MIRROR_OFF check located only in SelfNarrative.tick(). Separately, FountainGenerator writes the same rut text into beliefs under its NEX5_GOVERNOR_OFF-gated governor path, with an instance-local two-hour throttle; the narrative path uses persisted narrative_log history. The two writers, stores and throttles are source-observed; deployed flags, live execution, co-occurrence and intended flag scope remain UNKNOWN. Draft PR #452 adds a test-only characterization of the direct-caller bypass; exact-head CI pending. See INDEX §§148–150.
+
+
+### 28 November 2026 — Fountain rut belief consumption boundary
+
+The Fountain governor writes `source='self_rut_notice'` only after the current `_retrieve_context_beliefs()` call has fetched own/seed candidate rows. Its explicit own/seed allowlists and dedicated `hot_observer` slot omit this source, so same-fire Fountain retrieval is impossible and the next explicit Fountain source query does not select it. The generic GUI BeliefRetriever loads eligible tier<=6/confidence>=0.15 beliefs, making the row a query-dependent candidate there; actual delivery remains UNKNOWN. See INDEX §151.
