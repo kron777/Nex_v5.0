@@ -15,6 +15,7 @@ import subprocess
 from typing import Any, Dict, List, Optional
 
 from rdo.memory import CycleStore, PatternMemory
+from rdo.rule_proposals import RuleProposalStore
 from rdo.model import (
     ANTI_REQUIREMENT, CLASSIFICATIONS, CONDITIONAL, FUTURE, HYPOTHESIS,
     NECESSARY, OPTIONAL, UNKNOWN, Obligation, Relationship,
@@ -422,8 +423,11 @@ def _repository_revision(repo_dir: str) -> str:
     return head
 
 
-def _cycle_id(objective_id: str, revision: int, repository_revision: str) -> str:
+def _cycle_id(objective_id: str, revision: int, repository_revision: str,
+              rule_catalogue_sha256: Optional[str] = None) -> str:
     identity = f"{objective_id}\n{revision}\n{repository_revision}"
+    if rule_catalogue_sha256 is not None:
+        identity += f"\nrule_catalogue:{rule_catalogue_sha256}"
     token = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
     return f"obj_{token}_r{revision:06d}"
 
@@ -440,17 +444,39 @@ def _cycle_summary(cycle, summary: Optional[dict] = None) -> dict:
         "frontier": cycle.frontier,
         "work_packages": cycle.work_packages,
         "verification": cycle.verification,
+        "rule_catalogue": cycle.rule_catalogue,
         "run_summary": summary,
     }
 
 
-def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
+def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cycles",
+                     rule_proposals_path: Optional[str] = None,
+                     approved_rule_kinds: Optional[List[str]] = None) -> dict:
     """Persist one immutable objective revision and run the existing RDO pipeline."""
     record = validate_objective(payload)
     input_store = ObjectiveInputStore(os.path.join(workdir, "objectives"))
     stored = input_store.append(record)
     repository_revision = _repository_revision(repo_dir)
-    cycle_id = _cycle_id(record["objective_id"], record["revision"], repository_revision)
+    approved_catalogue = None
+    if approved_rule_kinds is not None:
+        if (not isinstance(approved_rule_kinds, list) or not approved_rule_kinds
+                or any(not isinstance(kind, str) or not kind.strip() for kind in approved_rule_kinds)
+                or len(approved_rule_kinds) != len(set(approved_rule_kinds))):
+            raise ObjectiveInputError("approved_rule_kinds must be a non-empty list of unique kind names")
+        if not rule_proposals_path or not os.path.isfile(rule_proposals_path):
+            raise ObjectiveInputError("approved rule kinds require an existing rule proposal ledger")
+        try:
+            approved_catalogue = RuleProposalStore(rule_proposals_path).approved_catalogue(
+                kinds=approved_rule_kinds
+            )
+        except (OSError, ValueError) as exc:
+            raise ObjectiveInputError(f"cannot load approved rule catalogue: {exc}") from exc
+        if approved_catalogue is None:
+            raise ObjectiveInputError("no approved expansion rules were selected")
+    catalogue_digest = approved_catalogue.sha256 if approved_catalogue else None
+    cycle_id = _cycle_id(
+        record["objective_id"], record["revision"], repository_revision, catalogue_digest
+    )
     cycle_store = CycleStore(workdir)
     metadata = {
         "schema_version": record["schema_version"],
@@ -459,6 +485,12 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
         "sha256": stored["sha256"],
         "repository_revision": repository_revision,
     }
+    if approved_catalogue is not None:
+        metadata["rule_catalogue"] = {
+            "version": approved_catalogue.version,
+            "sha256": approved_catalogue.sha256,
+            "selected_kinds": sorted(approved_catalogue.rules),
+        }
 
     if cycle_id in cycle_store.list_ids():
         existing = cycle_store.load(cycle_id)
@@ -510,6 +542,7 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
             "exclusions": list(record["exclusions"]),
             "acceptance_criteria": list(record["acceptance_criteria"]),
         },
+        approved_catalogue=approved_catalogue,
     )
     cycle_store.save(cycle)
     return {
