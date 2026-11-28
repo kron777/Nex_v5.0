@@ -2090,3 +2090,15 @@ No live dual-writer or host/robot rehearsal is claimed. The mind map remains des
 
 ---
 
+## 68. Consistent rule-proposal history snapshots — candidate PR #440 (28 November 2026)
+
+**Source-derived race:** the `rule-history` CLI previously called `proposals()` and `events()` separately. Each call acquired a valid shared ledger read, but a concurrent review append between those reads could produce a response whose proposal status and event list described different ledger revisions.
+
+**Bounded correction:** `RuleProposalStore.history()` reads and validates the append-only ledger once, derives proposal state and filtered event rows from that same snapshot, and returns both together. The CLI now uses this API. Optional proposal-ID validation and unknown-ID errors remain explicit.
+
+**Regression coverage:** `rdo/tests/test_rule_proposals.py` asserts the history operation reads the ledger once and returns a review status consistent with the event sequence. CLI routing tests exercise the snapshot-based method. Exact-head CI is pending; no pass is claimed.
+
+**Boundaries:** read-only reporting only. No proposal schema, review semantics, rule-catalogue activation, action authority, runtime state, frozen S-01–S-25/M1.8, Master Roadmap or Gate 0 boundary changes.
+
+---
+
