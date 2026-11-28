@@ -1,6 +1,6 @@
 # Web-fetch URL and redirect boundary — 28 November 2026
 
-**Base:** `kron777/Nex_v5.0` main at `3d7205536588e34a887939784d436ec70e8c6777` (after #378 request-drain merge).  
+**Base:** `kron777/Nex_v5.0` main at `81ec438a7be7fe3cc81112cbb39c715b76ffe026` (after #378 request-drain and #381 cognitive-characterization merges).  
 **Scope:** bounded hardening of the existing read-only `web_fetch` capability. No feature flag, capability list, prompt policy, runtime deployment or governing document changed.
 
 ## 1. Source finding
