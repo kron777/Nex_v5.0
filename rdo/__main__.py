@@ -39,7 +39,10 @@ from .feedback_loop import (
 from .graph import compare_adjacent_relationship_impacts, failure_propagation_candidates
 from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_file,
                                            objective_history, resume_objective,
-                                           submit_objective)
+                                           submit_objective, submit_approved_seed_proposal)
+from rdo_adapters.seed_proposals import (
+    SeedProposalError, SeedProposalStore, load_seed_proposal_file,
+)
 from rdo_adapters.handoff import (HandoffError, create_handoff, handoff_history,
                                   record_human_acceptance, record_scope_review,
                                   record_context_mapping, record_acceptance_verification,
@@ -200,6 +203,57 @@ def _intake(args) -> int:
         record = load_objective_file(args.input)
         result = submit_objective(record, repo_dir=args.repo, workdir=args.out)
     except (ObjectiveInputError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _seed_propose(args) -> int:
+    try:
+        payload = load_seed_proposal_file(args.input)
+        result = SeedProposalStore(os.path.join(args.out, "seed_proposals.jsonl")).submit(
+            payload["raw_objective"], payload["alternatives"], payload["proposer_kind"],
+            payload["proposer_reference"], payload["source_reference"],
+            supersedes_proposal_id=payload.get("supersedes_proposal_id"),
+        )
+    except (SeedProposalError, ObjectiveInputError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _seed_review(args) -> int:
+    try:
+        event = SeedProposalStore(os.path.join(args.out, "seed_proposals.jsonl")).review(
+            args.proposal_id, args.decision, args.reviewer, args.source_reference,
+            args.rationale, args.evidence_reference,
+            selected_alternative_id=args.selected_alternative_id,
+        )
+    except (SeedProposalError, ObjectiveInputError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(event, indent=2, default=str))
+    return 0
+
+
+def _seed_list(args) -> int:
+    try:
+        result = SeedProposalStore(os.path.join(args.out, "seed_proposals.jsonl")).list_proposals()
+    except (SeedProposalError, ObjectiveInputError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _seed_intake(args) -> int:
+    try:
+        result = submit_approved_seed_proposal(
+            args.proposal_id, repo_dir=args.repo, workdir=args.out
+        )
+    except (SeedProposalError, ObjectiveInputError, OSError, ValueError) as exc:
         print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2, default=str))
@@ -427,6 +481,32 @@ def main(argv=None) -> int:
     fre.add_argument("--cycle-id", required=True)
     fre.add_argument("--dir", default="rdo/.cycles")
     fre.set_defaults(fn=_feedback_replay)
+
+    sp = sub.add_parser("seed-propose", help="submit provider-neutral candidate seed graph alternatives")
+    sp.add_argument("--input", required=True, help="raw-objective and competing seed-alternatives JSON")
+    sp.add_argument("--out", default="rdo/.cycles")
+    sp.set_defaults(fn=_seed_propose)
+
+    sr = sub.add_parser("seed-review", help="record explicit review and selection of one seed alternative")
+    sr.add_argument("--proposal-id", required=True)
+    sr.add_argument("--decision", required=True, choices=("changes_requested", "approved", "rejected"))
+    sr.add_argument("--reviewer", required=True)
+    sr.add_argument("--source-reference", required=True)
+    sr.add_argument("--rationale", required=True)
+    sr.add_argument("--evidence-reference", action="append", required=True)
+    sr.add_argument("--selected-alternative-id")
+    sr.add_argument("--out", default="rdo/.cycles")
+    sr.set_defaults(fn=_seed_review)
+
+    sl = sub.add_parser("seed-list", help="list candidate seed proposals and review status")
+    sl.add_argument("--out", default="rdo/.cycles")
+    sl.set_defaults(fn=_seed_list)
+
+    si = sub.add_parser("seed-intake", help="run objective intake from one explicitly approved seed proposal")
+    si.add_argument("--proposal-id", required=True)
+    si.add_argument("--repo", default=".", help="clean Git repository snapshot to reconcile")
+    si.add_argument("--out", default="rdo/.cycles")
+    si.set_defaults(fn=_seed_intake)
 
     intake = sub.add_parser("intake", help="validate and run a versioned external objective")
     intake.add_argument("--input", required=True, help="path to objective.v1 JSON")
