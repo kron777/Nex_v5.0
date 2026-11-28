@@ -293,6 +293,14 @@ class SeedProposalStore:
                 raw_hash = _digest(raw)
                 if record.get("raw_objective_sha256") != raw_hash:
                     raise SeedProposalError("raw objective digest mismatch in proposal ledger")
+                if raw["raw_revision"] > 1:
+                    prior_raw_hashes = {
+                        prior["raw_objective_sha256"] for prior in proposals.values()
+                        if prior["raw_objective"]["objective_id"] == raw["objective_id"]
+                        and prior["raw_objective"]["raw_revision"] == raw["raw_revision"] - 1
+                    }
+                    if raw["supersedes_raw_sha256"] not in prior_raw_hashes:
+                        raise SeedProposalError("raw objective revision does not follow its predecessor in the ledger")
                 alternatives = record.get("alternatives")
                 if not isinstance(alternatives, list) or not 1 <= len(alternatives) <= 8:
                     raise SeedProposalError("proposal must preserve 1-8 seed alternatives")
