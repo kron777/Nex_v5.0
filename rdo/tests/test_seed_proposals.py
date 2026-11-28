@@ -227,3 +227,37 @@ def test_seed_proposal_rejects_symlink_ledger(tmp_path):
     path.symlink_to(target)
     with pytest.raises(SeedProposalError, match="must not be a symlink"):
         SeedProposalStore(str(path)).events()
+
+
+def test_every_acceptance_criterion_has_an_explicit_coverage_record(tmp_path):
+    alternatives = [_alternative("alternative-a", "alpha"),
+                    _alternative("alternative-b", "beta")]
+    alternatives[0]["acceptance_criterion_coverage"].pop()
+    store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
+    with pytest.raises(SeedProposalError, match="acceptance_criterion_coverage"):
+        store.submit(_raw(), alternatives, proposer_kind="external_llm",
+                     proposer_reference="model", source_reference="source:coverage-gap")
+
+
+def test_duplicate_seed_graphs_are_not_misrepresented_as_competing_alternatives(tmp_path):
+    first = _alternative("alternative-a", "alpha")
+    second = dict(first)
+    second["alternative_id"] = "alternative-b"
+    second["interpretation"] = "A different explanation but the exact same seed graph."
+    store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
+    with pytest.raises(SeedProposalError, match="distinct seed graphs"):
+        store.submit(_raw(), [first, second], proposer_kind="external_llm",
+                     proposer_reference="model", source_reference="source:duplicate-graph")
+
+
+def test_human_authored_seed_proposal_can_mark_stated_confidence(tmp_path):
+    raw = _raw()
+    alternatives = [_alternative("alternative-a", "alpha"),
+                    _alternative("alternative-b", "beta")]
+    for alternative in alternatives:
+        for seed in alternative["seed_obligations"]:
+            seed["confidence"] = "stated"
+    store = SeedProposalStore(str(tmp_path / "seed_proposals.jsonl"))
+    item = store.submit(raw, alternatives, proposer_kind="human",
+                        proposer_reference="founder", source_reference="source:human-analysis")
+    assert item["proposal"]["alternatives"][0]["seed_obligations"][0]["confidence"] == "stated"
