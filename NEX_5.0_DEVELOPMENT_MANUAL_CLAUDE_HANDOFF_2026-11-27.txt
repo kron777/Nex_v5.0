@@ -4985,3 +4985,32 @@ One small producer detail is not yet closed: `groove.py` defines `EXACT_REPEAT_M
 The Fountain loop itself is not fire-on-every-chat. `build_fountain()` starts a dedicated worker; each pass waits for the active mode's `fountain_interval_seconds`, evaluates readiness, and calls `generator.generate()`. The mode definition defaults to 120 seconds; the named `chat` mode sets 300 seconds; `silent` disables Fountain. The actual host mode was not inspected and remains UNKNOWN. Separately, DiversityLoop waits 60 seconds between GrooveSpotter scans. Metacognition remains request-driven by the chat handler, not by either periodic worker.
 
 Thus the source-level cadence is: Fountain candidate generation at mode-dependent intervals (default 120s / chat 300s) → GrooveSpotter scan every 60s → Metacognition replay on a subsequent chat request. This is a multi-clock feedback path, not a single synchronous loop and not evidence of exponential autonomous growth.
+
+
+## §129 — G-83 source-identity loss at the Metacognition event boundary (28 November 2026)
+
+**Question studied:** when one source alert is consumed repeatedly, does the derived Metacognition event preserve the identity needed to distinguish a new episode from another observation of the same episode?
+
+**Source trace:**
+
+- _detect_groove() selects the source groove_alerts.id and places it in the transient event dictionary as groove_id.
+- The same dictionary is sent down two branches during Metacognition.tick().
+- **Narrative branch:** SelfNarrative.write_narrative() receives ev["groove_id"] as source_id. The narrative_log row therefore retains the source alert identity. PR #449's exact-head test verifies five narrative rows all reference the same source alert ID.
+- **Metacognition event branch:** _write_event() inserts only event_type, description, severity, source and created_at into meta_cognition_events. It does not persist groove_id or another source-row/episode identity. The source string is only groove_spotter/{alert_type}.
+- **Row 9 branch:** _maybe_engage_stillness() counts every meta_cognition_events row with event_type='groove' in the rolling window. It does not group by source, alert ID, pattern or episode. It therefore counts repeated observations as separate rows even when their narrative source IDs are identical.
+
+### Consequence
+
+The system preserves source identity in the narrative side table but drops it at the Metacognition event boundary used by Row 9. The aggregate counter then has no information with which to distinguish:
+
+- one alert observed on several chat turns;
+- several different alerts of the same type;
+- several genuinely distinct recurrence episodes.
+
+The exact-head test establishes the first case: five rows from one source alert can count as five groove events and trigger/renew stillness. It does not establish the intended semantic unit. This is stronger evidence for G-83's identity/episode ambiguity, not authority to add a source ID or deduplication rule.
+
+**Next bounded investigation:** trace event decay/resolution and any readers of meta_cognition_events.source; determine whether adding identity to this table would require a migration and identify every consumer before proposing a schema change. Then locate the controlling approval for the intended Row 9 counting unit. No runtime, schema, acknowledgement or threshold change is authorised by this finding.
+
+**Disposition:** source-observed identity is retained in narrative_log.source_id but not in meta_cognition_events; Row 9 counts aggregate rows without identity deduplication. PR #449 exact-head tests verify repeated same-source events; PR #450 verifies route-to-transport strings. G-83 remains OPEN. No new schema, source code, flags, frozen specification, roadmap or Gate 0 authority changed.
+
+**Source anchors:** theory_x/stage9_metacognition/metacognition.py blob de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08; theory_x/stage_self_narrative/self_narrative.py blob 15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3; PR #449 head 8132db2a338727e580e3269ad148277db727b0d4, workflow 46174972385.
