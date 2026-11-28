@@ -38,8 +38,8 @@ A proposal contains exactly these fields:
 - `assumptions`, `applicability`, `preconditions`, `exceptions`,
   `anti_requirements`, `evidence_needs`, `disconfirming_cases`,
   `provenance`, `positive_tests`, and `negative_tests`: lists of
-  non-blank text references/descriptions. Applicability, provenance,
-  disconfirming cases, and both test lists must be non-empty.
+  non-blank text references/descriptions. Applicability, evidence needs,
+  provenance, disconfirming cases, and both test lists must be non-empty.
 
 Example shape:
 
