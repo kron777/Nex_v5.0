@@ -14,26 +14,26 @@ from .tools import ToolRegistry, ToolResult
 CAPABILITY_STAGE = "B"
 
 _PRICE_PATTERNS = re.compile(
-    r"\\b(price|trading|how much|what is .+ worth|btc|eth|bitcoin|ethereum|solana|sol)\\b",
+    r"\b(price|trading|how much|what is .+ worth|btc|eth|bitcoin|ethereum|solana|sol)\b",
     re.I,
 )
 _CURRENT_PATTERNS = re.compile(
-    r"\\b(latest|today|right now|current|live|now|just happened|this week)\\b",
+    r"\b(latest|today|right now|current|live|now|just happened|this week)\b",
     re.I,
 )
 _MATH_PATTERNS = re.compile(
-    r"\\b(calculate|compute|what is \\d|math|formula|result of|evaluate)\\b",
+    r"\b(calculate|compute|what is \d|math|formula|result of|evaluate)\b",
     re.I,
 )
 _BELIEF_PATTERNS = re.compile(
-    r"\\b(what do i believe|my beliefs about|what does nex think|what have i learned)\\b",
+    r"\b(what do i believe|my beliefs about|what does nex think|what have i learned)\b",
     re.I,
 )
 _MATH_PREFIX = re.compile(
-    r"^\\s*(?:please\\s+)?(?:calculate|compute|evaluate|what\\s+is|what's|result\\s+of)\\s+",
+    r"^\s*(?:please\s+)?(?:calculate|compute|evaluate|what\s+is|what's|result\s+of)\s+",
     re.I,
 )
-_MATH_CHARS = re.compile(r"^[0-9\\s.+\\-*/()%]+$")
+_MATH_CHARS = re.compile(r"^[0-9\s.+\-*/()%]+$")
 
 
 def _extract_math_expression(query: str) -> Optional[str]:
@@ -44,7 +44,7 @@ def _extract_math_expression(query: str) -> Optional[str]:
     expression = query[match.end():].strip().rstrip("?.!").strip()
     if not expression or not _MATH_CHARS.fullmatch(expression):
         return None
-    if not re.search(r"[+*/%]|-(?=\\s*\\d)|(?<=\\d)-", expression):
+    if not re.search(r"[+*/%]|-(?=\s*\d)|(?<=\d)-", expression):
         return None
     try:
         ast.parse(expression, mode="eval")
@@ -73,7 +73,7 @@ class ToolCaller:
         if _CURRENT_PATTERNS.search(q):
             return "web_fetch"
 
-        if not beliefs and re.search(r"\\bwhat is\\b|\\bwho is\\b|\\bwhen did\\b|\\bhow does\\b", q, re.I):
+        if not beliefs and re.search(r"\bwhat is\b|\bwho is\b|\bwhen did\b|\bhow does\b", q, re.I):
             return "web_fetch"
 
         return None
@@ -92,7 +92,7 @@ class ToolCaller:
     def build_tool_prompt(self, query: str, tool_result: ToolResult) -> str:
         """Wrap successful tool output for injection into the voice system prompt."""
         return (
-            f"Tool used: {tool_result.tool_name}\\n"
-            f"Result: {tool_result.output}\\n"
+            f"Tool used: {tool_result.tool_name}\n"
+            f"Result: {tool_result.output}\n"
             "Answer the question using this information. Be direct."
         )
