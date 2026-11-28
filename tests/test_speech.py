@@ -255,6 +255,44 @@ class TestSpeechConsumer(unittest.TestCase):
         )
         self.assertEqual(len(rows), 1)
 
+    def test_shutdown_during_synthesis_requeues_without_starting_playback(self):
+        belief_id = self._seed_pending()
+        consumer = self._make_consumer()
+        row = self.readers["beliefs"].read(
+            "SELECT id, belief_id, content, voice FROM speech_queue WHERE belief_id=?",
+            (belief_id,),
+        )[0]
+        entered = threading.Event()
+        release = threading.Event()
+        stop = threading.Event()
+
+        class _BlockingBackend:
+            is_loaded = True
+
+            def synth(self, content, voice=None):
+                entered.set()
+                release.wait(timeout=3.0)
+                return [0.0, 0.0], 24000
+
+        consumer.backend = _BlockingBackend()
+        consumer.player = unittest.mock.MagicMock()
+        worker = threading.Thread(
+            target=lambda: consumer._speak_one(row, stop_event=stop),
+            name="speech-shutdown-test",
+        )
+        worker.start()
+        self.assertTrue(entered.wait(timeout=2.0))
+        stop.set()
+        release.set()
+        worker.join(timeout=2.0)
+
+        self.assertFalse(worker.is_alive())
+        consumer.player.play.assert_not_called()
+        status = self.readers["beliefs"].read_one(
+            "SELECT status FROM speech_queue WHERE id=?", (row["id"],)
+        )["status"]
+        self.assertEqual(status, "pending")
+
 
 if __name__ == "__main__":
     unittest.main()
