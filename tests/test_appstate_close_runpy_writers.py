@@ -132,15 +132,21 @@ class TestConvertedLoopsStop(unittest.TestCase):
 
 
 class TestRunPyHandsThemToAppState(unittest.TestCase):
-    def test_appstate_call_passes_each_producer(self):
+    def test_runpy_registers_each_producer_with_appstate(self):
         tree = ast.parse((Path(__file__).resolve().parents[1] / "run.py").read_text())
-        kwargs = set()
+        fields = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "AppState":
-                kwargs |= {k.arg for k in node.keywords if k.arg}
+                fields |= {k.arg for k in node.keywords if k.arg}
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if (isinstance(target, ast.Attribute)
+                            and isinstance(target.value, ast.Name)
+                            and target.value.id == "state"):
+                        fields.add(target.attr)
         for name in _FIELDS:
             with self.subTest(producer=name):
-                self.assertIn(name, kwargs, f"run.py never hands {name} to AppState")
+                self.assertIn(name, fields, f"run.py never registers {name} with AppState")
 
 
 if __name__ == "__main__":
