@@ -454,3 +454,8 @@ Measured dimensions and independently attributed stability reviews can be
 appended to an existing loop record without changing its topology or
 calculating a stability verdict. See [FEEDBACK_LOOP_EVIDENCE.md](FEEDBACK_LOOP_EVIDENCE.md)
 for the measurement/review commands, hash-chained event ledger and replay path.
+
+
+## Reviewed seed selection bridge
+
+The boundary adapter reviewed_seed_bridge.py prepares an explicitly approved seed alternative as a validated objective.v1 payload. It preserves the raw-proposal and objective-intake digest/revision chains separately, returns the approval-event cross-reference and acceptance-criterion coverage, and reuses the existing RDO SCC/cycle assessment. This first increment is read-only: it does not append the objective ledger or call submit_objective(), so no expansion, planning or Stage-7 handoff occurs. See REVIEWED_SEED_BRIDGE.md.

@@ -83,3 +83,8 @@ The existing objective intake already accepts nearly the same source/context fie
 Before implementing the bridge, decide how to carry a stable, machine-readable cross-reference from the objective intake record back to the proposal, selected alternative, raw-objective digest and review event. A versioned provenance envelope is the cleanest explicit contract; a stable `source.reference` cross-reference is possible without changing v1 but must not erase the original raw-source reference. Do not quietly overload one hash chain or promote inferred seed confidence to stated.
 
 The bridge should map the selected alternative's seeds, relationships and reconciliation signatures while preserving the raw objective's exact wording, intent, owner/source, scope, constraints, exclusions, assumptions, acceptance criteria and depth. It should produce an intake candidate only after explicit selection; it must not run expansion or Stage-7 handoff. Regression coverage should prove both digests and both revision chains remain independently recoverable.
+
+
+## First reviewed-selection bridge increment
+
+The first bridge-preparation implementation is documented in REVIEWED_SEED_BRIDGE.md. It accepts only an explicit approval, prepares and validates an objective.v1 payload, returns the approval event and dual-ledger lineage, and reuses the existing SCC/cycle classifier. It deliberately does not append the intake ledger or call submit_objective(); no recursive expansion, planning cycle or Stage-7 handoff is started. The bridge's cycle enumeration is bounded per cyclic SCC; larger components remain UNKNOWN rather than being exhaustively enumerated.
