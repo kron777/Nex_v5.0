@@ -1045,3 +1045,6 @@ The one-pen census of 112 sites is a pre-merge snapshot at `a6d08405`; rerun `py
 
 
 §156 design-note clarification: TRACK_THEORY.md's 2026-05-27 afterword already calls tag-then-favor, tag-then-include and tag-then-readiness the actual consumer builds. The later GENIUS_SCORE_v2.md §7 final paragraph and tagger/run.py log-only comments were not reconciled with that update. This is documentation drift, not evidence that consumers were unauthorized.
+
+
+§157 consumer contract qualification: readiness (1h/5 rows/40% target), prompt block (24h/5-minute tag-age cutoff), governor (90m/4 rows/<=5%), Metacognition rut (90m/4 rows/<=5% plus DB throttle) and optional continuity (all-time top scores) independently query genius_tags. They have separate flags, no shared sample manifest, and differing version/event deduplication. This may be intended specialization; no unified contract is documented in inspected source. PRs #452/#453 CI passed; #454/#455 pending. See INDEX §157.
