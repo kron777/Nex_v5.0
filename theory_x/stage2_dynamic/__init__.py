@@ -285,9 +285,8 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
                         except Exception:
                             pass
                 # Advance only after this row's extraction/dedup/write unit has
-                # completed. If stop interrupts a unit, replay it next boot.
-                if stop.is_set():
-                    break
+                # completed. A stop at the top of the next iteration leaves
+                # later rows for the next boot.
                 max_id_seen = row["id"]
             last_id = max_id_seen
 
