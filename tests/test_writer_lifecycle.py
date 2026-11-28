@@ -185,3 +185,165 @@ def test_multiple_submitters_racing_close_all_resolve_or_reject(tmp_path):
     assert [row["value"] for row in rows] == [
         f"item-{index}" for index in sorted(accepted)
     ]
+
+def test_constructor_rolls_back_if_thread_start_raises_after_os_thread_starts(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "writer-start-failure.db"
+    real_start = threading.Thread.start
+    captured = {}
+
+    def start_then_raise(thread):
+        target = thread._target
+        if thread.name == "Writer(start-failure-after-os-start)":
+            captured["thread"] = thread
+            captured["writer"] = target.__self__
+            real_start(thread)
+            raise RuntimeError("injected start failure after OS thread creation")
+        return real_start(thread)
+
+    monkeypatch.setattr(threading.Thread, "start", start_then_raise)
+
+    try:
+        with pytest.raises(RuntimeError, match="injected start failure"):
+            Writer(path, name="start-failure-after-os-start")
+
+        worker = captured["thread"]
+        assert not worker.is_alive(), (
+            "Writer constructor raised but left its already-created worker alive"
+        )
+    finally:
+        worker = captured.get("thread")
+        if worker is not None and worker.is_alive():
+            # Keep the failing regression isolated: clean up the baseline leak
+            # after recording the assertion failure.
+            captured["writer"].close(timeout=10)
+
+
+def test_start_failure_before_os_thread_creation_leaves_writer_restartable(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "writer-start-fails-before-thread.db"
+    real_start = threading.Thread.start
+    captured = {}
+
+    def fail_before_start(thread):
+        if thread.name == "Writer(start-fails-before-thread)":
+            captured["writer"] = thread._target.__self__
+            raise RuntimeError("injected failure before OS thread creation")
+        return real_start(thread)
+
+    monkeypatch.setattr(threading.Thread, "start", fail_before_start)
+    with pytest.raises(RuntimeError, match="before OS thread creation"):
+        Writer(path, name="start-fails-before-thread")
+
+    writer = captured["writer"]
+    assert writer._thread is None
+    assert writer._accepting is True
+    assert writer._queue.empty()
+
+    monkeypatch.setattr(threading.Thread, "start", real_start)
+    writer.start()
+    try:
+        writer.write("CREATE TABLE retry_ok (id INTEGER PRIMARY KEY)")
+    finally:
+        writer.close()
+
+
+def test_start_rollback_discards_sentinel_when_worker_open_fails(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "writer-open-fails-during-start.db"
+    real_start = threading.Thread.start
+    real_open = Writer._open
+    captured = {}
+
+    def fail_open(_self):
+        raise OSError("injected database-open failure")
+
+    def start_then_raise(thread):
+        if thread.name == "Writer(open-fails-during-start)":
+            captured["thread"] = thread
+            captured["writer"] = thread._target.__self__
+            real_start(thread)
+            raise RuntimeError("injected caller-side start failure")
+        return real_start(thread)
+
+    monkeypatch.setattr(Writer, "_open", fail_open)
+    monkeypatch.setattr(threading.Thread, "start", start_then_raise)
+
+    with pytest.raises(RuntimeError, match="caller-side start failure"):
+        Writer(path, name="open-fails-during-start")
+
+    worker = captured["thread"]
+    writer = captured["writer"]
+    assert not worker.is_alive()
+    assert writer._thread is None
+    assert writer._queue.empty()
+    assert writer._accepting is True
+
+    monkeypatch.setattr(Writer, "_open", real_open)
+    monkeypatch.setattr(threading.Thread, "start", real_start)
+    writer.start()
+    try:
+        writer.write("CREATE TABLE retry_after_open_failure (id INTEGER PRIMARY KEY)")
+    finally:
+        writer.close()
+
+
+
+
+def test_start_rollback_timeout_retains_worker_then_retries_without_stale_sentinel(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "writer-start-rollback-timeout.db"
+    real_start = threading.Thread.start
+    captured = {}
+
+    def start_then_raise_with_join_timeout(thread):
+        if thread.name == "Writer(start-rollback-timeout)":
+            captured["thread"] = thread
+            captured["writer"] = thread._target.__self__
+            real_start(thread)
+            # Deterministically simulate the bounded join not completing,
+            # without sleeping or leaving a worker behind after the test.
+            captured["real_join"] = thread.join
+            thread.join = lambda timeout=None: None
+            raise RuntimeError("injected start failure with rollback timeout")
+        return real_start(thread)
+
+    monkeypatch.setattr(threading.Thread, "start", start_then_raise_with_join_timeout)
+    with pytest.raises(RuntimeError, match="rollback timeout"):
+        Writer(path, name="start-rollback-timeout")
+
+    writer = captured["writer"]
+    worker = captured["thread"]
+    try:
+        assert worker.is_alive()
+        assert writer._thread is worker
+        assert writer._accepting is False
+        assert writer._sentinel_enqueued is True
+
+        # start() must not create a replacement while the original worker lives.
+        writer.start()
+        assert writer._thread is worker
+    finally:
+        # Restore the real join and allow the already-enqueued sentinel to
+        # finish the original worker, even if an assertion above fails.
+        worker.join = captured["real_join"]
+        monkeypatch.setattr(threading.Thread, "start", real_start)
+        worker.join(3)
+        if worker.is_alive():
+            writer.close(timeout=3)
+
+    assert not worker.is_alive()
+    writer.start()
+    replacement = writer._thread
+    assert replacement is not worker
+    assert writer._startup_rollback_incomplete is False
+    assert writer._sentinel_enqueued is False
+    assert writer._queue.empty()
+    try:
+        writer.write("CREATE TABLE retry_after_rollback_timeout (id INTEGER PRIMARY KEY)")
+    finally:
+        writer.close()

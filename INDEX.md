@@ -2015,3 +2015,23 @@ This is a narrow integrity/durability correction to the existing append-only rul
 
 ---
 
+## 62. Writer constructor rollback after partial thread creation — candidate PR #421 (28 November 2026)
+
+**Source snapshot:** current main after merged PR #420 (`bf5dbbed66fc0d4884471420998823f658aedc7b`), #422 (`870d16359084db56de6e117aa90a8212abcb6350`) and #423 (`c374185338070aeb2653227c04c487ef11fd5e6c`), plus documentation sync commit `7d4b528b61d9567e9801bb67e61338084dfbd277`. Candidate branch: `fix/writer-start-rollback-final-rebase-2026-11-28`. The original candidate head `fe1be45ac5fb1efedf6e9daf362c9dfbef1c7d3d` passed 3,055 tests, 7 skipped and 86 subtests; that result is not validation of this rebased head.
+
+### Source-derived gap and correction
+
+`Writer.__init__()` calls `start()`. If `Thread.start()` raises after the OS thread has actually been created, construction raises before returning the Writer instance while its daemon worker may remain alive. The bounded correction catches startup failure, closes admission, queues the existing shutdown sentinel, and joins for at most 10 seconds while preserving the original exception. A worker that outlives rollback remains referenced and admission remains closed; a later retry cannot create a second concurrent writer. Once the worker exits, the stale sentinel is discarded and a fresh queue is used. Failure before OS thread creation leaves the object restartable.
+
+### Regression coverage
+
+Four deterministic cases cover: post-OS-start exception and worker rollback; pre-thread-creation failure and retry; worker database-open failure during caller-side start failure; and bounded rollback timeout, retained worker reference, and later retry without a stale sentinel. The timeout regression also asserts the rollback flag, sentinel flag and queue are clean before retry.
+
+### Integration boundary
+
+This is complementary to merged PR #420: #421 owns the individual partially started Writer, while #420 owns already-created producers during boot before AppState takes over. **Merged:** PR #424, merge commit `b604ddfe4949b504196e005399c602677af157bd`. Exact-head workflow run `46145202367` passed **3,064 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map check reports `p1_continuity` source drift because `substrate/writer.py` changed after its 2026-11-27 verification; this is an evidence-refresh item, not a failed test. No live dual-writer or host/robot runtime rehearsal is claimed.
+
+**Unchanged boundaries:** no Writer transaction semantics, schema, runtime configuration, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, descriptive Mind Aspect role, or cognitive/action authority separation is changed.
+
+---
+
