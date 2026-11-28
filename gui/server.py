@@ -891,6 +891,7 @@ class AppState:
             ("competing_drives", self.competing_drives, "stop"),
             ("persona_responder", self.persona_responder, "stop"),
             ("self_maintain_shadow", self.self_maintain_shadow, "stop"),
+            ("strike_protocol", self.strike_protocol, "stop"),
         )
         for label, worker, stop_name in managed:
             if worker is None:
@@ -900,6 +901,9 @@ class AppState:
                 _signal(stop, label)
             thread = worker if isinstance(worker, threading.Thread) else getattr(worker, "_thread", None)
             _add_thread(thread)
+            # Some services own multiple delayed workers rather than one _thread.
+            for owned_thread in list(getattr(worker, "_threads", ()) or ()):
+                _add_thread(owned_thread)
 
         me = threading.current_thread()
         alive = []
