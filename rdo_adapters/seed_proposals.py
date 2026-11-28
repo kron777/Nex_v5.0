@@ -683,7 +683,15 @@ class SeedProposalStore:
 
     def proposals(self) -> List[dict]:
         snapshot = self._snapshot(self._read_events())
-        return [self.get(pid) for pid in snapshot]
+        return [
+            {
+                "proposal": json.loads(_canonical(item["proposal"])),
+                "status": item["status"],
+                "latest_review": json.loads(_canonical(item["latest_review"]))
+                if item["latest_review"] is not None else None,
+            }
+            for item in snapshot.values()
+        ]
 
     def events(self) -> List[dict]:
         return self._read_events()
