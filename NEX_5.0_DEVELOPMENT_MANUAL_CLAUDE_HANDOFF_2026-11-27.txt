@@ -1964,7 +1964,7 @@ This means a signal can be delayed until the current builder returns. That trade
 
 - This is repository source/test work, not a live host or robot shutdown rehearsal. Real SIGTERM delivery, service-manager timeouts, SQLite contention and hardware startup timing remain unknown.
 - A synchronous builder can delay the response to a boot-shutdown request until its next checkpoint.
-- Partial Writer cleanup covers constructors that returned and were published in the local registry. A failure inside a Writer constructor after an OS thread exists but before the constructor returns is handled by the separate rebased candidate PR #421 (§62). Its original exact-head suite passed; the rebased head is undergoing a fresh exact-head run.
+- Partial Writer cleanup covers constructors that returned and were published in the local registry. A failure inside a Writer constructor after an OS thread exists but before the constructor returns is handled by merged PR #424 (§62), with exact-head full-suite validation.
 - SIGKILL, power loss and process abort cannot be handled by Python cleanup.
 - No process-wide thread census, new runtime flag, database, cognitive mechanism, Mind Aspect action authority or frozen-spec change is introduced.
 
@@ -2005,6 +2005,26 @@ The source is `rdo_adapters/reviewed_seed_bridge.py`; the CLI is documented in `
 
 This update corrects the development status only. It does not create a new rule, activate a candidate, create a Stage-7 handoff, authorize execution, or change frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 or Phase 1 authority.
 
+## 62. Writer constructor rollback after partial thread creation — merged PR #424 (28 November 2026)
+
+**Source snapshot:** current main after merged PR #420 (`bf5dbbed66fc0d4884471420998823f658aedc7b`), #422 (`870d16359084db56de6e117aa90a8212abcb6350`), #423 (`c374185338070aeb2653227c04c487ef11fd5e6c`) and #424 (`b604ddfe4949b504196e005399c602677af157bd`). The final Writer rollback change was squash-merged from the rebased PR #424 branch.
+
+### Source-derived gap and correction
+
+`Writer.__init__()` calls `start()`. If `Thread.start()` raises after the OS thread has actually been created, construction raises before returning the Writer instance while its daemon worker may remain alive. The bounded correction catches startup failure, closes admission, queues the existing shutdown sentinel, and joins for at most 10 seconds while preserving the original exception. A worker that outlives rollback remains referenced and admission remains closed; a later retry cannot create a second concurrent writer. Once the worker exits, the stale sentinel is discarded and a fresh queue is used. Failure before OS thread creation leaves the object restartable.
+
+### Regression coverage
+
+Four deterministic cases cover: post-OS-start exception and worker rollback; pre-thread-creation failure and retry; worker database-open failure during caller-side start failure; and bounded rollback timeout, retained worker reference, and later retry without a stale sentinel. The timeout regression also asserts the rollback flag, sentinel flag and queue are clean before retry.
+
+### Integration boundary
+
+This is complementary to merged PR #420: #424 owns the individual partially started Writer, while #420 owns already-created producers during boot before AppState takes over. **Merged:** PR #424, merge commit `b604ddfe4949b504196e005399c602677af157bd`. Exact-head workflow run `46145202367` passed **3,064 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map check reports `p1_continuity` source drift because `substrate/writer.py` changed after its 2026-11-27 verification; this is an evidence-refresh item, not a failed test. No live dual-writer or host/robot runtime rehearsal is claimed.
+
+**Unchanged boundaries:** no Writer transaction semantics, schema, runtime configuration, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, descriptive Mind Aspect role, or cognitive/action authority separation is changed.
+
+---
+
 ## 63. Rule-proposal ledger append durability and replay validation — merged PR #423 (28 November 2026)
 
 **Merged:** `c374185338070aeb2653227c04c487ef11fd5e6c`. Candidate branch head `df33ed8140b08fa10f28988268fe018222a2a2bf`; exact-head workflow run `46144136825` passed **3,054 tests, 7 skipped, 86 subtests**; baseline check OK and the isolated sandbox probe passed.
@@ -2022,23 +2042,51 @@ This is a narrow integrity/durability correction to the existing append-only rul
 
 ---
 
-## 62. Writer constructor rollback after partial thread creation — candidate PR #421 (28 November 2026)
+## 64. Provider-neutral CLI for inert expansion-rule proposals — merged PR #432 (28 November 2026)
 
-**Source snapshot:** current main after merged PR #420 (`bf5dbbed66fc0d4884471420998823f658aedc7b`), #422 (`870d16359084db56de6e117aa90a8212abcb6350`) and #423 (`c374185338070aeb2653227c04c487ef11fd5e6c`), plus documentation sync commit `7d4b528b61d9567e9801bb67e61338084dfbd277`. Candidate branch: `fix/writer-start-rollback-final-rebase-2026-11-28`. The original candidate head `fe1be45ac5fb1efedf6e9daf362c9dfbef1c7d3d` passed 3,055 tests, 7 skipped and 86 subtests; that result is not validation of this rebased head.
+**Merged:** [PR #432](https://github.com/kron777/Nex_v5.0/pull/432), merge commit `e29c6d8e2a8a486a54272445baab58ff5b1c5610`. This exposes the already-implemented `RuleProposalStore` lifecycle through three commands: `rule-propose` submits an exact-schema request/candidate envelope; `rule-review` appends an explicit review decision; and `rule-history` inspects proposals/events with an optional proposal filter. The default ledger remains `rdo/.cycles/rule_proposals.jsonl`.
 
-### Source-derived gap and correction
+The commands reuse the existing store and its catalogue fingerprint, schema validation, append-only hash chain, exclusive locking, prospective-event replay validation and fsync behavior. No second ledger or rule engine is introduced. The JSON envelope rejects unknown fields and duplicate JSON properties before store access. Proposer/reviewer labels remain caller-attributed, not identity-authenticated. The request is sourced from the RDO novel-kind frontier; the candidate remains human/external-provider supplied. The CLI persists and reviews proposals but does not invoke a model or implement an autonomous raw-idea-to-rule generator.
 
-`Writer.__init__()` calls `start()`. If `Thread.start()` raises after the OS thread has actually been created, construction raises before returning the Writer instance while its daemon worker may remain alive. The bounded correction catches startup failure, closes admission, queues the existing shutdown sentinel, and joins for at most 10 seconds while preserving the original exception. A worker that outlives rollback remains referenced and admission remains closed; a later retry cannot create a second concurrent writer. Once the worker exits, the stale sentinel is discarded and a fresh queue is used. Failure before OS thread creation leaves the object restartable.
+**Authority boundary:** `approved_for_catalogue` remains inert. No activation, dynamic loading, generated-code execution, catalogue mutation, runtime action or authority grant is exposed. The only route into `EXPANSION_RULES` remains a separate reviewed source change with tests and CI.
 
-### Regression coverage
+**Validation:** new `rdo/tests/test_rule_proposal_cli.py` covers command routing, review fields, filtered history, exact input-field and duplicate-key rejection before store access, and a real-ledger end-to-end check that approval leaves `EXPANSION_RULES` unchanged. Exact-head workflow run `46146066321` passed **3,068 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map warning for stale `p1_continuity` anchors is addressed by merged PR #437.
 
-Four deterministic cases cover: post-OS-start exception and worker rollback; pre-thread-creation failure and retry; worker database-open failure during caller-side start failure; and bounded rollback timeout, retained worker reference, and later retry without a stale sentinel. The timeout regression also asserts the rollback flag, sentinel flag and queue are clean before retry.
+**Unchanged boundaries:** no frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, or cognitive/action authority is changed.
 
-### Integration boundary
+---
 
-This is complementary to merged PR #420: #421 owns the individual partially started Writer, while #420 owns already-created producers during boot before AppState takes over. **Merged:** PR #424, merge commit `b604ddfe4949b504196e005399c602677af157bd`. Exact-head workflow run `46145202367` passed **3,064 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. The mind-map check reports `p1_continuity` source drift because `substrate/writer.py` changed after its 2026-11-27 verification; this is an evidence-refresh item, not a failed test. No live dual-writer or host/robot runtime rehearsal is claimed.
+## 65. P1 continuity evidence refresh after Writer rollback — merged PR #437 (28 November 2026)
 
-**Unchanged boundaries:** no Writer transaction semantics, schema, runtime configuration, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0, Phase 1 authority, descriptive Mind Aspect role, or cognitive/action authority separation is changed.
+**Merged:** `af52387c3a0d3bc6f041b6d4d9413c74944adc68`. The `p1_continuity` node's source anchors now cite `substrate/writer.py:58-213` and `:214-375`, with `last_verified: 2026-11-28`. The note records the merged PR #424 partial-start rollback and its exact-head tests while preserving the existing preventive-vs-detective distinction and FAIL falsifier: rollback protection does not detect two writers claiming the same subject.
+
+Exact-head workflow run `46146816088` passed **3,068 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. Mind-map verification reports 30 nodes, 0 unverified, 12 dark and 2 blocked. The stale `p1_continuity` warning is cleared. Remaining warnings are two missing doctrine reference files (`VIRTUE_SLATE.md`, `mental_factors_inventory_alobha_spec.txt`) and the overdue `p13_finitude` unblock dated 2026-11-21; they remain visible and unmodified.
+
+No live dual-writer or host/robot rehearsal is claimed. The mind map remains descriptive and has no action-control authority.
+
+---
+
+## 66. Objective intake first-revision directory durability — merged PR #438 (28 November 2026)
+
+**Merged:** PR #438, merge commit `6de891fe128e144bc4428eb6a78b4f45c09decf7`. `ObjectiveInputStore.append()` now fsyncs the containing directory after the first `<objective_id>.jsonl` entry is created. A file fsync protects file contents; the additional directory fsync includes the new directory entry in the durability boundary.
+
+**Bounded correction:** while holding the per-objective exclusive lock, detect first creation; append and fsync the revision file; then fsync the containing directory. Later revisions retain the existing file-only fsync behavior. The immutable revision schema, SHA-256 chain, lineage checks, locking and replay semantics are unchanged.
+
+**Regression coverage:** `rdo/tests/test_objective_intake_durability.py` verifies first creation fsyncs the file then the parent directory, while a later revision fsyncs only the existing file. README records the durability boundary. Exact-head workflow run `46147315394` passed **3,070 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. That branch's mind-map check still emitted the stale p1 warning because its base preceded merged PR #437; the current mainline has the refreshed evidence recorded in §65.
+
+**Boundaries:** no objective schema, approval, planning, Stage-7, execution, runtime state, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed. No live database or host process was accessed.
+
+---
+
+## 67. Objective intake symlink and special-file path rejection — merged PR #439 (28 November 2026)
+
+**Source-derived gap:** unlike the seed and rule-proposal stores, `ObjectiveInputStore` previously opened objective revision and lock paths without rejecting symlinks. A dangling ledger symlink could be treated as an empty history, and an existing symlink could redirect reads/appends outside the configured store directory. FIFO/device paths could also block or behave unlike regular ledger files.
+
+**Bounded correction:** centralize safe opens for objective ledger and lock files. Reject symlinks before open and use `O_NOFOLLOW` where supported to close the check/open race; use non-blocking opens and require regular files so FIFOs and other special files are rejected. Preserve the existing per-objective flock, append-only revision chain, file/directory fsync, lineage validation and replay behavior.
+
+**Merged:** PR #439, merge commit `51509a93aa204fe6fb34b75a88d0b3edec455e70`. Exact-head workflow run `46148127739` passed **3,074 tests, 7 skipped, 86 subtests**; baseline check OK and isolated sandbox probe passed. Mind-map verification reports 30 nodes, 0 unverified, 12 dark and 2 blocked; the `p1_continuity` warning remains cleared. Remaining warnings are the two missing doctrine references and overdue `p13_finitude` unblock, unchanged.
+
+**Boundaries:** no objective schema, revision hash-chain, approval, planning, Stage-7, execution, runtime state, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or cognitive/action authority is changed. No live database or host process was accessed.
 
 ---
 

@@ -950,7 +950,7 @@ nodes:
     blocked: false
     falsifier: "Should fail loudly if two writers claim the same subject."
     falsifier_status: fail
-    source: { kind: composite, refs: ["nex_keepalive.sh:20-45", "substrate/writer.py:1-16", "substrate/writer.py:57-247", "substrate/writer.py:262-350", "substrate/db.py:135-196"] }
+    source: { kind: composite, refs: ["nex_keepalive.sh:20-45", "substrate/writer.py:1-16", "substrate/writer.py:58-213", "substrate/writer.py:214-375", "substrate/db.py:135-196"] }
     last_verified: 2026-11-28
     notes: >
       Correction, 2026-11-09: 'anchor not pinned' was wrong -- NEX5_CONTINUITY_N is a real,
@@ -993,26 +993,23 @@ nodes:
       callback failure. This extends the one-pen boundary without adding a second connection
       or a same-subject detector. The preventive-vs-detective falsifier therefore remains FAIL.
 
+      2026-11-28 Writer lifecycle re-verification: substrate/writer.py now additionally
+      handles Thread.start() raising after the OS worker was created but before Writer
+      construction returns. Startup closes admission, queues the existing shutdown sentinel,
+      and performs a bounded join while preserving the original start exception. If rollback
+      times out, the worker reference remains held and a second worker cannot replace it;
+      after the worker exits, the stale sentinel is discarded before retry. Four deterministic
+      regression cases cover post-start failure, pre-thread-creation failure, database-open
+      failure during caller-side start failure, and rollback timeout/retry. PR #424 exact-head
+      CI (e4b8a96495219a05b3264d437d502653b7fbf297) passed 3,064 tests, 7 skipped and 86
+      subtests; the baseline and isolated sandbox checks passed. This is source/test evidence,
+      not a live dual-writer or host runtime rehearsal. The preventive-vs-detective distinction
+      remains unchanged: this adds rollback protection, not a detector that loudly reports
+      two writers claiming the same subject.
+
       2026-11-28 anchor correction: 14873c10 (2026-11-27) replaced the hard-coded cd at line 12 with
       script-relative resolution (+6 lines); the single-instance flock and scoped-child supervision
       block cited above moved from :14-39 to :20-45 with byte-identical content.
-
-      2026-11-28 anchor reconciliation (G-96), each ref content-checked against the commit that last
-      verified it (named per ref), not against an intermediate tree. Pure move: writer.py:170-258 ->
-      :203-291 (c6bc4e41). Edited range: writer.py:57-155 is now :57-188 (same first and last
-      statements); f03a3d2e (2026-11-27 20:04, after the 12:00 post-G65 re-verification) added Writer
-      lifecycle locking inside it -- submissions after close fail synchronously and close() drains,
-      then raises TimeoutError. No same-subject or dual-writer detector was added; the falsifier
-      remains FAIL.
-
-      2026-11-28 re-verification after #424 (b604ddfe, Writer startup rollback): every cited ref
-      re-read. writer.py:1-16, db.py:135-196 and nex_keepalive.sh:20-45 are unchanged. #424 added
-      partial-startup rollback inside the first Writer block, which now spans writer.py:57-247 (same
-      first and last statements); the later block moved from :203-291 to :262-350, byte-identical. The
-      rollback is preventive -- a Writer whose bounded rollback timed out keeps its worker reference
-      so a retry cannot start a second worker on the same connection, and logs an error -- not a
-      same-subject or dual-writer detector, so the falsifier remains FAIL and the
-      preventive-vs-detective finding stands.
 
   - id: p2_train
     label: "2 · Train of thought across restart"

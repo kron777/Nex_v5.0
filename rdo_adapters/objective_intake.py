@@ -7,12 +7,14 @@ fresh, and experiment eligibility is still read from the Watcher registry.
 """
 from __future__ import annotations
 
+import errno
 import fcntl
 import hashlib
 import json
 import os
 import re
 import subprocess
+import stat
 from typing import Any, Dict, List, Optional
 
 from rdo.memory import CycleStore, PatternMemory
@@ -50,6 +52,32 @@ def _canonical_json(value: Any) -> str:
 
 def _digest(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _open_regular_store_file(path: str, flags: int, *, label: str,
+                             mode: int = 0o666) -> int:
+    """Open one store file without following symlinks or blocking on special files."""
+    if os.path.islink(path):
+        raise ObjectiveInputError(f"{label} must not be a symlink")
+    safe_flags = (
+        flags
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    try:
+        fd = os.open(path, safe_flags, mode)
+    except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            raise ObjectiveInputError(f"{label} must not be a symlink") from exc
+        raise
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise ObjectiveInputError(f"{label} must be a regular file")
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
 
 
 def _object(value: Any, name: str, required: set, optional: set = frozenset()) -> dict:
@@ -407,10 +435,16 @@ class ObjectiveInputStore:
 
     def _history_unlocked(self, objective_id: str) -> List[dict]:
         path = self._path(objective_id)
-        if not os.path.exists(path):
+        if os.path.islink(path):
+            raise ObjectiveInputError("objective revision ledger path must not be a symlink")
+        try:
+            fd = _open_regular_store_file(
+                path, os.O_RDONLY, label="objective revision ledger path",
+            )
+        except FileNotFoundError:
             return []
         records = []
-        with open(path, "r", encoding="utf-8") as fh:
+        with os.fdopen(fd, "r", encoding="utf-8") as fh:
             for number, line in enumerate(fh, 1):
                 if not line.strip():
                     raise ObjectiveInputError(f"blank revision-ledger line {number}")
@@ -453,10 +487,16 @@ class ObjectiveInputStore:
 
     def history(self, objective_id: str) -> List[dict]:
         path = self._path(objective_id)
+        if os.path.islink(path):
+            raise ObjectiveInputError("objective revision ledger path must not be a symlink")
         if not os.path.exists(path):
             return []
         lock_path = path + ".lock"
-        with open(lock_path, "a", encoding="utf-8") as lock:
+        lock_fd = _open_regular_store_file(
+            lock_path, os.O_CREAT | os.O_RDWR,
+            label="objective revision lock path", mode=0o600,
+        )
+        with os.fdopen(lock_fd, "r+") as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_SH)
             try:
                 return self._history_unlocked(objective_id)
@@ -468,7 +508,11 @@ class ObjectiveInputStore:
         checked_lineage = _validate_objective_lineage(record, lineage)
         path = self._path(record["objective_id"])
         lock_path = path + ".lock"
-        with open(lock_path, "a", encoding="utf-8") as lock:
+        lock_fd = _open_regular_store_file(
+            lock_path, os.O_CREAT | os.O_RDWR,
+            label="objective revision lock path", mode=0o600,
+        )
+        with os.fdopen(lock_fd, "r+") as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
             try:
                 history = self._history_unlocked(record["objective_id"])
@@ -506,10 +550,25 @@ class ObjectiveInputStore:
                 if checked_lineage is not None:
                     wrapper["lineage"] = checked_lineage
                 # One append-only record per revision. Never rewrite an earlier revision.
-                with open(path, "a", encoding="utf-8") as fh:
+                # The file fsync protects its contents; on first creation also
+                # fsync the containing directory so the new ledger entry itself
+                # survives a crash/power loss.
+                created = not os.path.exists(path)
+                ledger_fd = _open_regular_store_file(
+                    path, os.O_WRONLY | os.O_APPEND | os.O_CREAT,
+                    label="objective revision ledger path",
+                )
+                with os.fdopen(ledger_fd, "a", encoding="utf-8") as fh:
                     fh.write(_canonical_json(wrapper) + "\n")
                     fh.flush()
                     os.fsync(fh.fileno())
+                if created:
+                    directory = os.path.dirname(os.path.abspath(path)) or "."
+                    dir_fd = os.open(directory, os.O_RDONLY)
+                    try:
+                        os.fsync(dir_fd)
+                    finally:
+                        os.close(dir_fd)
                 return {**wrapper, "replayed": False}
             finally:
                 fcntl.flock(lock.fileno(), fcntl.LOCK_UN)

@@ -310,7 +310,7 @@ python -m rdo history --objective-id my-objective --out rdo/.cycles
 python -m rdo resume --objective-id my-objective --revision 1 --out rdo/.cycles
 ```
 
-Each input revision is append-only and linked by SHA-256. The original wording and intent are immutable; a cycle stores the input revision/digest and a clean repository commit SHA. The selected repository must be a clean Git snapshot. The Watcher experiment registry still controls eligibility and unknown registry state remains blocked.
+Each input revision is append-only and linked by SHA-256. The original wording and intent are immutable; a cycle stores the input revision/digest and a clean repository commit SHA. The selected repository must be a clean Git snapshot. The Watcher experiment registry still controls eligibility and unknown registry state remains blocked. On first revision creation, the ledger file is fsynced and its parent directory is fsynced so the new directory entry is included in the durability boundary; later revisions fsync the existing ledger file. Objective ledger and lock paths must be regular files, not symlinks or special files; opens use no-follow semantics where supported to close the check/open race.
 
 See [the intake contract](OBJECTIVE_INTAKE.md), [the JSON Schema](schemas/objective.v1.schema.json), and [an example input](examples/objective.v1.example.json). This is advisory planning only; it does not execute work or alter NEX runtime state.
 
@@ -453,7 +453,30 @@ A novel obligation kind remains a visible frontier item; it is never silently ex
 
 Even `approved_for_catalogue` means only that a candidate is eligible for a separate code/catalogue change review. There is deliberately no activation API: `EXPANSION_RULES` remains the only active catalogue and changes only through an ordinary reviewed source change with tests and CI. Proposer/reviewer labels are caller-attributed, not identity-authenticated.
 
+The lifecycle is available through three provider-neutral CLI commands. Supply
+a JSON file containing exactly `request`, `candidate`, `proposer_kind`,
+`proposer_reference` and `source_reference`; an optional
+`supersedes_proposal_id` may identify a prior changes-requested/rejected
+proposal.
 
+The `request` is the exact `rule_proposal_request` emitted at an RDO novel-kind
+frontier. The `candidate` remains human- or external-provider-supplied: these
+commands persist and review it but do not invoke a model or implement an
+autonomous raw-idea-to-rule generator.
+
+```bash
+python -m rdo rule-propose --input rule-proposal.json
+python -m rdo rule-history
+python -m rdo rule-review --proposal-id ruleprop_<id> \
+  --decision approved_for_catalogue --reviewer founder \
+  --source-reference review:1 --rationale "Candidate merits separate source review" \
+  --evidence-reference evidence:positive --evidence-reference evidence:negative
+```
+
+`approved_for_catalogue` remains inert. It does not alter
+`EXPANSION_RULES`, execute proposal content, create a runtime rule or grant
+action authority. The CLI exposes no activation command. Regression coverage
+is in `rdo/tests/test_rule_proposal_cli.py`.
 
 ## Feedback-loop evidence updates
 
