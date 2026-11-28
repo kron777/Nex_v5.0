@@ -1,12 +1,12 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with branch INDEX.md; evidence snapshot: main at bbce631723ed92496c878a9927c688900972413d.
+Mirror synchronized with branch INDEX.md; evidence snapshot: main at 5ba300779ff3081508e56b509d53a27846bf7c67.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `bbce631723ed92496c878a9927c688900972413d`  
+**Last verified against:** `main` at `5ba300779ff3081508e56b509d53a27846bf7c67`  
 **Evidence date:** 28 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -295,7 +295,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 28 November 2026 — G-84 steps 1–3 merged; process-wide writer-deadline/clean-marker defect remains open. RDO bridge candidate and ObjectiveInputStore concurrency prerequisite, G-92/G-94, Bonsai/Global Workspace and Sentience wiring updated; Gate 0 boundaries remain.*
+*Last amended: 28 November 2026 — G-84 steps 1–3 merged; process-wide writer-deadline/clean-marker correction in PR #370. RDO bridge candidate and ObjectiveInputStore concurrency prerequisite, G-92/G-94, Bonsai/Global Workspace, Sentience wiring and sentence-to-tool source discrepancy updated; Gate 0 boundaries remain.*
 
 
 
@@ -928,7 +928,7 @@ This update records implementation evidence and remaining capability boundaries;
 
 ## 44. One-pen census, G-78 validation consequence and persistence corrections (28 November 2026)
 
-**Evidence snapshot:** `main` at `bbce631723ed92496c878a9927c688900972413d`. The 112-site one-pen census is a historical pre-merge scan and must be rerun on current main before making a current-count or reachability claim. Source and fixture-test evidence only; host and runtime state remains **UNKNOWN**.
+**Evidence snapshot:** `main` at `5ba300779ff3081508e56b509d53a27846bf7c67`. The 112-site one-pen census is a historical pre-merge scan and must be rerun on current main before making a current-count or reachability claim. Source and fixture-test evidence only; host and runtime state remains **UNKNOWN**.
 
 ### One-pen census (G-61)
 
@@ -1070,7 +1070,7 @@ No frozen S-01–S-25/M1.8 specification content, Master Roadmap, M0/M1 gate, mi
 
 ## 47. Self-binding shared-Writer correction — G-94 (28 November 2026)
 
-**Evidence snapshot:** `main` at `bbce631723ed92496c878a9927c688900972413d`. Correction merged in PR #362 as `f207cc7734ca833995bfbfc5a79dfec4a04eb6f6`; exact-head CI run `46114329075` passed 2,894 tests, 7 skipped and 54 subtests; baseline OK.
+**Evidence snapshot:** `main` at `5ba300779ff3081508e56b509d53a27846bf7c67`. Correction merged in PR #362 as `f207cc7734ca833995bfbfc5a79dfec4a04eb6f6`; exact-head CI run `46114329075` passed 2,894 tests, 7 skipped and 54 subtests; baseline OK.
 
 ### Source-traced defect
 
@@ -1120,7 +1120,7 @@ This is a persistence-ownership correction that preserves the existing cognitive
 
 ## 48. RDO candidate seed proposal lifecycle — G-92 first increment (28 November 2026)
 
-**Evidence snapshot:** `main` at `bbce631723ed92496c878a9927c688900972413d`. The first G-92 candidate-seed lifecycle increment merged in PR #360 as `8fe2e74d0d24c2ae897cc1a3abb4ddbd3edc8cd0`; exact-head CI run `46115093455` passed 2,913 tests, 7 skipped and 54 subtests; baseline OK.
+**Evidence snapshot:** `main` at `5ba300779ff3081508e56b509d53a27846bf7c67`. The first G-92 candidate-seed lifecycle increment merged in PR #360 as `8fe2e74d0d24c2ae897cc1a3abb4ddbd3edc8cd0`; exact-head CI run `46115093455` passed 2,913 tests, 7 skipped and 54 subtests; baseline OK.
 
 ### What this increment adds
 
@@ -1148,7 +1148,7 @@ The next bounded sequence is: harden ObjectiveInputStore read/append locking, sy
 
 ## 49. Bonsai → Fountain branch pick → Global Workspace trace (28 November 2026)
 
-**Evidence snapshot:** NEX `main` at `bbce631723ed92496c878a9927c688900972413d`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; the characterization run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests. The previous manual/research head `39aa3ff07c8ca1f05583369a41d89754f6f884bf` passed full-suite CI run `46117575615`; the post-G-84-merge rebased head is pending exact-head CI.
+**Evidence snapshot:** NEX `main` at `5ba300779ff3081508e56b509d53a27846bf7c67`. Test-only characterization is on branch `test/fountain-bonsai-workspace-wire-2026-11-28`; the characterization run `46115617791` passed 2,895 tests, 7 skipped and 54 subtests. The previous manual/research head `39aa3ff07c8ca1f05583369a41d89754f6f884bf` passed full-suite CI run `46117575615`; the post-Sentience/sentence-to-tool rebase is pending exact-head CI.
 
 ### Network path
 
@@ -1177,3 +1177,25 @@ The next research step is to measure interaction effects under controlled pertur
 A parallel Sentience 5.5 source audit is recorded in research/SENTIENCE_5_5_INTEGRATION_AND_SELF_MODEL_TRACE_2026-11-28.md. It finds that Integration_Node is a latest-value aggregator (later inputs overwrite prior values; frames can mix fresh and stale components), while Self_Model_Node, Meta_Awareness_Node and Cognitive_Control_Node are distinct mechanisms whose cross-wiring is not demonstrated in the inspected files. A further top-level check found that Orchestrator.py instantiates a different node set and does not import these four modules; System_Integration_Node.py records node health and writes proposed directives but does not dispatch them; Control_Node.py can accept an "integration" update through update_from_source(), but the inspected top-level orchestrator and system-integration node do not call it. The conditional Self_Model_Node.heartbeat() deadlock remains. This is source-level evidence only; repository-wide search indexing was incomplete, so no claim is made that no other caller exists.
 
 No runtime behavior, prompt policy, salience weight, feature flag, database schema, frozen specification or gate authority was changed.
+
+## 50. Sentence-to-tool wire, Sentence Code boundary and RDO/runtime separation (28 November 2026)
+
+**Evidence snapshot:** NEX main at `5ba300779ff3081508e56b509d53a27846bf7c67`; source and PR evidence only, no live service or database access.
+
+A new source trace was added in main commit `5ba30077` at `research/SENTENCE_TO_TOOL_WIRE_TRACE_2026-11-28.md`. Its architectural boundaries are useful, but its section describing the bounded arithmetic correction as already implemented is ahead of the actual main source:
+
+- Current main `theory_x/stage_capability/tool_caller.py` still returns `{"query": query, "code": ""}` for `python_exec`.
+- Current main `theory_x/stage_capability/tools.py` still promotes an empty code argument to the natural-language query, applies a regex import blacklist, and invokes `python3 -c` through subprocess. The safe AST interpreter is **not yet on main**.
+- PR #369, branch `fix/tools-bounded-arithmetic-2026-11-28`, is the actual correction candidate: constrained numeric-prefix extraction, no natural-language fallback, and an in-process AST allowlist. Its exact-head full-suite run `46118580628` was in progress on head `786c574318c3dbffaeea65ec76e0e9b9ff3f1746` at this evidence check. The PR was based on `bbce6317`, behind current main `5ba30077`, and required rebase/conflict reconciliation before merge. No merge is claimed.
+- Review observations on PR #369: cap the expression length before `ast.parse` and handle recursion/parse failures as non-selection; distinguish registry-level `math.*` support from the current sentence extractor, which accepts only numeric operators; and retain the separate chat-context issue below.
+
+The chat route still calls `should_use_tool(prompt, [])` even after membrane retrieval has produced `belief_text`. The ToolCaller therefore sees an empty belief list and may select its factual web fallback when internal belief support already exists. PR #369 does not correct this context-propagation edge; keep it as a separate bounded follow-up.
+
+This arithmetic route is one narrow typed operation boundary, not the existing Sentence Code and not a general human-sentence-to-machine-operation compiler. The governing pathway remains human sentence → interpretation through existing Mind Aspects → Sentence Code → Recursive Extrapolator → validated executable interfaces → verified result. The RDO objective intake is a development-work representation, not a runtime action request; the chat-to-RDO wire is absent in inspected source, and the two authority contracts must not be connected blindly.
+
+The Sentience 5.5 comparison in the source trace is also appropriately limited: Voice_Interaction_Node queues raw strings; Action_Execution_Node accepts a pre-structured dictionary but its task performer is a random simulated-success placeholder and its no-LLM advisory fallback reports `is_safe=True`; Interaction_Interface_Node maps a few labels to canned responses. These are sketches, not an integrated sentence-to-execution bridge.
+
+**Authority boundary:** Mind Aspects contribute cognitive interpretation. The Tibetan mind map is descriptive, not an action-control authority. No aspect may gate, score, block or veto an action merely because of its position in that map. Keep interpretation, typed operation representation, capability validation, approval authority, execution and post-execution verification distinct.
+
+No frozen S-01–S-25/M1.8 content, Master Roadmap, Gate 0 or Phase 1 authority is changed.
+
