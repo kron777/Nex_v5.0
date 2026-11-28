@@ -44,7 +44,7 @@ def consolidation_pass(tree: BonsaiTree, sense_reader: Reader, *, stop_event=Non
     """Run a consolidation pass if quiet. Returns True if consolidation ran."""
     if stop_event is not None and stop_event.is_set():
         return False
-    quiet = _external_quiet(sense_reader, stop_event=stop_event)
+    quiet = _external_quiet(sense_reader) if stop_event is None else _external_quiet(sense_reader, stop_event=stop_event)
     if not quiet or (stop_event is not None and stop_event.is_set()):
         return False
 
