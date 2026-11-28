@@ -891,7 +891,7 @@ The mind-map check still reports existing warnings for missing doctrine source f
 
 ### Integrity and authority boundaries
 
-- The original CycleRecord and handoff manifest remain immutable snapshots; new review decisions and observations are appended as separate evidence records.
+- Original planning fields and the handoff manifest are not rewritten. Observed failure evidence is appended to the CycleRecord's trailing `observed_failure_evidence` field; context mappings and criterion reviews are appended to the separate handoff event ledger.
 - Handoff review events are bound to the exact manifest digest and hash chain.
 - Reviewer/verifier attribution is caller-supplied and explicitly not identity-authenticated.
 - Context mapping requires canonical obligation keys from the exact handoff. Criterion verification requires a prior reviewed mapping; the append re-checks that mapping under the ledger lock.
