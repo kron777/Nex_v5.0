@@ -231,6 +231,11 @@ class RuleProposalStore:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
             try:
                 events = self._read_unlocked(fh)
+                if (event_kind == "proposal_created"
+                        and any(e["event_kind"] == "proposal_created"
+                                and e["data"]["proposal_id"] == data.get("proposal_id")
+                                for e in events)):
+                    raise ValueError("identical rule proposal already exists")
                 event = {
                     "schema_version": EVENT_SCHEMA,
                     "event_kind": event_kind,
@@ -265,10 +270,6 @@ class RuleProposalStore:
         if target in EXPANSION_RULES or target in TERMINAL_KINDS:
             raise ValueError(f"kind {target!r} already has a built-in expansion/terminal rule")
         proposal_id = "rp_" + hashlib.sha256(_canonical(proposal)).hexdigest()[:24]
-        for event in self.events():
-            if (event["event_kind"] == "proposal_created"
-                    and event["data"]["proposal_id"] == proposal_id):
-                raise ValueError("identical rule proposal already exists")
         return self._append("proposal_created", {
             "proposal_id": proposal_id, "proposal": proposal,
         })
