@@ -9,7 +9,7 @@ import ast
 import re
 from typing import Optional
 
-from .tools import ToolRegistry, ToolResult
+from .tools import ToolRegistry, ToolResult, _extract_url_from_query
 
 CAPABILITY_STAGE = "B"
 
@@ -27,6 +27,10 @@ _MATH_PATTERNS = re.compile(
 )
 _BELIEF_PATTERNS = re.compile(
     r"\b(what do i believe|my beliefs about|what does nex think|what have i learned)\b",
+    re.I,
+)
+_SUPPORTED_COIN_PATTERN = re.compile(
+    r"\\b(btc|bitcoin|eth|ethereum|sol|solana)\\b",
     re.I,
 )
 _MATH_PREFIX = re.compile(
@@ -66,11 +70,13 @@ class ToolCaller:
         self._registry = registry
 
     def should_use_tool(self, query: str, beliefs: list) -> Optional[str]:
-        """Return the tool name to use, or None if no tool is appropriate."""
-        q = query.lower()
+        """Select only capabilities with a concrete, supported input target.
 
-        if _PRICE_PATTERNS.search(q):
-            return "web_fetch"
+        web_fetch is an HTTP fetcher, not a general search provider. Do not
+        select it for generic current/factual questions that contain no URL or
+        supported CoinGecko symbol; the registry cannot satisfy those queries.
+        """
+        q = query.lower()
 
         if _MATH_PATTERNS.search(q):
             return "python_exec" if _extract_math_expression(query) else None
@@ -78,10 +84,13 @@ class ToolCaller:
         if _BELIEF_PATTERNS.search(q):
             return "beliefs_query"
 
-        if _CURRENT_PATTERNS.search(q):
+        if _extract_url_from_query(query):
             return "web_fetch"
 
-        if not beliefs and re.search(r"\bwhat is\b|\bwho is\b|\bwhen did\b|\bhow does\b", q, re.I):
+        if (
+            _SUPPORTED_COIN_PATTERN.search(q)
+            and (_PRICE_PATTERNS.search(q) or _CURRENT_PATTERNS.search(q))
+        ):
             return "web_fetch"
 
         return None
