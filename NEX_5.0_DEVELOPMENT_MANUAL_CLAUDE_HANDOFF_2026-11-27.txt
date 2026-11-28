@@ -1,6 +1,6 @@
 NEX 5.0 — DEVELOPMENT MANUAL (PLAIN-TEXT EDITION)
 Generated from the canonical INDEX.md manual.
-Mirror synchronized with branch INDEX.md; evidence snapshot: main at d580248ecf9436784a8772c50e733008baaf1b41.
+Mirror synchronized with branch INDEX.md; evidence snapshot: main at b5e78842f43ac93c2624697f686da0b600306177.
 This file is a plain-text mirror for tools and reviewers that prefer .txt files.
 The canonical Markdown manual remains INDEX.md; verify live source and evidence before acting.
 
@@ -1018,6 +1018,55 @@ This trace is source-verified and hypothesis-generating. It identifies several e
 No frozen S-01–S-25/M1.8 specification content, Master Roadmap, M0/M1 gate, mind-map policy, live runtime flag, service or database was changed.
 
 
+47. Self-binding shared-Writer correction — G-94 (28 November 2026)
+
+**Evidence snapshot:** `main` at `bbca5deb3a0398331503ce61c95a62f8d1b3d33d`. Implementation is proposed on draft PR #362; exact-head CI is pending.
+
+### Source-traced defect
+
+The recursive self-reading and periodic self-view snapshot both had access to the canonical AppState `dynamic` Writer, but omitted it when invoking self-binding:
+
+- Fountain called `recursive_self.format_for_prompt()` without a Writer. That function called `perturbation()`, which called `_bound_state()`; the helper already supported `dynamic_writer`, but the live call chain did not pass it.
+- SelfMindView's `_snapshot()` called `self_binding.bind()` without passing its existing `self._dw`.
+- With no injected Writer, `self_binding.bind()` and its schema helper open their own `Writer` for `dynamic.db`.
+
+This contradicted the one-canonical-Writer-per-database invariant in §4. It was not a database-schema defect or evidence of corruption; it was a source-level ownership violation on two runtime call paths.
+
+### Bounded correction on PR #362
+
+- Fountain now passes `self._dynamic_writer` through `recursive_self.format_for_prompt(dynamic_writer=...)` → `perturbation(dynamic_writer=...)` → `_bound_state(dynamic_writer=...)` → `self_binding.bind(dynamic_writer=...)`.
+- SelfMindView now passes its existing `self._dw` into `self_binding.bind()`.
+- The optional self-owned Writer fallback remains available for standalone/CLI use; runtime call sites use the shared Writer.
+- Regression coverage now asserts that the recursive prompt path carries the injected Writer, and that SelfMindView snapshotting succeeds while opening a second `self_binding.Writer` is forced to fail.
+- The existing direct injected-Writer test in `tests/test_self_state_history.py` remains in place.
+
+### Wider self-integration trace and unresolved edges
+
+The Writer correction preserves an existing multi-faculty path:
+
+`compositional emotion + rāga + competing-drive state + latest Fountain thought/readiness + open problem + proprioceptive substrate` → `self_binding.bind()` → `self_state` and append-only `self_state_history`.
+
+Two consumers then use related but distinct aspects of this state:
+
+- Fountain's recursive-self path rebinds on the thought-generation path, reads the resulting components and turns selected emotion/rāga patterns into a first-person prompt nudge. It does not directly write Bonsai focus or mechanically select a new branch; the intended behavioural influence is through the prompt.
+- SelfMindView's 300-second snapshot captures the bound synthesis in `self_mind_snapshots.bound_self_synthesis`. Its separate `current_summary()` recomputes beliefs, intentions, knowledge, uncertainty and attention for Chat. `run.py` also injects SelfMindView into Metacognition; Metacognition reads its attention and uncertainty histories to detect recurring attention themes and unresolved-problem stagnation, records those as metacognitive events, and can surface the recent event as prompt text.
+
+This is a genuine chain of connected representations and consumers, but the prompt-mediated feedback should not be mistaken for a measured change in selection or attention.
+
+**Unresolved semantic edges (not changed in this PR):**
+
+1. `self_binding.bind()` currently assigns `drift = "clean"` as a placeholder. At the base snapshot, the nearby comment claimed the binder read the last logged verdict, but the inspected function contained no such read. This PR corrects that misleading comment; the persisted value remains `clean` for compatibility and is still not a measured value-drift result. The field is not included in the returned `components` or synthesis.
+2. The binder's attention input is the latest Fountain thought/readiness plus the newest open problem. It does not read the live Bonsai focus vector or identify the current hottest branch. That may be a deliberate narrow definition, but it is not a complete representation of Stage-2 attention.
+3. The recursive perturbation currently consumes rāga and emotion (plus the named attending text); drive, readiness and substrate tone are bound but do not directly participate in its nudge rules. Their presence in the unified record does not prove they influence the recursive loop.
+4. SelfMindView's Chat summary is recomputed from its five live aspects and is not the same object as the last persisted `bound_self_synthesis`. The snapshot and conversational summary are parallel views, not one shared narrative.
+
+These are candidates for further source tracing and controlled experiments. No extra faculty or behavioural wire should be added until the intended semantics, consumers and effects are clear.
+
+### Validation and boundary
+
+**G-94 is corrected in the PR branch, pending exact-head full-suite CI and review.** No pass count is claimed until that run completes. The changes do not alter self-binding content, faculty semantics, prompt text, selection weights, feature flags, database schema or history shape. No live service or database was accessed.
+
+This is a persistence-ownership correction that preserves the existing cognitive connections. It does not add a new faculty or claim that the recursive self-reading nudge produces a beneficial attention change. Gate 0 and Phase 1 authority remain unchanged.
 
 
 49. Bonsai → Fountain branch pick → Global Workspace trace (28 November 2026)
