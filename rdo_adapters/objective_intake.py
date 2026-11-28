@@ -587,14 +587,15 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
         for key, items in record["reconciliation_signatures"].items()
     }
     memory = PatternMemory(os.path.join(workdir, "patterns.jsonl"))
-    cycle, summary = run_cycle(
-        cycle_id, record["original_text"], list(record["assumptions"]),
-        seeds, signatures, repo_dir=repo_dir,
-        active_experiments=_active_experiments(repo_dir),
-        authorised_gates=set(), memory=memory, max_depth=record["max_depth"],
-        initial_relationships=relationships, objective_input=metadata,
-        objective_lineage=stored_lineage,
-        objective_context={
+    cycle_kwargs = {
+        "repo_dir": repo_dir,
+        "active_experiments": _active_experiments(repo_dir),
+        "authorised_gates": set(),
+        "memory": memory,
+        "max_depth": record["max_depth"],
+        "initial_relationships": relationships,
+        "objective_input": metadata,
+        "objective_context": {
             "intent": record["intent"],
             "owner": record["owner"],
             "source": dict(record["source"]),
@@ -604,6 +605,12 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
             "exclusions": list(record["exclusions"]),
             "acceptance_criteria": list(record["acceptance_criteria"]),
         },
+    }
+    if stored_lineage:
+        cycle_kwargs["objective_lineage"] = stored_lineage
+    cycle, summary = run_cycle(
+        cycle_id, record["original_text"], list(record["assumptions"]),
+        seeds, signatures, **cycle_kwargs,
     )
     cycle_store.save(cycle)
     return {
