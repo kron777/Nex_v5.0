@@ -66,3 +66,8 @@ The full producer census still does not prove that all dependency-created thread
 ## 5. Authority
 
 No cognitive interpretation is given execution authority. Mind Aspects remain interpretive; they do not gate, score, block, veto or authorize actions. No typed operation/action authority was added. Frozen S-01–S-25/M1.8, the Master Roadmap, Phase 0/Gate 0 and Phase 1 authority remain untouched.
+
+
+### SignalLoop
+
+The builder starts SignalLoop as a background thread. Its 60-second tick previously ran a retention reaper, three detectors, per-signal writes, pattern matching and pattern writes without checking its stop flag between stages. The loop now passes its stop Event through CoOccurrenceDetector, SilenceDetector, BurstDetector and PatternTemplateLibrary; each checks between bounded row/entity/template work. SignalLoop checks before/after the reaper, between detectors, before each signal write and between pattern writes. A detector Reader call already in progress still must return before the next stage can be skipped.
