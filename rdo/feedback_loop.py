@@ -187,6 +187,7 @@ class FeedbackLoopEvidenceStore:
     def _read_unlocked(self, fh) -> List[dict]:
         fh.seek(0)
         events = []
+        event_ids = set()
         previous = None
         for number, line in enumerate(fh, 1):
             if not line.strip():
@@ -208,6 +209,9 @@ class FeedbackLoopEvidenceStore:
             if not all(isinstance(data.get(key), str) and data[key].strip()
                        for key in ("event_id", "cycle_id", "loop_id", "topology_sha256", "recorded_at")):
                 raise ValueError(f"feedback-loop event identity is invalid at line {number}")
+            if data["event_id"] in event_ids:
+                raise ValueError(f"duplicate feedback-loop event ID at line {number}")
+            event_ids.add(data["event_id"])
             if not re.fullmatch(r"[0-9a-f]{64}", data["topology_sha256"]):
                 raise ValueError(f"feedback-loop topology digest is invalid at line {number}")
             if kind == "measurement_recorded":
@@ -225,7 +229,8 @@ class FeedbackLoopEvidenceStore:
                         or not isinstance(data.get("reviewer"), str) or not data["reviewer"].strip()
                         or not isinstance(data.get("source_reference"), str) or not data["source_reference"].strip()
                         or not _has_traceable_evidence(data.get("assessment_evidence"))
-                        or not isinstance(data.get("confidence"), str) or not data["confidence"].strip()):
+                        or not isinstance(data.get("confidence"), str) or not data["confidence"].strip()
+                        or not isinstance(data.get("note"), str)):
                     raise ValueError(f"feedback-loop stability review is invalid at line {number}")
             events.append(event)
             previous = event["event_sha256"]
@@ -357,6 +362,20 @@ class FeedbackLoopEvidenceStore:
     def apply(self, cycle):
         """Replay this cycle's ledger events into its existing loop records."""
         cycle_events = self.events(cycle.id)
+        snapshots = [
+            {
+                "sequence": event["sequence"],
+                "event_kind": event["event_kind"],
+                "event_sha256": event["event_sha256"],
+                **event["data"],
+            }
+            for event in cycle_events
+        ]
+        stored_history = getattr(cycle, "feedback_loop_evidence_events", [])
+        if (not isinstance(stored_history, list)
+                or len(stored_history) > len(snapshots)
+                or stored_history != snapshots[:len(stored_history)]):
+            raise ValueError("cycle feedback evidence history does not match the append-only ledger")
         for event in cycle_events:
             data = event["data"]
             loop = self._find_loop(cycle, data["loop_id"])
@@ -383,13 +402,5 @@ class FeedbackLoopEvidenceStore:
                 loop["confidence"] = data["confidence"]
                 loop["note"] = data["note"]
             _validate_loop_record(loop)
-        cycle.feedback_loop_evidence_events = [
-            {
-                "sequence": event["sequence"],
-                "event_kind": event["event_kind"],
-                "event_sha256": event["event_sha256"],
-                **event["data"],
-            }
-            for event in cycle_events
-        ]
+        cycle.feedback_loop_evidence_events = snapshots
         return cycle
