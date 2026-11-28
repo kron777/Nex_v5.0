@@ -21,6 +21,8 @@ The inspected path in `gui/server.py` is:
 
 This is an actual language-triggered capability route. It is not a general sentence compiler and does not synthesize arbitrary machine instructions. The current ToolCaller uses keyword patterns to select among web fetch, arithmetic and belief retrieval.
 
+A second connection detail remains open: the inspected chat call invokes \`should_use_tool(prompt, [])\` with an empty belief list, even after the membrane route has assembled \`belief_text\`. Therefore the ToolCaller cannot distinguish a query already supported by retrieved beliefs from one with no belief support; its no-beliefs factual fallback is effectively given an empty list on this path. This is recorded as a separate context-propagation edge, not changed in this increment.
+
 ## 2. Defect found at the execution boundary
 
 Before this increment:
