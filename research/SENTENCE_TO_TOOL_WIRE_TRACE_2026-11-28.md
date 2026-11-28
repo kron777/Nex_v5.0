@@ -115,3 +115,33 @@ Current main now contains the bounded in-process arithmetic AST interpreter desc
 Correction to §1: the current ToolCaller API takes one query argument; the GUI calls should_use_tool(prompt), not should_use_tool(prompt, []). The previous empty-belief-list/no-beliefs-fallback claim was inaccurate for current main and is withdrawn. Tool selection is based on the raw user sentence; belief context is assembled separately for response composition.
 
 The autonomous Fountain/fire-path tool caller remains unbuilt. Current theory_x/stage6_fountain/generator.py contains no ToolCaller, ToolRegistry, python_exec, web_fetch or beliefs_query references. The separate observation_reports/fire_path_tools_SCOPE.md remains a read-only scope note; it is not approval to arm tools from autonomous fires.
+
+
+## 10. Post-characterization: successful capability result followed by chat gap refusal (28 November 2026)
+
+NEX main source snapshot: 18c8f06171e1de35c3210831a49b63d0e2487af0.
+
+The GUI route executes the ToolCaller/ToolRegistry selection at gui/server.py:1912-1948, then appends a successful ToolResult prompt block into belief_text. Later, the normal chat grounding gate counts only tier-labelled entries using belief_text.count("- [Tier") at line 2048. The tool block itself is not tier-labelled. A non-probe, non-social Technical turn with insufficient tier entries returns the graph-gap refusal before voice prompt assembly at line 2514 and voice invocation around line 2567.
+
+Draft PR #459 adds the missing non-probe Technical-register characterization. On exact head db4a22d0078844992829613dbb9a4a90eb4a51e9, workflow 46186063413 passed **3,078 passed, 7 skipped, 86 subtests**. The disposable test sandbox probe passed and the baseline script reported OK. The test observes one successful arithmetic execution (17 × 23 = 391), followed by the configured gap refusal, tool_used: null, and no voice request.
+
+This is a response-grounding / execution-order distinction, not proof of an unsafe state-changing action. The present arithmetic operation is pure. The other Stage-B capability, allowlisted HTTP GET, does make an external network read. The gate is not an execution approval boundary. The source's tool_prompt_injected trace event is emitted when the result is staged in local belief_text, not when the model has consumed it; the early refusal bypasses chat_prompt_ready and the voice call.
+
+No fix is proposed. Whether a valid ToolResult should count as grounding evidence remains undecided. Do not increment the belief count with tool text or treat arbitrary tool output as a belief. A future approved design should encode capability evidence explicitly with provenance and a trust class, separate from beliefs. No defect ID is assigned without a decision on intended behavior. Host occurrence remains UNKNOWN.
+
+## 11. Cognitive interpretation versus the executable-capability selector (28 November 2026)
+
+On current NEX main, the inspected chat capability call is ToolCaller.should_use_tool(prompt). The selector receives the raw human sentence, uses bounded language patterns and returns a capability name. It does not receive a typed Sentence Code object or a Mind Aspect result on this call chain. Existing faculty outputs are independently assembled into Chat's response context; the inspected source does not show them feeding the capability selector.
+
+The mind map is intentionally non-runtime. mind_map/MIND_MAP.yaml declares descriptive-only status, and mind_map/mind_map.py::check_descriptive_only() rejects runtime imports/reads and action-authority fields. tests/test_mind_map_policy.py locks these boundaries. The development DAG and RDO tooling are external engineering instruments, not NEX cognitive action authorities.
+
+The inspected NEX call chain therefore establishes three distinct surfaces:
+- faculty interpretation/context, assembled for natural-language composition;
+- a narrow heuristic sentence-to-capability selector for three existing Stage-B tools;
+- a ToolResult response-context block.
+
+The trace does not establish an end-to-end typed Sentence Code → Recursive Extrapolator → validated capability → approved execution → verified outcome path. The existing Sentence Code representation may have a disconnected producer or consumer elsewhere; this focused trace has not located that connection, so global absence remains UNKNOWN.
+
+A comparison with Sentience 5.5 at 1767acf1fdb321d046261eb3c3059084c85fc0c8 shows raw-string voice intake in Voice_Interaction_Node.py:152-162, a separate dictionary-based Action_Execution_Node.execute_action() at line 113, and placeholder simulated execution in _perform_action() at line 157. The inspected Integration_Node is a latest-value aggregator and does not itself connect those paths into a verified sentence-to-action pipeline. These are sketches, not a validated substitute.
+
+Next research target: locate the existing Sentence Code owner/schema and trace one ordinary sentence through its existing Mind Aspect interpretation, typed representation, Recursive Extrapolator and the first real capability boundary. Preserve separate validation, approval, execution and verification transitions. Start with a read-only or pure fixture; no new autonomous caller, operation store or authority change is warranted in Phase 0.
