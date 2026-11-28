@@ -6,7 +6,7 @@ import pytest
 from rdo.extrapolator import expand
 from rdo.model import MISSING, CycleRecord, Obligation, Pattern
 from rdo.memory import PatternMemory
-from rdo.rule_proposals import RuleProposalStore
+from rdo_adapters.rule_proposals import RuleProposalStore
 
 
 def _proposal(target="specialized_deployment"):
@@ -278,7 +278,7 @@ def test_event_ledger_is_hash_chained_and_tampering_is_detected(tmp_path):
 
 
 def test_untrusted_catalogue_objects_and_conflicting_rules_fail_closed():
-    from rdo.rule_proposals import ApprovedRuleCatalogue
+    from rdo_adapters.rule_proposals import ApprovedRuleCatalogue
 
     seed = Obligation("x", "novel", "new_kind")
     with pytest.raises(ValueError, match="must come from"):
