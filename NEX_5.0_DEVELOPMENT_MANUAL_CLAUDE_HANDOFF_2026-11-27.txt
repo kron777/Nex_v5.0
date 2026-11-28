@@ -5608,7 +5608,7 @@ This is a second, independent boundary after §148. Even if a future approved pa
 - Their throttles are independent and use different persistence scopes. A generator restart resets its in-memory throttle; the narrative path checks persisted history.
 - `NEX5_GOVERNOR_OFF` guards the Fountain governor block. `NEX5_RUT_MIRROR_OFF` is checked only by `SelfNarrative.tick()`; the normal chat caller invokes `_maybe_notice_rut()` directly and therefore bypasses that wrapper check.
 - The Fountain belief write occurs after the current call has already fetched its own-content and seed candidate rows. It cannot be in that same invocation's selected context. The explicit Fountain source allowlists also omit `self_rut_notice`; this does not rule out other generic retrieval paths or later reanimation.
-- The existing test `test_tick_respects_rut_mirror_off_flag` covers only the public wrapper. It does not cover the actual Metacognition caller. Draft PR #452 now adds a test-only characterization of that direct-caller bypass; exact-head CI is pending.
+- The existing test `test_tick_respects_rut_mirror_off_flag` covers only the public wrapper. It does not cover the actual Metacognition caller. Draft PR #452 adds a test-only characterization of that direct-caller bypass; exact-head workflow 46181820624 completed successfully at e3e1e037f0769e66e62b84fe982abf37f49e1485. This verifies the isolated source interaction, not deployed host flag state or live execution.
 - No test coverage for the Fountain belief writer's governor/flag/throttle path was found in the inspected `tests/test_fountain.py` or `tests/test_metacognition.py`.
 
 ### Evidence classification
