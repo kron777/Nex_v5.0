@@ -5899,3 +5899,36 @@ This may be intentional specialization, but the present source does not establis
 **Source anchors:** theory_x/stage6_fountain/readiness.py; theory_x/stage6_fountain/generator.py; theory_x/stage9_metacognition/metacognition.py; gui/server.py; nex_config.py; tests/test_fountain.py; tests/test_self_narrative.py; draft PRs #452–#455.
 
 **Authority boundary:** no runtime code, consumer threshold, time window, flag, shared event store, schema, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+## §158 — Genius HUD and provenance reports aggregate tag rows, not unique Fountain events/current-version samples (28 November 2026)
+
+**Question studied:** do the human-facing Genius metrics report unique Fountain fires and the current weights version, or do they aggregate every stored tag row?
+
+### Source trace
+
+- genius_tags permits one row per (fountain_event_id, weights_version), so a single Fountain fire can have multiple tag rows.
+- theory_x/genius/panel.py overview() returns the latest N tag rows, not distinct fountain_event_id values. Its stats query groups all rows by class across all weights versions. The reported current_version is taken from the most recent row, but the reported total/striking/striking_rate are calculated across the entire table.
+- The /api/genius/recent endpoint uses that overview() result, so the HUD can display a latest/current version label beside a rate aggregated across older and current versions.
+- scripts/genius_tag_cli.py rate groups all tag rows by branch and class; top selects all STRIKING rows without version or event deduplication.
+- theory_x/genius/genius_provenance.py joins all STRIKING tag rows to fountain_events and classifies each row. It does not filter weights_version or deduplicate fountain_event_id before calculating bucket percentages.
+- theory_x/genius/genius_provenance_tag.py backfills provenance on every selected tag row, not on a unique event. Multiple version rows for one event can therefore contribute multiple times to its report.
+- By contrast, the /api/fountain/recent route explicitly uses ORDER BY tagged_at DESC and first-wins per fountain_event_id when attaching a score badge. The two user-facing views therefore use different row/event aggregation semantics.
+
+### Consequence
+
+The HUD's striking_rate is a row-weighted all-version rate, not a current-version unique-fire rate. The provenance report's percentages are also row-weighted. When weights versions overlap, the same Fountain thought may count more than once. This can distort human interpretation of current model quality, provenance proportions and comparisons across versions.
+
+This is a measurement/reporting issue. It does not establish that the live HUD is currently showing duplicated events or that a user has acted on a misleading rate.
+
+### Evidence classification
+
+- Table uniqueness, panel queries, CLI aggregation and provenance joins: source-observed.
+- Actual duplicate-version distribution, live HUD values and any decisions made from those values: UNKNOWN.
+
+**Next bounded investigation:** compare panel/CLI/provenance outputs against a unique-fountain_event_id, version-scoped read-only calculation on an approved snapshot. Preserve both row-level and event-level denominators; do not silently rewrite historical metrics or change the tag schema.
+
+**Disposition:** row-level versus event-level metric semantics recorded. No defect ID yet; intended metric denominator and version-selection policy need confirmation. G-83 remains OPEN.
+
+**Source anchors:** substrate/init_db.py; theory_x/genius/panel.py; gui/server.py; scripts/genius_tag_cli.py; theory_x/genius/genius_provenance.py; theory_x/genius/genius_provenance_tag.py.
+
+**Authority boundary:** no runtime code, schema, HUD output, analytics script, weights, feature flag, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
