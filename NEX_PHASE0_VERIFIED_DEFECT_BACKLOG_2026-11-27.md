@@ -1,6 +1,6 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot index:** `main` at `321a156e162a6554e27ae329522f253e8f6fe676`  
+**Snapshot index:** `main` at `60cc178ba1f3c895651c86ad95345c98fd5a2198`  
 **Date:** 27 November 2026  
 **Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy. The header SHA is the latest repository snapshot for navigation only; each finding retains its own source/test evidence date and must be revalidated before being called current.
 
@@ -177,7 +177,7 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - The Writer/Reader-based `prose_stats.build()` exists but is not used by the scheduled loop. No dedicated SignalToProblem or prose-stats integration test was found.
 - **Impact/qualification:** the global one-pen audit remains open. The cross-database ordering/recovery contract is unresolved; do not mechanically replace the two-DB transaction or imply atomicity. No live lock contention or runtime incident is claimed.
 - **Disposition:** continue the remaining census and define idempotent recovery before migrating SignalToProblem. A separate prose-statistics Writer migration may be evaluated after equivalence/performance tests.
-- **Repository census, 28 November 2026 (main `321a156e162a6554e27ae329522f253e8f6fe676`):** `tools/one_pen_census.py` (read-only static scan; `tests/test_one_pen_census.py`) lists 112 write-capable `connect()` call sites outside `substrate/` and the tests. Classified by enclosing-function write SQL/commit and by caller tracing:
+- **Repository census, 28 November 2026 (pre-merge baseline `a6d08405`):** `tools/one_pen_census.py` (read-only static scan; `tests/test_one_pen_census.py`) lists 112 write-capable `connect()` call sites outside `substrate/` and the tests. Classified by enclosing-function write SQL/commit and by caller tracing:
   - **Boot-reachable direct writers to the six substrate databases:** only `signal_to_problem_tick()` (G-85; fix proposed in PR #347).
   - **Documented exception:** `strikes/catalogue.py` writes its own `strikes_catalogue.db` directly by design (module docstring: observation data, not operational substrate); it is constructed at boot (`run.py:634`) and written from the strike protocol and the GUI notes endpoint. Whether SPECIFICATION.md §8 should cover non-substrate databases is a governance question, not a defect fixed here.
   - **Present but not boot-reachable:** `groove_breaker` (`ENABLED=False`, never constructed), `value_drift_monitor` (no importers), `genius_provenance_tag.backfill/undo` and `source_identity.backfill` (no callers), `prose_stats.build_direct` (no callers since PR #279), the `hot_observer` `__main__` demo, and 10 standalone script/tool sites.
