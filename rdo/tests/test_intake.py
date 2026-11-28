@@ -634,6 +634,7 @@ def test_intake_uses_only_explicitly_selected_approved_novel_rules_and_versions_
         selected_alternative="route_contract_first",
         positive_test_evidence=["tests/test_specialized_route.py::test_contract"],
         negative_test_evidence=["tests/test_specialized_route.py::test_generic_route_unchanged"],
+        source_cycle=source_cycle,
     )
 
     unselected = submit_objective(
