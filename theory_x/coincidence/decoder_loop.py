@@ -218,6 +218,7 @@ def decoder_tick(
                 words = _tokenize(r["thought"])
                 if not words:
                     _set_last_fid(cx, r["id"])
+                    processed += 1
                     continue
                 aperture, active_count = _read_tree_snapshot(cx, r["ts"])
                 counts = _read_state_counts(cx, r["ts"])
