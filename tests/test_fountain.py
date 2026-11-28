@@ -275,6 +275,20 @@ class TestRutMirrorGovernor(unittest.TestCase):
         )
         self.assertTrue(any(r["source"] == "self_rut_notice" for r in found))
 
+        # The membrane's self-inquiry path applies side_filter="INSIDE".
+        # This source is not in the classifier's inside-source allowlist.
+        from theory_x.stage4_membrane.classifier import CLASSIFIER, MembraneSide
+        self.assertEqual(
+            CLASSIFIER.classify_belief(dict(rows[0])),
+            MembraneSide.OUTSIDE,
+        )
+        inside = retriever.retrieve(
+            query="my recent thinking has circled the same few frames",
+            limit=1000,
+            side_filter="INSIDE",
+        )
+        self.assertFalse(any(r["source"] == "self_rut_notice" for r in inside))
+
     def test_fountain_governor_off_suppresses_rut_belief_write(self):
         self._seed_rut_tags()
         with mock.patch.dict(os.environ, {"NEX5_GOVERNOR_OFF": "1"}):
