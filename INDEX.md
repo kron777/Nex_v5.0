@@ -4926,6 +4926,12 @@ This closes the static source chain from `belief_text` → `voice_prompt` → `V
 A separate draft test PR #450 exercises the real `/api/chat` route with isolated SQLite and a mocked VoiceClient transport. It seeds one groove alert and installs the real Metacognition and Stage-SelfNarrative instances. Technical with a deterministically raised threshold returns before voice transport; Philosophical carries both the generic self-observation and topic-matched pattern narrative into the exact transport user-message content. Exact head `b33022cfaf47cc34dc8eec316cd583c15e6d880e`; workflow `46175227754` passed 3,078 passed, 7 skipped, 86 subtests. This establishes route-to-transport string delivery in a fixture, not provider acceptance or semantic use. PR #450 is test-only and remains draft; no runtime or policy change.
 
 
+### §127 side-effect boundary — gap refusal happens after cognitive updates
+
+The route-level PR #450 fixture also clarifies the order of side effects: the handler calls Metacognition.tick() and formats both reflection strings before calculating the thin-belief gap refusal. The Technical request in the test returns before VoiceClient transport, but the Metacognition update has already run; the following Philosophical request reaches transport with the generic and topic-matched narrative text. Therefore, “no voice call” does not mean “no cognitive/persistence side effects.” Repeated low-belief/Technical chat requests can still re-consume an eligible unacknowledged GrooveSpotter alert, write groove events and narrative rows, and contribute to Row 9's count even when the chat reply is refused before model transport. PR #450 verifies the route branch and transport boundary; the full repeated-blocked-request threshold consequence remains source-derived, not separately counted by that test.
+
+The thin-belief gate is a response/transport availability rule. It does not roll back Metacognition writes and is not a Mind Aspect, Tibetan map or action-authority gate.
+
 ## §128 — G-83 upstream provenance: Fountain output → GrooveSpotter → two distinct feedback controls (28 November 2026)
 
 **Question studied:** what information creates the source alert that Metacognition later re-reads, and does the producer itself suppress unchanged alerts?
