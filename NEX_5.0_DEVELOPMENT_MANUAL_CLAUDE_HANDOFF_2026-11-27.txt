@@ -5549,3 +5549,35 @@ The hook therefore exists, but its normal-path execution is not established. Thi
 **Source anchors:** `run.py`; `theory_x/__init__.py`; `theory_x/stage_self_narrative/self_narrative.py`; `theory_x/stage9_metacognition/metacognition.py`; `gui/server.py`; `tests/test_self_narrative.py`.
 
 **Authority boundary:** no runtime code, test, schema, flag, retention policy, lifecycle schedule, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
+
+
+## §149 — Rut-mirror write/read asymmetry: fixed reflection is filtered by literal chat-prefix matching (28 November 2026)
+
+**Question studied:** if the rut-mirror hook writes its fixed self-observation, does the normal GUI chat reader actually retrieve it for an unrelated user prompt?
+
+### Source trace
+
+- `SelfNarrative._maybe_notice_rut()` writes one fixed note beginning "I notice my recent thinking has circled the same few frames...".
+- `gui/server.py` constructs the formatter context with `current_topic=prompt[:100]` on the inspected chat path.
+- `SelfNarrative.format_for_prompt()` applies that entire topic string as a case-insensitive SQL `LIKE '%topic%'` against `narrative_log.content`. It does not tokenize, summarize, embed, or semantically match the prompt.
+- Because the GUI supplies a topic, the formatter takes its topic-filtered branch. The unfiltered newest-five branch is used only when no topic is supplied.
+- Consequently, a rut note is returned on this GUI path only when the first 100 characters of the user's prompt occur as a literal substring in the fixed note. An unrelated prompt prefix produces no rut-note retrieval, even if the note exists in the database.
+- The note's own wording invites reflection, but that wording is not independently injected as a generic reflective cue. The reader's literal topic filter controls whether it reaches the assembled chat context.
+
+### Evidence classification
+
+- Fixed rut-note content and writer: source-observed.
+- GUI prompt-prefix handoff: source-observed.
+- Literal substring retrieval and no-topic fallback: source-observed and already characterized for general narrative rows by existing SelfNarrative tests.
+- Rut-note-specific exact-versus-unrelated prompt behaviour: additional isolated characterization added in draft PR #452; exact-head CI is pending at the time of this entry.
+- Live rut-note existence, deployed flag, and actual chat retrieval frequency: UNKNOWN.
+
+This is a second, independent boundary after §148. Even if a future approved path invokes the rut tick and the detector writes a row, that alone does not establish that the note is consumed by an ordinary chat turn. Producer execution, persistence, reader eligibility and prompt delivery are separate causal edges.
+
+**Next bounded investigation:** await exact-head CI for PR #452; then complete the reader call-site census and, if an approved read-only host observation is available, measure whether rut rows exist and whether real prompt prefixes retrieve them. Do not remove the topic filter, add a generic fallback, or change the note/flag on the strength of this source trace.
+
+**Disposition:** source-observed write/read asymmetry. PR #452 is test-only and draft; its test result is not yet verified. No new defect ID pending full reader census and evidence of operational impact. G-83 remains OPEN.
+
+**Source anchors:** `theory_x/stage_self_narrative/self_narrative.py`; `gui/server.py`; `tests/test_self_narrative.py`; draft PR #452.
+
+**Authority boundary:** no runtime code, database schema, flag, prompt policy, retrieval policy, lifecycle schedule, frozen S-01–S-25/M1.8 specification, Master Roadmap, Gate 0 or Phase 1 authority changed.
