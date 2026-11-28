@@ -298,7 +298,7 @@ def _validate_alternative(value: Any, raw: dict, label: str, proposer_kind: str)
             raise SeedProposalError("acceptance criterion coverage has an invalid or duplicate index")
         covered.add(criterion_index)
         obligation_keys = _text_list(entry["obligation_keys"], "coverage.obligation_keys",
-                                     maximum_items=MAX_SEEDS, maximum_length=128)
+                                     required=True, maximum_items=MAX_SEEDS, maximum_length=128)
         if set(obligation_keys) - keys:
             raise SeedProposalError("acceptance criterion coverage references an unknown seed key")
         checked_coverage.append({
