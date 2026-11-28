@@ -1,4 +1,6 @@
 """Feedback-loop evidence stays distinct from graph-cycle detection and verdicts."""
+import json
+
 import pytest
 
 from rdo.feedback_loop import (
