@@ -267,4 +267,6 @@ def test_invalid_prospective_event_is_rejected_before_persistence(tmp_path, monk
             source_reference="fixture:malformed-prospective-event",
         )
 
-    assert not (tmp_path / "rule_proposals.jsonl").exists()
+    ledger = tmp_path / "rule_proposals.jsonl"
+    assert ledger.exists()
+    assert ledger.read_text(encoding="utf-8") == ""
