@@ -305,8 +305,17 @@ class RuleProposalStore:
                 if current["latest_review"] is not None:
                     raise RuleProposalError("proposal has more than one review decision")
                 review = event["record"]
+                if set(review) != {
+                    "decision", "reviewer", "source_reference", "rationale",
+                    "evidence_references",
+                }:
+                    raise RuleProposalError("proposal review record has missing or unsupported fields")
                 if review.get("decision") not in REVIEW_DECISIONS:
                     raise RuleProposalError("proposal review decision is invalid")
+                _text(review.get("reviewer"), "reviewer", 256)
+                _text(review.get("source_reference"), "source_reference", 1000)
+                _text(review.get("rationale"), "rationale")
+                _text_list(review.get("evidence_references"), "evidence_references", required=True)
                 current["status"] = review["decision"]
                 current["latest_review"] = review
         return proposals
