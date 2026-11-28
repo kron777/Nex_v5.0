@@ -65,6 +65,22 @@ def test_lines_inserted_above_are_reported_with_the_new_position(repo):
     assert "now at :5-6" in warning
 
 
+def test_ambiguous_duplicate_matches_are_not_automatically_reanchored(repo):
+    (repo / "pkg" / "mod.py").write_text(
+        "new\\nnew\\n" + _SRC + "line 3\\nline 4\\n"
+    )
+    _git(repo, "commit", "-qam", "shift and duplicate the cited block")
+
+    [warning] = _drift(repo)
+    assert "ambiguous duplicate matches" in warning
+
+    applied, review = mind_map.reanchor(repo / "MAP.yaml", repo)
+    assert applied == []
+    assert len(review) == 1
+    assert "multiple identical destinations" in review[0]
+    assert '"pkg/mod.py:3-4"' in (repo / "MAP.yaml").read_text()
+
+
 def test_an_edit_inside_the_range_is_reported_as_changed(repo):
     (repo / "pkg" / "mod.py").write_text(_SRC.replace("line 3", "line three"))
     _git(repo, "commit", "-qam", "edit a cited line")
