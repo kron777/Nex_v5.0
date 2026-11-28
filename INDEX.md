@@ -3772,3 +3772,52 @@ Only after that contract is evidenced should a minimal source fix be considered.
 **Source anchors:** `41b3516b8d2f2fe87a82a4444dcfcb6d5c25183b` (original manifest producer and slot vocabulary); `ac6e4032e2b115f34ca86fbff8778a5cc51d14ca` (first stillness detector and all-ID comparison); `251cd797579aa08b8b848a5e95cd58c4c3e22b72` (own-only current/historical Jaccard); `60732402f92c10819591072cd7c13d1688a21351` (15–16 May: disables the sole `own` manifest producer while active sense-feed producer remains); `7c90e1a0bf6aaa5f030bef606e90a483ccd4f5b8` (10 Oct: restores bounded distilled own-content rendering under default-OFF `own_render`); `33476505eff8ec740d31ece7af78eeb95b7df865` (R37 documentation of `own_sense` vocabulary); `a90a76cd1783a1f725dcb0c73cd8ffce1ba0a5eb` (identity block slot); `231059a12439b0c10e0d92dcea79b6567c03d621` (smṛti consumes top-ranked `own_sense`).
 
 **Evidence level:** source/history-observed for the original and current contracts; exact producer-rename commit UNKNOWN; live database slot distribution and behavioural impact UNKNOWN; no test verification or runtime observation.
+
+
+## 102. Fountain echo-loop intervention — what was removed, and what later returned (28 November 2026)
+
+**Question studied:** did the May echo-loop work establish a blanket rule against feeding NEX's own prior content into the speaking prompt, or did it distinguish dangerous raw exemplars from bounded distilled content?
+
+**Evidence snapshot:** commit history and source diffs for ea6fe744fdd247f9d6ee3f183c2f6f2ee7f73008 (12 May, Mechanism A), 60732402f92c10819591072cd7c13d1688a21351 (15–16 May prompt cleanup), 7e71935c015d4e14005fb05589455e5da7141bc2 (26 July dead-block removal), and 7c90e1a0bf6aaa5f030bef606e90a483ccd4f5b8 (10 October bounded restoration). Static source/history study; no live runtime or tests run in this pass.
+
+### What the intervention actually targeted
+
+1. **12 May — raw recent-event exemplars were identified as a repetition amplifier.** Commit ea6fe744 describes the Fountain prompt injecting the last N fountain_events as “Your recent thoughts” exemplars before asking for another thought. The recorded diagnosis was that the model was being few-shot-prompted with five copies of an already-dominant cicada/hum motif. A separate sense-grounding intervention had not broken the pattern: the commit reports 3/3 post-restart fires still on the same surface pattern. Mechanism A removed that raw recent-thoughts block rather than reordering prompt calls. Its stated design principle was: substrate provides; speaking layer composes freely.
+2. **15–16 May — the intervention widened to four inward-feedback blocks.** Commit 60732402 records disabling own_thoughts, ongoing_threads, recent-closed arc context, and the thread-extension prompt. Its commit message records a 15-fire repetition of “clock ticks, and my mind drifts to the hum of the servers nearby”. The own_thoughts block was changed to if False and own_thoughts; this was not a mere slot rename. The later 26 July cleanup commit 7e71935 confirms the block was dead since 15 May, removes its unreachable body and orphaned local computation, and preserves a recovery pointer. It also confirms the other dead prompt blocks were removed as dead code, not silently restored.
+3. **The May decision was specifically anti-loop, not a general ban on every self-derived input.** The contemporaneous mechanism description distinguishes raw fountain_events exemplars from distilled belief sources. The later code history shows that distinction was revisited rather than treated as permanently closed.
+
+### October restoration: a different input contract
+
+Commit 7c90e1a0 explicitly corrects a stale comment: own distilled beliefs (synergized, fountain_insight, and related sources) continued to enter _retrieve_context_beliefs(), but after Mechanism A and the session-49 cleanup they were not rendered into prompt text by default. They could affect activation/residue without being spoken-layer words.
+
+The October change restored a deliberately narrower path:
+
+- controlled by NEX5_OWN_CONTENT_RENDER=1, default OFF;
+- selects distilled own-content candidates while excluding precipitated_from_sense and hot_observer;
+- caps rendered lines at three;
+- deduplicates first-sentence 5-grams at Jaccard threshold 0.5;
+- writes the explicit manifest slot own_render, not the legacy own;
+- leaves the live prompt unchanged when the flag is unset;
+- records a live-measurement requirement before making the flag default-ON: re-measure groove-token probability against the R76 hot-slot baseline (13.2%).
+
+The same change keeps own_sense in its separate “Things you've been reading about lately” block. That population is sense-feed material, not the distilled own-content population. The commit also excludes hot_observer because earlier R75/R76 work had traced a live repetition groove to that source. The design is therefore selective: it rejects raw/repetitive feedback, but permits a bounded, deduplicated, distilled channel behind an explicit default-OFF flag.
+
+### What this changes in the stillness diagnosis
+
+This history strengthens the §101 interpretation but does not resolve the detector's intended future contract:
+
+- The old stillness own population was disabled as part of an anti-echo intervention.
+- The October restoration deliberately uses own_render; it does not revive the old own contract or automatically reconnect the detector.
+- The detector should not be repaired by relabelling own_sense as own, nor by indiscriminately including all manifest slots.
+- If stillness is intended to measure repetition in the actual distilled words reintroduced to the prompt, own_render is the only currently evidenced candidate population. That is a design hypothesis, not an approved change. If the detector was intentionally retired, the correct outcome may instead be to document it as dormant.
+- Any experiment must preserve the October safeguards and separately measure whether the detector itself changes firing/selection behaviour. Prompt inclusion, retrieval activation, and duplicate detection are different effects.
+
+### Research conclusion and next falsifier
+
+**Conclusion:** the historical rule is not “never feed own content back”. It is closer to: do not replay raw event exemplars or unbounded self-referential context as few-shot material; if distilled own content is allowed into the speaking layer, bound it, deduplicate it, exclude known groove-amplifying sources, and keep it opt-in until measured. This is source/history-observed, not a claim that the October path is safe in live operation.
+
+Next bounded work is to inspect the exact _build_prompt() producer and both stillness readers at one consistent source snapshot, then specify a paired-fire integration contract for own_render under flag OFF and ON. The contract must show that current-fire and prior-fire sets use the same population, preserve historical own rows deliberately, exclude own_sense/seed/spectrum/disturbance/identity classes unless explicitly justified, and demonstrate that the guard cannot count material that was not actually rendered. Live groove-token rates and historical slot distributions remain runtime unknowns.
+
+**Source anchors:** ea6fe744fdd247f9d6ee3f183c2f6f2ee7f73008 (Mechanism A: raw recent-event exemplars removed after 3/3 repeated-pattern fires); 60732402f92c10819591072cd7c13d1688a21351 (four inward-feedback blocks disabled; 15-fire hum-lock recorded); 7e71935c015d4e14005fb05589455e5da7141bc2 (dead blocks removed, recovery pointer retained); 7c90e1a0bf6aaa5f030bef606e90a483ccd4f5b8 (bounded distilled own-content restoration, default OFF, slot own_render, live-check requirement).
+
+**Evidence level:** source/history-observed for the intervention and restoration design; test-verified only for the October unit tests described in that commit (not rerun here); live behavioural safety and actual flag/slot distribution UNKNOWN. No runtime code, tests, schema, indexes, feature flags, prompt policy, or execution authority changed.
