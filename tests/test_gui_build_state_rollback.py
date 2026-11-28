@@ -161,6 +161,92 @@ class TestBuildStateRollback(unittest.TestCase):
         self.assertEqual(len(created), 1)
         self.assertEqual(events, [("writer-close", "first")])
 
+    def test_resolver_start_then_raise_is_recovered_by_parent_rollback(self):
+        import os
+        import tempfile
+        from unittest import mock
+
+        import gui.server as server
+        import theory_x.stage_gate.coherence_gate as gate_module
+        import theory_x.stage_gate.holding_zone as holding_module
+        import theory_x.stage_gate.resolver as resolver_module
+        import theory_x.stage_throw_net.trigger_detector as trigger_module
+
+        original_thread_start = threading.Thread.start
+        started_writers = []
+        resolver_instances = []
+
+        class TrackingWriter(server.Writer):
+            def __init__(self, path, name=None):
+                super().__init__(path, name=name)
+                started_writers.append(self)
+
+        class NoopGate:
+            def __init__(self, **_kwargs):
+                pass
+
+        class NoopHoldingZone:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+        class NoopTriggerDetector:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+        original_resolver_start = resolver_module.HoldingZoneResolver.start_loop
+
+        def capture_resolver_start(resolver, *args, **kwargs):
+            resolver_instances.append(resolver)
+            return original_resolver_start(resolver, *args, **kwargs)
+
+        def start_then_fail_resolver(thread):
+            original_thread_start(thread)
+            if thread.name == "holding_zone_resolver":
+                raise RuntimeError("injected resolver start-after-create failure")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = {
+                name: os.path.join(tmp, f"{name}.db")
+                for name in ("sense", "beliefs", "dynamic", "conversations")
+            }
+            with (
+                mock.patch.object(server, "db_paths", return_value=paths),
+                mock.patch.object(server, "Writer", TrackingWriter),
+                mock.patch.object(gate_module, "CoherenceGate", NoopGate),
+                mock.patch.object(holding_module, "HoldingZone", NoopHoldingZone),
+                mock.patch.object(trigger_module, "TriggerDetector", NoopTriggerDetector),
+                mock.patch.object(
+                    resolver_module.HoldingZoneResolver,
+                    "start_loop",
+                    new=capture_resolver_start,
+                ),
+                mock.patch.object(
+                    threading.Thread,
+                    "start",
+                    new=start_then_fail_resolver,
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError, "injected resolver start-after-create failure"
+                ):
+                    server.build_state(
+                        with_scheduler=False,
+                        with_dynamic=False,
+                        with_world_model=False,
+                        with_membrane=False,
+                        with_fountain=False,
+                        with_strikes=False,
+                        with_tools=False,
+                    )
+
+        self.assertEqual(len(resolver_instances), 1)
+        resolver = resolver_instances[0]
+        self.assertTrue(resolver._stop.is_set())
+        self.assertIsNotNone(resolver._thread)
+        self.assertFalse(resolver._thread.is_alive())
+        self.assertEqual(len(started_writers), 4)
+        self.assertTrue(all(writer._thread is None for writer in started_writers))
+
     def test_cleanup_errors_do_not_escape_rollback_helper(self):
         events = []
 
