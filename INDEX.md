@@ -3467,3 +3467,60 @@ A future design review should first decide whether the identity floor is intende
 **Host/runtime unknowns:** effective `NEX5_SOURCE_KIND` and `NEX5_IDENTITY_BLOCK`; whether daily_life's 03:00 audit runs on the deployed host; live audit results; current identity-log content and producer path; and whether the intended identity floor is observational or a hard prompt-admission requirement. No tests were run in this documentation pass.
 
 No runtime code, tests, schema, indexes, feature flags, identity policy, mind-map authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or action authority was changed.
+
+
+## 96. Fountain own-thought feedback: retrieved candidate, activation touch and rendered prompt are not the same event (28 November 2026)
+
+**Question studied:** when NEX has already crystallized its own thoughts, do those thoughts actually return as words to the next Fountain generation, or are they only selected and touched as activation metadata?
+
+**Evidence snapshot:** current `main` at `18c8f06171e1de35c3210831a49b63d0e2487af0`. Static source and isolated fixture-test review. No live Fountain process, production database or environment flags were inspected.
+
+### Observed source path
+
+`FountainGenerator._retrieve_context_beliefs()` builds a context candidate set. Its own-content pool includes sources such as `fountain_insight` and `synergized`, selects recent non-retired rows (`tier < 8`), applies per-source/per-branch caps and can optionally use associative recall or edge-weighted re-ranking. Seed material is selected separately.
+
+`_build_prompt()` then:
+
+1. Splits candidates into own content, own sense and seed groups.
+2. Calls `bump_activation()` for every selected context belief when a beliefs Writer is available.
+3. Renders own-sense rows into the prompt as “Things you've been reading about lately”.
+4. Renders seed rows into the prompt as “Things you've read that sometimes come to mind”.
+5. Renders distilled own-content beliefs as words only when `NEX5_OWN_CONTENT_RENDER=1`.
+
+The generator's own comment explicitly records the historical correction: since the removal of raw fountain-event exemplars (commit `ea6fe74`), distilled own thoughts can remain in the retrieved context and activation path without being rendered into prompt text. The opt-in own-content block excludes `hot_observer` and applies first-sentence deduplication before rendering.
+
+### What the activation touch means
+
+`theory_x/substrate/activation.py::bump_activation()` upserts `belief_activation`, adding 1.0 after lazy exponential decay with a 30-minute half-life (and a cap of 10). This is a record that a belief was retrieved into a Fountain context. It is not, by itself, proof that its words were presented to the language model, nor proof that it changed the resulting thought.
+
+This distinction matters because the current path can select a distilled belief, touch its activation record, and still omit its text from the prompt when the render flag is unset. Conversely, own-sense and seed entries have explicit text-rendering paths. The retrieval manifest records prompt slots; do not treat every candidate or every activation touch as a rendered prompt item.
+
+### Independent test evidence
+
+`tests/test_retrieval.py` contains three relevant characterizations:
+
+- `test_build_prompt_includes_own_content_section`: with `NEX5_OWN_CONTENT_RENDER=1`, the section and the inserted belief's text appear.
+- `test_build_prompt_default_off_skips_own_content`: with the flag unset, an available `fountain_insight` belief does not produce the “Some of what you've been thinking recently” section.
+- `test_own_content_dominates_retrieval`: own-content beliefs can dominate the selected candidate set over seed material.
+
+This is not an accidental inference from an absent block: the default-off behaviour is explicitly pinned by a test. The feature remains opt-in. The prior Bonsai-to-Fountain/Global Workspace characterization demonstrates a separate attention-state route into branch choice and workspace framing; it does not establish that distilled own-thought words are rendered by default.
+
+### Causal interpretation and bounded next experiment
+
+The current source supports three different claims, which must not be collapsed:
+
+- **Candidate continuity:** the generator can select its previously crystallized thoughts.
+- **Activation continuity:** selected beliefs can receive a decaying activation touch.
+- **Verbal continuity:** those thoughts become text in the next generation prompt only under the explicit render flag (or through some other separately evidenced prompt source).
+
+Therefore, “the thought was retrieved” is not enough to claim “the thought was fed back into the next thought”. The default configuration preserves a gap between candidate/activation continuity and direct verbal self-feedback.
+
+The next safe experiment is a controlled, isolated A/B replay, not a production flag change: hold candidate IDs, ordering, model request settings, branch/workspace state and all other prompt blocks constant; compare default-off against the own-content render path; record exact prompt inclusion, retrieval-manifest slots, output similarity/relevance, repeated-phrase rate, and whether the generated result later crystallizes and is retrieved again. Include a no-own-content negative control and a deliberately unrelated own-belief control. Use multiple paired seeds/fires, preregister outcome measures and stop criteria, and inspect for self-reinforcing repetition or groove amplification. The source's own deduplication is a guard, not evidence that the feedback is beneficial.
+
+Do not enable `NEX5_OWN_CONTENT_RENDER` in production on the strength of this source review. First establish the paired effect and ensure the test isolates textual feedback from activation, candidate selection, Bonsai branch choice and Global Workspace arbitration.
+
+**Source anchors inspected:** `theory_x/stage6_fountain/generator.py` blob `26061914b1dd80858c3568217cd1ef0c49ce2c51` (candidate retrieval, activation touch, own-sense/seed rendering and opt-in own-content rendering); `theory_x/substrate/activation.py` blob `16a8e4265b9280a04cbfe038b8e58d1c36698b25` (30-minute activation record); `tests/test_retrieval.py` blob `efd27b50c3cdc5ef64769fefcbb5529cc44ea90e` (default-off and opt-in fixture tests); `theory_x/stage3_world_model/retrieval.py` blob `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3` (separate query retriever and spreading activation path); `research/NEX_BONSAI_FOUNTAIN_WORKSPACE_TRACE_2026-11-28.md` blob `2e0b856b3cadd1c2c3e2152a5be865492f9447cb` (Bonsai attention consumers and fixture limits).
+
+**Host/runtime unknowns:** effective `NEX5_OWN_CONTENT_RENDER`, `NEX5_ASSOC_RECALL`, `NEX5_EDGE_WEIGHTED_FOUNTAIN`, `NEX5_GLOBAL_WORKSPACE` and other relevant prompt flags; which own-content sources are selected in actual fires; whether their text is rendered by any other independent prompt block; current activation distribution; and whether a paired replay has a positive, neutral or harmful behavioural effect. No tests were run in this documentation pass.
+
+No runtime code, tests, schema, feature flags, prompt policy, cognitive authority, frozen S-01–S-25/M1.8, Master Roadmap, Phase 0/Gate 0 or execution authority was changed.
