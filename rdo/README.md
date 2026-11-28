@@ -314,6 +314,24 @@ Each input revision is append-only and linked by SHA-256. The original wording a
 
 See [the intake contract](OBJECTIVE_INTAKE.md), [the JSON Schema](schemas/objective.v1.schema.json), and [an example input](examples/objective.v1.example.json). This is advisory planning only; it does not execute work or alter NEX runtime state.
 
+## Candidate seed proposal lifecycle (pre-intake review)
+
+Before converting a raw idea into an `objective.v1` intake, the provider-neutral
+`rdo_adapters.seed_proposals.SeedProposalStore` can preserve the exact raw
+objective revision and several competing seed-graph interpretations. It records
+an append-only, hash-linked proposal/review ledger; external-LLM seed confidence
+remains inferred, and approval must explicitly select one existing alternative.
+This first increment has a Python API but no CLI or GUI.
+
+An approved selection is still advisory: it does not create an objective intake,
+run recursive expansion, execute code, activate rules or create a Stage-7 handoff.
+The next bridge must retain the raw-objective digest and proposal/alternative
+identity while reconciling the selected graph against existing architecture.
+
+See [the candidate seed proposal lifecycle](SEED_PROPOSAL_LIFECYCLE.md) for
+the API, ledger integrity guarantees, authority boundaries and the next graph-
+analysis reuse opportunity.
+
 ## Stage-7 handoff (non-executing)
 
 For an actual persisted objective cycle, create an immutable manifest for one
