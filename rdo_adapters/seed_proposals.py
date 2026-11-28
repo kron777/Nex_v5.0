@@ -576,3 +576,21 @@ class SeedProposalStore:
                 "supersedes_proposal_id": proposal["supersedes_proposal_id"],
             })
         return result
+
+
+
+def load_seed_proposal_file(path: str) -> dict:
+    """Load a bounded provider-neutral seed proposal JSON document."""
+    if os.path.islink(path):
+        raise SeedProposalError("seed proposal input must not be a symlink")
+    if os.path.getsize(path) > 1_048_576:
+        raise SeedProposalError("seed proposal input exceeds 1 MiB")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh, object_pairs_hook=_reject_duplicate_keys)
+    except (json.JSONDecodeError, SeedProposalError) as exc:
+        raise SeedProposalError(f"invalid seed proposal JSON: {exc}") from exc
+    return _object(payload, "seed_proposal_input", {
+        "raw_objective", "alternatives", "proposer_kind",
+        "proposer_reference", "source_reference",
+    }, optional={"supersedes_proposal_id"})
