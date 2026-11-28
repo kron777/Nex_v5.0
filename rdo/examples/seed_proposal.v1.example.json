@@ -1,0 +1,217 @@
+{
+  "schema_version": "rdo.seed_proposal.v1",
+  "raw_objective": {
+    "schema_version": "rdo.raw_objective.v1",
+    "objective_id": "deployment_workflow_example",
+    "raw_revision": 1,
+    "supersedes_raw_sha256": null,
+    "original_text": "Prepare a bounded, reviewable deployment workflow proposal.",
+    "intent": "Create a deployment workflow proposal without executing it.",
+    "owner": "platform-team",
+    "source": {
+      "kind": "external_llm",
+      "reference": "provider-neutral source reference"
+    },
+    "scope": {
+      "in_scope": [
+        "deployment workflow design"
+      ],
+      "affected_paths": [
+        "docs/deployment/WORKFLOW.md"
+      ]
+    },
+    "constraints": [
+      "No deployment or runtime execution"
+    ],
+    "exclusions": [
+      "No production changes"
+    ],
+    "assumptions": [
+      "A staging environment exists"
+    ],
+    "acceptance_criteria": [
+      "The workflow proposal is reproducible.",
+      "Rollback responsibilities are explicit."
+    ],
+    "max_depth": 2
+  },
+  "alternatives": [
+    {
+      "id": "workflow_first",
+      "label": "Workflow-first",
+      "interpretation": "Define the repeatable workflow before detailing rollback responsibilities.",
+      "seed_obligations": [
+        {
+          "key": "workflow_proposal",
+          "title": "Prepare a reproducible deployment workflow",
+          "kind": "documentation",
+          "classification": "necessary",
+          "rationale": "A workflow is required by the raw objective.",
+          "impact": "The team can review the intended deployment sequence.",
+          "evidence_needs": [
+            "evidence:workflow-diff"
+          ],
+          "assumptions": [],
+          "confidence": "inferred"
+        },
+        {
+          "key": "rollback_responsibility",
+          "title": "Document rollback responsibilities",
+          "kind": "documentation",
+          "classification": "necessary",
+          "rationale": "Rollback responsibilities must be explicit.",
+          "impact": "Recovery ownership is clear.",
+          "evidence_needs": [
+            "evidence:rollback-responsibility"
+          ],
+          "assumptions": [],
+          "confidence": "inferred"
+        }
+      ],
+      "relationships": [
+        {
+          "src": "rollback_responsibility",
+          "dst": "workflow_proposal",
+          "kind": "depends_on",
+          "authority": "bounded",
+          "reversible": null,
+          "note": "Rollback steps are defined in the context of the workflow."
+        }
+      ],
+      "reconciliation_signatures": {},
+      "assumptions": [
+        "Staging is available for later verification"
+      ],
+      "evidence_needs": [
+        "evidence:workflow-review",
+        "evidence:rollback-review"
+      ],
+      "acceptance_coverage": [
+        {
+          "criterion": "The workflow proposal is reproducible.",
+          "obligation_keys": [
+            "workflow_proposal"
+          ]
+        },
+        {
+          "criterion": "Rollback responsibilities are explicit.",
+          "obligation_keys": [
+            "rollback_responsibility"
+          ]
+        }
+      ],
+      "open_questions": [
+        "Which CI provider is preferred?"
+      ],
+      "disconfirming_cases": [
+        "The proposed workflow cannot be reproduced from its declared inputs."
+      ],
+      "provenance": [
+        "provider:external",
+        "source:deployment_workflow_example"
+      ]
+    },
+    {
+      "id": "verification_first",
+      "label": "Verification-first",
+      "interpretation": "Define evidence and rollback checks before describing the workflow.",
+      "seed_obligations": [
+        {
+          "key": "verification_contract",
+          "title": "Define deployment verification evidence",
+          "kind": "verification",
+          "classification": "necessary",
+          "rationale": "Reproducibility needs explicit verification evidence.",
+          "impact": "The proposal states how repeatability will be checked.",
+          "evidence_needs": [
+            "evidence:verification-contract"
+          ],
+          "assumptions": [],
+          "confidence": "inferred"
+        },
+        {
+          "key": "workflow_proposal",
+          "title": "Prepare a reproducible deployment workflow",
+          "kind": "documentation",
+          "classification": "necessary",
+          "rationale": "A workflow is required by the raw objective.",
+          "impact": "The team can review the intended deployment sequence.",
+          "evidence_needs": [
+            "evidence:workflow-diff"
+          ],
+          "assumptions": [],
+          "confidence": "inferred"
+        },
+        {
+          "key": "rollback_responsibility",
+          "title": "Document rollback responsibilities",
+          "kind": "documentation",
+          "classification": "necessary",
+          "rationale": "Rollback responsibilities must be explicit.",
+          "impact": "Recovery ownership is clear.",
+          "evidence_needs": [
+            "evidence:rollback-responsibility"
+          ],
+          "assumptions": [],
+          "confidence": "inferred"
+        }
+      ],
+      "relationships": [
+        {
+          "src": "workflow_proposal",
+          "dst": "verification_contract",
+          "kind": "depends_on",
+          "authority": "bounded",
+          "reversible": null,
+          "note": "The workflow must satisfy the verification contract."
+        },
+        {
+          "src": "rollback_responsibility",
+          "dst": "workflow_proposal",
+          "kind": "depends_on",
+          "authority": "bounded",
+          "reversible": null,
+          "note": "Rollback steps are defined in the context of the workflow."
+        }
+      ],
+      "reconciliation_signatures": {},
+      "assumptions": [
+        "Verification can be described without running deployment code"
+      ],
+      "evidence_needs": [
+        "evidence:verification-contract",
+        "evidence:workflow-review",
+        "evidence:rollback-review"
+      ],
+      "acceptance_coverage": [
+        {
+          "criterion": "The workflow proposal is reproducible.",
+          "obligation_keys": [
+            "verification_contract",
+            "workflow_proposal"
+          ]
+        },
+        {
+          "criterion": "Rollback responsibilities are explicit.",
+          "obligation_keys": [
+            "rollback_responsibility"
+          ]
+        }
+      ],
+      "open_questions": [
+        "Which CI provider is preferred?",
+        "Who owns rollback approval?"
+      ],
+      "disconfirming_cases": [
+        "The verification contract cannot distinguish a repeatable run from a non-repeatable run."
+      ],
+      "provenance": [
+        "provider:external",
+        "source:deployment_workflow_example"
+      ]
+    }
+  ],
+  "proposer_kind": "external_llm",
+  "proposer_reference": "provider-neutral generator reference",
+  "source_reference": "source:deployment_workflow_example"
+}
