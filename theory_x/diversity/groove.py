@@ -151,6 +151,8 @@ class GrooveSpotter:
         if not all_ngrams:
             self._last_ngram_pattern = None  # condition not met -- clear
             return None
+        if _stopping():
+            return None
         counts = Counter(all_ngrams)
         top_pattern, top_count = counts.most_common(1)[0]
         if top_count < NGRAM_REPEAT_THRESHOLD:
@@ -164,8 +166,6 @@ class GrooveSpotter:
         excess = max(0, top_count - NGRAM_REPEAT_THRESHOLD + 1)
         severity = min(1.0, 0.5 + excess * 0.1)
         ids = json.dumps([r["id"] for r in window[:5]])
-        if _stopping():
-            return None
         if _stopping():
             return None
         self._writer.write(
@@ -185,6 +185,8 @@ class GrooveSpotter:
             return None
         contents = [r["content"] for r in window]
         counts = Counter(contents)
+        if stop_event is not None and stop_event.is_set():
+            return None
         for content, n in counts.most_common(1):
             if n >= EXACT_REPEAT_MIN:
                 if self._last_exact_content == content:
@@ -237,6 +239,8 @@ class GrooveSpotter:
             bg: fires for bg, fires in bigram_fires.items()
             if len(fires) >= 2 and not _is_stopword_bigram(bg)
         }
+        if _stopping():
+            return None
         if not shared:
             self._last_template_ids = None  # condition not met -- clear
             return None
@@ -266,6 +270,8 @@ class GrooveSpotter:
         templated_ids: set = set()
         sample_bigrams: list = []
         for pair in fire_pairs.most_common():
+            if _stopping():
+                return None
             k = pair[0]
             templated_ids.update(k)
             if not sample_bigrams:
@@ -285,6 +291,8 @@ class GrooveSpotter:
         severity = min(1.0, 0.5 + (len(templated_ids) - 3) * 0.1)
         pattern = " / ".join(sample_bigrams)
         ids = json.dumps(list(templated_ids))
+        if _stopping():
+            return None
         self._writer.write(
             "INSERT INTO groove_alerts "
             "(detected_at, alert_type, severity, pattern, sample_belief_ids, window_size) "
