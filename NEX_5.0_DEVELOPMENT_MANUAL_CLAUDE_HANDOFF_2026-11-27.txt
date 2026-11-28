@@ -4383,3 +4383,27 @@ Separate dynamic.stillness_log
 **Source anchors:** `theory_x/SYNTHESIS_PLAN_V2.md` §3; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage6_fountain/crystallizer.py`; `theory_x/stage6_fountain/generator.py`; `theory_x/stage6_fountain/__init__.py`; `substrate/init_db.py` (separate dynamic and conversations migrations); `gui/server.py` stillness status endpoint; `tests/test_stillness.py`; snapshot `18c8f06171e1de35c3210831a49b63d0e2487af0`.
 
 **Evidence level:** source-observed end-to-end generation/crystallization/queue order and two database-specific schemas; historical design-plan text; targeted test inspection. Founder Sign-Off correspondence and frozen requirement's Row 9 semantic definition remain UNKNOWN.
+
+
+## §115 — Row 9 implementation-history comparison (2026-11-28)
+
+### What the tracked history shows
+
+Two commits on 11 May 2026 bracket the original implementation:
+
+- `36e7ed40661db58d83214b40aebde7a33fdb2519` at 11:29:57 UTC added `theory_x/SYNTHESIS_PLAN_V2.md` and updated `theory_x/DOCTRINE.md`. The detailed plan's §3 Row 9 says that stillness should follow at least three groove alerts **on the same topic** in 30 minutes and that Fountain should suppress re-serving beliefs matching that topic.
+- `c4b005f32e931047711ef6cdbe03e84a00183885` at 13:21:14 UTC implemented Row 9. Its commit message describes a count of at least three groove events in 1,800 seconds. Its patch counts all `meta_cognition_events.event_type='groove'` rows, writes a topic-free `stillness_log` row, and adds a crystallizer query for any unexpired row. The added tests mock a scalar count; they contain no topic or source-ID fixture.
+
+The Row 9 summary in the updated `theory_x/DOCTRINE.md` describes timed suppression on sustained groove and a non-reentrant substrate-resident timestamp for Fountain, but does not repeat the detailed plan's same-topic wording. The implementation commit message/patch does not explain whether the same-topic clause was deliberately deferred, simplified, or accidentally omitted. No separate decision record was located in this pass.
+
+### Inference boundary
+
+This history establishes that the more specific same-topic design text preceded the global-count/global-hold implementation by less than two hours on the same day. It establishes a **design-to-implementation scope divergence in the tracked artifacts**. It does not establish which document had controlling authority, whether Founder sign-off approved the simplification, or whether another decision record exists outside the inspected files. The current implementation's global behaviour is Runtime Truth; intended authority remains unresolved until the actual Founder Sign-Off/frozen requirement is located.
+
+The finding stays under G-83. Do not create a new defect ID and do not “restore” same-topic semantics from the older plan without authority review. The next useful Phase 0 evidence is to locate the approval/decision record or explicitly retain UNKNOWN, then characterize source identity and topic semantics with isolated tests once such work is authorized.
+
+**Disposition:** Phase 0 historical provenance refinement under G-83; documentation only. No runtime code, tests, schema, flags, or behaviour changed. No tests run. No live host, database, process, or service accessed. Gate 0 remains unestablished; Phase 1 remains unauthorized.
+
+**Source anchors:** `theory_x/SYNTHESIS_PLAN_V2.md` §3; `theory_x/DOCTRINE.md` Row 9 table; design commit `36e7ed40661db58d83214b40aebde7a33fdb2519`; implementation commit `c4b005f32e931047711ef6cdbe03e84a00183885`; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage6_fountain/crystallizer.py`; `tests/test_stillness.py`.
+
+**Evidence level:** commit-dated design and implementation patches; current-source match to implementation; no documented rationale found in the inspected commit message/patch. Founder authorization and frozen Row 9 semantic definition remain UNKNOWN.
