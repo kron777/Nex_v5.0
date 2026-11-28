@@ -15,13 +15,14 @@
 - Track the synchronous `fire()` caller thread for the duration of its catalogue write, so AppState can detect and join an in-flight request rather than declaring a clean drain while it is still writing.
 - Reject new `fire()` calls after stop begins. A fire already in progress may finish its synchronous work, but it cannot schedule a new delayed check after stop.
 - Register `strike_protocol` with AppState and make the shared quiesce routine take a snapshot of each managed service's `_threads` collection, in addition to its single `_thread` handle.
+- If shutdown is re-entered from a currently tracked producer thread, report that thread as still alive instead of silently skipping the impossible self-join.
 - Keep the 60-second post-fire delay and all strike scoring, dispatch, record content and belief-count semantics unchanged.
 
 If an in-flight catalogue operation exceeds the shared shutdown deadline, it remains in the report's alive set. The existing G-84 shutdown path therefore withholds the clean marker and exits non-zero. The catalogue opens/closes its SQLite connection within each update; joining the worker prevents a delayed write from continuing after a successful AppState drain.
 
 ## Evidence and tests
 
-- `tests/test_strike_protocol_shutdown.py` proves multiple delayed catalogue workers are stopped/joined, future fires are rejected, normal delayed updates still occur when the wait expires, in-flight fires exceeding the budget are reported, and an interrupted SILENCE observation is recorded as incomplete.
+- `tests/test_strike_protocol_shutdown.py` proves multiple delayed catalogue workers are stopped/joined, future fires are rejected, normal delayed updates still occur when the wait expires, in-flight fires exceeding the budget are reported, an interrupted SILENCE observation is recorded as incomplete, and re-entrant self-join is reported as an incomplete drain.
 - `tests/test_strikes.py` now stops and joins protocol workers during test cleanup, avoiding delayed writes into removed temporary directories.
 - AppState's managed-producer path collects multi-thread services from a stable snapshot, avoiding list-mutation skips while workers remove themselves.
 
