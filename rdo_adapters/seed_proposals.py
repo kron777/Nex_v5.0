@@ -247,7 +247,8 @@ def _validate_alternative(value: Any, raw: dict, label: str, proposer_kind: str)
         note = edge["note"]
         if src not in keys or dst not in keys:
             raise SeedProposalError("candidate relationships must connect declared seed keys")
-        if (not isinstance(kind, str) or kind not in _RELATIONSHIP_KINDS\n                or not isinstance(authority, str) or authority not in _AUTHORITY_LEVELS):
+        if (not isinstance(kind, str) or kind not in _RELATIONSHIP_KINDS
+                or not isinstance(authority, str) or authority not in _AUTHORITY_LEVELS):
             raise SeedProposalError("candidate relationship kind or authority is unsupported")
         if reversible is not None and not isinstance(reversible, bool):
             raise SeedProposalError("relationship.reversible must be true, false, or null")
