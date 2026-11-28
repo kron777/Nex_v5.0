@@ -1851,6 +1851,8 @@ class FountainGenerator:
                     ),
                 )
 
+            if _stopping():
+                return None
             ts_now = time.time()
             _quiescent_event_id = self._dynamic_writer.write(
                 "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
@@ -1947,10 +1949,14 @@ class FountainGenerator:
         if _own_belief_ids and readiness < _STILLNESS_READINESS_CAP:
             _jaccard = self._check_retrieval_duplicate(_own_belief_ids)
             if _jaccard >= _STILLNESS_JACCARD_THRESHOLD:
+                if _stopping():
+                    return None
                 _sig = ",".join(str(x) for x in sorted(_own_belief_ids))
                 if self._consecutive_stillness >= 3:
                     # Force-fire: three consecutive stillness events — break silence.
                     _fountain_stillness_reason = "force_fire"
+                    if _stopping():
+                        return None
                     prompt = (
                         f"You have been quiet for the last "
                         f"{self._consecutive_stillness} cycles.\n\n{prompt}"
@@ -1974,6 +1980,8 @@ class FountainGenerator:
                         pass
                     self._consecutive_stillness = 0
                 else:
+                    if _stopping():
+                        return None
                     _went_still = True
                     self._consecutive_stillness += 1
                     _ts_still = time.time()
@@ -2017,6 +2025,8 @@ class FountainGenerator:
                         f"consecutive={self._consecutive_stillness}",
                         source="stage6_fountain", level="INFO",
                     )
+        if _stopping():
+            return None
         if _went_still:
             if trace is not None:
                 _stillness_gate_id = trace.gate(
