@@ -1228,3 +1228,14 @@ Two source-level gaps were identified:
 The fetched page text is wrapped as a tool result and inserted into the voice prompt. The inspected call site does not establish a dedicated untrusted-content delimiter or a tested prompt-injection boundary. PR #384's proposed URL/selection corrections do not solve prompt injection or DNS rebinding; these remain explicit follow-up research.
 
 **Authority separation for future capabilities:** keep interpretive Mind Aspects separate from typed operation representation, capability validation, approval authority, execution and post-execution verification. The descriptive Tibetan mind map is not an action-control policy. Before adding consequential write/action tools, establish these stages explicitly; do not let a cognitive faculty score or veto an operation merely because of its descriptive position.
+
+
+### 16.9 Request-drain budget versus voice-call timeout — measured risk, not yet host-verified
+
+A source trace found a material timing mismatch: the total request/shutdown budget is **12 seconds**, while the default `VoiceClient` HTTP request timeout is **120 seconds**. The chat route may also perform one anti-repeat retry and one provenance retry, each as another sequential `state.voice.speak()` call when the relevant admin-scoped conditions are met.
+
+The shutdown gate has no cancellation hook into an admitted VoiceClient call. If an active request remains blocked beyond the 12-second deadline, `begin_shutdown()` reports failure and `run.py` calls `os._exit(1)` before `AppState.close()`, producer quiescence, Writer draining or clean-marker persistence. The supervisor can then force-kill the child at approximately 15 seconds.
+
+This is fail-closed for the clean marker, but not a completed graceful shutdown. Pending Writer work may not be drained in that path; the source trace does not establish that data loss or database corruption actually occurs.
+
+A detailed source-bounded timing report is in `research/SHUTDOWN_REQUEST_VOICE_TIMEOUT_GAP_2026-11-28.md`. The next step is a controlled host experiment measuring ordinary/worst-case chat latency (including retries), then SIGTERM during an active voice request while observing request labels, Writer queue depth, exit code and clean-marker persistence. Do not reduce the 120-second VoiceClient timeout or change the 12/15-second shutdown budgets until that evidence exists.
